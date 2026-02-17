@@ -369,9 +369,20 @@ def main():
         # CRITICAL: Write active_work file for NEW conversation even when continuing transaction.
         # The transaction file has the right session_id, but CLI commands need active_work
         # keyed by the NEW claude_session_id to resolve the correct project.
-        # BUG FIX: Use transaction's session_id, not _get_empirica_session()'s which might
-        # return a DIFFERENT session. This was causing statusline to query wrong session.
-        tx_session_id = active_transaction.get('session_id') or empirica_session
+        # BUG FIX: Use transaction's session_id, but VALIDATE it exists in sessions table.
+        # After compaction, the pre-compact session_id may be stale (different UUID that
+        # happens to share the same prefix). If stale, fall back to empirica_session.
+        tx_session_id = active_transaction.get('session_id')
+        if tx_session_id:
+            try:
+                from empirica.utils.session_resolver import _validate_session_in_db
+                if not _validate_session_in_db(tx_session_id):
+                    print(f"WARNING: Transaction session_id {tx_session_id[:8]}... not in sessions table (stale after compact)", file=sys.stderr)
+                    print(f"  Falling back to current empirica_session: {empirica_session[:8] if empirica_session else 'None'}...", file=sys.stderr)
+                    tx_session_id = empirica_session
+            except Exception:
+                pass  # If validation fails, use tx_session_id as-is
+        tx_session_id = tx_session_id or empirica_session
         _write_active_work_for_new_conversation(
             claude_session_id=claude_session_id,
             project_path=str(project_root),

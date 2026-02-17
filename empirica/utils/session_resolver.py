@@ -1009,6 +1009,103 @@ def read_active_transaction(claude_session_id: str = None) -> Optional[str]:
     return None
 
 
+def _validate_session_in_db(session_id: str) -> bool:
+    """Check if a session_id exists in the sessions table.
+
+    Prevents stale session IDs (surviving compaction) from propagating
+    through the resolution chain. Without this, post-compact hooks can
+    write a pre-compact session_id that doesn't exist in the current DB.
+
+    Args:
+        session_id: Empirica session UUID to validate
+
+    Returns:
+        True if session exists in sessions table, False otherwise.
+    """
+    if not session_id:
+        return False
+    try:
+        from empirica.data.session_database import SessionDatabase
+        db = SessionDatabase()
+        cursor = db.conn.cursor()
+        cursor.execute("SELECT 1 FROM sessions WHERE session_id = ?", (session_id,))
+        row = cursor.fetchone()
+        db.close()
+        return row is not None
+    except Exception as e:
+        logger.debug(f"_validate_session_in_db: DB check failed ({e}), allowing session")
+        return True  # Fail open — don't block if DB is unavailable
+
+
+def _find_session_for_project(project_path: str) -> Optional[str]:
+    """Find the latest valid session_id for a project path.
+
+    Fallback when the resolved session_id is stale (not in sessions table).
+    Queries for the most recent active session matching the project.
+
+    Args:
+        project_path: Filesystem path to the project
+
+    Returns:
+        Valid session_id, or None if no matching session found.
+    """
+    if not project_path:
+        return None
+    try:
+        from empirica.data.session_database import SessionDatabase
+        from pathlib import Path
+
+        folder_name = Path(project_path).name
+
+        db = SessionDatabase()
+        cursor = db.conn.cursor()
+
+        # Look up project_id from projects table (columns: id, name)
+        cursor.execute(
+            "SELECT id FROM projects WHERE name = ?",
+            (folder_name,)
+        )
+        row = cursor.fetchone()
+
+        if not row:
+            # Fallback: check workspace.db for trajectory_path mapping
+            import sqlite3
+            workspace_db = Path.home() / '.empirica' / 'workspace' / 'workspace.db'
+            if workspace_db.exists():
+                wconn = sqlite3.connect(str(workspace_db))
+                wcursor = wconn.cursor()
+                wcursor.execute(
+                    "SELECT id FROM global_projects WHERE trajectory_path LIKE ? AND status = 'active'",
+                    (f'%/{folder_name}%',)
+                )
+                wrow = wcursor.fetchone()
+                wconn.close()
+                if wrow:
+                    row = wrow
+
+        if not row:
+            db.close()
+            return None
+
+        project_id = row[0]
+
+        # Find latest session for this project
+        cursor.execute(
+            "SELECT session_id FROM sessions WHERE project_id = ? ORDER BY start_time DESC LIMIT 1",
+            (project_id,)
+        )
+        session_row = cursor.fetchone()
+        db.close()
+
+        if session_row:
+            logger.info(f"_find_session_for_project: resolved stale session to {session_row[0][:8]}... via project {folder_name}")
+            return session_row[0]
+        return None
+    except Exception as e:
+        logger.debug(f"_find_session_for_project: failed ({e})")
+        return None
+
+
 def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[str]:
     """Get the active Empirica session ID for CLI commands.
 
@@ -1019,6 +1116,10 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
     1. Active transaction (TRANSACTION-FIRST - transaction survives compaction)
     2. active_work file (from project-switch/PREFLIGHT)
     3. instance_projects file (TMUX-based fallback)
+
+    Each resolved session_id is validated against the sessions table.
+    If stale (post-compaction mismatch), falls back to finding the latest
+    session for the same project.
 
     Args:
         claude_session_id: Optional Claude Code conversation UUID (from hook input)
@@ -1032,13 +1133,18 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
             print("No active transaction - run PREFLIGHT first")
             return
     """
+    project_path_for_fallback = None
+
     # Priority 1: Active transaction (AUTHORITATIVE during transaction)
     tx_data = read_active_transaction_full(claude_session_id)
     if tx_data and tx_data.get('status') == 'open':
         session_id = tx_data.get('session_id')
         if session_id:
-            logger.debug(f"get_active_empirica_session_id: from transaction: {session_id[:8]}...")
-            return session_id
+            if _validate_session_in_db(session_id):
+                logger.debug(f"get_active_empirica_session_id: from transaction: {session_id[:8]}...")
+                return session_id
+            else:
+                logger.warning(f"get_active_empirica_session_id: stale session in transaction: {session_id[:8]}...")
 
     # Priority 2: active_work file
     if claude_session_id:
@@ -1049,9 +1155,13 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
                 with open(active_work_file, 'r') as f:
                     data = json.load(f)
                     session_id = data.get('empirica_session_id')
+                    project_path_for_fallback = data.get('project_path')
                     if session_id:
-                        logger.debug(f"get_active_empirica_session_id: from active_work: {session_id[:8]}...")
-                        return session_id
+                        if _validate_session_in_db(session_id):
+                            logger.debug(f"get_active_empirica_session_id: from active_work: {session_id[:8]}...")
+                            return session_id
+                        else:
+                            logger.warning(f"get_active_empirica_session_id: stale session in active_work: {session_id[:8]}...")
             except Exception:
                 pass
 
@@ -1065,11 +1175,23 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
                 with open(instance_file, 'r') as f:
                     data = json.load(f)
                     session_id = data.get('empirica_session_id')
+                    if not project_path_for_fallback:
+                        project_path_for_fallback = data.get('project_path')
                     if session_id:
-                        logger.debug(f"get_active_empirica_session_id: from instance_projects: {session_id[:8]}...")
-                        return session_id
+                        if _validate_session_in_db(session_id):
+                            logger.debug(f"get_active_empirica_session_id: from instance_projects: {session_id[:8]}...")
+                            return session_id
+                        else:
+                            logger.warning(f"get_active_empirica_session_id: stale session in instance_projects: {session_id[:8]}...")
             except Exception:
                 pass
+
+    # Fallback: all sources returned stale session_ids — try to find valid session for project
+    if project_path_for_fallback:
+        fallback_session = _find_session_for_project(project_path_for_fallback)
+        if fallback_session:
+            logger.info(f"get_active_empirica_session_id: recovered via project fallback: {fallback_session[:8]}...")
+            return fallback_session
 
     logger.debug("get_active_empirica_session_id: no active session found")
     return None
