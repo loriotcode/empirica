@@ -29,16 +29,26 @@ except ImportError:
 
 
 def _get_instance_id() -> Optional[str]:
-    """Derive instance ID from environment. TMUX_PANE → TTY → 'default'."""
+    """Derive instance ID from environment. TMUX_PANE → TERM_SESSION_ID → WINDOWID → 'default'.
+
+    NOTE: os.ttyname(sys.stdin.fileno()) is NOT attempted here because hooks
+    receive stdin as a pipe from Claude Code, so it always fails. Use env vars
+    that are reliably inherited instead.
+    """
     tmux_pane = os.environ.get('TMUX_PANE')
     if tmux_pane:
         return f"tmux_{tmux_pane.lstrip('%')}"
-    try:
-        tty_path = os.ttyname(sys.stdin.fileno())
-        safe = tty_path.replace('/', '_').lstrip('_').replace('dev_', '')
-        return f"term_{safe}"
-    except Exception:
-        pass
+
+    # macOS Terminal.app session (matches resolver priority chain)
+    term_session = os.environ.get('TERM_SESSION_ID')
+    if term_session:
+        return f"term:{term_session[:16]}"
+
+    # X11 window ID
+    window_id = os.environ.get('WINDOWID')
+    if window_id:
+        return f"x11:{window_id}"
+
     return "default"
 
 
@@ -179,6 +189,111 @@ def find_project_root(claude_session_id: str = None) -> Optional[Path]:
     return None
 
 
+def _write_active_transaction_for_new_conversation(
+    active_transaction: dict,
+    project_path: str,
+    instance_id: str = None
+) -> bool:
+    """
+    Write active_transaction file for the NEW conversation after compaction.
+
+    This is CRITICAL: without this file, Sentinel and statusline cannot find
+    the current transaction's state. They fall back to querying without
+    transaction_id filter, potentially picking up wrong CHECK data from
+    older transactions.
+
+    The pre-compact hook captures the transaction in the snapshot.
+    This function writes it back to the filesystem for the new Claude process.
+    """
+    if not active_transaction:
+        return False
+
+    try:
+        suffix = f'_{instance_id}' if instance_id else ''
+
+        if project_path:
+            tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
+        else:
+            tx_file = Path.home() / '.empirica' / f'active_transaction{suffix}.json'
+
+        tx_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Update timestamp but preserve original transaction data
+        tx_data = {
+            'transaction_id': active_transaction.get('transaction_id'),
+            'session_id': active_transaction.get('session_id'),
+            'preflight_timestamp': active_transaction.get('preflight_timestamp'),
+            'status': active_transaction.get('status', 'open'),
+            'project_path': project_path,
+            'updated_at': datetime.now().timestamp()
+        }
+
+        with open(tx_file, 'w') as f:
+            json.dump(tx_data, f, indent=2)
+
+        return True
+    except Exception:
+        return False
+
+
+def _write_active_work_for_new_conversation(
+    claude_session_id: str,
+    project_path: str,
+    empirica_session_id: str,
+    instance_id: str = None
+) -> bool:
+    """
+    Write active_work file for the NEW conversation after compaction.
+
+    This is CRITICAL: without this file, all subsequent CLI commands in the
+    new conversation (project-bootstrap, finding-log, goals-create, etc.)
+    will fail to resolve the correct project and fall through to CWD-based
+    resolution, which poisons context with the wrong project.
+
+    The pre-compact hook writes compact_handoff for project resolution,
+    but this function writes active_work for CLI command resolution.
+
+    NOTE: Even if claude_session_id is null, we still write instance_projects
+    because instance_id-based isolation still works. The active_work file
+    requires claude_session_id as its key, so that's skipped if null.
+    """
+    try:
+        folder_name = Path(project_path).name if project_path else None
+
+        # Write active_work file only if we have claude_session_id (it's the filename key)
+        if claude_session_id:
+            active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
+            work_data = {
+                'project_path': project_path,
+                'folder_name': folder_name,
+                'claude_session_id': claude_session_id,
+                'empirica_session_id': empirica_session_id,
+                'source': 'post-compact',
+                'timestamp': datetime.now().isoformat(),
+                'timestamp_epoch': datetime.now().timestamp()
+            }
+            with open(active_work_file, 'w') as f:
+                json.dump(work_data, f, indent=2)
+
+        # ALWAYS update instance_projects - instance_id isolation works even without claude_session_id
+        # This is the primary isolation mechanism for multi-pane tmux setups
+        if instance_id:
+            instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
+            instance_file.parent.mkdir(parents=True, exist_ok=True)
+            instance_data = {
+                'project_path': project_path,
+                'claude_session_id': claude_session_id,  # May be null, that's OK
+                'empirica_session_id': empirica_session_id,
+                'timestamp': datetime.now().isoformat()
+            }
+            with open(instance_file, 'w') as f:
+                json.dump(instance_data, f, indent=2)
+
+        return True
+    except Exception:
+        return False
+
+
 def main():
     hook_input = json.loads(sys.stdin.read())
     claude_session_id = hook_input.get('session_id')
@@ -195,6 +310,9 @@ def main():
         }))
         sys.exit(1)
     os.chdir(project_root)
+
+    # Compute instance_id for active_work file writing
+    instance_id = _get_instance_id()
 
     # Now safe to import empirica (after cwd is set correctly)
     sys.path.insert(0, str(Path.home() / 'empirical-ai' / 'empirica'))
@@ -239,7 +357,7 @@ def main():
     session_bootstrap = None
 
     # TRANSACTION CONTINUITY: If there's an open transaction, just continue
-    # The transaction file persists on disk - no action needed from AI
+    # We recreate the transaction file below (it doesn't persist across processes)
     if active_transaction and active_transaction.get('status') == 'open':
         recovery_prompt = _generate_transaction_continue_prompt(
             pre_vectors=pre_vectors,
@@ -247,6 +365,39 @@ def main():
             active_transaction=active_transaction
         )
         action_required = "CONTINUE_TRANSACTION"
+
+        # CRITICAL: Write active_work file for NEW conversation even when continuing transaction.
+        # The transaction file has the right session_id, but CLI commands need active_work
+        # keyed by the NEW claude_session_id to resolve the correct project.
+        # BUG FIX: Use transaction's session_id, but VALIDATE it exists in sessions table.
+        # After compaction, the pre-compact session_id may be stale (different UUID that
+        # happens to share the same prefix). If stale, fall back to empirica_session.
+        tx_session_id = active_transaction.get('session_id')
+        if tx_session_id:
+            try:
+                from empirica.utils.session_resolver import _validate_session_in_db
+                if not _validate_session_in_db(tx_session_id):
+                    print(f"WARNING: Transaction session_id {tx_session_id[:8]}... not in sessions table (stale after compact)", file=sys.stderr)
+                    print(f"  Falling back to current empirica_session: {empirica_session[:8] if empirica_session else 'None'}...", file=sys.stderr)
+                    tx_session_id = empirica_session
+            except Exception:
+                pass  # If validation fails, use tx_session_id as-is
+        tx_session_id = tx_session_id or empirica_session
+        _write_active_work_for_new_conversation(
+            claude_session_id=claude_session_id,
+            project_path=str(project_root),
+            empirica_session_id=tx_session_id,
+            instance_id=instance_id
+        )
+
+        # CRITICAL: Also write active_transaction file for Sentinel and statusline.
+        # The OLD Claude process created this file during PREFLIGHT, but it's gone now.
+        # Without this, Sentinel/statusline fall back to wrong transaction data.
+        _write_active_transaction_for_new_conversation(
+            active_transaction=active_transaction,
+            project_path=str(project_root),
+            instance_id=instance_id
+        )
     elif phase_state.get('is_complete'):
         # NEW: Actually create session and run bootstrap here
         # This enforces the correct sequence before AI does PREFLIGHT
@@ -265,6 +416,16 @@ def main():
         # Update session_id if we created one
         if session_bootstrap.get('session_id'):
             empirica_session = session_bootstrap['session_id']
+
+        # CRITICAL: Write active_work file for NEW conversation so all subsequent
+        # CLI commands (project-bootstrap, finding-log, etc.) resolve correctly.
+        # Without this, CLI falls through to CWD-based git remote lookup = wrong project.
+        _write_active_work_for_new_conversation(
+            claude_session_id=claude_session_id,
+            project_path=str(project_root),
+            empirica_session_id=empirica_session,
+            instance_id=instance_id
+        )
     else:
         recovery_prompt = _generate_check_prompt(
             pre_vectors=pre_vectors,
@@ -272,6 +433,14 @@ def main():
             dynamic_context=dynamic_context
         )
         action_required = "CHECK_GATE"
+
+        # CRITICAL: Write active_work file for NEW conversation
+        _write_active_work_for_new_conversation(
+            claude_session_id=claude_session_id,
+            project_path=str(project_root),
+            empirica_session_id=empirica_session,
+            instance_id=instance_id
+        )
 
     # Calculate what drift WOULD be if vectors unchanged (to show the problem)
     potential_drift = _calculate_potential_drift(pre_vectors)
@@ -1068,7 +1237,11 @@ def _calculate_potential_drift(pre_vectors: dict) -> dict:
             "know": pre_know,
             "uncertainty": pre_unc
         },
-        "message": "Assess your ACTUAL post-compact epistemic state honestly. Context was lost — reflect that in your vectors."
+        "expected_honest_post_compact": {
+            "know": max(0.3, pre_know - 0.2),  # Typically drops
+            "uncertainty": min(0.8, pre_unc + 0.2)  # Typically rises
+        },
+        "message": "If your post-compact know equals pre-compact, you may be overestimating"
     }
 
 

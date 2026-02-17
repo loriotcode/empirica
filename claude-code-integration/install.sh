@@ -5,7 +5,7 @@
 set -e
 
 PLUGIN_NAME="empirica-integration"
-PLUGIN_VERSION="1.5.0"
+PLUGIN_VERSION="1.5.1"
 PLUGIN_DIR="$HOME/.claude/plugins/local/$PLUGIN_NAME"
 MARKETPLACE_DIR="$HOME/.claude/plugins/local/.claude-plugin"
 SETTINGS_FILE="$HOME/.claude/settings.json"
@@ -168,10 +168,12 @@ chmod +x "$PLUGIN_DIR/scripts/"*.py 2>/dev/null || true
 
 # ==================== INSTALL CLAUDE.md ====================
 
-echo "📝 Checking CLAUDE.md system prompt..."
-if [ -f "$HOME/.claude/CLAUDE.md" ]; then
-    echo "   ✓ CLAUDE.md already exists — skipping (user-managed)"
-elif [ -f "$PLUGIN_DIR/templates/CLAUDE.md" ]; then
+echo "📝 Installing CLAUDE.md system prompt..."
+if [ -f "$PLUGIN_DIR/templates/CLAUDE.md" ]; then
+    if [ -f "$HOME/.claude/CLAUDE.md" ]; then
+        echo "   CLAUDE.md already exists - backing up to CLAUDE.md.bak"
+        cp "$HOME/.claude/CLAUDE.md" "$HOME/.claude/CLAUDE.md.bak"
+    fi
     cp "$PLUGIN_DIR/templates/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
     echo "   ✓ CLAUDE.md installed to ~/.claude/CLAUDE.md"
 else
@@ -197,8 +199,9 @@ jq --arg name "$PLUGIN_NAME@local" '.enabledPlugins[$name] = true' "$SETTINGS_FI
 echo "   ✓ Plugin enabled in settings.json"
 
 # Add StatusLine if not present
+# NOTE: < /dev/null prevents stdin hangs when Claude Code invokes the statusline
 if ! jq -e '.statusLine' "$SETTINGS_FILE" >/dev/null 2>&1; then
-    jq --arg cmd "$PYTHON_CMD $PLUGIN_DIR/scripts/statusline_empirica.py" \
+    jq --arg cmd "$PYTHON_CMD $PLUGIN_DIR/scripts/statusline_empirica.py < /dev/null" \
        '.statusLine = {"type": "command", "command": $cmd}' \
        "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
     echo "   ✓ StatusLine configured"

@@ -54,8 +54,9 @@ SAFE_BASH_PREFIXES = (
     'cat ', 'head ', 'tail ', 'less ', 'more ',
     'ls', 'ls ', 'dir ', 'tree ', 'file ', 'stat ', 'wc ',
     'find ', 'locate ', 'which ', 'type ', 'whereis ',
-    # Text search/processing (read-only)
+    # Text/data search/processing (read-only)
     'grep ', 'rg ', 'ag ', 'ack ', 'sed -n', 'awk ',
+    'jq ', 'jq.',  # JSON processing (read-only)
     # Git read operations
     'git status', 'git log', 'git diff', 'git show', 'git branch',
     'git remote', 'git tag', 'git stash list', 'git blame',
@@ -73,6 +74,9 @@ SAFE_BASH_PREFIXES = (
     'cargo tree', 'cargo metadata',
     # Process inspection
     'ps ', 'top -b -n 1', 'pgrep ', 'jobs',
+    # Terminal/tmux inspection (read-only)
+    'tmux capture-pane', 'tmux list-panes', 'tmux list-windows',
+    'tmux list-sessions', 'tmux display-message', 'tmux show-option',
     # Disk inspection
     'df ', 'du ', 'mount', 'lsblk',
     # Network inspection (not modification)
@@ -125,10 +129,27 @@ TRANSITION_COMMANDS = (
     'empirica project-switch',       # Switch active project context
     'empirica project-list',         # List available projects
     'empirica preflight-submit',     # Start new epistemic cycle (was missing = chicken-and-egg bug)
+    'git add',                       # Stage work from completed transaction
+    'git commit',                    # Commit work from completed transaction
 )
 
 
-PAUSE_FILE = Path.home() / '.empirica' / 'sentinel_paused'
+PAUSE_FILE_BASE = Path.home() / '.empirica'
+PAUSE_FILE_GLOBAL = PAUSE_FILE_BASE / 'sentinel_paused'
+
+
+def get_pause_file_path() -> Path:
+    """Get instance-specific pause file path.
+
+    Returns ~/.empirica/sentinel_paused_{instance_id} for per-instance control.
+    Falls back to ~/.empirica/sentinel_paused global file if no instance_id.
+    """
+    instance_id = get_instance_id()
+    if instance_id:
+        # Sanitize instance_id for filename (remove special chars)
+        safe_id = instance_id.replace('/', '-').replace('%', '')
+        return PAUSE_FILE_BASE / f'sentinel_paused_{safe_id}'
+    return PAUSE_FILE_GLOBAL
 
 
 def get_instance_id() -> Optional[str]:
@@ -156,10 +177,18 @@ def get_instance_id() -> Optional[str]:
 def is_empirica_paused() -> bool:
     """Check if Empirica tracking is paused (off-the-record mode).
 
-    Signal file: ~/.empirica/sentinel_paused (JSON with timestamp, reason).
+    Checks instance-specific pause file first, then global.
+    Instance: ~/.empirica/sentinel_paused_{instance_id}
+    Global:   ~/.empirica/sentinel_paused
+
     This is the cheapest check - no DB needed. Called before any other logic.
     """
-    return PAUSE_FILE.exists()
+    # Check instance-specific pause file first
+    instance_pause = get_pause_file_path()
+    if instance_pause.exists():
+        return True
+    # Fallback to global pause (backward compat, also allows pausing ALL instances)
+    return PAUSE_FILE_GLOBAL.exists()
 
 
 # Tiered Empirica CLI whitelist (replaces blanket 'empirica ' whitelist)
@@ -167,7 +196,10 @@ def is_empirica_paused() -> bool:
 # Also includes administrative commands (project-switch, project-list) that should always be allowed
 EMPIRICA_TIER1_PREFIXES = (
     'empirica epistemics-list', 'empirica epistemics-show',
-    'empirica goals-list', 'empirica get-goal-progress', 'empirica get-goal-subtasks',
+    'empirica goals-list', 'empirica goal-list', 'empirica gl',  # Goal list + aliases
+    'empirica goals-progress', 'empirica goal-progress',  # Goal progress + alias
+    'empirica get-goal-progress', 'empirica get-goal-subtasks', 'empirica goals-get-subtasks',
+    'empirica goals-discover', 'empirica goal-analysis',  # Goal queries
     'empirica project-bootstrap', 'empirica project-search',
     'empirica project-switch', 'empirica project-list',  # Administrative - always allowed
     'empirica session-snapshot', 'empirica get-session-summary',
@@ -181,6 +213,11 @@ EMPIRICA_TIER1_PREFIXES = (
     'empirica issue-list',
     'empirica docs-assess',  # Documentation assessment - read-only investigation tool
     'empirica calibration-report',  # Calibration analysis - read-only
+    'empirica lesson-list', 'empirica lesson-search', 'empirica lesson-recommend',
+    'empirica lesson-stats',  # Lesson queries - read-only
+    'empirica sentinel-status', 'empirica sentinel-check',  # Sentinel queries - read-only
+    'empirica goals-search', 'empirica goals-get-stale',  # Goal queries - read-only
+    'empirica workspace-list', 'empirica ecosystem-check',  # Workspace queries - read-only
     'empirica --help', 'empirica -h',
     'empirica version',
 )
@@ -193,8 +230,12 @@ EMPIRICA_TIER2_PREFIXES = (
     'empirica preflight-submit', 'empirica check-submit', 'empirica postflight-submit',
     'empirica finding-log', 'empirica unknown-log', 'empirica deadend-log',
     'empirica mistake-log', 'empirica log-mistake',
-    'empirica goals-create', 'empirica goals-complete', 'empirica goals-add-subtask',
-    'empirica goals-complete-subtask', 'empirica goals-claim',
+    'empirica goals-create', 'empirica goal-create', 'empirica gc',  # Goal create + aliases
+    'empirica goals-complete', 'empirica goal-complete',  # Goal complete + alias
+    'empirica goals-add-subtask', 'empirica goal-add-subtask',  # Add subtask + alias
+    'empirica goals-complete-subtask', 'empirica goal-complete-subtask',  # Complete subtask + alias
+    'empirica goals-add-dependency', 'empirica goals-resume',  # Goal management
+    'empirica goals-claim',
     'empirica session-create', 'empirica session-end',
     'empirica create-goal', 'empirica add-subtask', 'empirica complete-subtask',
     'empirica create-handoff', 'empirica resume-goal',
@@ -204,21 +245,14 @@ EMPIRICA_TIER2_PREFIXES = (
     'empirica memory-compact', 'empirica resume-previous-session',
     'empirica agent-spawn', 'empirica investigate',
     'empirica refdoc-add', 'empirica source-add',
+    'empirica assumption-log', 'empirica decision-log',  # Noetic artifacts - assumptions/decisions
+    'empirica lesson-create', 'empirica lesson-load', 'empirica lesson-path',
+    'empirica lesson-replay-start', 'empirica lesson-replay-end',
+    'empirica lesson-embed',  # Lesson lifecycle commands
+    'empirica sentinel-orchestrate', 'empirica sentinel-load-profile',  # Sentinel management
+    'empirica artifacts-generate',  # Artifact generation
+    'empirica goals-mark-stale', 'empirica goals-refresh',  # Goal staleness management
 )
-
-
-def _check_empirica_prefixes(cmd: str) -> bool:
-    """Check if a single command segment matches empirica tier 1 or tier 2 prefixes."""
-    cmd = cmd.lstrip()
-    if not cmd.startswith('empirica '):
-        return False
-    for prefix in EMPIRICA_TIER1_PREFIXES:
-        if cmd.startswith(prefix):
-            return True
-    for prefix in EMPIRICA_TIER2_PREFIXES:
-        if cmd.startswith(prefix):
-            return True
-    return False
 
 
 def is_safe_empirica_command(command: str) -> bool:
@@ -227,27 +261,22 @@ def is_safe_empirica_command(command: str) -> bool:
     Tier 1: Read-only (always allowed)
     Tier 2: State-changing (allowed - these are the epistemic workflow itself)
 
-    Handles pipes (echo '...' | empirica preflight-submit -) and && chains.
     Toggle operations are NOT whitelisted here - they use self-exemption
     in the main gate logic to prevent prompt injection bypass.
     """
     cmd = command.lstrip()
+    if not cmd.startswith('empirica '):
+        return False
 
-    # Direct match
-    if _check_empirica_prefixes(cmd):
-        return True
+    # Tier 1: Read-only - always safe
+    for prefix in EMPIRICA_TIER1_PREFIXES:
+        if cmd.startswith(prefix):
+            return True
 
-    # Check pipe segments (echo '...' | empirica command)
-    if '|' in cmd:
-        for segment in cmd.split('|'):
-            if _check_empirica_prefixes(segment.strip()):
-                return True
-
-    # Check && chain segments
-    if '&&' in cmd:
-        for segment in cmd.split('&&'):
-            if _check_empirica_prefixes(segment.strip()):
-                return True
+    # Tier 2: State-changing - allowed (these enable the workflow)
+    for prefix in EMPIRICA_TIER2_PREFIXES:
+        if cmd.startswith(prefix):
+            return True
 
     return False
 
@@ -261,17 +290,12 @@ def is_toggle_command(command: str) -> Optional[str]:
     """
     cmd = command.lstrip()
 
-    # Detect pause file write (multiple patterns)
-    if 'sentinel_paused' in cmd:
-        # python3 -c "...write_text..." or python3 -c "...open(..."
-        if 'write_text' in cmd or 'open(' in cmd:
-            return 'pause'
-        # echo '...' > ~/.empirica/sentinel_paused
-        if '>' in cmd:
-            return 'pause'
+    # Detect pause file write (python3 -c "..." writing sentinel_paused)
+    if 'sentinel_paused' in cmd and ('write_text' in cmd or 'open(' in cmd):
+        return 'pause'
 
     # Detect pause file removal
-    if ('sentinel_paused' in cmd) and (cmd.startswith('rm ') or cmd.startswith('rm -')):
+    if cmd.startswith('rm ') and ('sentinel_paused' in cmd):
         return 'unpause'
 
     return None
@@ -289,7 +313,10 @@ def is_transition_command(command: str) -> bool:
     problem where you can't switch projects without a new PREFLIGHT,
     but can't create a PREFLIGHT in the new project without switching.
 
-    Handles pipes (echo '...' | empirica preflight-submit) and && chains.
+    Also handles piped and chained commands:
+    - echo '...' | empirica preflight-submit -
+    - cat file | empirica preflight-submit -
+    - cd /path && empirica preflight-submit - << 'EOF'
     """
     cmd = command.lstrip()
 
@@ -298,7 +325,7 @@ def is_transition_command(command: str) -> bool:
         if cmd.startswith(prefix):
             return True
 
-    # Check pipe segments (echo '...' | empirica preflight-submit -)
+    # Check pipe segments: echo '...' | empirica preflight-submit -
     if '|' in cmd:
         for segment in cmd.split('|'):
             segment = segment.strip()
@@ -306,20 +333,22 @@ def is_transition_command(command: str) -> bool:
                 if segment.startswith(prefix):
                     return True
 
-    # Check && chain segments
+    # Check && chain segments: cd /path && empirica preflight-submit -
     if '&&' in cmd:
         for segment in cmd.split('&&'):
             segment = segment.strip()
+            # Strip heredoc suffix for matching
+            segment_clean = segment.split('<<')[0].strip() if '<<' in segment else segment
             for prefix in TRANSITION_COMMANDS:
-                if segment.startswith(prefix):
+                if segment_clean.startswith(prefix):
                     return True
 
     return False
 
 
-def respond(decision, reason=""):
+def respond(decision: str, reason: str = "") -> None:
     """Output in Claude Code's expected format."""
-    output = {
+    output: dict = {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": decision,
@@ -332,7 +361,7 @@ def respond(decision, reason=""):
     print(json.dumps(output))
 
 
-def resolve_project_root(claude_session_id: str = None) -> Optional[Path]:
+def resolve_project_root(claude_session_id: Optional[str] = None) -> Optional[Path]:
     """Resolve the correct project root using the shared project_resolver.
 
     Uses canonical get_active_project_path() from lib/project_resolver.py.
@@ -364,7 +393,7 @@ def find_empirica_package() -> Optional[Path]:
     """
     # Check if already importable (pip installed)
     try:
-        import empirica.config.path_resolver
+        import empirica.config.path_resolver  # type: ignore[import-not-found]
         return None  # Already available, no path needed
     except ImportError:
         pass
@@ -420,7 +449,7 @@ def _get_current_project_id(db_conn, session_id: str) -> Optional[str]:
     return None
 
 
-def get_last_compact_timestamp(project_root: Path) -> datetime:
+def get_last_compact_timestamp(project_root: Path) -> Optional[datetime]:
     """Get timestamp of most recent compact from pre_summary snapshot."""
     try:
         ref_docs_dir = project_root / ".empirica" / "ref-docs"
@@ -450,36 +479,39 @@ def is_safe_bash_command(tool_input: dict) -> bool:
     if is_safe_empirica_command(command):
         return True
 
-    # Special case: && chains where ALL segments are safe (noetic)
-    # This allows: cd /path && grep ..., cd /path && empirica check-submit
-    if '&&' in command:
-        segments = [s.strip() for s in command.split('&&')]
-        all_segments_safe = True
-        for segment in segments:
-            # Strip heredoc suffix for matching
-            segment_clean = segment.split('<<')[0].strip() if '<<' in segment else segment
-            # Check if segment is: cd, safe empirica, or starts with safe prefix
-            if segment_clean.startswith('cd '):
-                continue  # cd is always safe
-            if is_safe_empirica_command(segment_clean):
-                continue  # empirica tier1/tier2 commands are safe
-            # Check against SAFE_BASH_PREFIXES (grep, cat, ls, git status, etc.)
-            segment_is_safe = False
-            for prefix in SAFE_BASH_PREFIXES:
-                if segment_clean.startswith(prefix) or (prefix.endswith(' ') and segment_clean == prefix.rstrip()):
-                    segment_is_safe = True
+    # Special case: && and || chains where ALL segments are safe (noetic)
+    # This allows: cd /path && grep ..., tmux capture-pane || echo "fallback"
+    for chain_op in ('&&', '||'):
+        if chain_op in command:
+            segments = [s.strip() for s in command.split(chain_op)]
+            all_segments_safe = True
+            for segment in segments:
+                # Strip heredoc suffix for matching
+                segment_clean = segment.split('<<')[0].strip() if '<<' in segment else segment
+                # Strip safe redirects for matching (2>/dev/null, 2>&1)
+                segment_clean = SAFE_REDIRECT_PATTERN.sub('', segment_clean).strip()
+                # Check if segment is: cd, safe empirica, or starts with safe prefix
+                if segment_clean.startswith('cd '):
+                    continue  # cd is always safe
+                if is_safe_empirica_command(segment_clean):
+                    continue  # empirica tier1/tier2 commands are safe
+                # Check against SAFE_BASH_PREFIXES (grep, cat, ls, git status, etc.)
+                segment_is_safe = False
+                for prefix in SAFE_BASH_PREFIXES:
+                    if segment_clean.startswith(prefix) or (prefix.endswith(' ') and segment_clean == prefix.rstrip()):
+                        segment_is_safe = True
+                        break
+                if not segment_is_safe:
+                    all_segments_safe = False
                     break
-            if not segment_is_safe:
-                all_segments_safe = False
-                break
-        if all_segments_safe:
-            return True
+            if all_segments_safe:
+                return True
 
     # Check for dangerous shell operators (command injection prevention)
     # This blocks: ls; rm -rf, echo > file, etc.
-    # NOTE: && is handled above for safe chains, so we skip it here
+    # NOTE: && and || are handled above for safe chains, so we skip them here
     for operator in DANGEROUS_SHELL_OPERATORS:
-        if operator == '&&':
+        if operator in ('&&', '||'):
             continue  # Already handled above - only block if chain wasn't all-safe
         if operator in command:
             return False
@@ -563,6 +595,7 @@ def is_safe_pipe_chain(command: str) -> bool:
     Check if a piped command chain is safe (all segments are read-only).
 
     Allows: grep pattern file | head -20 | wc -l
+    Allows: echo '...' | empirica preflight-submit -  (empirica CLI)
     Blocks: grep pattern | xargs rm, cat file | bash
     """
     segments = [s.strip() for s in command.split('|')]
@@ -588,13 +621,24 @@ def is_safe_pipe_chain(command: str) -> bool:
     if not first_is_safe:
         return False
 
-    # All subsequent segments must start with safe pipe targets
+    # All subsequent segments must start with safe pipe targets OR be safe empirica commands
     for segment in segments[1:]:
+        segment = segment.strip()
+        # Strip heredoc suffix for matching (e.g., "empirica preflight-submit - << 'EOF'")
+        segment_clean = segment.split('<<')[0].strip() if '<<' in segment else segment
         segment_safe = False
-        for target in SAFE_PIPE_TARGETS:
-            if segment.startswith(target):
-                segment_safe = True
-                break
+
+        # Check empirica CLI whitelist (tiered)
+        if is_safe_empirica_command(segment_clean):
+            segment_safe = True
+
+        # Check standard safe pipe targets
+        if not segment_safe:
+            for target in SAFE_PIPE_TARGETS:
+                if segment.startswith(target):
+                    segment_safe = True
+                    break
+
         if not segment_safe:
             return False
 
@@ -651,62 +695,10 @@ def main():
     if project_root:
         empirica_root = project_root / '.empirica'
         os.chdir(project_root)  # Set CWD to the correct project
-
-        # SELF-HEAL: If we have claude_session_id but the active_work file is missing
-        # or has null claude_session_id, persist it now. This fixes the gap where
-        # session-init.py may fail to capture session_id from hook input.
-        if claude_session_id:
-            try:
-                aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
-                needs_update = False
-                existing_data = {}
-                if aw_file.exists():
-                    with open(aw_file, 'r') as f:
-                        existing_data = json.load(f)
-                    # Only heal if claude_session_id is null/missing in the file
-                    if not existing_data.get('claude_session_id'):
-                        needs_update = True
-                else:
-                    needs_update = True
-
-                if needs_update:
-                    import time as _time
-                    heal_data = existing_data or {}
-                    heal_data.update({
-                        'project_path': str(project_root),
-                        'folder_name': project_root.name,
-                        'claude_session_id': claude_session_id,
-                        'source': 'sentinel-self-heal',
-                        'timestamp': _time.strftime('%Y-%m-%dT%H:%M:%S%z'),
-                    })
-                    aw_file.parent.mkdir(parents=True, exist_ok=True)
-                    with open(aw_file, 'w') as f:
-                        json.dump(heal_data, f, indent=2)
-                    # Also heal generic active_work.json for statusline
-                    generic_aw = Path.home() / '.empirica' / 'active_work.json'
-                    with open(generic_aw, 'w') as f:
-                        json.dump(heal_data, f, indent=2)
-                    # Also heal instance_projects if it has null claude_session_id
-                    try:
-                        inst_id = get_instance_id()
-                        if inst_id:
-                            inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{inst_id}.json'
-                            if inst_file.exists():
-                                with open(inst_file, 'r') as f:
-                                    inst_data = json.load(f)
-                                if not inst_data.get('claude_session_id'):
-                                    inst_data['claude_session_id'] = claude_session_id
-                                    inst_data['project_path'] = str(project_root)
-                                    with open(inst_file, 'w') as f:
-                                        json.dump(inst_data, f, indent=2)
-                    except Exception:
-                        pass
-            except Exception:
-                pass  # Self-heal is best-effort, never block tool calls
     else:
         # Fallback to path_resolver if priority chain fails
         try:
-            from empirica.config.path_resolver import get_empirica_root
+            from empirica.config.path_resolver import get_empirica_root  # type: ignore[import-not-found]
             empirica_root = get_empirica_root()
             if empirica_root.exists():
                 os.chdir(empirica_root.parent)
@@ -755,7 +747,7 @@ def main():
         sys.exit(0)
 
     # SessionDatabase uses path_resolver internally for DB location
-    from empirica.data.session_database import SessionDatabase
+    from empirica.data.session_database import SessionDatabase  # type: ignore[import-not-found]
     db = SessionDatabase()
     cursor = db.conn.cursor()
 
@@ -786,10 +778,15 @@ def main():
     preflight_row = cursor.fetchone()
 
     if not preflight_row:
-        # No PREFLIGHT yet - but allow transition commands to enable project switch
-        # This handles the case where a new session was created but no PREFLIGHT submitted
+        # No PREFLIGHT yet - allow read-only/workflow commands + transitions
+        # This enables artifact lifecycle review before starting a new transaction:
+        # goals-list, epistemics-list, goals-complete, unknown-resolve, etc.
         if tool_name == 'Bash':
             command = tool_input.get('command', '')
+            if is_safe_bash_command(tool_input):
+                db.close()
+                respond("allow", "Safe Bash before PREFLIGHT (artifact review)")
+                sys.exit(0)
             if is_transition_command(command):
                 db.close()
                 respond("allow", "Transition command (no PREFLIGHT yet - starting new cycle)")
@@ -823,19 +820,12 @@ def main():
     # POSTFLIGHT LOOP CHECK: If POSTFLIGHT exists after PREFLIGHT, loop is closed
     # This enforces the epistemic cycle: PREFLIGHT → work → POSTFLIGHT → (new PREFLIGHT required)
     # Scope by transaction_id to prevent cross-instance bleed (multiple Claudes sharing session)
-    # When no transaction_id, also scope by project_id to prevent cross-project bleed
     if current_transaction_id:
         cursor.execute("""
             SELECT timestamp FROM reflexes
             WHERE session_id = ? AND phase = 'POSTFLIGHT' AND transaction_id = ?
             ORDER BY timestamp DESC LIMIT 1
         """, (session_id, current_transaction_id))
-    elif current_project_id:
-        cursor.execute("""
-            SELECT timestamp FROM reflexes
-            WHERE session_id = ? AND phase = 'POSTFLIGHT' AND project_id = ?
-            ORDER BY timestamp DESC LIMIT 1
-        """, (session_id, current_project_id))
     else:
         cursor.execute("""
             SELECT timestamp FROM reflexes
@@ -851,26 +841,20 @@ def main():
             postflight_ts = float(postflight_timestamp)
 
             if postflight_ts > preflight_ts:
-                # SELF-EXEMPTION: Allow certain tools/commands when loop is closed
-                # This prevents the chicken-and-egg problem where you can't do
-                # anything to prepare for the next PREFLIGHT.
-
-                # Read-only tools always allowed (no state changes)
-                READ_ONLY_TOOLS = ('Read', 'Glob', 'Grep', 'LSP', 'WebFetch', 'WebSearch')
-                if tool_name in READ_ONLY_TOOLS:
-                    db.close()
-                    respond("allow", f"Read-only tool {tool_name} allowed (loop closed)")
-                    sys.exit(0)
-
-                # Write tools allowed — needed to prepare code before next PREFLIGHT
-                WRITE_TOOLS = ('Edit', 'Write', 'NotebookEdit')
-                if tool_name in WRITE_TOOLS:
-                    db.close()
-                    respond("allow", f"Write tool {tool_name} allowed (loop closed, pre-PREFLIGHT)")
-                    sys.exit(0)
-
+                # Loop closed. Only block truly praxic operations (file modification).
+                # Allow read-only, empirica workflow, toggles, and transitions.
+                # This enables artifact lifecycle between transactions:
+                # goals-list, goals-complete, unknown-resolve, finding-log, etc.
                 if tool_name == 'Bash':
                     command = tool_input.get('command', '')
+
+                    # Safe Bash (read-only + empirica workflow) — always allowed
+                    # This is a safety net: Rule 2 should catch most of these,
+                    # but edge cases (|| chains, complex pipes) may reach here.
+                    if is_safe_bash_command(tool_input):
+                        db.close()
+                        respond("allow", "Safe Bash between transactions (artifact lifecycle)")
+                        sys.exit(0)
 
                     # Toggle commands (pause/unpause)
                     toggle_action = is_toggle_command(command)
@@ -883,24 +867,10 @@ def main():
                         respond("allow", "Sentinel self-exemption: unpause toggle")
                         sys.exit(0)
 
-                    # Transition commands (cd, session-create, project-bootstrap, preflight)
-                    # These enable starting a new cycle in a different project
+                    # Transition commands (cd, session-create, project-bootstrap)
                     if is_transition_command(command):
                         db.close()
                         respond("allow", "Transition command (starting new cycle)")
-                        sys.exit(0)
-
-                    # Safe empirica commands (read-only tier 1 + workflow tier 2)
-                    if is_safe_empirica_command(command):
-                        db.close()
-                        respond("allow", "Safe empirica command (loop closed)")
-                        sys.exit(0)
-
-                    # Safe read-only commands (git status, ls, grep, etc.)
-                    # Uses SAFE_BASH_PREFIXES which only includes read-only operations
-                    if is_safe_bash_command(tool_input):
-                        db.close()
-                        respond("allow", "Safe read-only command (loop closed)")
                         sys.exit(0)
 
                 db.close()
@@ -912,6 +882,32 @@ def main():
     # Use RAW vectors - bias corrections are feedback for AI to internalize, not silent adjustments
     raw_know = preflight_know or 0
     raw_unc = preflight_uncertainty or 1
+
+    # ANTI-GAMING: Check if previous transaction ended with INVESTIGATE
+    # If so, require explicit CHECK with evidence - can't just start fresh with high confidence
+    cursor.execute("""
+        SELECT json_extract(reflex_data, '$.decision') as decision, transaction_id
+        FROM reflexes
+        WHERE session_id = ? AND phase = 'CHECK'
+        ORDER BY timestamp DESC LIMIT 1
+    """, (session_id,))
+    prev_check = cursor.fetchone()
+
+    if prev_check:
+        prev_decision, prev_tx_id = prev_check
+        # If previous CHECK was INVESTIGATE and this is a NEW transaction, block auto-proceed
+        if prev_decision == 'investigate' and prev_tx_id != current_transaction_id:
+            # Check if there's been any noetic evidence since (findings, etc.)
+            cursor.execute("""
+                SELECT COUNT(*) FROM project_findings
+                WHERE session_id = ? AND created_timestamp > ?
+            """, (session_id, preflight_timestamp))
+            findings_since = cursor.fetchone()[0] or 0
+
+            if findings_since == 0:
+                db.close()
+                respond("deny", f"Previous transaction ended with INVESTIGATE. Show evidence of investigation (findings) or submit CHECK with proceed decision.")
+                sys.exit(0)
 
     # AUTO-PROCEED: If PREFLIGHT passes readiness gate, skip CHECK requirement
     if raw_know >= KNOW_THRESHOLD and raw_unc <= UNCERTAINTY_THRESHOLD:
@@ -939,7 +935,7 @@ def main():
     # NOTE: db kept open - reused for anti-gaming check below (single connection per invocation)
 
     if not check_row:
-        respond("deny", "Confidence below threshold. Run CHECK after investigation to proceed.")
+        respond("deny", "No valid CHECK found. Run CHECK after investigation to proceed.")
         sys.exit(0)
 
     know, uncertainty, reflex_data, check_timestamp = check_row
@@ -1029,4 +1025,12 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        # Fail-open: if sentinel crashes, allow the action but warn
+        # This prevents transient errors (DB lock, import race) from blocking work
+        import sys as _sys
+        _sys.stderr.write(f"SENTINEL_CRASH: {type(e).__name__}: {e}\n")
+        respond("allow", f"Sentinel error (fail-open): {type(e).__name__}: {e}")
+        _sys.exit(0)

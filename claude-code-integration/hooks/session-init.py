@@ -92,16 +92,20 @@ def find_git_root() -> Path | None:
 
 
 def find_project_root(claude_session_id: str = None) -> Path:
-    """Find project root - preserves project-switch context.
-
-    Priority (per INSTANCE_ISOLATION.md):
-    0. active_work_{claude_session_id}.json (set by project-switch - user intent)
-    1. instance_projects (set by previous session-init)
-    2. EMPIRICA_WORKSPACE_ROOT env var
-    3. Git repo root
-    4. CWD fallback
     """
-    # Priority 0: Check active_work file (preserves project-switch)
+    Find project root using instance-aware resolution.
+
+    Priority chain (matches INSTANCE_ISOLATION.md):
+    0. active_work_{claude_session_id}.json (if claude_session_id provided)
+    1. instance_projects/tmux_X.json (TMUX_PANE)
+    2. TTY session file
+    3. EMPIRICA_WORKSPACE_ROOT env var
+    4. Git repo root (fallback)
+    5. CWD (last resort)
+
+    This ensures project continuity across compactions and CWD resets.
+    """
+    # Priority 0: Check active_work file for this Claude session
     if claude_session_id:
         active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if active_work_file.exists():
@@ -114,9 +118,10 @@ def find_project_root(claude_session_id: str = None) -> Path:
             except Exception:
                 pass
 
-    # Priority 1: Check instance_projects (works across compaction)
-    instance_id = _get_instance_id()
-    if instance_id:
+    # Priority 1: Check instance_projects (TMUX_PANE based)
+    tmux_pane = os.environ.get('TMUX_PANE')
+    if tmux_pane:
+        instance_id = f"tmux_{tmux_pane.lstrip('%')}"
         instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
         if instance_file.exists():
             try:
@@ -128,18 +133,32 @@ def find_project_root(claude_session_id: str = None) -> Path:
             except Exception:
                 pass
 
-    # Priority 2: Explicit workspace root
+    # Priority 2: Check TTY session file
+    try:
+        tty_path = os.ttyname(sys.stdin.fileno())
+        tty_key = tty_path.replace('/', '-').lstrip('-')
+        tty_file = Path.home() / '.empirica' / 'tty_sessions' / f'{tty_key}.json'
+        if tty_file.exists():
+            with open(tty_file, 'r') as f:
+                data = json.load(f)
+                project_path = data.get('project_path')
+                if project_path and Path(project_path).exists():
+                    return Path(project_path)
+    except Exception:
+        pass
+
+    # Priority 3: Check explicit workspace root env var
     if workspace_root := os.getenv('EMPIRICA_WORKSPACE_ROOT'):
         workspace_path = Path(workspace_root).expanduser().resolve()
         if workspace_path.exists():
             return workspace_path
 
-    # Priority 3: Try to find git repo root (most common case)
+    # Priority 4: Git repo root (common case for fresh sessions)
     git_root = find_git_root()
     if git_root:
         return git_root
 
-    # Priority 4: Fall back to current working directory
+    # Priority 5: Fall back to current working directory
     return Path.cwd()
 
 
@@ -235,20 +254,25 @@ def format_context(ctx: dict) -> str:
 def _get_instance_id() -> str:
     """
     Derive instance ID from environment. Fallback chain:
-    TMUX_PANE → TTY name → 'default'
+    TMUX_PANE → TERM_SESSION_ID → WINDOWID → 'default'
+
+    NOTE: os.ttyname(sys.stdin.fileno()) is NOT attempted here because hooks
+    receive stdin as a pipe from Claude Code, so it always fails. Use env vars
+    that are reliably inherited instead.
     """
     tmux_pane = os.environ.get('TMUX_PANE')
     if tmux_pane:
         return f"tmux_{tmux_pane.lstrip('%')}"
 
-    # Fallback: TTY-based instance ID
-    try:
-        tty_path = os.ttyname(sys.stdin.fileno())
-        # e.g. /dev/pts/3 → term_pts_3, /dev/ttys005 → term_ttys005
-        safe = tty_path.replace('/', '_').lstrip('_').replace('dev_', '')
-        return f"term_{safe}"
-    except:
-        pass
+    # macOS Terminal.app session (matches resolver priority chain)
+    term_session = os.environ.get('TERM_SESSION_ID')
+    if term_session:
+        return f"term:{term_session[:16]}"
+
+    # X11 window ID
+    window_id = os.environ.get('WINDOWID')
+    if window_id:
+        return f"x11:{window_id}"
 
     return "default"
 
@@ -267,13 +291,9 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
         instance_dir.mkdir(parents=True, exist_ok=True)
         instance_file = instance_dir / f'{instance_id}.json'
 
-        # Get TTY key if available
+        # TTY key is not available in hook context (stdin is a pipe)
+        # Instance isolation is handled by instance_id (TMUX_PANE/TERM_SESSION_ID)
         tty_key = None
-        try:
-            tty_path = os.ttyname(sys.stdin.fileno())
-            tty_key = tty_path.replace('/', '-').lstrip('-')
-        except:
-            pass
 
         instance_data = {
             'project_path': project_path,
@@ -315,24 +335,14 @@ def main():
     """Main session init logic."""
     hook_input = {}
     try:
-        raw_stdin = sys.stdin.read()
-        # DEBUG: dump raw stdin to diagnose session_id capture
-        debug_file = Path.home() / '.empirica' / 'debug_session_init_stdin.json'
-        debug_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(debug_file, 'w') as df:
-            df.write(raw_stdin if raw_stdin else '(empty)')
-        hook_input = json.loads(raw_stdin)
-    except Exception as e:
-        # DEBUG: capture parse errors
-        debug_file = Path.home() / '.empirica' / 'debug_session_init_stdin.json'
-        debug_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(debug_file, 'w') as df:
-            df.write(f'PARSE_ERROR: {e}\nraw: {raw_stdin if "raw_stdin" in dir() else "(read failed)"}')
+        hook_input = json.loads(sys.stdin.read())
+    except:
+        pass
 
     # Extract claude_session_id from hook input (critical for instance isolation)
     claude_session_id = hook_input.get('session_id')
 
-    # Find project root - MUST check active context first to preserve project-switch
+    # Find project root (uses instance-aware resolution to survive CWD resets)
     project_root = find_project_root(claude_session_id)
     os.chdir(project_root)
 
@@ -504,12 +514,7 @@ empirica preflight-submit - << 'EOF'
 EOF
 ```
 
-**Transaction Workflow:**
-- PREFLIGHT opens a transaction (measurement window)
-- Investigate before acting — log findings, unknowns, dead-ends as you discover them
-- CHECK when you need the Sentinel to gate your readiness (noetic → praxic transition)
-- POSTFLIGHT closes the transaction and measures your learning delta
-- Natural boundaries: goal completion, confidence shifts, task pivots
+**After PREFLIGHT:** Before any Edit/Write/Bash, run CHECK to validate readiness.
 """
 
     output = {
