@@ -11,7 +11,7 @@ FROM python:3.11-slim-bookworm
 
 LABEL maintainer="Empirica Team"
 LABEL description="Epistemic self-assessment framework for AI agents"
-LABEL version="1.5.2"
+LABEL version="1.5.3"
 
 # Set working directory
 WORKDIR /app
