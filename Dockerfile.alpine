@@ -10,7 +10,7 @@ FROM python:3.11-alpine3.23
 
 LABEL maintainer="Empirica Team"
 LABEL description="Epistemic self-assessment framework for AI agents"
-LABEL version="1.5.2"
+LABEL version="1.5.3"
 LABEL security.hardened="true"
 
 # Set working directory
