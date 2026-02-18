@@ -24,6 +24,7 @@ Version: 2.1.0 (Unified Signaling)
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 # Add empirica to path
 EMPIRICA_ROOT = Path(__file__).parent.parent
@@ -45,6 +46,7 @@ class Colors:
     BLUE = '\033[34m'
     CYAN = '\033[36m'
     GRAY = '\033[90m'
+    WHITE = '\033[37m'
     BRIGHT_GREEN = '\033[92m'
     BRIGHT_CYAN = '\033[96m'
 
@@ -69,7 +71,7 @@ def detect_extensions() -> dict:
     """
     import sqlite3
 
-    result = {
+    result: dict = {
         'crm': {'active': False, 'db_path': None, 'active_client': None},
         'workspace': {'active': False, 'db_path': None, 'project_count': 0},
     }
@@ -143,7 +145,7 @@ def format_extension_indicators(extensions: dict) -> str:
     return ' '.join(parts)
 
 
-def get_open_counts(db: SessionDatabase, session_id: str, project_id: str = None) -> dict:
+def get_open_counts(db: SessionDatabase, session_id: str, project_id: Optional[str] = None) -> dict:
     """
     Get counts of open goals and unknowns for a specific project.
 
@@ -231,7 +233,7 @@ def get_open_counts(db: SessionDatabase, session_id: str, project_id: str = None
     }
 
 
-def get_active_goal(db: SessionDatabase, session_id: str) -> dict:
+def get_active_goal(db: SessionDatabase, session_id: str) -> Optional[dict]:
     """
     Get the active goal for a session (legacy, kept for 'full' mode).
 
@@ -324,7 +326,7 @@ def format_progress_bar(completion: float, width: int = 8) -> str:
     return f"{color}{bar}{Colors.RESET} {pct}%"
 
 
-def format_open_counts(open_counts: dict) -> str:
+def format_open_counts(open_counts: Optional[dict]) -> str:
     """
     Format open goals and unknowns as actionable counts.
 
@@ -445,7 +447,7 @@ def format_confidence(confidence: float) -> str:
     return f"{emoji}{color}{pct}%{Colors.RESET}"
 
 
-def _resolve_claude_session_id(stdin_claude_session_id: str = None):
+def _resolve_claude_session_id(stdin_claude_session_id: Optional[str] = None):
     """
     Resolve the Claude session ID from available sources.
 
@@ -469,7 +471,7 @@ def _resolve_claude_session_id(stdin_claude_session_id: str = None):
     return None
 
 
-def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id: str = None) -> dict:
+def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id: Optional[str] = None) -> Optional[dict]:
     """
     Get the active session with strict pane isolation.
 
@@ -650,7 +652,7 @@ def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id:
     return None
 
 
-def get_latest_vectors(db: SessionDatabase, session_id: str, transaction_session_id: str = None, transaction_id: str = None) -> tuple:
+def get_latest_vectors(db: SessionDatabase, session_id: str, transaction_session_id: Optional[str] = None, transaction_id: Optional[str] = None) -> tuple:
     """
     Get latest vectors, phase, and gate decision from reflexes table.
 
@@ -790,45 +792,41 @@ def get_vector_deltas(db: SessionDatabase, session_id: str) -> dict:
 
 
 def format_deltas(deltas: dict) -> str:
-    """Format deltas for display (e.g., 'know:+0.15 unc:-0.10')."""
+    """Format deltas as a single summary symbol to prevent statusline overflow.
+
+    Returns: green ✓ (net positive), red ⚠ (net negative), or white △ (neutral).
+    """
     if not deltas:
         return ""
 
-    parts = []
-    # Priority order for display
-    priority_keys = ['know', 'uncertainty', 'completion', 'context', 'engagement']
+    # Calculate net direction across all vectors
+    # For uncertainty, invert sign (lower uncertainty = improvement)
+    net = 0.0
+    for key, delta in deltas.items():
+        if key == 'uncertainty':
+            net -= delta  # Lower uncertainty is positive
+        else:
+            net += delta
 
-    for key in priority_keys:
-        if key in deltas:
-            delta = deltas[key]
-            # Abbreviate keys
-            abbrev = {'know': 'K', 'uncertainty': 'U', 'context': 'C',
-                      'completion': '✓', 'engagement': 'E'}
-            sign = '+' if delta > 0 else ''
-
-            # Color code: green for improvements, red for regressions
-            # For uncertainty, lower is better (negative is green)
-            if key == 'uncertainty':
-                color = Colors.GREEN if delta < 0 else Colors.RED
-            else:
-                color = Colors.GREEN if delta > 0 else Colors.RED
-
-            parts.append(f"{color}{abbrev.get(key, key[:1])}:{sign}{delta:.2f}{Colors.RESET}")
-
-    return ' '.join(parts[:3])  # Max 3 deltas to keep it compact
+    if net > 0.05:
+        return f"{Colors.GREEN}✓{Colors.RESET}"
+    elif net < -0.05:
+        return f"{Colors.RED}⚠{Colors.RESET}"
+    else:
+        return f"{Colors.WHITE}△{Colors.RESET}"
 
 
 def format_statusline(
     session: dict,
     phase: str,
     vectors: dict,
-    deltas: dict = None,
+    deltas: Optional[dict] = None,
     mode: str = 'default',
-    gate_decision: str = None,
-    goal: dict = None,
-    open_counts: dict = None,
-    project_name: str = None,
-    extensions: dict = None
+    gate_decision: Optional[str] = None,
+    goal: Optional[dict] = None,
+    open_counts: Optional[dict] = None,
+    project_name: Optional[str] = None,
+    extensions: Optional[dict] = None
 ) -> str:
     """Format the statusline based on mode."""
 
@@ -943,14 +941,14 @@ def build_statusline_data(
     session: dict,
     phase: str,
     vectors: dict,
-    deltas: dict = None,
-    gate_decision: str = None,
-    goal: dict = None,
-    open_counts: dict = None,
-    project_name: str = None,
-    project_path: str = None,
-    extensions: dict = None,
-    ai_id: str = None,
+    deltas: Optional[dict] = None,
+    gate_decision: Optional[str] = None,
+    goal: Optional[dict] = None,
+    open_counts: Optional[dict] = None,
+    project_name: Optional[str] = None,
+    project_path: Optional[str] = None,
+    extensions: Optional[dict] = None,
+    ai_id: Optional[str] = None,
 ) -> dict:
     """
     Build structured statusline data for JSON output.
