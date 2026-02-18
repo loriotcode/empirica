@@ -206,16 +206,6 @@ def rollup_to_parent(parent_session_id: str, agent_name: str, extracted: dict,
             except Exception:
                 pass
 
-        # End the child session
-        subagent_data = find_subagent_session(agent_name)
-        if subagent_data:
-            child_session_id = subagent_data.get("child_session_id")
-            if child_session_id:
-                try:
-                    db.end_session(child_session_id)
-                except Exception:
-                    pass
-
         db.close()
     except ImportError:
         pass
@@ -403,6 +393,16 @@ def main():
     if parent_session_id and total_extracted > 0:
         logged = rollup_to_parent(parent_session_id, agent_name, extracted,
                                   subagent_data=subagent_data)
+
+    # Always close the child session in DB, regardless of extracted findings
+    if child_session_id:
+        try:
+            from empirica.data.session_database import SessionDatabase
+            db = SessionDatabase()
+            db.end_session(child_session_id)
+            db.close()
+        except Exception:
+            pass
 
     # Mark session completed
     if subagent_data.get("_file_path"):
