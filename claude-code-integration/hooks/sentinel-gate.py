@@ -779,13 +779,18 @@ def main():
     tool_input = hook_input.get('tool_input', {})
 
     # === AUTONOMY CALIBRATION: Track tool calls per transaction ===
-    # Counts ALL tool calls (noetic + praxic) to measure transaction length.
+    # Counts PARENT tool calls only (subagent work counted via SubagentStop delegation).
     # Nudge thresholds are informational — Claude decides when to POSTFLIGHT.
     global _autonomy_nudge
     try:
         _claude_sid = hook_input.get('session_id')
-        _count, _avg = _try_increment_tool_count(_claude_sid)
-        _autonomy_nudge = _compute_nudge(_count, _avg)
+        # Only increment for sessions with active_work (parent sessions).
+        # Subagent tool calls are counted from transcript by SubagentStop and
+        # added to parent's delegated_tool_calls — no double-counting.
+        _aw_check = Path.home() / '.empirica' / f'active_work_{_claude_sid}.json'
+        if _claude_sid and _aw_check.exists():
+            _count, _avg = _try_increment_tool_count(_claude_sid)
+            _autonomy_nudge = _compute_nudge(_count, _avg)
     except Exception:
         pass  # Counter failure is non-fatal
 
@@ -803,6 +808,27 @@ def main():
 
     # Rule 3: Everything else is PRAXIC - requires CHECK authorization
     # This includes: Edit, Write, NotebookEdit, unsafe Bash, unknown tools
+
+    # Rule 3a: SUBAGENT EXEMPTION - subagents don't need their own CASCADE
+    # The parent's CHECK already authorized the spawn. Subagents have a different
+    # Claude session_id than the parent (who owns the active_work file).
+    claude_session_id_early = hook_input.get('session_id')
+    if claude_session_id_early:
+        try:
+            # Check if this session_id matches ANY active_work file
+            _aw_dir = Path.home() / '.empirica'
+            _is_known_session = False
+            for aw_file in _aw_dir.glob('active_work_*.json'):
+                _aw_sid = aw_file.stem.replace('active_work_', '')
+                if _aw_sid == claude_session_id_early:
+                    _is_known_session = True
+                    break
+            if not _is_known_session:
+                # No active_work file for this session_id — it's a subagent
+                respond("allow", f"Subagent exemption: {tool_name} (no active_work for session)")
+                sys.exit(0)
+        except Exception:
+            pass  # Detection failure → continue with normal sentinel logic
 
     # OFF-RECORD CHECK: If Empirica is paused, allow everything (cheapest check first)
     if is_empirica_paused():
