@@ -86,11 +86,27 @@ Historical bugs and fixes related to instance isolation. Useful for debugging an
 
 **Symptom:** `instance_projects` has `claude_session_id: null`
 **Root cause:** CLI commands via Bash can't access claude_session_id (only in hook stdin).
-**Fix:**
+**Fix (partial):**
 - post-compact: Always write instance_projects even without claude_session_id
 - project-switch: Log warning when claude_session_id unavailable
 **Key insight:** instance_id is PRIMARY isolation key; claude_session_id is supplementary.
 **Commit:** `23f79366`
+
+### 11.14 project-switch Via Bash Tool Fails to Update instance_projects (2026-02-19)
+
+**Symptom:** `empirica project-switch <project>` runs via Bash tool but instance_projects
+not updated. TTY session file updated correctly, but Sentinel/statusline still see old project.
+**Root cause:** `_update_active_work()` resolved `instance_id` only from:
+1. TMUX_PANE env var (absent in Bash tool subprocess)
+2. Reverse-lookup via claude_session_id (null in TTY session because session-create
+   doesn't have it and session-init hook didn't propagate it to TTY file)
+
+The TTY session file already stored `instance_id` from a prior hook, but the code
+never read it as a fallback.
+**Fix (two-part):**
+1. `_update_active_work()`: Added third fallback reading `instance_id` from TTY session dict
+2. `session-init hook`: Now propagates `claude_session_id` to TTY session file (previously
+   only wrote to instance_projects and active_work)
 
 ---
 

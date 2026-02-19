@@ -139,6 +139,15 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
                     except Exception:
                         continue
 
+        # Fallback 3: Read instance_id from TTY session file.
+        # The TTY session stores instance_id from a prior hook that had TMUX_PANE.
+        # This handles the case where Bash tool has no TMUX_PANE AND claude_session_id
+        # is null (e.g., session-create doesn't write claude_session_id to TTY file).
+        if not instance_id and tty_session:
+            instance_id = tty_session.get('instance_id')
+            if instance_id:
+                logger.debug(f"Resolved instance_id={instance_id} from TTY session file")
+
         # PRESERVE existing claude_session_id if TTY session doesn't have it
         # This handles the case where session-init hook ran and wrote claude_session_id
         # to instance_projects, but TTY session wasn't updated (e.g., Bash tool context)
