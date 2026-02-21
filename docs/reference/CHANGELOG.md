@@ -5,6 +5,26 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.5] - 2026-02-21
+
+### Fixed
+- **Schema Migration Ordering** (#44) - `CREATE INDEX` on `transaction_id` now runs after migrations with `column_exists()` guards
+- **Qdrant File-Based Fallback Removed** (#45) - Returns `None` when no server available; 36 call sites guarded
+- **project-embed Path Resolution** (#46) - Resolves `sessions.db` from workspace.db trajectory_path
+- **transaction-adopt Same-Instance** (#44) - Skips rename when `from_instance == to_instance`
+- **Instance Isolation: Closed Transactions as Anchors** - Persist until next PREFLIGHT for post-compact resolution
+- **Lessons Storage Fallback** - Server check instead of file-based storage
+
+## [1.5.4] - 2026-02-20
+
+### Added
+- Autonomy Calibration Loop, Subagent Governance, CASCADE Exemption
+- Auto-PREFLIGHT on project-switch, Lifecycle Cleanup
+- Release Pipeline: empirica-mcp build/publish
+
+### Fixed
+- Stale Transaction Detection, Instance Resolution Priority, Project Switch via Bash, Subagent Session Close (#43)
+
 ## [1.5.0] - 2026-02-01 - Grounded Calibration
 
 ### Added
@@ -278,5 +298,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-**Current Version:** 1.5.4
+**Current Version:** 1.5.5
 **Previous Milestone:** 1.4.0 (Epistemic-First Model, January 2026)

@@ -1,7 +1,7 @@
-# GitHub Copilot Model Delta - v1.5.4
+# GitHub Copilot Model Delta - v1.5.5
 
 **Applies to:** GitHub Copilot
-**Last Updated:** 2026-02-18
+**Last Updated:** 2026-02-21
 
 **Hooks:** GitHub Copilot does not currently support lifecycle hooks.
 All session management and CASCADE workflow must be done manually via CLI.

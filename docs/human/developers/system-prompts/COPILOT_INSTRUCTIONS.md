@@ -1,8 +1,8 @@
-# Empirica System Prompt - COPILOT v1.5.4
+# Empirica System Prompt - COPILOT v1.5.5
 
-**Model:** COPILOT | **Generated:** 2026-02-20
-**Syncs with:** Empirica v1.5.4
-**Change:** Autonomy calibration, subagent governance, transaction discipline, artifact lifecycle
+**Model:** COPILOT | **Generated:** 2026-02-21
+**Syncs with:** Empirica v1.5.5
+**Change:** Qdrant hardening, schema migration fix, instance isolation anchors
 **Status:** AUTHORITATIVE
 
 ---
@@ -467,10 +467,10 @@ Empirica is **cognitive infrastructure**, not just a CLI. In practice:
 
 ## COPILOT-SPECIFIC
 
-# GitHub Copilot Model Delta - v1.5.4
+# GitHub Copilot Model Delta - v1.5.5
 
 **Applies to:** GitHub Copilot
-**Last Updated:** 2026-02-18
+**Last Updated:** 2026-02-21
 
 **Hooks:** GitHub Copilot does not currently support lifecycle hooks.
 All session management and CASCADE workflow must be done manually via CLI.

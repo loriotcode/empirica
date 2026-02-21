@@ -5,6 +5,16 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.5] - 2026-02-21
+
+### Fixed
+- **Schema Migration Ordering** (#44) - `CREATE INDEX` on `transaction_id` columns now runs after migrations that add the column, with `column_exists()` guards. Fixes crash on existing databases.
+- **Qdrant File-Based Fallback Removed** (#45) - `_get_qdrant_client()` returns `None` when no server available instead of creating incompatible file-based storage. Added None guards to all 36 call sites across 10 modules.
+- **project-embed Path Resolution** (#46) - Resolves `sessions.db` from `workspace.db` trajectory_path instead of CWD. Fixes 0-artifact embeddings for non-CWD projects.
+- **transaction-adopt Same-Instance** (#44) - Skips file rename when `from_instance == to_instance` to prevent data loss.
+- **Instance Isolation: Closed Transactions as Anchors** - Closed transactions persist until next PREFLIGHT, enabling post-compact project resolution after POSTFLIGHT closes the loop.
+- **Lessons Storage Fallback** - `lessons/storage.py` now checks for running Qdrant server instead of falling back to file-based storage.
+
 ## [1.5.4] - 2026-02-20
 
 ### Added

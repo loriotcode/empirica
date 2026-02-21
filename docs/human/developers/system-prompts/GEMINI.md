@@ -1,8 +1,8 @@
-# Empirica System Prompt - GEMINI v1.5.4
+# Empirica System Prompt - GEMINI v1.5.5
 
-**Model:** GEMINI | **Generated:** 2026-02-20
-**Syncs with:** Empirica v1.5.4
-**Change:** Autonomy calibration, subagent governance, transaction discipline, artifact lifecycle
+**Model:** GEMINI | **Generated:** 2026-02-21
+**Syncs with:** Empirica v1.5.5
+**Change:** Qdrant hardening, schema migration fix, instance isolation anchors
 **Status:** AUTHORITATIVE
 
 ---
@@ -467,10 +467,10 @@ Empirica is **cognitive infrastructure**, not just a CLI. In practice:
 
 ## GEMINI-SPECIFIC
 
-# Gemini Model Delta - v1.5.4
+# Gemini Model Delta - v1.5.5
 
 **Applies to:** Gemini (all versions)
-**Last Updated:** 2026-02-18
+**Last Updated:** 2026-02-21
 
 **Hooks:** Gemini CLI supports hooks (10 events, similar to Claude Code).
 Empirica hooks for Gemini CLI are experimental — see Claude Code hooks for reference.

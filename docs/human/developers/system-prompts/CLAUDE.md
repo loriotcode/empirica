@@ -1,8 +1,8 @@
-# Empirica System Prompt - CLAUDE v1.5.4
+# Empirica System Prompt - CLAUDE v1.5.5
 
-**Model:** CLAUDE | **Generated:** 2026-02-20
-**Syncs with:** Empirica v1.5.4
-**Change:** Autonomy calibration, subagent governance, transaction discipline, artifact lifecycle
+**Model:** CLAUDE | **Generated:** 2026-02-21
+**Syncs with:** Empirica v1.5.5
+**Change:** Qdrant hardening, schema migration fix, instance isolation anchors
 **Status:** AUTHORITATIVE
 
 ---
@@ -467,10 +467,10 @@ Empirica is **cognitive infrastructure**, not just a CLI. In practice:
 
 ## CLAUDE-SPECIFIC
 
-# Claude Model Delta - v1.5.4
+# Claude Model Delta - v1.5.5
 
 **Applies to:** Claude (all versions)
-**Last Updated:** 2026-02-20
+**Last Updated:** 2026-02-21
 
 This delta contains Claude-specific calibration and guidance to be used with the base Empirica system prompt.
 
