@@ -12,7 +12,7 @@ This is the largest single command handler (~900 lines) as it handles:
 import json
 import logging
 import os
-from ..cli_utils import handle_cli_error
+from ..cli_utils import handle_cli_error, safe_print
 from empirica.core.memory_gap_detector import MemoryGapDetector
 
 logger = logging.getLogger(__name__)
@@ -35,11 +35,11 @@ def handle_project_bootstrap_command(args):
                 result = {'ok': False, 'error': error_msg}
                 if hint:
                     result['hint'] = hint
-                print(json.dumps(result))
+                safe_print(json.dumps(result))
             else:
-                print(f"❌ Error: {error_msg}")
+                safe_print(f"❌ Error: {error_msg}")
                 if hint:
-                    print(f"\nTip: {hint}")
+                    safe_print(f"\nTip: {hint}")
             return None
 
         # Auto-detect project if not provided
@@ -134,7 +134,7 @@ def handle_project_bootstrap_command(args):
             try:
                 epistemic_state = json.loads(epistemic_state_str)
             except json.JSONDecodeError as e:
-                print(f"❌ Invalid JSON in --epistemic-state: {e}")
+                safe_print(f"❌ Invalid JSON in --epistemic-state: {e}")
                 return None
         
         # Auto-detect subject from current directory
@@ -355,7 +355,7 @@ def handle_project_bootstrap_command(args):
         db.close()
 
         if "error" in breadcrumbs:
-            print(f"❌ {breadcrumbs['error']}")
+            safe_print(f"❌ {breadcrumbs['error']}")
             return None
 
         # Add memory gaps to breadcrumbs if detected
@@ -396,34 +396,34 @@ def handle_project_bootstrap_command(args):
                 result['global_learnings'] = global_learnings
             if project_skills:
                 result['project_skills'] = project_skills
-            print(json.dumps(result, indent=2))
+            safe_print(json.dumps(result, indent=2))
         else:
             # Print MCO config first if post-compact (SessionStart hook)
             if mco_config:
-                print("\n" + "=" * 70)
-                print("🔧 MCO Configuration Restored (SessionStart Hook)")
-                print("=" * 70)
+                safe_print("\n" + "=" * 70)
+                safe_print("🔧 MCO Configuration Restored (SessionStart Hook)")
+                safe_print("=" * 70)
                 if mco_config['source'] == 'pre_summary_snapshot':
-                    print(f"   Source: {mco_config['snapshot_path']}")
+                    safe_print(f"   Source: {mco_config['snapshot_path']}")
                 else:
-                    print(f"   Source: Fresh load from MCO files (snapshot had no MCO)")
-                print("=" * 70)
-                print(mco_config['formatted'])
-                print("\n" + "=" * 70)
-                print("💡 Your configuration has been restored from pre-compact snapshot.")
-                print("   Apply these bias corrections during CASCADE assessments.")
-                print("=" * 70 + "\n")
+                    safe_print(f"   Source: Fresh load from MCO files (snapshot had no MCO)")
+                safe_print("=" * 70)
+                safe_print(mco_config['formatted'])
+                safe_print("\n" + "=" * 70)
+                safe_print("💡 Your configuration has been restored from pre-compact snapshot.")
+                safe_print("   Apply these bias corrections during CASCADE assessments.")
+                safe_print("=" * 70 + "\n")
 
             project = breadcrumbs['project']
             last = breadcrumbs['last_activity']
 
             # ===== PROJECT CONTEXT BANNER =====
-            print("━" * 64)
-            print("🎯 PROJECT CONTEXT")
-            print("━" * 64)
-            print()
-            print(f"📁 Project: {project['name']}")
-            print(f"🆔 ID: {project_id}")
+            safe_print("━" * 64)
+            safe_print("🎯 PROJECT CONTEXT")
+            safe_print("━" * 64)
+            safe_print()
+            safe_print(f"📁 Project: {project['name']}")
+            safe_print(f"🆔 ID: {project_id}")
             
             # Get git URL
             git_url = None
@@ -436,72 +436,72 @@ def handle_project_bootstrap_command(args):
                 )
                 if result.returncode == 0:
                     git_url = result.stdout.strip()
-                    print(f"🔗 Repository: {git_url}")
+                    safe_print(f"🔗 Repository: {git_url}")
             except:
                 pass
             
-            print(f"📍 Location: {db.db_path.parent.parent if hasattr(db, 'db_path') and db.db_path else 'Unknown'}")
-            print(f"💾 Database: .empirica/sessions/sessions.db")
-            print()
-            print("⚠️  All commands write to THIS project's database.")
-            print("   Findings, sessions, goals → stored in this project context.")
-            print()
-            print("━" * 64)
-            print()
+            safe_print(f"📍 Location: {db.db_path.parent.parent if hasattr(db, 'db_path') and db.db_path else 'Unknown'}")
+            safe_print(f"💾 Database: .empirica/sessions/sessions.db")
+            safe_print()
+            safe_print("⚠️  All commands write to THIS project's database.")
+            safe_print("   Findings, sessions, goals → stored in this project context.")
+            safe_print()
+            safe_print("━" * 64)
+            safe_print()
             
             # ===== PROJECT SUMMARY =====
-            print(f"📋 Project Summary")
-            print(f"   {project['description']}")
+            safe_print(f"📋 Project Summary")
+            safe_print(f"   {project['description']}")
             if project['repos']:
-                print(f"   Repos: {', '.join(project['repos'])}")
-            print(f"   Total sessions: {project['total_sessions']}")
-            print()
+                safe_print(f"   Repos: {', '.join(project['repos'])}")
+            safe_print(f"   Total sessions: {project['total_sessions']}")
+            safe_print()
             
-            print(f"🕐 Last Activity:")
-            print(f"   {last['summary']}")
-            print(f"   Next focus: {last['next_focus']}")
-            print()
+            safe_print(f"🕐 Last Activity:")
+            safe_print(f"   {last['summary']}")
+            safe_print(f"   Next focus: {last['next_focus']}")
+            safe_print()
             
             # ===== AI EPISTEMIC HANDOFF =====
             if breadcrumbs.get('ai_epistemic_handoff'):
                 handoff = breadcrumbs['ai_epistemic_handoff']
-                print(f"🧠 Epistemic Handoff (from {handoff.get('ai_id', 'unknown')}):")
+                safe_print(f"🧠 Epistemic Handoff (from {handoff.get('ai_id', 'unknown')}):")
                 vectors = handoff.get('vectors', {})
                 deltas = handoff.get('deltas', {})
                 
                 if vectors:
-                    print(f"   State (POSTFLIGHT):")
-                    print(f"      Engagement: {vectors.get('engagement', 'N/A'):.2f}", end='')
+                    safe_print(f"   State (POSTFLIGHT):")
+                    safe_print(f"      Engagement: {vectors.get('engagement', 'N/A'):.2f}", end='')
                     if 'engagement' in deltas:
                         delta = deltas['engagement']
                         arrow = "↑" if delta > 0 else "↓" if delta < 0 else "→"
-                        print(f" {arrow} {delta:+.2f}", end='')
-                    print()
+                        safe_print(f" {arrow} {delta:+.2f}", end='')
+                    safe_print()
                     
                     if 'foundation' in vectors:
                         f = vectors['foundation']
                         d = deltas.get('foundation', {})
-                        print(f"      Foundation: know={f.get('know', 'N/A'):.2f}", end='')
+                        safe_print(f"      Foundation: know={f.get('know', 'N/A'):.2f}", end='')
                         if 'know' in d:
-                            print(f" {d['know']:+.2f}", end='')
-                        print(f", do={f.get('do', 'N/A'):.2f}", end='')
+                            safe_print(f" {d['know']:+.2f}", end='')
+                        safe_print(f", do={f.get('do', 'N/A'):.2f}", end='')
                         if 'do' in d:
-                            print(f" {d['do']:+.2f}", end='')
-                        print(f", context={f.get('context', 'N/A'):.2f}", end='')
+                            safe_print(f" {d['do']:+.2f}", end='')
+                        safe_print(f", context={f.get('context', 'N/A'):.2f}", end='')
                         if 'context' in d:
-                            print(f" {d['context']:+.2f}", end='')
-                        print()
+                            safe_print(f" {d['context']:+.2f}", end='')
+                        safe_print()
                     
-                    print(f"      Uncertainty: {vectors.get('uncertainty', 'N/A'):.2f}", end='')
+                    safe_print(f"      Uncertainty: {vectors.get('uncertainty', 'N/A'):.2f}", end='')
                     if 'uncertainty' in deltas:
                         delta = deltas['uncertainty']
                         arrow = "↓" if delta < 0 else "↑" if delta > 0 else "→"  # Lower is better
-                        print(f" {arrow} {delta:+.2f}", end='')
-                    print()
+                        safe_print(f" {arrow} {delta:+.2f}", end='')
+                    safe_print()
                 
                 if handoff.get('reasoning'):
-                    print(f"   Learning: {handoff['reasoning'][:80]}...")
-                print()
+                    safe_print(f"   Learning: {handoff['reasoning'][:80]}...")
+                safe_print()
 
             # ===== FLOW STATE METRICS =====
             if breadcrumbs.get('flow_metrics'):
@@ -509,33 +509,33 @@ def handle_project_bootstrap_command(args):
                 current = flow.get('current_flow')
 
                 if current:
-                    print(f"⚡ Flow State (AI Productivity):")
-                    print(f"   Current: {current['emoji']} {current['flow_state']} ({current['flow_score']}/100)")
+                    safe_print(f"⚡ Flow State (AI Productivity):")
+                    safe_print(f"   Current: {current['emoji']} {current['flow_state']} ({current['flow_score']}/100)")
 
                     # Show trend if available
                     trend = flow.get('trend', {})
                     if trend.get('emoji'):
-                        print(f"   Trend: {trend['emoji']} {trend['description']}")
+                        safe_print(f"   Trend: {trend['emoji']} {trend['description']}")
 
                     # Show average
                     avg = flow.get('average_flow', 0)
-                    print(f"   Average (last 5): {avg}/100")
+                    safe_print(f"   Average (last 5): {avg}/100")
 
                     # Show blockers if any
                     blockers = flow.get('blockers', [])
                     if blockers:
-                        print(f"   ⚠️  Blockers:")
+                        safe_print(f"   ⚠️  Blockers:")
                         for blocker in blockers[:3]:
-                            print(f"      • {blocker}")
+                            safe_print(f"      • {blocker}")
 
                     # Show flow triggers status
                     triggers = flow.get('triggers_present', {})
                     if triggers:
                         active_triggers = [name for name, present in triggers.items() if present]
                         if active_triggers:
-                            print(f"   ✓ Active triggers: {', '.join(active_triggers)}")
+                            safe_print(f"   ✓ Active triggers: {', '.join(active_triggers)}")
 
-                    print()
+                    safe_print()
 
             # ===== HEALTH SCORE (EPISTEMIC QUALITY) =====
             if breadcrumbs.get('health_score'):
@@ -543,148 +543,148 @@ def handle_project_bootstrap_command(args):
                 current = health.get('current_health')
 
                 if current:
-                    print(f"💪 Health Score (Epistemic Quality):")
-                    print(f"   Current: {current['health_score']}/100")
+                    safe_print(f"💪 Health Score (Epistemic Quality):")
+                    safe_print(f"   Current: {current['health_score']}/100")
 
                     # Show trend if available
                     trend = health.get('trend', {})
                     if trend.get('emoji'):
-                        print(f"   Trend: {trend['emoji']} {trend['description']}")
+                        safe_print(f"   Trend: {trend['emoji']} {trend['description']}")
 
                     # Show average
                     avg = health.get('average_health', 0)
-                    print(f"   Average (last 5): {avg}/100")
+                    safe_print(f"   Average (last 5): {avg}/100")
 
                     # Show component breakdown
                     components = health.get('components', {})
                     if components:
-                        print(f"   Components:")
+                        safe_print(f"   Components:")
                         kq = components.get('knowledge_quality', {})
                         ep = components.get('epistemic_progress', {})
                         cap = components.get('capability', {})
                         conf = components.get('confidence', {})
                         eng = components.get('engagement', {})
                         
-                        print(f"      Knowledge Quality: {kq.get('average', 0):.2f}")
-                        print(f"      Epistemic Progress: {ep.get('average', 0):.2f}")
-                        print(f"      Capability: {cap.get('average', 0):.2f}")
-                        print(f"      Confidence: {conf.get('confidence_score', 0):.2f}")
-                        print(f"      Engagement: {eng.get('engagement', 0):.2f}")
-                    print()
+                        safe_print(f"      Knowledge Quality: {kq.get('average', 0):.2f}")
+                        safe_print(f"      Epistemic Progress: {ep.get('average', 0):.2f}")
+                        safe_print(f"      Capability: {cap.get('average', 0):.2f}")
+                        safe_print(f"      Confidence: {conf.get('confidence_score', 0):.2f}")
+                        safe_print(f"      Engagement: {eng.get('engagement', 0):.2f}")
+                    safe_print()
 
             if breadcrumbs.get('findings'):
-                print(f"📝 Recent Findings (last 10):")
+                safe_print(f"📝 Recent Findings (last 10):")
                 for i, f in enumerate(breadcrumbs['findings'][:10], 1):
-                    print(f"   {i}. {f}")
-                print()
+                    safe_print(f"   {i}. {f}")
+                safe_print()
             
             if breadcrumbs.get('unknowns'):
                 unresolved = [u for u in breadcrumbs['unknowns'] if not u['is_resolved']]
                 if unresolved:
-                    print(f"❓ Unresolved Unknowns:")
+                    safe_print(f"❓ Unresolved Unknowns:")
                     for i, u in enumerate(unresolved[:5], 1):
-                        print(f"   {i}. {u['unknown']}")
-                    print()
+                        safe_print(f"   {i}. {u['unknown']}")
+                    safe_print()
             
             if breadcrumbs.get('dead_ends'):
-                print(f"💀 Dead Ends (What Didn't Work):")
+                safe_print(f"💀 Dead Ends (What Didn't Work):")
                 for i, d in enumerate(breadcrumbs['dead_ends'][:5], 1):
-                    print(f"   {i}. {d['approach']}")
-                    print(f"      → Why: {d['why_failed']}")
-                print()
+                    safe_print(f"   {i}. {d['approach']}")
+                    safe_print(f"      → Why: {d['why_failed']}")
+                safe_print()
             
             if breadcrumbs['mistakes_to_avoid']:
-                print(f"⚠️  Recent Mistakes to Avoid:")
+                safe_print(f"⚠️  Recent Mistakes to Avoid:")
                 for i, m in enumerate(breadcrumbs['mistakes_to_avoid'][:3], 1):
                     cost = m.get('cost_estimate', 'unknown')
                     cause = m.get('root_cause_vector', 'unknown')
-                    print(f"   {i}. {m['mistake']} (cost: {cost}, cause: {cause})")
-                    print(f"      → {m['prevention']}")
-                print()
+                    safe_print(f"   {i}. {m['mistake']} (cost: {cost}, cause: {cause})")
+                    safe_print(f"      → {m['prevention']}")
+                safe_print()
             
             if breadcrumbs.get('key_decisions'):
-                print(f"💡 Key Decisions:")
+                safe_print(f"💡 Key Decisions:")
                 for i, d in enumerate(breadcrumbs['key_decisions'], 1):
-                    print(f"   {i}. {d}")
-                print()
+                    safe_print(f"   {i}. {d}")
+                safe_print()
             
             if breadcrumbs.get('reference_docs'):
-                print(f"📄 Reference Docs:")
+                safe_print(f"📄 Reference Docs:")
                 for i, doc in enumerate(breadcrumbs['reference_docs'][:5], 1):
                     path = doc.get('doc_path', 'unknown')
                     doc_type = doc.get('doc_type', 'unknown')
-                    print(f"   {i}. {path} ({doc_type})")
+                    safe_print(f"   {i}. {path} ({doc_type})")
                     if doc.get('description'):
-                        print(f"      {doc['description']}")
-                print()
+                        safe_print(f"      {doc['description']}")
+                safe_print()
             
             if breadcrumbs.get('recent_artifacts'):
-                print(f"📝 Recently Modified Files (last 10 sessions):")
+                safe_print(f"📝 Recently Modified Files (last 10 sessions):")
                 for i, artifact in enumerate(breadcrumbs['recent_artifacts'][:10], 1):
-                    print(f"   {i}. Session {artifact['session_id']} ({artifact['ai_id']})")
-                    print(f"      Task: {artifact['task_summary']}")
-                    print(f"      Files modified ({len(artifact['files_modified'])}):")
+                    safe_print(f"   {i}. Session {artifact['session_id']} ({artifact['ai_id']})")
+                    safe_print(f"      Task: {artifact['task_summary']}")
+                    safe_print(f"      Files modified ({len(artifact['files_modified'])}):")
                     for file in artifact['files_modified'][:5]:  # Show first 5 files
-                        print(f"        • {file}")
+                        safe_print(f"        • {file}")
                     if len(artifact['files_modified']) > 5:
-                        print(f"        ... and {len(artifact['files_modified']) - 5} more")
-                print()
+                        safe_print(f"        ... and {len(artifact['files_modified']) - 5} more")
+                safe_print()
             
             # ===== NEW: Active Work Section =====
             if breadcrumbs.get('active_sessions') or breadcrumbs.get('active_goals'):
-                print(f"🚀 Active Work (In Progress):")
-                print()
+                safe_print(f"🚀 Active Work (In Progress):")
+                safe_print()
                 
                 # Show active sessions
                 if breadcrumbs.get('active_sessions'):
-                    print(f"   📡 Active Sessions:")
+                    safe_print(f"   📡 Active Sessions:")
                     for sess in breadcrumbs['active_sessions'][:3]:
                         from datetime import datetime
                         start = datetime.fromisoformat(str(sess['start_time']))
                         elapsed = datetime.now() - start
                         hours = int(elapsed.total_seconds() / 3600)
-                        print(f"      • {sess['session_id'][:8]}... ({sess['ai_id']}) - {hours}h ago")
+                        safe_print(f"      • {sess['session_id'][:8]}... ({sess['ai_id']}) - {hours}h ago")
                         if sess.get('subject'):
-                            print(f"        Subject: {sess['subject']}")
-                    print()
+                            safe_print(f"        Subject: {sess['subject']}")
+                    safe_print()
                 
                 # Show active goals
                 if breadcrumbs.get('active_goals'):
-                    print(f"   🎯 Goals In Progress:")
+                    safe_print(f"   🎯 Goals In Progress:")
                     for goal in breadcrumbs['active_goals'][:5]:
                         beads_link = f" [BEADS: {goal['beads_issue_id']}]" if goal.get('beads_issue_id') else " ⚠️ No BEADS link"
-                        print(f"      • [{goal['id'][:8]}] {goal['objective']}{beads_link}")
-                        print(f"        AI: {goal['ai_id']} | Subtasks: {goal['subtask_count']}")
+                        safe_print(f"      • [{goal['id'][:8]}] {goal['objective']}{beads_link}")
+                        safe_print(f"        AI: {goal['ai_id']} | Subtasks: {goal['subtask_count']}")
                         
                         # Show recent findings for this goal
                         goal_findings = [f for f in breadcrumbs.get('findings_with_goals', []) if f['goal_id'] == goal['id']]
                         if goal_findings:
-                            print(f"        Latest: {goal_findings[0]['finding'][:60]}...")
-                    print()
+                            safe_print(f"        Latest: {goal_findings[0]['finding'][:60]}...")
+                    safe_print()
                 
                 # Show epistemic artifacts
                 if breadcrumbs.get('epistemic_artifacts'):
-                    print(f"   📊 Epistemic Artifacts:")
+                    safe_print(f"   📊 Epistemic Artifacts:")
                     for artifact in breadcrumbs['epistemic_artifacts'][:3]:
                         size_kb = artifact['size'] / 1024
-                        print(f"      • {artifact['path']} ({size_kb:.1f} KB)")
-                    print()
+                        safe_print(f"      • {artifact['path']} ({size_kb:.1f} KB)")
+                    safe_print()
                 
                 # Show AI activity summary
                 if breadcrumbs.get('ai_activity'):
-                    print(f"   👥 AI Activity (Last 7 Days):")
+                    safe_print(f"   👥 AI Activity (Last 7 Days):")
                     for ai in breadcrumbs['ai_activity'][:5]:
-                        print(f"      • {ai['ai_id']}: {ai['session_count']} session(s)")
-                    print()
-                    print(f"   💡 Tip: Use format '<model>-<workstream>' (e.g., claude-cli-testing)")
-                    print()
+                        safe_print(f"      • {ai['ai_id']}: {ai['session_count']} session(s)")
+                    safe_print()
+                    safe_print(f"   💡 Tip: Use format '<model>-<workstream>' (e.g., claude-cli-testing)")
+                    safe_print()
             
             # ===== END NEW =====
             
             # ===== FLOW STATE METRICS =====
             if breadcrumbs.get('flow_metrics') is not None:
-                print(f"📊 Flow State Analysis (Recent Sessions):")
-                print()
+                safe_print(f"📊 Flow State Analysis (Recent Sessions):")
+                safe_print()
                 
                 flow_metrics = breadcrumbs['flow_metrics']
                 flow_data = flow_metrics.get('flow_scores', [])
@@ -701,66 +701,66 @@ def handle_project_bootstrap_command(args):
                         else:
                             emoji = "🔴"
                         
-                        print(f"   {i}. {session['session_id']} ({session['ai_id']})")
-                        print(f"      Flow Score: {score:.2f} {emoji}")
+                        safe_print(f"   {i}. {session['session_id']} ({session['ai_id']})")
+                        safe_print(f"      Flow Score: {score:.2f} {emoji}")
                         
                         # Show top 3 components
                         components = session['components']
                         top_3 = sorted(components.items(), key=lambda x: x[1], reverse=True)[:3]
-                        print(f"      Top factors: {', '.join([f'{k}={v:.2f}' for k, v in top_3])}")
+                        safe_print(f"      Top factors: {', '.join([f'{k}={v:.2f}' for k, v in top_3])}")
                         
                         # Show recommendations if any
                         if session['recommendations']:
-                            print(f"      💡 {session['recommendations'][0]}")
-                        print()
+                            safe_print(f"      💡 {session['recommendations'][0]}")
+                        safe_print()
                     
                     # Show what creates flow
-                    print(f"   💡 Flow Triggers (Optimize for these):")
-                    print(f"      ✅ CASCADE complete (PREFLIGHT → POSTFLIGHT)")
-                    print(f"      ✅ Bootstrap loaded early")
-                    print(f"      ✅ Goal with subtasks")
-                    print(f"      ✅ CHECK for high-scope work")
-                    print(f"      ✅ AI naming convention (<model>-<workstream>)")
-                    print()
+                    safe_print(f"   💡 Flow Triggers (Optimize for these):")
+                    safe_print(f"      ✅ CASCADE complete (PREFLIGHT → POSTFLIGHT)")
+                    safe_print(f"      ✅ Bootstrap loaded early")
+                    safe_print(f"      ✅ Goal with subtasks")
+                    safe_print(f"      ✅ CHECK for high-scope work")
+                    safe_print(f"      ✅ AI naming convention (<model>-<workstream>)")
+                    safe_print()
                 else:
-                    print(f"   💡 No completed sessions yet")
-                    print(f"   Tip: Close active sessions with POSTFLIGHT to see flow metrics")
-                    print(f"   Flow score will show patterns from completed work")
-                    print()
+                    safe_print(f"   💡 No completed sessions yet")
+                    safe_print(f"   Tip: Close active sessions with POSTFLIGHT to see flow metrics")
+                    safe_print(f"   Flow score will show patterns from completed work")
+                    safe_print()
             
             # ===== DATABASE SCHEMA SUMMARY =====
             if breadcrumbs.get('database_summary'):
-                print(f"🗄️  Database Schema (Epistemic Data Store):")
-                print()
+                safe_print(f"🗄️  Database Schema (Epistemic Data Store):")
+                safe_print()
                 
                 db_summary = breadcrumbs['database_summary']
-                print(f"   Total Tables: {db_summary.get('total_tables', 0)}")
-                print(f"   Tables With Data: {db_summary.get('tables_with_data', 0)}")
-                print()
+                safe_print(f"   Total Tables: {db_summary.get('total_tables', 0)}")
+                safe_print(f"   Tables With Data: {db_summary.get('tables_with_data', 0)}")
+                safe_print()
                 
                 # Show key tables (static knowledge reminder)
                 if db_summary.get('key_tables'):
-                    print(f"   📌 Key Tables:")
+                    safe_print(f"   📌 Key Tables:")
                     for table, description in list(db_summary['key_tables'].items())[:6]:
-                        print(f"      • {table}: {description}")
-                    print()
+                        safe_print(f"      • {table}: {description}")
+                    safe_print()
                 
                 # Show top tables by row count
                 if db_summary.get('top_tables'):
-                    print(f"   📊 Most Active Tables:")
+                    safe_print(f"   📊 Most Active Tables:")
                     for table_info in db_summary['top_tables'][:5]:
-                        print(f"      • {table_info}")
-                    print()
+                        safe_print(f"      • {table_info}")
+                    safe_print()
                 
                 # Reference to full schema
                 if db_summary.get('schema_doc'):
-                    print(f"   📖 Full Schema: {db_summary['schema_doc']}")
-                    print()
+                    safe_print(f"   📖 Full Schema: {db_summary['schema_doc']}")
+                    safe_print()
             
             # ===== STRUCTURE HEALTH =====
             if breadcrumbs.get('structure_health'):
-                print(f"🏗️  Project Structure Health:")
-                print()
+                safe_print(f"🏗️  Project Structure Health:")
+                safe_print()
                 
                 health = breadcrumbs['structure_health']
                 
@@ -778,95 +778,95 @@ def handle_project_bootstrap_command(args):
                 else:
                     emoji = "🔴"
                 
-                print(f"   Detected Pattern: {health.get('detected_name', 'Unknown')} {emoji}")
-                print(f"   Detection Confidence: {confidence:.2f}")
-                print(f"   Pattern Conformance: {conformance:.2f}")
-                print(f"   Description: {health.get('description', '')}")
-                print()
+                safe_print(f"   Detected Pattern: {health.get('detected_name', 'Unknown')} {emoji}")
+                safe_print(f"   Detection Confidence: {confidence:.2f}")
+                safe_print(f"   Pattern Conformance: {conformance:.2f}")
+                safe_print(f"   Description: {health.get('description', '')}")
+                safe_print()
                 
                 # Show violations if any
                 violations = health.get('violations', [])
                 if violations:
-                    print(f"   ⚠️  Conformance Issues ({len(violations)}):")
+                    safe_print(f"   ⚠️  Conformance Issues ({len(violations)}):")
                     for violation in violations[:3]:
-                        print(f"      • {violation}")
+                        safe_print(f"      • {violation}")
                     if len(violations) > 3:
-                        print(f"      ... and {len(violations) - 3} more")
-                    print()
+                        safe_print(f"      ... and {len(violations) - 3} more")
+                    safe_print()
                 
                 # Show suggestions
                 suggestions = health.get('suggestions', [])
                 if suggestions:
-                    print(f"   💡 Suggestions:")
+                    safe_print(f"   💡 Suggestions:")
                     for suggestion in suggestions[:3]:
-                        print(f"      {suggestion}")
-                    print()
+                        safe_print(f"      {suggestion}")
+                    safe_print()
             
             # ===== FILE TREE =====
             if breadcrumbs.get('file_tree'):
-                print(f"📁 Project Structure (depth 3, respects .gitignore):")
-                print()
+                safe_print(f"📁 Project Structure (depth 3, respects .gitignore):")
+                safe_print()
                 # Indent the tree output slightly
                 tree_lines = breadcrumbs['file_tree'].split('\n')
                 for line in tree_lines[:50]:  # Limit to 50 lines
                     if line.strip():
-                        print(f"   {line}")
+                        safe_print(f"   {line}")
                 if len(tree_lines) > 50:
-                    print(f"   ... ({len(tree_lines) - 50} more lines)")
-                print()
+                    safe_print(f"   ... ({len(tree_lines) - 50} more lines)")
+                safe_print()
             
             if breadcrumbs['incomplete_work']:
-                print(f"🎯 Incomplete Work:")
+                safe_print(f"🎯 Incomplete Work:")
                 for i, w in enumerate(breadcrumbs['incomplete_work'], 1):
                     objective = w.get('objective', w.get('goal', 'Unknown'))
                     status = w.get('status', 'unknown')
-                    print(f"   {i}. {objective} ({status})")
-                print()
+                    safe_print(f"   {i}. {objective} ({status})")
+                safe_print()
 
             if breadcrumbs.get('available_skills'):
-                print(f"🛠️  Available Skills:")
+                safe_print(f"🛠️  Available Skills:")
                 for i, skill in enumerate(breadcrumbs['available_skills'], 1):
                     tags = ', '.join(skill.get('tags', [])) if skill.get('tags') else 'no tags'
-                    print(f"   {i}. {skill['title']} ({skill['id']})")
-                    print(f"      Tags: {tags}")
-                print()
+                    safe_print(f"   {i}. {skill['title']} ({skill['id']})")
+                    safe_print(f"      Tags: {tags}")
+                safe_print()
 
             if breadcrumbs.get('semantic_docs'):
-                print(f"📖 Core Documentation:")
+                safe_print(f"📖 Core Documentation:")
                 for i, doc in enumerate(breadcrumbs['semantic_docs'][:3], 1):
-                    print(f"   {i}. {doc['title']}")
-                    print(f"      Path: {doc['path']}")
-                print()
+                    safe_print(f"   {i}. {doc['title']}")
+                    safe_print(f"      Path: {doc['path']}")
+                safe_print()
             
             if breadcrumbs.get('integrity_analysis'):
-                print(f"🔍 Doc-Code Integrity Analysis:")
+                safe_print(f"🔍 Doc-Code Integrity Analysis:")
                 integrity = breadcrumbs['integrity_analysis']
                 
                 if 'error' in integrity:
-                    print(f"   ⚠️  Analysis failed: {integrity['error']}")
+                    safe_print(f"   ⚠️  Analysis failed: {integrity['error']}")
                 else:
                     cli = integrity['cli_commands']
-                    print(f"   Score: {cli['integrity_score']:.1%} ({cli['total_in_code']} code, {cli['total_in_docs']} docs)")
+                    safe_print(f"   Score: {cli['integrity_score']:.1%} ({cli['total_in_code']} code, {cli['total_in_docs']} docs)")
                     
                     if integrity.get('missing_code'):
-                        print(f"\n   🔴 Missing Implementations ({cli['missing_implementations']} total):")
+                        safe_print(f"\n   🔴 Missing Implementations ({cli['missing_implementations']} total):")
                         for item in integrity['missing_code'][:5]:
-                            print(f"      • empirica {item['command']} (severity: {item['severity']})")
+                            safe_print(f"      • empirica {item['command']} (severity: {item['severity']})")
                             if item['mentioned_in']:
-                                print(f"        Mentioned in: {item['mentioned_in'][0]['file']}")
+                                safe_print(f"        Mentioned in: {item['mentioned_in'][0]['file']}")
                     
                     if integrity.get('missing_docs'):
-                        print(f"\n   📝 Missing Documentation ({cli['missing_documentation']} total):")
+                        safe_print(f"\n   📝 Missing Documentation ({cli['missing_documentation']} total):")
                         for item in integrity['missing_docs'][:5]:
-                            print(f"      • empirica {item['command']}")
-                print()
+                            safe_print(f"      • empirica {item['command']}")
+                safe_print()
 
             # Workflow Automation Suggestions (if session-id provided)
             if workflow_suggestions:
                 from empirica.cli.utils.workflow_suggestions import format_workflow_suggestions
                 workflow_output = format_workflow_suggestions(workflow_suggestions)
                 if workflow_output.strip():
-                    print(workflow_output)
+                    safe_print(workflow_output)
 
             # Memory Gap Analysis (if session-id provided)
             if breadcrumbs.get('memory_gap_analysis'):
@@ -881,17 +881,17 @@ def handle_project_bootstrap_command(args):
                     'block': '🛑'
                 }.get(enforcement, '🧠')
 
-                print(f"{mode_emoji} Memory Gap Analysis (Mode: {enforcement.upper()}):")
+                safe_print(f"{mode_emoji} Memory Gap Analysis (Mode: {enforcement.upper()}):")
 
                 if analysis['detected']:
                     gap_score = analysis['overall_gap']
                     claimed = analysis['claimed_know']
                     expected = analysis['expected_know']
 
-                    print(f"   Knowledge Assessment:")
-                    print(f"      Claimed KNOW:  {claimed:.2f}")
-                    print(f"      Expected KNOW: {expected:.2f}")
-                    print(f"      Gap Score:     {gap_score:.2f}")
+                    safe_print(f"   Knowledge Assessment:")
+                    safe_print(f"      Claimed KNOW:  {claimed:.2f}")
+                    safe_print(f"      Expected KNOW: {expected:.2f}")
+                    safe_print(f"      Gap Score:     {gap_score:.2f}")
 
                     # Group gaps by type
                     gaps_by_type = {}
@@ -903,7 +903,7 @@ def handle_project_bootstrap_command(args):
 
                     # Display gaps by severity
                     if gaps_by_type:
-                        print(f"\n   Detected Gaps:")
+                        safe_print(f"\n   Detected Gaps:")
 
                         # Priority order
                         type_order = ['confabulation', 'unreferenced_findings', 'unincorporated_unknowns',
@@ -923,28 +923,28 @@ def handle_project_bootstrap_command(args):
 
                             # Show type header
                             type_label = gap_type.replace('_', ' ').title()
-                            print(f"\n      {type_label} ({len(gaps)}):")
+                            safe_print(f"\n      {type_label} ({len(gaps)}):")
 
                             # Show top 3 gaps of this type
                             for gap in gaps[:3]:
                                 icon = severity_icon.get(gap['severity'], '•')
                                 content = gap['content'][:80] + '...' if len(gap['content']) > 80 else gap['content']
-                                print(f"      {icon} {content}")
+                                safe_print(f"      {icon} {content}")
                                 if gap.get('resolution_action'):
-                                    print(f"         → {gap['resolution_action']}")
+                                    safe_print(f"         → {gap['resolution_action']}")
 
                             if len(gaps) > 3:
-                                print(f"         ... and {len(gaps) - 3} more")
+                                safe_print(f"         ... and {len(gaps) - 3} more")
 
                     # Show recommended actions
                     if analysis.get('recommended_actions'):
-                        print(f"\n   Recommended Actions:")
+                        safe_print(f"\n   Recommended Actions:")
                         for i, action in enumerate(analysis['recommended_actions'][:5], 1):
-                            print(f"      {i}. {action}")
+                            safe_print(f"      {i}. {action}")
                 else:
-                    print(f"   ✅ No memory gaps detected - context is current")
+                    safe_print(f"   ✅ No memory gaps detected - context is current")
 
-                print()
+                safe_print()
 
         # Return None to avoid exit code issues and duplicate output
         return None
