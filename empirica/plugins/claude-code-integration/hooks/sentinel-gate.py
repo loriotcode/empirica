@@ -880,23 +880,16 @@ def main():
                 with open(tx_file, 'r') as f:
                     tx_data = json.load(f)
 
-                # STALE TRANSACTION CHECK: Purge closed-but-not-deleted files.
-                # POSTFLIGHT sets status="closed" then clear_active_transaction()
-                # deletes the file. If deletion fails (CWD wrong, resolution
-                # chain degraded during session-end), the file persists.
-                # Only purge status != "open" — never time-based (transactions
-                # can legitimately last overnight).
+                # CLOSED TRANSACTION CHECK: Closed transactions persist as project anchors.
+                # POSTFLIGHT sets status="closed" but does NOT delete the file.
+                # This allows post-compact to resolve the correct project even after
+                # the loop closes. The file is overwritten by the next PREFLIGHT.
+                # See: docs/architecture/instance_isolation/KNOWN_ISSUES.md
                 tx_candidate_session = tx_data.get('session_id')
-                _tx_stale = False
+                _tx_closed = tx_data.get('status') != 'open'
 
-                if tx_data.get('status') != 'open':
-                    _tx_stale = True
-                    try:
-                        tx_file.unlink()
-                    except Exception:
-                        pass
-
-                if not _tx_stale:
+                # Only use open transactions for gating; closed ones are just project anchors
+                if not _tx_closed:
                     current_transaction_id = tx_data.get('transaction_id')
                     tx_session_id = tx_candidate_session
             except Exception:

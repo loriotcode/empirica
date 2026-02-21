@@ -122,6 +122,37 @@ AND project-switch CLI. `active_work` is fallback for non-TMUX only.
 
 **Commit:** `f9d607ed` (TTY fallback), pending (priority fix)
 
+### 11.15 Transaction File Deleted After POSTFLIGHT Breaks Compact (2026-02-21)
+
+**Symptom:** After POSTFLIGHT closes a loop, compaction loses project context. post-compact
+writes `active_work` pointing to wrong project. Sentinel blocks with "No PREFLIGHT".
+
+**Root cause:** `clear_active_transaction()` deleted the transaction file immediately after
+POSTFLIGHT. When compaction occurred, post-compact had no transaction file to read for
+project context. It fell back to stale `active_work` data from a previous session.
+
+**The problem sequence:**
+1. POSTFLIGHT closes loop → `status="closed"` → file deleted
+2. User continues work in same project (no new PREFLIGHT yet)
+3. Compaction occurs
+4. post-compact calls `_find_project_root()` → no transaction file exists
+5. Falls back to stale `active_work` from old session → wrong project
+6. Writes new `active_work` with wrong `project_path`
+7. User's next PREFLIGHT attempt blocked because project context is wrong
+
+**Fix:** Transaction files now persist as "project anchors" until overwritten by next PREFLIGHT.
+1. `workflow_commands.py`: Removed `clear_active_transaction()` call from POSTFLIGHT handler
+2. `sentinel-gate.py`: No longer deletes closed transactions (was backup purge)
+3. `post-compact.py`: Uses closed transactions for project resolution (fallback to open)
+
+**Design principle:** Closed transaction file serves two purposes:
+- Open (`status="open"`): Active gating by Sentinel
+- Closed (`status="closed"`): Project anchor for post-compact resolution
+
+The file is only overwritten when a new PREFLIGHT starts a new transaction.
+
+**Commit:** pending
+
 ---
 
 ## By Design (Not Bugs)

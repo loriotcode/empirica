@@ -108,6 +108,7 @@ def find_project_root(claude_session_id: str = None) -> Optional[Path]:
     # Priority -1: Check candidates for open transaction (AUTHORITATIVE)
     # The transaction file is written at PREFLIGHT with explicit project_path.
     # If a candidate has an open transaction, that's definitively the right project.
+    closed_tx_project = None  # Track closed transaction as fallback
     if instance_id and candidates:
         for path in candidates:
             try:
@@ -115,18 +116,25 @@ def find_project_root(claude_session_id: str = None) -> Optional[Path]:
                 if tx_file.exists():
                     with open(tx_file, 'r') as f:
                         tx_data = json.load(f)
+                    tx_project = tx_data.get('project_path')
                     if tx_data.get('status') == 'open':
-                        tx_project = tx_data.get('project_path')
+                        # Open transaction is authoritative
                         if tx_project and has_valid_db(Path(tx_project)):
                             return Path(tx_project)
                         return Path(path)
+                    else:
+                        # Closed transaction is project anchor (fallback)
+                        # Keep the most recently modified one
+                        if tx_project and has_valid_db(Path(tx_project)):
+                            if closed_tx_project is None:
+                                closed_tx_project = Path(tx_project)
             except Exception:
                 continue
 
     # Priority -0.5: Workspace scan — if candidates didn't have open transactions,
-    # scan ALL registered projects for open transactions with this instance_id.
+    # scan ALL registered projects for open/closed transactions with this instance_id.
     # Handles case where active_work/instance_projects are stale/wrong.
-    # Picks the most recently modified transaction file if multiple are open.
+    # Picks the most recently modified transaction file if multiple exist.
     if instance_id:
         try:
             import sqlite3
@@ -138,9 +146,12 @@ def find_project_root(claude_session_id: str = None) -> Optional[Path]:
                 all_projects = [row[0] for row in cursor.fetchall()]
                 conn.close()
 
-                # Check each project for open transaction, track by mtime
-                best_match = None
-                best_mtime = 0
+                # Check each project for OPEN transactions only
+                # Closed transactions from workspace scan are NOT used - they might
+                # be from a project the user switched away from. Closed tx fallback
+                # only applies to candidates (current project context).
+                best_open = None
+                best_open_mtime = 0
                 candidate_set = set(candidates)  # Skip already-checked candidates
                 for proj_path in all_projects:
                     if proj_path in candidate_set:
@@ -150,22 +161,27 @@ def find_project_root(claude_session_id: str = None) -> Optional[Path]:
                         if tx_file.exists():
                             with open(tx_file, 'r') as f:
                                 tx_data = json.load(f)
+                            # Only consider OPEN transactions in workspace scan
+                            # Closed transactions might be from old projects user switched away from
                             if tx_data.get('status') == 'open':
                                 mtime = tx_file.stat().st_mtime
-                                if mtime > best_mtime:
-                                    tx_project = tx_data.get('project_path', proj_path)
-                                    if has_valid_db(Path(tx_project)):
-                                        best_match = Path(tx_project)
-                                        best_mtime = mtime
+                                tx_project = tx_data.get('project_path', proj_path)
+                                if has_valid_db(Path(tx_project)) and mtime > best_open_mtime:
+                                    best_open = Path(tx_project)
+                                    best_open_mtime = mtime
                     except Exception:
                         continue
 
-                if best_match:
-                    return best_match
+                if best_open:
+                    return best_open
         except Exception:
             pass
 
-    # No open transaction found - return first valid candidate
+    # Use closed transaction as project anchor if found
+    if closed_tx_project:
+        return closed_tx_project
+
+    # No transaction found - return first valid candidate
     if candidates:
         return Path(candidates[0])
 

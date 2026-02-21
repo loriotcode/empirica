@@ -2491,12 +2491,11 @@ def handle_postflight_submit_command(args):
 
             # NOTE: Statusline cache was removed (2026-02-06). Statusline reads directly from DB.
 
-            # Clear active transaction file — POSTFLIGHT closes the measurement window
-            try:
-                from empirica.utils.session_resolver import clear_active_transaction
-                clear_active_transaction()  # Resolves project path internally
-            except Exception as e_clear:
-                logger.debug(f"Failed to clear active transaction (non-fatal): {e_clear}")
+            # NOTE: Transaction file is NOT deleted here. It persists with status="closed"
+            # as a project anchor until the next PREFLIGHT overwrites it. This enables:
+            # 1. post-compact to resolve correct project even after POSTFLIGHT
+            # 2. Autonomous workflows to maintain project context across compaction barriers
+            # See: docs/architecture/instance_isolation/KNOWN_ISSUES.md (transaction persistence)
 
         except Exception as e:
             logger.error(f"Failed to save postflight assessment: {e}")
