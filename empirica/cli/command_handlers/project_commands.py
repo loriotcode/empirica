@@ -3911,6 +3911,62 @@ def handle_project_switch_command(args):
         except Exception as e:
             logger.debug(f"Session continuity update failed (non-fatal): {e}")
 
+        # 4c. ENSURE PROJECT EXISTS IN TARGET'S LOCAL projects TABLE
+        # Domain projects created via redistribution/workspace.db may have an empty
+        # local projects table, causing finding-log, project-bootstrap, and other
+        # commands to fail with "Project not found". Fix: auto-populate from workspace.db.
+        if project_path and project_id:
+            try:
+                target_db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
+                if target_db_path.exists():
+                    target_conn = sqlite3.connect(str(target_db_path))
+                    target_cursor = target_conn.cursor()
+
+                    # Check if project already exists in target's local projects table
+                    target_cursor.execute(
+                        "SELECT id FROM projects WHERE id = ?",
+                        (project_id,)
+                    )
+                    if not target_cursor.fetchone():
+                        # Project missing from local DB — populate from workspace.db metadata
+                        import time
+                        now = time.time()
+                        project_description = project.get('description', '')
+                        proj_type = project.get('project_type', 'product')
+                        proj_tags = project.get('project_tags', '')
+                        created_ts = project.get('created_timestamp', now)
+
+                        target_cursor.execute("""
+                            INSERT INTO projects (
+                                id, name, description, repos, created_timestamp,
+                                last_activity_timestamp, status, metadata,
+                                total_sessions, total_goals, total_epistemic_deltas,
+                                project_data, project_type, project_tags, parent_project_id
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            project_id,
+                            project_name or folder_name,
+                            project_description,
+                            None,  # repos
+                            created_ts,
+                            now,  # last_activity_timestamp
+                            'active',
+                            None,  # metadata
+                            0,  # total_sessions
+                            0,  # total_goals
+                            None,  # total_epistemic_deltas
+                            '{}',  # project_data (required NOT NULL)
+                            proj_type,
+                            proj_tags,
+                            None  # parent_project_id
+                        ))
+                        target_conn.commit()
+                        if output_format == 'human':
+                            print(f"📦 Project record created in local database")
+                    target_conn.close()
+            except Exception as e3:
+                logger.debug(f"Local projects table population failed (non-fatal): {e3}")
+
         # 5. Update active_work.json for cross-project continuity
         # This ensures pre-compact hook preserves project context even when Claude Code resets CWD
         # Include empirica_session_id so Sentinel and MCP tools can attach to the correct session
