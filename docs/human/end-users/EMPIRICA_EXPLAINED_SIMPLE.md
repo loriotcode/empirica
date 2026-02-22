@@ -2,8 +2,8 @@
 
 **What it is:** A system that helps AI agents know what they know (and don't know), track project learning, and collaborate effectively.
 
-**Date:** 2025-12-18  
-**Version:** 4.0
+**Date:** 2026-02-22
+**Version:** 5.0
 
 ---
 
@@ -125,87 +125,75 @@ Think of CASCADE like doing homework properly:
 **"What do I already know?"**
 
 ```bash
-empirica preflight --session-id <SESSION_ID>
+# Opens an epistemic transaction (measurement window)
+empirica preflight-submit - << 'EOF'
+{
+  "task_context": "Implement OAuth2 authentication",
+  "vectors": {"know": 0.45, "uncertainty": 0.7, "context": 0.5, "clarity": 0.6},
+  "reasoning": "Low domain knowledge, high uncertainty"
+}
+EOF
 ```
 
-- Assess all 13 epistemic vectors **honestly**
+- Assess epistemic vectors **honestly**
 - Not "I can figure it out" but "What do I know RIGHT NOW?"
-- System calculates: **Should I investigate first?**
+- Opens a transaction for measuring learning
 
-**Output:**
-```
-KNOW: 0.45  ⚠️  Below threshold (0.60)
-UNCERTAINTY: 0.70  ⚠️  High uncertainty
-→ RECOMMENDATION: Investigate before proceeding
-```
-
-### 2. CHECK (Decision Gate)
-**"Am I ready to proceed?"**
-
-```bash
-empirica check --session-id <SESSION_ID>
-```
-
-- Review findings from investigation
-- Assess remaining unknowns
-- Confidence to proceed (0.0-1.0)
-
-**If confidence ≥ 0.7:** Proceed to ACT  
-**If confidence < 0.7:** Investigate more
-
-### 3. INVESTIGATE (Reduce Uncertainty)
+### 2. INVESTIGATE (Reduce Uncertainty)
 **"Let me learn what I need to know"**
 
 ```bash
-empirica investigate <file_or_concept>
+# Log findings as you discover them (session_id auto-derived)
+empirica finding-log --finding "OAuth2 uses PKCE flow for public clients" --impact 0.7
+empirica unknown-log --unknown "How to handle token refresh in our architecture?"
+empirica deadend-log --approach "Tried implicit flow" --why-failed "Deprecated for security"
 ```
 
-- Research documentation
-- Search codebase
-- Run experiments
-- Log findings/unknowns
+- Research documentation, search codebase
+- Log findings, unknowns, dead-ends as breadcrumbs
+- These persist in memory and inform future sessions
 
-**Example:**
+### 3. CHECK (Decision Gate)
+**"Am I ready to proceed?"**
+
 ```bash
-empirica finding-log --project-id <ID> \
-    --finding "OAuth2 uses PKCE flow for public clients"
-
-empirica unknown-log --project-id <ID> \
-    --unknown "How to handle token refresh in our architecture?"
+empirica check-submit - << 'EOF'
+{
+  "vectors": {"know": 0.75, "uncertainty": 0.3, "context": 0.8, "clarity": 0.85},
+  "reasoning": "Investigated OAuth2 spec, found existing patterns"
+}
+EOF
 ```
+
+- Sentinel gates praxic action (Edit, Write) until CHECK passes
+- Returns `proceed` or `investigate` (keep exploring)
 
 ### 4. ACT (Do the Work)
-**"Execute with epistemic tracking"**
+**"Execute with goal tracking"**
 
 ```bash
-empirica act-log --session-id <SESSION_ID> \
-    --action "Implemented OAuth2 client with PKCE"
+# Create and complete goals
+empirica goals-create --objective "Implement OAuth2 client with PKCE"
+# ... write code, run tests ...
+empirica goals-complete --goal-id <ID> --reason "Implementation verified"
 ```
-
-- Do the actual implementation
-- Log key actions
-- Track progress
 
 ### 5. POSTFLIGHT (Measure Learning)
 **"What did I actually learn?"**
 
 ```bash
-empirica postflight --session-id <SESSION_ID>
+# Closes the transaction + triggers grounded verification
+empirica postflight-submit - << 'EOF'
+{
+  "vectors": {"know": 0.85, "uncertainty": 0.15, "context": 0.9, "clarity": 0.9},
+  "reasoning": "Learned OAuth2 PKCE flow, implemented and tested"
+}
+EOF
 ```
 
-- Re-assess all 13 vectors
-- Calculate learning delta: `KNOW: 0.45 → 0.85 (+0.40)`
-- Measure calibration: Were initial assessments accurate?
-
-**Output:**
-```
-Epistemic Delta:
-  KNOW: 0.45 → 0.85 (+0.40)  📈
-  CONTEXT: 0.50 → 0.90 (+0.40)  📈
-  UNCERTAINTY: 0.70 → 0.15 (-0.55)  ✓
-
-Calibration: GOOD (initial assessment was realistic)
-```
+- Learning delta: PREFLIGHT vs POSTFLIGHT vectors
+- Grounded verification (POST-TEST): compares self-assessment to objective evidence
+- Calibration: Were initial assessments accurate?
 
 ---
 
@@ -234,41 +222,29 @@ UNCERTAINTY: 0.75  ⚠️
 
 **INVESTIGATE:**
 ```bash
-empirica investigate "authentication architecture"
-# Searches codebase, finds existing patterns
-# Reads OAuth2 spec
-
-empirica finding-log \
-    --finding "System uses Auth0 for SSO, need to integrate"
-
-empirica unknown-log \
-    --unknown "How to handle session persistence?"
+# Log as you discover (session_id auto-derived)
+empirica finding-log --finding "System uses Auth0 for SSO" --impact 0.7
+empirica unknown-log --unknown "How to handle session persistence?"
 ```
 
 **CHECK:**
-```
-Findings: 3 items
-Unknowns: 1 item (session persistence)
-Confidence: 0.75  ✓
-→ Decision: PROCEED (acceptable confidence)
+```bash
+empirica check-submit -   # Returns: proceed
 ```
 
 **ACT:**
 ```bash
-# Implement with Auth0 integration
-empirica act-log --action "Integrated Auth0 SDK"
-empirica act-log --action "Added session middleware"
+empirica goals-create --objective "Integrate Auth0 OAuth2"
+# ... implement ...
+empirica goals-complete --goal-id <ID> --reason "Auth0 integrated, tests pass"
 ```
 
 **POSTFLIGHT:**
-```
-KNOW: 0.40 → 0.85 (+0.45)  📈
-CONTEXT: 0.30 → 0.90 (+0.60)  📈
-UNCERTAINTY: 0.75 → 0.20 (-0.55)  ✓
-
-Learning verified: Strong improvement
-Implementation: Correct on first try
-Time saved: ~3 hours of debugging
+```bash
+empirica postflight-submit -
+# Learning delta: KNOW 0.40 → 0.85 (+0.45), UNCERTAINTY 0.75 → 0.20 (-0.55)
+# Grounded verification: tests pass, git shows 3 files changed
+# Calibration: GOOD
 ```
 
 ---
@@ -305,28 +281,29 @@ BEADS integration allows AI agents to discover and resume each other's work.
 empirica/
 ├── core/                          # Epistemic framework
 │   ├── canonical/                 # 13-vector assessment
-│   └── metacognitive_cascade/     # CASCADE workflow
+│   ├── qdrant/                    # Semantic search (optional)
+│   └── lessons/                   # Procedural knowledge
 │
 ├── data/                          # SQLite storage
 │   ├── session_database.py        # Main API
-│   └── schema.sql                 # Tables (sessions, goals, reflexes, etc.)
+│   └── schema/                    # Table schemas
 │
-├── cli/                           # Command-line interface
-│   └── commands/                  # 67 commands
+├── cli/                           # Command-line interface (138+ commands)
+│   ├── command_handlers/          # Command implementations
+│   └── parsers/                   # Argument parsers
 │
-└── vision/                        # Content assessment (NEW)
-    ├── slide_processor.py         # OCR + epistemic scoring
-    └── readable_translator.py     # Human-friendly output
+└── utils/                         # Session resolver, path resolver
 ```
 
-### Data Storage
+### Data Storage (per-project)
 
 ```
 .empirica/
-├── empirica.db                    # SQLite database
-├── sessions/                      # Session data
-├── projects/                      # Project breadcrumbs
-└── slides/                        # Vision assessments
+├── sessions/
+│   └── sessions.db                # SQLite database (per project)
+├── ref-docs/                      # Reference documents
+├── PROJECT_CONFIG.yaml            # Project configuration
+└── .breadcrumbs.yaml              # Calibration data
 ```
 
 ### Git Integration
@@ -334,7 +311,8 @@ empirica/
 ```
 git notes refs/empirica/checkpoints   # Compressed session data
 git notes refs/empirica/handoffs      # Session handoff reports
-git notes refs/empirica/goals         # Goal discovery (Phase 1)
+git notes refs/empirica/breadcrumbs   # Learning trajectory
+git notes refs/empirica/goals         # Goal discovery
 ```
 
 ---
@@ -350,20 +328,24 @@ empirica sessions-resume --ai-id myai
 
 ### CASCADE Workflow
 ```bash
-empirica preflight --session-id <ID>
-empirica check --session-id <ID>
-empirica investigate <file_or_concept>
-empirica act-log --session-id <ID> --action "..."
-empirica postflight --session-id <ID>
+empirica preflight-submit -             # PREFLIGHT (JSON stdin)
+empirica check-submit -                 # CHECK gate (JSON stdin)
+empirica postflight-submit -            # POSTFLIGHT (JSON stdin)
+```
+
+### Noetic Artifacts (log as you work)
+```bash
+empirica finding-log --finding "..." --impact 0.7    # What was learned
+empirica unknown-log --unknown "..."                  # What's unclear
+empirica deadend-log --approach "..." --why-failed "..."  # Failed approaches
 ```
 
 ### Project Tracking
 ```bash
-empirica project-create --name "My Project"
-empirica project-bootstrap --project-id <ID>
-empirica finding-log --project-id <ID> --finding "..."
-empirica unknown-log --project-id <ID> --unknown "..."
-empirica deadend-log --project-id <ID> --approach "..." --why-failed "..."
+empirica project-init                   # Initialize in CWD
+empirica project-bootstrap              # Load project context
+empirica project-list                   # List all projects
+empirica project-switch <name>          # Switch project
 ```
 
 ### Goals & Subtasks
@@ -418,24 +400,25 @@ empirica handoff-query --ai-id myai
 pip install empirica
 ```
 
-### 2. Create a session
+### 2. Initialize project + create session
 ```bash
+cd your-project
+empirica project-init
 empirica session-create --ai-id myai --output json
 ```
 
-### 3. Run PREFLIGHT
+### 3. Run CASCADE workflow
 ```bash
-empirica preflight --session-id <SESSION_ID>
+empirica preflight-submit -        # Assess baseline (JSON stdin)
+# Investigate... log findings...
+empirica check-submit -            # Gate check
+# Act... complete goals...
+empirica postflight-submit -       # Measure learning
 ```
 
-### 4. Follow CASCADE workflow
-- If uncertain → INVESTIGATE
-- If confident → ACT
-- Always → POSTFLIGHT
-
-### 5. Create handoff for next session
+### 4. For Claude Code integration
 ```bash
-empirica handoff-create --session-id <SESSION_ID>
+empirica setup-claude-code         # Installs plugin, hooks, CLAUDE.md
 ```
 
 ---
@@ -443,8 +426,8 @@ empirica handoff-create --session-id <SESSION_ID>
 ## Next Steps
 
 - **For users:** See [01_START_HERE.md](01_START_HERE.md)
-- **For developers:** See [reference/CANONICAL_DIRECTORY_STRUCTURE.md](reference/CANONICAL_DIRECTORY_STRUCTURE.md)
-- **For AI agents:** See [system-prompts/CANONICAL_SYSTEM_PROMPT.md](system-prompts/CANONICAL_SYSTEM_PROMPT.md)
+- **For developers:** See [CLI Commands](../developers/CLI_COMMANDS_UNIFIED.md)
+- **For Claude Code:** Run `empirica setup-claude-code`
 
 ---
 

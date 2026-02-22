@@ -299,42 +299,37 @@ Part of: `pip install empirica-workspace`
 
 ### CASCADE Workflow Commands
 
-#### `preflight`
-**Purpose:** Execute preflight epistemic assessment before work begins
-**Usage:** `empirica preflight <task_description> [options]`
-**Options:**
-- `--session-id`: Session ID (auto-generated if not provided)
-- `--ai-id`: AI identifier
-- `--prompt-only`: Return only the self-assessment prompt (no waiting)
-- `--assessment-json`: Genuine AI self-assessment JSON
-- `--output`: Output format (human, json)
+#### `preflight` / `preflight-submit`
+**Purpose:** Open an epistemic transaction — record baseline vectors before work begins
+**Usage (recommended):** `empirica preflight-submit - < config.json` (JSON via stdin)
+**Usage (legacy):** `empirica preflight --session-id <session_id>`
+**JSON stdin fields:**
+- `session_id`: Session ID (auto-derived from active transaction if omitted)
+- `task_context`: Description of the task
+- `vectors`: Object with vector names and values (0.0-1.0)
+- `reasoning`: Honest assessment of current state
+**Aliases:** `preflight`, `pre`
 
-#### `preflight-submit`
-**Purpose:** Submit preflight assessment results
-**Usage:** `empirica preflight-submit --session-id <session_id> --vectors <json>`
+#### `check` / `check-submit`
+**Purpose:** Sentinel gate — assess readiness to transition from noetic to praxic
+**Usage (recommended):** `empirica check-submit - < config.json` (JSON via stdin)
+**Usage (legacy):** `empirica check --session-id <session_id>`
+**JSON stdin fields:**
+- `session_id`: Session ID (auto-derived)
+- `vectors`: Object with vector names and values
+- `reasoning`: Why ready or not ready to proceed
+**Returns:** `proceed` or `investigate`
 
-#### `check`
-**Purpose:** Execute epistemic check during workflow
-**Usage:** `empirica check --session-id <session_id> [options]`
-**Options:**
-- `--findings`: Investigation findings as JSON array
-- `--unknowns`: Remaining unknowns as JSON array
-- `--confidence`: Confidence score (0.0-1.0)
-
-#### `check-submit`
-**Purpose:** Submit check assessment results
-**Usage:** `empirica check-submit --session-id <session_id> --vectors <json> --decision <decision>`
-
-#### `postflight`
-**Purpose:** Execute postflight epistemic assessment after work completes
-**Usage:** `empirica postflight --session-id <session_id> --vectors <json> [options]`
-**Options:**
-- `--reasoning`: Description of what changed from preflight
-- `--output`: Output format
-
-#### `postflight-submit`
-**Purpose:** Submit postflight assessment results
-**Usage:** `empirica postflight-submit --session-id <session_id> --vectors <json>`
+#### `postflight` / `postflight-submit`
+**Purpose:** Close an epistemic transaction — measure learning delta and trigger grounded verification
+**Usage (recommended):** `empirica postflight-submit - < config.json` (JSON via stdin)
+**Usage (legacy):** `empirica postflight --session-id <session_id> --vectors <json>`
+**JSON stdin fields:**
+- `session_id`: Session ID (auto-derived)
+- `vectors`: Object with vector names and values
+- `reasoning`: What you learned — compare to PREFLIGHT
+**Triggers:** POST-TEST grounded verification (automatic)
+**Aliases:** `postflight`, `post`
 
 #### `workflow`
 **Purpose:** Execute complete CASCADE workflow

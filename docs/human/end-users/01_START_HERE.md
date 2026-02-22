@@ -60,20 +60,35 @@ empirica onboard --ai-id <your-ai-name>
 
 ### Step 3: First Task (10 minutes)
 ```bash
-# Preflight: Assess before starting
-SESSION=$(empirica preflight "your task description" --quiet)
+# Initialize project in your git repo
+cd your-project
+empirica project-init
 
-# Do your work...
+# Create session
+empirica session-create --ai-id myai --output json
 
-# Postflight: Measure what you learned
-empirica postflight $SESSION --summary "task complete"
+# Preflight: Assess before starting (opens transaction)
+empirica preflight-submit - << 'EOF'
+{
+  "task_context": "Your task description",
+  "vectors": {"know": 0.5, "uncertainty": 0.5, "context": 0.6},
+  "reasoning": "Honest baseline assessment"
+}
+EOF
 
-# System shows:
-# - Epistemic delta (what you learned)
-# - Calibration quality (overconfident/underconfident?)
+# Do your work... log as you go...
+empirica finding-log --finding "What you learned" --impact 0.7
+
+# Postflight: Measure what you learned (closes transaction)
+empirica postflight-submit - << 'EOF'
+{
+  "vectors": {"know": 0.8, "uncertainty": 0.2, "context": 0.9},
+  "reasoning": "Compare to PREFLIGHT - this is your learning delta"
+}
+EOF
 ```
 
-**Session Continuity:** Use handoff reports to resume work efficiently across sessions. See [`docs/guides/FLEXIBLE_HANDOFF_GUIDE.md`](guides/FLEXIBLE_HANDOFF_GUIDE.md) for multi-agent patterns and [`docs/production/23_SESSION_CONTINUITY.md`](production/23_SESSION_CONTINUITY.md) for detailed continuity workflows.
+**Session Continuity:** Empirica hooks handle session persistence across compaction automatically. Use handoff reports for explicit AI-to-AI context transfer.
 
 ---
 
@@ -106,8 +121,8 @@ Empirica works **four different ways** - pick what fits your workflow:
 
 ### 1. **CLI** (Command Line) - Start here!
 ```bash
-empirica preflight "task"
-empirica postflight <session>
+empirica preflight-submit -     # JSON via stdin
+empirica postflight-submit -    # JSON via stdin
 ```
 **Best for:** Terminal workflows, scripts, quick tasks
 
@@ -189,16 +204,17 @@ submit_postflight_assessment(
 ## Next Steps
 
 ### For AI Agents:
-📖 **Read:** [`docs/skills/SKILL.md`](skills/SKILL.md) - Complete guide for AI agents
+- Run `empirica setup-claude-code` for Claude Code integration
+- Run `empirica onboard` for an interactive introduction
 
 ### For Users:
-📚 **Read:** [`docs/ONBOARDING_GUIDE.md`](ONBOARDING_GUIDE.md) - Complete learning path  
-🎯 **Try:** [`docs/guides/TRY_EMPIRICA_NOW.md`](guides/TRY_EMPIRICA_NOW.md) - Hands-on demo  
-📖 **Reference:** [`docs/production/README.md`](production/README.md) - 21 comprehensive guides  
+- **Quick start:** [04_QUICKSTART_CLI.md](04_QUICKSTART_CLI.md) - CLI workflow guide
+- **Understand vectors:** [05_EPISTEMIC_VECTORS_EXPLAINED.md](05_EPISTEMIC_VECTORS_EXPLAINED.md)
+- **Simple explanation:** [EMPIRICA_EXPLAINED_SIMPLE.md](EMPIRICA_EXPLAINED_SIMPLE.md)
 
 ### Need Help?
-- **Installation issues:** [`docs/02_INSTALLATION.md`](02_INSTALLATION.md)
-- **Troubleshooting:** [`docs/03_TROUBLESHOOTING.md`](03_TROUBLESHOOTING.md)
+- **Installation issues:** [02_INSTALLATION.md](02_INSTALLATION.md)
+- **Troubleshooting:** [03_TROUBLESHOOTING.md](03_TROUBLESHOOTING.md)
 
 ---
 

@@ -98,14 +98,15 @@ sqlite3.DatabaseError: database disk image is malformed
 
 **Solution:**
 ```bash
+# Database is per-project at .empirica/sessions/sessions.db
 # Backup current database
-cp ~/.empirica/empirica.db ~/.empirica/empirica.db.backup
+cp .empirica/sessions/sessions.db .empirica/sessions/sessions.db.backup
 
 # Try to recover
-sqlite3 ~/.empirica/empirica.db "PRAGMA integrity_check;"
+sqlite3 .empirica/sessions/sessions.db "PRAGMA integrity_check;"
 
-# If unrecoverable, start fresh (loses history)
-rm ~/.empirica/empirica.db
+# If unrecoverable, start fresh (loses project history)
+rm .empirica/sessions/sessions.db
 
 # Create new database
 empirica session-create --ai-id recovery
@@ -129,7 +130,7 @@ empirica sessions-list
 
 # Verify session ID is correct
 # If session missing, check database:
-sqlite3 ~/.empirica/empirica.db "SELECT * FROM sessions;"
+sqlite3 .empirica/sessions/sessions.db "SELECT * FROM sessions;"
 ```
 
 ### Problem: Cannot create session
@@ -145,10 +146,10 @@ Error: Failed to create session
 df -h ~/.empirica
 
 # Check database permissions
-ls -la ~/.empirica/empirica.db
+ls -la .empirica/sessions/sessions.db
 
 # Fix permissions
-chmod 644 ~/.empirica/empirica.db
+chmod 644 .empirica/sessions/sessions.db
 
 # Check if directory is writable
 touch ~/.empirica/test && rm ~/.empirica/test
@@ -210,23 +211,28 @@ git config --global user.email "your@email.com"
 
 ## Assessment Issues
 
-### Problem: PREFLIGHT prompt not showing
+### Problem: PREFLIGHT not working
 ```
-Error: Could not generate PREFLIGHT prompt
+Error: Could not submit PREFLIGHT assessment
 ```
 
-**Cause:** Missing session data or template issue
+**Cause:** Missing session, no project initialized, or invalid JSON
 
 **Solution:**
 ```bash
 # Verify session exists
 empirica sessions-show --session-id <SESSION_ID>
 
-# Try with verbose output
-empirica --verbose preflight --session-id <SESSION_ID>
+# Ensure project is initialized in your git repo
+empirica project-init
 
-# Check for core module issues
-python -c "from empirica.core.canonical import CanonicalEpistemicAssessor; print('OK')"
+# Try with JSON stdin (recommended)
+empirica preflight-submit - << 'EOF'
+{
+  "task_context": "Test task",
+  "vectors": {"know": 0.5, "uncertainty": 0.5}
+}
+EOF
 ```
 
 ### Problem: Invalid vector values
@@ -282,12 +288,11 @@ Warning: No breadcrumbs found for project
 
 **Solution:**
 ```bash
-# Log some findings
-empirica finding-log --project-id <PROJECT_ID> \
-    --finding "Initial exploration complete"
+# Log some findings (session_id auto-derived from active transaction)
+empirica finding-log --finding "Initial exploration complete" --impact 0.3
 
-# Bootstrap again
-empirica project-bootstrap --project-id <PROJECT_ID>
+# Bootstrap again (auto-detects project from CWD)
+empirica project-bootstrap --output json
 ```
 
 ---
@@ -394,10 +399,10 @@ empirica goals-resume --goal-id <GOAL_ID> --ai-id myai
 **Solution:**
 ```bash
 # Check database size
-ls -lh ~/.empirica/empirica.db
+ls -lh .empirica/sessions/sessions.db
 
 # Vacuum database to optimize
-sqlite3 ~/.empirica/empirica.db "VACUUM;"
+sqlite3 .empirica/sessions/sessions.db "VACUUM;"
 
 # Note: sessions are auto-managed. Old sessions are closed automatically.
 ```
@@ -457,7 +462,7 @@ echo "Git version:"
 git --version
 
 echo "Database info:"
-ls -lh ~/.empirica/empirica.db
+ls -lh .empirica/sessions/sessions.db
 
 echo "Session count:"
 empirica sessions-list --output json | jq '.sessions_count'
@@ -489,10 +494,10 @@ empirica session-create --ai-id myai
 
 ## Still Having Issues?
 
-1. **Check documentation:** Browse other docs in `docs/` directory
-2. **Verify ground truth:** See [reference/CANONICAL_DIRECTORY_STRUCTURE.md](reference/CANONICAL_DIRECTORY_STRUCTURE.md)
-3. **Check the code:** Empirica is open source - look at the implementation
-4. **Ask specific questions:** Use `empirica ask "your question"` (if implemented)
+1. **Check documentation:** Browse other docs in `docs/human/` directory
+2. **Check the code:** Empirica is open source - look at the implementation
+3. **Run status check:** `empirica status` for system overview
+4. **CLI help:** `empirica <command> --help` for any command
 
 ---
 

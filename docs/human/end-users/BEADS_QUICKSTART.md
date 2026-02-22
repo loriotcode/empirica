@@ -105,9 +105,9 @@ bd ready  # Shows: "Research OAuth2 spec" (no blockers)
           # Hides: "Implement token refresh" (blocked by research)
 
 # 4. Work on unblocked task
-empirica preflight --session-id $SESSION
+empirica preflight-submit -   # JSON via stdin (opens transaction)
 # ... do work ...
-empirica postflight --session-id $SESSION
+empirica postflight-submit -  # JSON via stdin (closes transaction)
 
 # 5. Complete task
 bd close empirica-abc --reason "Research complete"

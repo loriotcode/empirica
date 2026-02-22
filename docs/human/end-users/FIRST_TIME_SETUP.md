@@ -294,10 +294,10 @@ settings:
 
 ## 🚀 Next Steps
 
-1. **Read the quickstart:** `docs/01_START_HERE.md`
-2. **Learn CASCADE:** `docs/production/06_CASCADE_FLOW.md`
-3. **Explore goals:** `docs/guides/GOAL_TREE_USAGE_GUIDE.md`
-4. **Setup MCP:** `docs/guides/setup/CLAUDE_CODE_MCP_SETUP.md`
+1. **Read the quickstart:** [01_START_HERE.md](01_START_HERE.md)
+2. **CLI guide:** [04_QUICKSTART_CLI.md](04_QUICKSTART_CLI.md)
+3. **Understand vectors:** [05_EPISTEMIC_VECTORS_EXPLAINED.md](05_EPISTEMIC_VECTORS_EXPLAINED.md)
+4. **Setup Claude Code:** `empirica setup-claude-code`
 
 ---
 

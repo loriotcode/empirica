@@ -173,9 +173,9 @@ docker run -it \
 
 ## Documentation
 
-- **Installation Guide:** https://github.com/Nubaeon/empirica/blob/main/docs/production/02_INSTALLATION.md
-- **Quick Start:** https://github.com/Nubaeon/empirica/blob/main/docs/production/03_BASIC_USAGE.md
-- **CASCADE Workflow:** https://github.com/Nubaeon/empirica/blob/main/docs/production/06_CASCADE_FLOW.md
+- **Quick Start:** https://github.com/Nubaeon/empirica/blob/main/docs/human/end-users/01_START_HERE.md
+- **CLI Guide:** https://github.com/Nubaeon/empirica/blob/main/docs/human/end-users/04_QUICKSTART_CLI.md
+- **Installation:** https://github.com/Nubaeon/empirica/blob/main/docs/human/end-users/02_INSTALLATION.md
 - **Full Docs:** https://github.com/Nubaeon/empirica/tree/main/docs
 
 ## Links
