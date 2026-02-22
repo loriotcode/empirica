@@ -229,7 +229,7 @@ class TestAIAgentWorkflow:
         # Invalid config: missing required field
         invalid_config = {
             "vectors": {"engagement": 0.85}
-            # Missing required session_id
+            # Missing required vectors (know, uncertainty) - session_id is auto-derived
         }
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
@@ -243,12 +243,11 @@ class TestAIAgentWorkflow:
                 text=True
             )
 
-            # Should fail with helpful error
+            # Should fail with helpful error about invalid vectors
             assert result.returncode != 0
             response = json.loads(result.stdout)
             assert response['ok'] is False
             assert 'error' in response
-            assert 'session_id' in response['error'].lower()
 
         finally:
             os.unlink(invalid_config_path)

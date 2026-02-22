@@ -5,6 +5,21 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.6] - 2026-02-22
+
+### Added
+- **Entity Scoping** - `--entity-type`, `--entity-id`, `--via` flags on all artifact commands
+
+### Fixed
+- **Auto-Derive session_id** - `postflight-submit` and `preflight-submit` auto-derive from active transaction
+- **Postflight Project Resolution** - Canonical project resolution instead of CWD fallback
+- **Entity artifact_source** - Uses `trajectory_path` for correct entity artifact sourcing
+- **Sentinel INVESTIGATE Gaming** - Blocks gaming via new transaction creation
+
+### Changed
+- **Onboarding Rewrite** - Complete rewrite with current capabilities
+- **Documentation Overhaul** - Updated all end-user and developer docs to current syntax
+
 ## [1.5.5] - 2026-02-21
 
 ### Fixed
@@ -298,5 +313,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-**Current Version:** 1.5.5
+**Current Version:** 1.5.6
 **Previous Milestone:** 1.4.0 (Epistemic-First Model, January 2026)
