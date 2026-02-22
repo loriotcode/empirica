@@ -196,7 +196,7 @@ project is used. `active_work` gets updated when the next SessionStart hook fire
 | Function | Location | Purpose |
 |----------|----------|---------|
 | `get_active_project_path()` | session_resolver.py | **CANONICAL** - project resolution |
-| `get_instance_id()` | session_resolver.py | Get `tmux_N` from TMUX_PANE |
+| `get_instance_id()` | session_resolver.py | Get instance ID (tmux_N, x11, term_pts-N, or None) |
 | `get_tty_key()` | session_resolver.py | Get TTY device name |
 | `read_active_transaction()` | session_resolver.py | Read transaction file |
 | `write_tty_session()` | session_resolver.py | Write TTY session file |

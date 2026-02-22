@@ -169,7 +169,8 @@ def get_instance_id() -> Optional[str]
 2. `TMUX_PANE` → `tmux_0`, `tmux_1`, etc.
 3. `TERM_SESSION_ID` → `term:...` (macOS Terminal.app)
 4. `WINDOWID` → `x11:...` (X11 window)
-5. `None` (legacy behavior)
+5. `TTY device` → `term_pts-6` (persists across CLI calls in same terminal)
+6. `None` (legacy behavior)
 
 **Examples:**
 ```python
@@ -182,7 +183,11 @@ def get_instance_id() -> Optional[str]
 >>> get_instance_id()
 'my-instance'
 
->>> # Outside tmux, no special env
+>>> # Outside tmux, in terminal pts/6
+>>> get_instance_id()
+'term_pts-6'
+
+>>> # No terminal (e.g., cron, Docker without TTY)
 >>> get_instance_id()
 None
 ```

@@ -128,8 +128,9 @@ def get_instance_id() -> str:
 
     Priority:
     1. TMUX_PANE environment variable
-    2. CLAUDE_INSTANCE_ID environment variable
-    3. PID-based fallback
+    2. CLAUDE_INSTANCE_ID / EMPIRICA_INSTANCE_ID environment variable
+    3. TTY device via session_resolver (persists across CLI calls)
+    4. PID-based fallback (last resort, doesn't persist)
     """
     # tmux pane (e.g., %0, %1)
     tmux_pane = os.environ.get('TMUX_PANE')
@@ -137,11 +138,21 @@ def get_instance_id() -> str:
         return f"tmux_{tmux_pane.replace('%', '')}"
 
     # Explicit instance ID
-    instance_id = os.environ.get('CLAUDE_INSTANCE_ID')
+    instance_id = os.environ.get('CLAUDE_INSTANCE_ID') or os.environ.get('EMPIRICA_INSTANCE_ID')
     if instance_id:
         return instance_id
 
-    # Fallback: process ID
+    # TTY-based (persists across CLI invocations in same terminal)
+    # Use session_resolver's get_tty_key() which walks process tree
+    try:
+        from empirica.utils.session_resolver import get_tty_key
+        tty_key = get_tty_key()
+        if tty_key:
+            return f"term_{tty_key}"
+    except ImportError:
+        pass
+
+    # Fallback: process ID (doesn't persist, but always available)
     return f"pid_{os.getpid()}"
 
 

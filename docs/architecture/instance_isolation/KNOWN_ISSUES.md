@@ -178,6 +178,52 @@ The failure path:
 
 **Commit:** `72149c86`
 
+### 11.17 Pytest Subprocess Tests Pollute Live Database (2026-02-22)
+
+**Symptom:** Running `pytest` creates test sessions and goals in the live `sessions.db`.
+`goals-list` shows dozens of "Test AI-first goal creation [...]" entries after test runs.
+
+**Root cause:** `test_ai_agent_workflow.py` uses `subprocess.run(['empirica', ...])` which
+inherits the parent environment. The subprocess resolves the database via:
+
+1. `get_active_context()` → finds `instance_projects/tmux_N.json` → live project path
+2. `get_session_db_path()` → returns live `sessions.db`
+3. `resolve_session_db_path()` → also returns live `sessions.db`
+
+`EMPIRICA_SESSION_DB` env var existed but was priority 3 (last) in `get_session_db_path()`
+and not checked at all in `resolve_session_db_path()`. The live DB always won.
+
+**Fix (3 parts):**
+
+1. **`path_resolver.py`:** Moved `EMPIRICA_SESSION_DB` to priority 0 in both
+   `get_session_db_path()` and `resolve_session_db_path()`. When explicitly set,
+   it now wins over all instance-aware resolution. This also fixes the Docker use case
+   documented in `README.md` (which previously didn't actually work if the container
+   had a git repo).
+
+2. **`test_ai_agent_workflow.py`:** Added `isolated_env` fixture that creates a temp
+   `sessions.db` and passes `EMPIRICA_SESSION_DB` via subprocess env. Tests now write
+   to the temp DB. TMUX_PANE is preserved so project path resolution still works.
+
+3. **Priority chain update:**
+   ```
+   get_session_db_path():
+     0. EMPIRICA_SESSION_DB (explicit override)
+     1. Unified context (transaction → active_work → TTY → instance_projects)
+     2. workspace.db lookup
+     3. Git root based
+
+   resolve_session_db_path():
+     0. EMPIRICA_SESSION_DB (explicit override)
+     1. instance_projects mapping
+     2. TTY session
+     3. get_session_db_path() fallthrough
+   ```
+
+**Verified:** After fix, running `pytest` twice produced 0 new test goals/sessions in live DB.
+
+**Commit:** pending
+
 ---
 
 ## By Design (Not Bugs)

@@ -191,20 +191,31 @@ def get_session_db_path() -> Path:
     Get full path to sessions database.
 
     Priority:
-    0. Unified context resolver (transaction → active_work → TTY → instance_projects)
-    1. Workspace.db lookup (git root → project via global registry)
-    2. Git root based (for unregistered projects in a git repo)
-    3. EMPIRICA_SESSION_DB env var (CI/Docker override - intentionally last)
+    0. EMPIRICA_SESSION_DB env var (explicit override — tests, CI, Docker)
+    1. Unified context resolver (transaction → active_work → TTY → instance_projects)
+    2. Workspace.db lookup (git root → project via global registry)
+    3. Git root based (for unregistered projects in a git repo)
 
     Note: CWD-based fallbacks removed - CWD is unreliable with Claude Code.
 
     Returns:
         Path to sessions.db
     """
-    import json
     import sqlite3
 
-    # 0. Use unified context resolver (canonical source of truth)
+    # 0. EMPIRICA_SESSION_DB env var (explicit override — wins over everything)
+    # Used by: tests (subprocess isolation), CI/CD, Docker containers.
+    # If someone explicitly sets this, they want THIS database, period.
+    # Not instance-aware — intentionally bypasses multi-instance resolution.
+    if env_db := os.getenv('EMPIRICA_SESSION_DB'):
+        try:
+            db_path = _validate_user_path(env_db, 'EMPIRICA_SESSION_DB')
+            logger.debug(f"📍 Using EMPIRICA_SESSION_DB (explicit override): {db_path}")
+            return db_path
+        except ValueError as e:
+            logger.warning(f"⚠️  Invalid EMPIRICA_SESSION_DB: {e}")
+
+    # 1. Use unified context resolver (canonical source of truth)
     # This respects: transaction file (survives compaction) → active_work → TTY → instance_projects
     try:
         from empirica.utils.session_resolver import get_active_context
@@ -218,7 +229,7 @@ def get_session_db_path() -> Path:
     except Exception as e:
         logger.debug(f"📍 Unified context lookup failed: {e}")
 
-    # 1. Check workspace.db for git root → project mapping (global registry)
+    # 2. Check workspace.db for git root → project mapping (global registry)
     # Git root is stable even when CWD changes within the project
     try:
         git_root = get_git_root()
@@ -253,16 +264,6 @@ def get_session_db_path() -> Path:
         # Not in a git repo and no env vars set - continue to next option
         pass
 
-    # 4. EMPIRICA_SESSION_DB env var (CI/Docker hard override - intentionally last)
-    # This is last because it's not instance-aware and breaks multi-instance isolation
-    if env_db := os.getenv('EMPIRICA_SESSION_DB'):
-        try:
-            db_path = _validate_user_path(env_db, 'EMPIRICA_SESSION_DB')
-            logger.debug(f"📍 Using EMPIRICA_SESSION_DB (CI/Docker override): {db_path}")
-            return db_path
-        except ValueError as e:
-            logger.warning(f"⚠️  Invalid EMPIRICA_SESSION_DB: {e}")
-
     # No valid path found - raise error instead of guessing
     raise ValueError(
         "Cannot determine sessions.db path - not in a git repo, no context found, and no env vars set.\n"
@@ -278,6 +279,7 @@ def resolve_session_db_path(session_id: str) -> Optional[Path]:
     Resolve which database contains a given session.
 
     Priority:
+    0. EMPIRICA_SESSION_DB env var (explicit override — tests, CI, Docker)
     1. instance_projects mapping (TMUX_PANE-based, works in subprocesses)
     2. TTY session's project_path
     3. get_session_db_path() (unified context → workspace.db → git root)
@@ -289,6 +291,15 @@ def resolve_session_db_path(session_id: str) -> Optional[Path]:
         Path to the sessions.db containing this session, or None if not found
     """
     import json
+
+    # Priority 0: EMPIRICA_SESSION_DB (explicit override — same as get_session_db_path)
+    if env_db := os.getenv('EMPIRICA_SESSION_DB'):
+        try:
+            db_path = _validate_user_path(env_db, 'EMPIRICA_SESSION_DB')
+            logger.debug(f"📍 resolve_session_db_path: Using EMPIRICA_SESSION_DB override: {db_path}")
+            return db_path
+        except ValueError as e:
+            logger.warning(f"⚠️  Invalid EMPIRICA_SESSION_DB: {e}")
 
     # Priority 1: instance_projects mapping (uses TMUX_PANE, works in subprocesses)
     try:

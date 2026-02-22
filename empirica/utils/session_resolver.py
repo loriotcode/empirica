@@ -687,7 +687,8 @@ def get_instance_id() -> Optional[str]:
     2. TMUX_PANE (tmux terminal pane ID, e.g., "%0", "%1")
     3. TERM_SESSION_ID (macOS Terminal.app session ID)
     4. WINDOWID (X11 window ID)
-    5. None (fallback to legacy behavior - first match wins)
+    5. TTY device (e.g., pts-6 → term_pts_6) - persists across CLI calls
+    6. None (fallback to legacy behavior - first match wins)
 
     Returns:
         Instance identifier string, or None for legacy behavior
@@ -738,7 +739,14 @@ def get_instance_id() -> Optional[str]:
         logger.debug(f"Using X11 window ID as instance_id: {instance_id}")
         return instance_id
 
-    # Priority 5: No isolation (legacy behavior)
+    # Priority 5: TTY device (persists across CLI invocations in same terminal)
+    tty_key = get_tty_key()
+    if tty_key:
+        instance_id = f"term_{tty_key}"
+        logger.debug(f"Using TTY as instance_id: {instance_id}")
+        return instance_id
+
+    # Priority 6: No isolation (legacy behavior)
     logger.debug("No instance_id available - using legacy behavior")
     return None
 
