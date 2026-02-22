@@ -1,6 +1,6 @@
 # Messaging System API Reference
 
-**Version:** 1.5.5
+**Version:** 1.5.6
 **Purpose:** Asynchronous communication between AI instances
 
 ---
