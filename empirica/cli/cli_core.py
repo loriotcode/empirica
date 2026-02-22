@@ -18,7 +18,10 @@ import sys
 import time
 from .cli_utils import handle_cli_error, print_header
 from .command_handlers import *
-from .command_handlers.utility_commands import handle_log_token_saving, handle_efficiency_report
+from .command_handlers.utility_commands import (
+    handle_log_token_saving, handle_efficiency_report,
+    handle_qdrant_cleanup_command, handle_qdrant_status_command,
+)
 from .command_handlers.edit_verification_command import handle_edit_with_confidence_command
 from .command_handlers.issue_capture_commands import (
     handle_issue_list_command,
@@ -53,7 +56,7 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
                     'Investigation': ['investigate', 'investigate-create-branch', 'investigate-checkpoint-branch', 'investigate-merge-branches', 'investigate-multi'],
                     'Monitoring': ['monitor', 'check-drift', 'assess-state', 'trajectory-project', 'efficiency-report'],
                     'Skills': ['skill-suggest', 'skill-fetch', 'skill-extract'],
-                    'Utilities': ['log-token-saving', 'config', 'performance'],
+                    'Utilities': ['log-token-saving', 'config', 'performance', 'qdrant-status', 'qdrant-cleanup'],
                     'Vision': ['vision'],
                     'Epistemics': ['epistemics-list', 'epistemics-show'],
                     'User Interface': ['chat'],
@@ -311,6 +314,10 @@ def main(args=None):
             'log-token-saving': handle_log_token_saving,
             'efficiency-report': handle_efficiency_report,
             
+            # Qdrant maintenance commands
+            'qdrant-cleanup': handle_qdrant_cleanup_command,
+            'qdrant-status': handle_qdrant_status_command,
+
             # Config commands
             'config': handle_config_command,
             

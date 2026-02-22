@@ -48,6 +48,7 @@ from empirica.core.qdrant.collections import (  # noqa: F401
     recreate_project_collections,
     recreate_global_collections,
     get_collection_info,
+    cleanup_empty_collections,
 )
 
 # --- Core memory operations ---

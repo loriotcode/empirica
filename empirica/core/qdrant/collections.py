@@ -2,8 +2,7 @@
 Qdrant collection naming, initialization, and migration utilities.
 """
 from __future__ import annotations
-import logging
-from typing import Dict, List
+from typing import List
 
 from empirica.core.qdrant.connection import (
     _check_qdrant_available, _get_qdrant_imports, _get_qdrant_client,
@@ -71,37 +70,19 @@ def _intents_collection(project_id: str) -> str:
 
 
 def init_collections(project_id: str) -> bool:
-    """Initialize Qdrant collections. Returns False if Qdrant not available."""
+    """Check Qdrant availability for a project.
+
+    Previously this eagerly created all 10 collection types per project,
+    causing collection bloat (#49: 176 collections, 122 empty, WAL lock panics).
+
+    Now just checks availability. Collections are created lazily by individual
+    sub-modules (memory.py, eidetic.py, goals.py, etc.) on first write.
+    All read paths gracefully handle missing collections.
+    """
     if not _check_qdrant_available():
         return False
-
-    try:
-        _, Distance, VectorParams, _ = _get_qdrant_imports()
-        client = _get_qdrant_client()
-        if client is None:
-            return False
-        vector_size = _get_vector_size()
-        collections = [
-            _docs_collection(project_id),
-            _memory_collection(project_id),
-            _epistemics_collection(project_id),
-            _eidetic_collection(project_id),
-            _episodic_collection(project_id),
-            _goals_collection(project_id),
-            _calibration_collection(project_id),
-            # Forward-compatible: Epistemic Intent Layer (populated when CLI commands exist)
-            _assumptions_collection(project_id),
-            _decisions_collection(project_id),
-            _intents_collection(project_id),
-        ]
-        for name in collections:
-            if not client.collection_exists(name):
-                client.create_collection(name, vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE))
-                logger.info(f"Created collection {name} with vector size {vector_size}")
-        return True
-    except Exception as e:
-        logger.debug(f"Failed to init Qdrant collections: {e}")
-        return False
+    client = _get_qdrant_client()
+    return client is not None
 
 
 
@@ -203,14 +184,76 @@ def get_collection_info() -> List[dict]:
         collections = client.get_collections()
         info = []
         for c in collections.collections:
-            coll_info = client.get_collection(c.name)
-            info.append({
-                "name": c.name,
-                "dimensions": coll_info.config.params.vectors.size,
-                "points": coll_info.points_count,
-            })
+            try:
+                coll_info = client.get_collection(c.name)
+                vectors_config = coll_info.config.params.vectors
+                dim = getattr(vectors_config, 'size', None)
+                info.append({
+                    "name": c.name,
+                    "dimensions": dim,
+                    "points": coll_info.points_count,
+                })
+            except Exception:
+                info.append({"name": c.name, "dimensions": None, "points": 0})
         return info
     except Exception as e:
         logger.warning(f"Failed to get collection info: {e}")
         return []
+
+
+def cleanup_empty_collections(dry_run: bool = True) -> dict:
+    """
+    Delete empty Qdrant collections to reduce resource usage (#49).
+
+    Args:
+        dry_run: If True, only report what would be deleted. If False, actually delete.
+
+    Returns:
+        Dict with 'total', 'empty', 'deleted'/'would_delete', and 'details' list.
+    """
+    if not _check_qdrant_available():
+        return {"error": "Qdrant not available"}
+
+    try:
+        client = _get_qdrant_client()
+        if client is None:
+            return {"error": "Could not connect to Qdrant"}
+
+        collections = client.get_collections()
+        total = len(collections.collections)
+        empty = []
+        non_empty = []
+
+        for c in collections.collections:
+            try:
+                coll_info = client.get_collection(c.name)
+                points = coll_info.points_count or 0
+                if points == 0:
+                    empty.append(c.name)
+                else:
+                    non_empty.append({"name": c.name, "points": points})
+            except Exception:
+                empty.append(c.name)
+
+        deleted = []
+        if not dry_run:
+            for name in empty:
+                try:
+                    client.delete_collection(name)
+                    deleted.append(name)
+                    logger.info(f"Deleted empty collection: {name}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete {name}: {e}")
+
+        return {
+            "total": total,
+            "empty_count": len(empty),
+            "non_empty_count": len(non_empty),
+            "dry_run": dry_run,
+            "deleted" if not dry_run else "would_delete": deleted if not dry_run else empty,
+            "kept": non_empty,
+        }
+    except Exception as e:
+        logger.warning(f"Failed to cleanup collections: {e}")
+        return {"error": str(e)}
 

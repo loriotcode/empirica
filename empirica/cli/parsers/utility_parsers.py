@@ -22,3 +22,17 @@ def add_utility_parsers(subparsers):
     efficiency_report_parser = subparsers.add_parser('efficiency-report', help='Show token efficiency report')
     efficiency_report_parser.add_argument('--session-id', required=True, help='Session ID')
     efficiency_report_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
+
+    # Qdrant maintenance commands
+    qdrant_cleanup_parser = subparsers.add_parser(
+        'qdrant-cleanup', help='Remove empty Qdrant collections to reduce resource usage')
+    qdrant_cleanup_parser.add_argument(
+        '--execute', action='store_true', default=False,
+        help='Actually delete empty collections (default: dry-run)')
+    qdrant_cleanup_parser.add_argument(
+        '--output', choices=['human', 'json'], default='human', help='Output format')
+
+    qdrant_status_parser = subparsers.add_parser(
+        'qdrant-status', help='Show Qdrant collection inventory and stats')
+    qdrant_status_parser.add_argument(
+        '--output', choices=['human', 'json'], default='human', help='Output format')
