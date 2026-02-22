@@ -2079,7 +2079,9 @@ class SessionDatabase:
         subtask_id: Optional[str] = None,
         subject: Optional[str] = None,
         impact: Optional[float] = None,
-        transaction_id: Optional[str] = None
+        transaction_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None
     ) -> str:
         """Log a project finding (delegates to BreadcrumbRepository)"""
         # Auto-derive impact from latest CASCADE if not provided
@@ -2088,7 +2090,9 @@ class SessionDatabase:
 
         return self.breadcrumbs.log_finding(
             project_id, session_id, finding, goal_id, subtask_id, subject, impact,
-            transaction_id=transaction_id
+            transaction_id=transaction_id,
+            entity_type=entity_type,
+            entity_id=entity_id
         )
     
     def log_session_finding(
@@ -2169,7 +2173,9 @@ class SessionDatabase:
         subtask_id: Optional[str] = None,
         subject: Optional[str] = None,
         impact: Optional[float] = None,
-        transaction_id: Optional[str] = None
+        transaction_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None
     ) -> str:
         """Log a project unknown (delegates to BreadcrumbRepository)"""
         # Auto-derive impact from latest CASCADE if not provided
@@ -2178,13 +2184,15 @@ class SessionDatabase:
 
         return self.breadcrumbs.log_unknown(
             project_id, session_id, unknown, goal_id, subtask_id, subject, impact,
-            transaction_id=transaction_id
+            transaction_id=transaction_id,
+            entity_type=entity_type,
+            entity_id=entity_id
         )
-    
+
     def resolve_unknown(self, unknown_id: str, resolved_by: str):
         """Mark an unknown as resolved (delegates to BreadcrumbRepository)"""
         return self.breadcrumbs.resolve_unknown(unknown_id, resolved_by)
-    
+
     def log_dead_end(
         self,
         project_id: str,
@@ -2195,7 +2203,9 @@ class SessionDatabase:
         subtask_id: Optional[str] = None,
         subject: Optional[str] = None,
         impact: Optional[float] = None,
-        transaction_id: Optional[str] = None
+        transaction_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None
     ) -> str:
         """Log a project dead end (delegates to BreadcrumbRepository)
 
@@ -2209,7 +2219,9 @@ class SessionDatabase:
 
         return self.breadcrumbs.log_dead_end(project_id, session_id, approach,
                                              why_failed, goal_id, subtask_id, subject, impact,
-                                             transaction_id=transaction_id)
+                                             transaction_id=transaction_id,
+                                             entity_type=entity_type,
+                                             entity_id=entity_id)
     
     def add_reference_doc(
         self,
@@ -2391,7 +2403,9 @@ class SessionDatabase:
         prevention: Optional[str] = None,
         goal_id: Optional[str] = None,
         project_id: Optional[str] = None,
-        transaction_id: Optional[str] = None
+        transaction_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None
     ) -> str:
         """Log a mistake for learning (delegates to BreadcrumbRepository)
 
@@ -2410,7 +2424,9 @@ class SessionDatabase:
         """
         return self.breadcrumbs.log_mistake(session_id, mistake, why_wrong,
                                            cost_estimate, root_cause_vector, prevention, goal_id, project_id,
-                                           transaction_id=transaction_id)
+                                           transaction_id=transaction_id,
+                                           entity_type=entity_type,
+                                           entity_id=entity_id)
     
     def get_mistakes(
         self,

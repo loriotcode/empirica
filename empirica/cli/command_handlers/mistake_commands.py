@@ -26,6 +26,11 @@ def handle_mistake_log_command(args):
         goal_id = getattr(args, 'goal_id', None)
         output_format = getattr(args, 'output', 'json')
 
+        # Entity scoping (cross-entity provenance)
+        entity_type = getattr(args, 'entity_type', None)
+        entity_id = getattr(args, 'entity_id', None)
+        via = getattr(args, 'via', None)
+
         # UNIFIED: Auto-derive session_id if not provided
         if not session_id:
             from empirica.utils.session_resolver import get_active_empirica_session_id
@@ -67,8 +72,25 @@ def handle_mistake_log_command(args):
             prevention=prevention,
             goal_id=goal_id,
             project_id=project_id,
-            transaction_id=transaction_id
+            transaction_id=transaction_id,
+            entity_type=entity_type,
+            entity_id=entity_id
         )
+
+        # ENTITY CROSS-LINK: If entity is not project, create workspace.db link
+        if entity_type and entity_type != 'project' and entity_id:
+            try:
+                from .project_commands import _create_entity_artifact_link
+                _create_entity_artifact_link(
+                    artifact_type='mistake',
+                    artifact_id=mistake_id,
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                    discovered_via=via,
+                    transaction_id=transaction_id,
+                )
+            except Exception as link_err:
+                logger.debug(f"Entity artifact link failed (non-fatal): {link_err}")
 
         # Get ai_id from session for git notes
         ai_id = 'claude-code'  # Default

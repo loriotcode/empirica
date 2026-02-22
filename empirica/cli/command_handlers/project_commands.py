@@ -78,6 +78,90 @@ def get_workspace_projects() -> List[Dict[str, Any]]:
         return []
 
 
+def _create_entity_artifact_link(
+    artifact_type: str,
+    artifact_id: str,
+    entity_type: str,
+    entity_id: str,
+    project_path: Optional[str] = None,
+    discovered_via: Optional[str] = None,
+    transaction_id: Optional[str] = None,
+    engagement_id: Optional[str] = None,
+):
+    """Create cross-reference in workspace.db entity_artifacts table.
+
+    Called after artifact insert when entity_type is not 'project'.
+    Links artifacts in sessions.db to entities (org, contact, engagement)
+    in workspace.db for cross-entity discovery.
+    """
+    if not entity_type or entity_type == 'project':
+        return  # No cross-link needed for project-scoped artifacts
+
+    import time
+    import uuid
+
+    workspace_db = get_workspace_db_path()
+    if not workspace_db.exists():
+        logger.debug("Workspace DB not found, skipping entity_artifacts link")
+        return
+
+    # Resolve artifact_source (trajectory_path for this project)
+    if not project_path:
+        try:
+            from empirica.utils.session_resolver import get_active_project_path
+            project_path = get_active_project_path()
+        except Exception:
+            pass
+
+    artifact_source = str(Path(project_path) / '.empirica' / 'sessions' / 'sessions.db') if project_path else None
+
+    try:
+        conn = sqlite3.connect(str(workspace_db))
+        conn.execute("""
+            INSERT OR IGNORE INTO entity_artifacts (
+                id, artifact_type, artifact_id, artifact_source,
+                entity_type, entity_id, relationship, relevance,
+                discovered_via, engagement_id, transaction_id,
+                created_at, created_by_ai
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            str(uuid.uuid4()),
+            artifact_type,
+            artifact_id,
+            artifact_source,
+            entity_type,
+            entity_id,
+            'about',  # default relationship
+            1.0,
+            discovered_via,
+            engagement_id,
+            transaction_id,
+            time.time(),
+            'claude-code',
+        ))
+        conn.commit()
+        conn.close()
+        logger.info(f"🔗 Entity artifact linked: {artifact_type} → {entity_type}/{entity_id[:8]}...")
+    except Exception as e:
+        logger.debug(f"Entity artifact link failed (non-fatal): {e}")
+
+
+def _extract_entity_params(config_data, args):
+    """Extract entity_type, entity_id, via from config or CLI args.
+
+    Returns (entity_type, entity_id, via) tuple.
+    """
+    if config_data:
+        entity_type = config_data.get('entity_type')
+        entity_id = config_data.get('entity_id')
+        via = config_data.get('via')
+    else:
+        entity_type = getattr(args, 'entity_type', None)
+        entity_id = getattr(args, 'entity_id', None)
+        via = getattr(args, 'via', None)
+    return entity_type, entity_id, via
+
+
 def _update_active_work(project_path: str, folder_name: str, empirica_session_id: str = None, claude_session_id: str = None) -> bool:
     """
     Update active_work markers AND TTY session for cross-project continuity.
@@ -1482,6 +1566,9 @@ def handle_finding_log_command(args):
             impact = getattr(args, 'impact', None)  # Optional - auto-derives if None
             output_format = getattr(args, 'output', 'json')
 
+        # Entity scoping (cross-entity provenance)
+        entity_type, entity_id, via = _extract_entity_params(config_data, args)
+
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
             from empirica.utils.session_resolver import get_active_empirica_session_id
@@ -1581,8 +1668,21 @@ def handle_finding_log_command(args):
             subtask_id=subtask_id,
             subject=subject,
             impact=impact,
-            transaction_id=transaction_id
+            transaction_id=transaction_id,
+            entity_type=entity_type,
+            entity_id=entity_id
         )
+
+        # ENTITY CROSS-LINK: If entity is not project, create workspace.db link
+        if entity_type and entity_type != 'project' and entity_id:
+            _create_entity_artifact_link(
+                artifact_type='finding',
+                artifact_id=finding_id,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                discovered_via=via,
+                transaction_id=transaction_id,
+            )
 
         # Get ai_id from session for git notes
         ai_id = 'claude-code'  # Default
@@ -1735,6 +1835,9 @@ def handle_finding_log_command(args):
             "finding_id": finding_id,
             "project_id": project_id if project_id else None,
             "session_id": session_id,
+            "entity_type": entity_type or 'project',
+            "entity_id": entity_id,
+            "via": via,
             "git_stored": git_stored,  # Git notes for sync
             "embedded": embedded,
             "eidetic": eidetic_result,  # "created" | "confirmed" | None
@@ -1806,6 +1909,9 @@ def handle_unknown_log_command(args):
             subtask_id = getattr(args, 'subtask_id', None)
             impact = getattr(args, 'impact', None)  # Optional - auto-derives if None
             output_format = getattr(args, 'output', 'json')
+
+        # Entity scoping (cross-entity provenance)
+        entity_type, entity_id, via = _extract_entity_params(config_data, args)
 
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
@@ -1905,8 +2011,21 @@ def handle_unknown_log_command(args):
             subtask_id=subtask_id,
             subject=subject,
             impact=impact,
-            transaction_id=transaction_id
+            transaction_id=transaction_id,
+            entity_type=entity_type,
+            entity_id=entity_id
         )
+
+        # ENTITY CROSS-LINK: If entity is not project, create workspace.db link
+        if entity_type and entity_type != 'project' and entity_id:
+            _create_entity_artifact_link(
+                artifact_type='unknown',
+                artifact_id=unknown_id,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                discovered_via=via,
+                transaction_id=transaction_id,
+            )
 
         # Get ai_id from session for git notes
         ai_id = 'claude-code'  # Default
@@ -2079,6 +2198,9 @@ def handle_deadend_log_command(args):
             impact = getattr(args, 'impact', None)  # Optional - auto-derives if None
             output_format = getattr(args, 'output', 'json')
 
+        # Entity scoping (cross-entity provenance)
+        entity_type, entity_id, via = _extract_entity_params(config_data, args)
+
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
             from empirica.utils.session_resolver import get_active_empirica_session_id
@@ -2173,8 +2295,21 @@ def handle_deadend_log_command(args):
             subtask_id=subtask_id,
             subject=subject,
             impact=impact,
-            transaction_id=transaction_id
+            transaction_id=transaction_id,
+            entity_type=entity_type,
+            entity_id=entity_id
         )
+
+        # ENTITY CROSS-LINK: If entity is not project, create workspace.db link
+        if entity_type and entity_type != 'project' and entity_id:
+            _create_entity_artifact_link(
+                artifact_type='dead_end',
+                artifact_id=dead_end_id,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                discovered_via=via,
+                transaction_id=transaction_id,
+            )
 
         # Get ai_id from session for git notes
         ai_id = 'claude-code'  # Default
@@ -2274,6 +2409,9 @@ def handle_assumption_log_command(args):
             goal_id = getattr(args, 'goal_id', None)
             output_format = getattr(args, 'output', 'json')
 
+        # Entity scoping (cross-entity provenance)
+        entity_type, entity_id, via = _extract_entity_params(config_data, args)
+
         # Auto-derive session_id
         if not session_id:
             from empirica.utils.session_resolver import get_active_empirica_session_id
@@ -2299,6 +2437,10 @@ def handle_assumption_log_command(args):
             print(json.dumps({"ok": False, "error": "Could not resolve project_id"}))
             sys.exit(1)
 
+        # Default entity scope
+        resolved_entity_type = entity_type or 'project'
+        resolved_entity_id = entity_id or (project_id if resolved_entity_type == 'project' else None)
+
         # Auto-derive transaction_id
         transaction_id = None
         try:
@@ -2319,8 +2461,8 @@ def handle_assumption_log_command(args):
                     assumption=assumption,
                     confidence=confidence,
                     status="unverified",
-                    entity_type="project",
-                    entity_id=project_id,
+                    entity_type=resolved_entity_type,
+                    entity_id=resolved_entity_id,
                     session_id=session_id,
                     transaction_id=transaction_id,
                     domain=domain,
@@ -2330,10 +2472,23 @@ def handle_assumption_log_command(args):
         except Exception as e:
             logger.debug(f"Qdrant embed failed (non-fatal): {e}")
 
+        # ENTITY CROSS-LINK: If entity is not project, create workspace.db link
+        if entity_type and entity_type != 'project' and entity_id:
+            _create_entity_artifact_link(
+                artifact_type='assumption',
+                artifact_id=assumption_id,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                discovered_via=via,
+                transaction_id=transaction_id,
+            )
+
         result = {
             "ok": True,
             "assumption_id": assumption_id,
             "project_id": project_id,
+            "entity_type": resolved_entity_type,
+            "entity_id": resolved_entity_id,
             "assumption": assumption,
             "confidence": confidence,
             "status": "unverified",
@@ -2400,6 +2555,9 @@ def handle_decision_log_command(args):
             goal_id = getattr(args, 'goal_id', None)
             output_format = getattr(args, 'output', 'json')
 
+        # Entity scoping (cross-entity provenance)
+        entity_type, entity_id, via = _extract_entity_params(config_data, args)
+
         # Auto-derive session_id
         if not session_id:
             from empirica.utils.session_resolver import get_active_empirica_session_id
@@ -2437,6 +2595,10 @@ def handle_decision_log_command(args):
             print(json.dumps({"ok": False, "error": "Could not resolve project_id"}))
             sys.exit(1)
 
+        # Default entity scope
+        resolved_entity_type = entity_type or 'project'
+        resolved_entity_id = entity_id or (project_id if resolved_entity_type == 'project' else None)
+
         # Auto-derive transaction_id
         transaction_id = None
         try:
@@ -2459,8 +2621,8 @@ def handle_decision_log_command(args):
                     rationale=rationale,
                     confidence_at_decision=confidence,
                     reversibility=reversibility,
-                    entity_type="project",
-                    entity_id=project_id,
+                    entity_type=resolved_entity_type,
+                    entity_id=resolved_entity_id,
                     session_id=session_id,
                     transaction_id=transaction_id,
                     timestamp=time.time(),
@@ -2469,10 +2631,23 @@ def handle_decision_log_command(args):
         except Exception as e:
             logger.debug(f"Qdrant embed failed (non-fatal): {e}")
 
+        # ENTITY CROSS-LINK: If entity is not project, create workspace.db link
+        if entity_type and entity_type != 'project' and entity_id:
+            _create_entity_artifact_link(
+                artifact_type='decision',
+                artifact_id=decision_id,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                discovered_via=via,
+                transaction_id=transaction_id,
+            )
+
         result = {
             "ok": True,
             "decision_id": decision_id,
             "project_id": project_id,
+            "entity_type": resolved_entity_type,
+            "entity_id": resolved_entity_id,
             "choice": choice,
             "alternatives": alternatives_list,
             "rationale": rationale,
@@ -2606,6 +2781,11 @@ def handle_source_add_command(args):
         project_id = getattr(args, 'project_id', None)
         output_format = getattr(args, 'output', 'human')
 
+        # Entity scoping (cross-entity provenance)
+        entity_type = getattr(args, 'entity_type', None)
+        entity_id = getattr(args, 'entity_id', None)
+        via = getattr(args, 'via', None)
+
         # Auto-derive session_id from active transaction
         if not session_id:
             from empirica.utils.session_resolver import get_active_empirica_session_id
@@ -2658,20 +2838,37 @@ def handle_source_add_command(args):
             "transaction_id": transaction_id,
         }
 
+        # Default entity scope
+        resolved_entity_type = entity_type or 'project'
+        resolved_entity_id = entity_id or (project_id if resolved_entity_type == 'project' else None)
+
         # Insert into epistemic_sources table
         db.conn.execute("""
             INSERT INTO epistemic_sources (
                 id, project_id, session_id, source_type, source_url,
                 title, description, confidence, epistemic_layer,
-                discovered_by_ai, discovered_at, source_metadata
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                discovered_by_ai, discovered_at, source_metadata,
+                entity_type, entity_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             source_id, project_id, session_id, source_type,
             source_url or doc_path,
             title, description, confidence, direction,
-            'claude-code', time.time(), json.dumps(metadata)
+            'claude-code', time.time(), json.dumps(metadata),
+            resolved_entity_type, resolved_entity_id
         ))
         db.conn.commit()
+
+        # ENTITY CROSS-LINK: If entity is not project, create workspace.db link
+        if entity_type and entity_type != 'project' and entity_id:
+            _create_entity_artifact_link(
+                artifact_type='source',
+                artifact_id=source_id,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                discovered_via=via,
+                transaction_id=transaction_id,
+            )
 
         # Also add to project_reference_docs for backwards compatibility
         if doc_path:

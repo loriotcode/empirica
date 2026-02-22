@@ -2,6 +2,23 @@
 
 from . import format_help_text
 
+
+def _add_entity_flags(parser):
+    """Add --entity-type, --entity-id, --via flags to artifact parsers.
+
+    These flags enable cross-entity provenance tracking via entity_artifacts
+    in workspace.db. When provided, the artifact is linked to the specified
+    entity (organization, contact, engagement) in addition to the project.
+    """
+    parser.add_argument('--entity-type',
+        choices=['project', 'organization', 'contact', 'engagement'],
+        help='Entity type this artifact relates to (default: project)')
+    parser.add_argument('--entity-id',
+        help='Entity UUID (organization, contact, or engagement ID)')
+    parser.add_argument('--via',
+        help='Discovery channel (cli, email, linkedin, calendar, agent, web)')
+
+
 def add_checkpoint_parsers(subparsers):
     """Add git checkpoint management command parsers (Phase 2)"""
     # Checkpoint create command
@@ -175,6 +192,7 @@ def add_checkpoint_parsers(subparsers):
     mistake_log_parser.add_argument('--prevention', help='How to prevent this mistake in the future')
     mistake_log_parser.add_argument('--goal-id', help='Optional goal identifier this mistake relates to')
     mistake_log_parser.add_argument('--scope', choices=['session', 'project', 'both'], help='Scope: session (ephemeral), project (persistent), or both (dual-log). Auto-inferred if omitted.')
+    _add_entity_flags(mistake_log_parser)
     mistake_log_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     mistake_log_parser.add_argument('--verbose', action='store_true', help='Show detailed operation info')
 
@@ -379,6 +397,7 @@ def add_checkpoint_parsers(subparsers):
     finding_log_parser.add_argument('--subject', help='Subject/workstream identifier (auto-detected from directory if omitted)')
     finding_log_parser.add_argument('--impact', type=float, help='Impact score 0.0-1.0 (importance of this finding, auto-derived from CASCADE if omitted)')
     finding_log_parser.add_argument('--scope', choices=['session', 'project', 'both'], help='Scope: session (ephemeral), project (persistent), or both (dual-log). Auto-inferred if omitted.')
+    _add_entity_flags(finding_log_parser)
     finding_log_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     finding_log_parser.add_argument('--verbose', action='store_true', help='Show detailed operation info')
 
@@ -397,6 +416,7 @@ def add_checkpoint_parsers(subparsers):
     unknown_log_parser.add_argument('--subject', help='Subject/workstream identifier (auto-detected from directory if omitted)')
     unknown_log_parser.add_argument('--impact', type=float, help='Impact score 0.0-1.0 (importance of this unknown, auto-derived from CASCADE if omitted)')
     unknown_log_parser.add_argument('--scope', choices=['session', 'project', 'both'], help='Scope: session (ephemeral), project (persistent), or both (dual-log). Auto-inferred if omitted.')
+    _add_entity_flags(unknown_log_parser)
     unknown_log_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     unknown_log_parser.add_argument('--verbose', action='store_true', help='Show detailed operation info')
 
@@ -426,6 +446,7 @@ def add_checkpoint_parsers(subparsers):
     deadend_log_parser.add_argument('--subject', help='Subject/workstream identifier (auto-detected from directory if omitted)')
     deadend_log_parser.add_argument('--impact', type=float, help='Impact score 0.0-1.0 (importance of this dead end, auto-derived from CASCADE if omitted)')
     deadend_log_parser.add_argument('--scope', choices=['session', 'project', 'both'], help='Scope: session (ephemeral), project (persistent), or both (dual-log). Auto-inferred if omitted.')
+    _add_entity_flags(deadend_log_parser)
     deadend_log_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     deadend_log_parser.add_argument('--verbose', action='store_true', help='Show detailed operation info')
 
@@ -441,6 +462,7 @@ def add_checkpoint_parsers(subparsers):
     assumption_log_parser.add_argument('--confidence', type=float, default=0.5, help='Confidence in this assumption (0.0-1.0)')
     assumption_log_parser.add_argument('--domain', help='Domain scope (e.g., security, architecture)')
     assumption_log_parser.add_argument('--goal-id', help='Optional goal UUID')
+    _add_entity_flags(assumption_log_parser)
     assumption_log_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
 
     # Decision log command
@@ -458,6 +480,7 @@ def add_checkpoint_parsers(subparsers):
     decision_log_parser.add_argument('--reversibility', choices=['exploratory', 'committal', 'forced'], default='exploratory', help='How reversible is this decision?')
     decision_log_parser.add_argument('--domain', help='Domain scope (e.g., security, architecture)')
     decision_log_parser.add_argument('--goal-id', help='Optional goal UUID')
+    _add_entity_flags(decision_log_parser)
     decision_log_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
 
     # Reference doc add command
@@ -491,6 +514,7 @@ def add_checkpoint_parsers(subparsers):
         help='Confidence in source quality (0.0-1.0, default: 0.7)')
     source_add_parser.add_argument('--session-id', help='Session ID (auto-derived from transaction)')
     source_add_parser.add_argument('--project-id', help='Project ID (auto-derived from context)')
+    _add_entity_flags(source_add_parser)
     source_add_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     source_add_parser.add_argument('--verbose', action='store_true', help='Verbose output')
 

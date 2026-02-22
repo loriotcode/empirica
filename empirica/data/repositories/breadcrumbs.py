@@ -83,13 +83,17 @@ class BreadcrumbRepository(BaseRepository):
         subtask_id: Optional[str] = None,
         subject: Optional[str] = None,
         impact: Optional[float] = None,
-        transaction_id: Optional[str] = None
+        transaction_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None
     ) -> str:
         """Log a project finding (what was learned/discovered)
 
         Args:
             impact: Impact score 0.0-1.0 (importance). If None, defaults to 0.5.
             transaction_id: Optional epistemic transaction ID (auto-derived if not provided).
+            entity_type: Entity type (project, organization, contact, engagement). Defaults to 'project'.
+            entity_id: Entity UUID. Defaults to project_id if entity_type is 'project'.
 
         Returns:
             finding_id - new ID if created, existing ID if duplicate found
@@ -105,6 +109,12 @@ class BreadcrumbRepository(BaseRepository):
         if impact is None:
             impact = 0.5
 
+        # Default entity scope to project
+        if not entity_type:
+            entity_type = 'project'
+        if not entity_id and entity_type == 'project':
+            entity_id = project_id
+
         finding_data = {
             "finding": finding,
             "goal_id": goal_id,
@@ -117,11 +127,13 @@ class BreadcrumbRepository(BaseRepository):
         self._execute("""
             INSERT INTO project_findings (
                 id, project_id, session_id, goal_id, subtask_id,
-                finding, created_timestamp, finding_data, subject, impact, transaction_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                finding, created_timestamp, finding_data, subject, impact,
+                transaction_id, entity_type, entity_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             finding_id, project_id, session_id, goal_id, subtask_id,
-            finding, time.time(), json.dumps(finding_data), subject, impact, transaction_id
+            finding, time.time(), json.dumps(finding_data), subject, impact,
+            transaction_id, entity_type, entity_id
         ))
 
         self.commit()
@@ -138,18 +150,27 @@ class BreadcrumbRepository(BaseRepository):
         subtask_id: Optional[str] = None,
         subject: Optional[str] = None,
         impact: Optional[float] = None,
-        transaction_id: Optional[str] = None
+        transaction_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None
     ) -> str:
         """Log a project unknown (what's still unclear)
 
         Args:
             impact: Impact score 0.0-1.0 (importance). If None, defaults to 0.5.
             transaction_id: Optional epistemic transaction ID (auto-derived if not provided).
+            entity_type: Entity type (project, organization, contact, engagement).
+            entity_id: Entity UUID.
         """
         unknown_id = str(uuid.uuid4())
 
         if impact is None:
             impact = 0.5
+
+        if not entity_type:
+            entity_type = 'project'
+        if not entity_id and entity_type == 'project':
+            entity_id = project_id
 
         unknown_data = {
             "unknown": unknown,
@@ -163,11 +184,13 @@ class BreadcrumbRepository(BaseRepository):
         self._execute("""
             INSERT INTO project_unknowns (
                 id, project_id, session_id, goal_id, subtask_id,
-                unknown, created_timestamp, unknown_data, subject, impact, transaction_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                unknown, created_timestamp, unknown_data, subject, impact,
+                transaction_id, entity_type, entity_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             unknown_id, project_id, session_id, goal_id, subtask_id,
-            unknown, time.time(), json.dumps(unknown_data), subject, impact, transaction_id
+            unknown, time.time(), json.dumps(unknown_data), subject, impact,
+            transaction_id, entity_type, entity_id
         ))
 
         self.commit()
@@ -211,15 +234,24 @@ class BreadcrumbRepository(BaseRepository):
         subtask_id: Optional[str] = None,
         subject: Optional[str] = None,
         impact: float = 0.5,
-        transaction_id: Optional[str] = None
+        transaction_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None
     ) -> str:
         """Log a project dead end (what didn't work)
 
         Args:
             impact: Impact score 0.0-1.0 (importance). Default 0.5 if not provided.
             transaction_id: Optional epistemic transaction ID (auto-derived if not provided).
+            entity_type: Entity type (project, organization, contact, engagement).
+            entity_id: Entity UUID.
         """
         dead_end_id = str(uuid.uuid4())
+
+        if not entity_type:
+            entity_type = 'project'
+        if not entity_id and entity_type == 'project':
+            entity_id = project_id
 
         dead_end_data = {
             "approach": approach,
@@ -234,11 +266,13 @@ class BreadcrumbRepository(BaseRepository):
         self._execute("""
             INSERT INTO project_dead_ends (
                 id, project_id, session_id, goal_id, subtask_id,
-                approach, why_failed, created_timestamp, dead_end_data, subject, transaction_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                approach, why_failed, created_timestamp, dead_end_data, subject,
+                transaction_id, entity_type, entity_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             dead_end_id, project_id, session_id, goal_id, subtask_id,
-            approach, why_failed, time.time(), json.dumps(dead_end_data), subject, transaction_id
+            approach, why_failed, time.time(), json.dumps(dead_end_data), subject,
+            transaction_id, entity_type, entity_id
         ))
 
         self.commit()
@@ -467,7 +501,9 @@ class BreadcrumbRepository(BaseRepository):
         prevention: Optional[str] = None,
         goal_id: Optional[str] = None,
         project_id: Optional[str] = None,
-        transaction_id: Optional[str] = None
+        transaction_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None
     ) -> str:
         """
         Log a mistake for learning and future prevention.
@@ -481,11 +517,18 @@ class BreadcrumbRepository(BaseRepository):
             prevention: How to prevent this mistake in the future
             goal_id: Optional goal identifier this mistake relates to
             transaction_id: Optional epistemic transaction ID (auto-derived if not provided).
+            entity_type: Entity type (project, organization, contact, engagement).
+            entity_id: Entity UUID.
 
         Returns:
             mistake_id: UUID string
         """
         mistake_id = str(uuid.uuid4())
+
+        if not entity_type:
+            entity_type = 'project'
+        if not entity_id and entity_type == 'project':
+            entity_id = project_id
 
         # Build mistake_data JSON
         mistake_data = {
@@ -501,12 +544,14 @@ class BreadcrumbRepository(BaseRepository):
             INSERT INTO mistakes_made (
                 id, session_id, goal_id, project_id, mistake, why_wrong,
                 cost_estimate, root_cause_vector, prevention,
-                created_timestamp, mistake_data, transaction_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                created_timestamp, mistake_data, transaction_id,
+                entity_type, entity_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             mistake_id, session_id, goal_id, project_id, mistake, why_wrong,
             cost_estimate, root_cause_vector, prevention,
-            time.time(), json.dumps(mistake_data), transaction_id
+            time.time(), json.dumps(mistake_data), transaction_id,
+            entity_type, entity_id
         ))
 
         self.commit()
