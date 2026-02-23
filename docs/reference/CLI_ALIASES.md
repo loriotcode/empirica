@@ -62,6 +62,12 @@ Aliases reduce typing for frequently used commands. They're especially useful fo
 | `project-search` | — | Semantic search in project context |
 | `project-embed` | — | Embed project artifacts to Qdrant |
 
+### Utilities
+| Command | Aliases | Description |
+|---------|---------|-------------|
+| `qdrant-status` | — | Show Qdrant collection inventory and stats |
+| `qdrant-cleanup` | — | Remove empty Qdrant collections (dry-run by default) |
+
 ---
 
 ## Usage Examples

@@ -19,7 +19,7 @@ This document lists all environment variables that control Empirica's behavior.
 | `EMPIRICA_DB_USER` | PostgreSQL username | `empirica` | If PostgreSQL |
 | `EMPIRICA_DB_PASSWORD` | PostgreSQL password | (empty) | If PostgreSQL |
 | `DATABASE_URL` | Full database URL override | (auto) | No |
-| `EMPIRICA_SESSION_DB` | Custom session database path | (auto-detected) | No |
+| `EMPIRICA_SESSION_DB` | Custom session database path (**priority 0** — overrides all resolution) | (auto-detected) | No |
 
 ---
 

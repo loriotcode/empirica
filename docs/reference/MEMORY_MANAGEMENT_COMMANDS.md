@@ -366,6 +366,34 @@ empirica pattern-check \
 
 ---
 
+## Qdrant Maintenance
+
+### `qdrant-status`
+
+Show collection inventory, point counts, and empty collection ratio.
+
+```bash
+empirica qdrant-status                # Human-readable output
+empirica qdrant-status --output json  # JSON output
+```
+
+Reports: total collections, total points, empty collections, per-project breakdown.
+
+### `qdrant-cleanup`
+
+Remove empty Qdrant collections to reduce resource usage. Dry-run by default.
+
+```bash
+empirica qdrant-cleanup              # Preview (dry-run)
+empirica qdrant-cleanup --execute    # Actually delete empty collections
+```
+
+**Background:** `init_collections()` was changed from eager creation (all 10 types per project)
+to lazy creation in v1.5.7. Existing installations may have empty collections from before this
+change. This command cleans them up.
+
+---
+
 ## Related Documentation
 
 - [Attention Budget Architecture](../architecture/ATTENTION_BUDGET.md) — Technical details
