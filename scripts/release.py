@@ -4,13 +4,14 @@ Automated Release Script for Empirica
 Single source of truth: pyproject.toml version
 
 Usage:
-    python scripts/release.py --dry-run    # Preview changes
-    python scripts/release.py              # Execute release
+    python scripts/release.py --dry-run                           # Preview full release
+    python scripts/release.py                                     # Execute full release
+    python scripts/release.py --version-only --old-version 1.5.6  # Update versions only
+    python scripts/release.py --old-version 1.5.6                 # Full release with sweep
 """
 
 import argparse
 import hashlib
-import os
 import re
 import subprocess
 import sys
@@ -47,10 +48,11 @@ def info(msg: str):
 
 
 class ReleaseManager:
-    def __init__(self, dry_run: bool = False):
+    def __init__(self, dry_run: bool = False, old_version: Optional[str] = None):
         self.dry_run = dry_run
         self.repo_root = Path(__file__).parent.parent
         self.version: Optional[str] = None
+        self.old_version: Optional[str] = old_version
         self.tarball_sha256: Optional[str] = None
 
     def read_version(self) -> str:
@@ -219,21 +221,11 @@ class ReleaseManager:
                 r'"version":\s*"[^"]+"',
                 f'"version": "{self.version}"',
             ),
-            # CLAUDE.md system prompt (canonical + both template copies)
+            # __init__.py docstring version
             (
-                self.repo_root / "docs" / "human" / "developers" / "system-prompts" / "CLAUDE.md",
-                r'\*\*Version:\*\*\s*v[0-9]+\.[0-9]+\.[0-9]+',
-                f'**Version:** v{self.version}',
-            ),
-            (
-                self.repo_root / "claude-code-integration" / "templates" / "CLAUDE.md",
-                r'\*\*Version:\*\*\s*v[0-9]+\.[0-9]+\.[0-9]+',
-                f'**Version:** v{self.version}',
-            ),
-            (
-                self.repo_root / "empirica" / "plugins" / "claude-code-integration" / "templates" / "CLAUDE.md",
-                r'\*\*Version:\*\*\s*v[0-9]+\.[0-9]+\.[0-9]+',
-                f'**Version:** v{self.version}',
+                self.repo_root / "empirica" / "__init__.py",
+                r'^Version:\s*[0-9]+\.[0-9]+\.[0-9]+',
+                f'Version: {self.version}',
             ),
             # README.md version badge and footer
             (
@@ -300,6 +292,61 @@ class ReleaseManager:
                 success(f"Updated: {filepath}")
             else:
                 info(f"Would update: {filepath}")
+
+    def sweep_version(self, old_version: str):
+        """Broad sweep: replace old_version → self.version in all version-bearing files.
+
+        Catches references that targeted regex patterns miss: Dockerfile comments,
+        README docker commands, CLAUDE.md headers, DOCKERHUB_README, etc.
+        Skips CHANGELOG files (historical references) and .git directory.
+        """
+        log("\n" + "=" * 60)
+        log(f"🔍 Sweeping {old_version} → {self.version}")
+        log("=" * 60)
+
+        sweep_files = []
+        skip_names = {"CHANGELOG.md", "release.py"}
+        skip_dirs = {".git", ".venv", ".venv-mcp", "dist", "build",
+                     ".empirica_reflex_logs", "node_modules", "__pycache__",
+                     ".qdrant_data"}
+        extensions = {".md", ".py", ".toml", ".yaml", ".yml", ".json", ".rb",
+                      ".nuspec", ".ps1", ".sh"}
+
+        for ext in extensions:
+            for filepath in self.repo_root.rglob(f"*{ext}"):
+                if any(d in filepath.parts for d in skip_dirs):
+                    continue
+                if filepath.name in skip_names:
+                    continue
+                if ".egg-info" in str(filepath):
+                    continue
+                sweep_files.append(filepath)
+
+        # Also include Dockerfiles (no extension)
+        for name in ["Dockerfile", "Dockerfile.alpine"]:
+            p = self.repo_root / name
+            if p.exists():
+                sweep_files.append(p)
+
+        updated = 0
+        for filepath in sweep_files:
+            try:
+                content = filepath.read_text()
+            except (UnicodeDecodeError, PermissionError):
+                continue
+
+            if old_version not in content:
+                continue
+
+            new_content = content.replace(old_version, self.version)
+            if not self.dry_run:
+                filepath.write_text(new_content)
+                success(f"Swept: {filepath.relative_to(self.repo_root)}")
+            else:
+                info(f"Would sweep: {filepath.relative_to(self.repo_root)}")
+            updated += 1
+
+        info(f"Sweep complete: {updated} files updated")
 
     def run_command(self, cmd: list[str], check: bool = True, cwd: Optional[str] = None) -> subprocess.CompletedProcess:
         """Run a shell command"""
@@ -493,6 +540,31 @@ docker pull nubaeon/empirica:{self.version}
         ])
         success(f"Created GitHub release: {tag}")
 
+    def run_version_update(self):
+        """Update version strings only (no build/publish)."""
+        log("\n╔════════════════════════════════════════════════════════════╗")
+        log("║  Empirica Version Update                                   ║")
+        log("╚════════════════════════════════════════════════════════════╝\n")
+
+        if self.dry_run:
+            warning("DRY RUN MODE - No changes will be made\n")
+
+        self.version = self.read_version()
+
+        if not self.old_version:
+            error("--old-version required for version-only mode")
+
+        # Targeted regex updates (structural patterns)
+        self.update_version_strings()
+        self.update_dockerfile()
+        self.update_chocolatey_nuspec()
+
+        # Broad sweep catches everything else (comments, docker examples, etc.)
+        self.sweep_version(self.old_version)
+
+        success(f"All version strings updated to {self.version}")
+        info("Homebrew formula SHA256 will be updated during full release.")
+
     def run(self):
         """Execute full release process"""
         log("\n╔════════════════════════════════════════════════════════════╗")
@@ -513,11 +585,13 @@ docker pull nubaeon/empirica:{self.version}
             # Calculate tarball SHA256
             self.tarball_sha256 = self.calculate_sha256()
 
-            # Update all distribution files
+            # Update all distribution files (targeted + broad sweep)
             self.update_version_strings()
             self.update_homebrew_formula()
             self.update_dockerfile()
             self.update_chocolatey_nuspec()
+            if self.old_version:
+                self.sweep_version(self.old_version)
 
             # Publish
             self.publish_to_pypi()
@@ -547,10 +621,22 @@ def main():
         action="store_true",
         help="Preview changes without executing"
     )
+    parser.add_argument(
+        "--old-version",
+        help="Previous version for broad sweep replacement (e.g. 1.5.6)"
+    )
+    parser.add_argument(
+        "--version-only",
+        action="store_true",
+        help="Update version strings only (no build/publish). Requires --old-version."
+    )
     args = parser.parse_args()
 
-    manager = ReleaseManager(dry_run=args.dry_run)
-    manager.run()
+    manager = ReleaseManager(dry_run=args.dry_run, old_version=args.old_version)
+    if args.version_only:
+        manager.run_version_update()
+    else:
+        manager.run()
 
 
 if __name__ == "__main__":
