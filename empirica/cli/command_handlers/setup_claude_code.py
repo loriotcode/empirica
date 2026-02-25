@@ -226,21 +226,36 @@ def handle_setup_claude_code_command(args):
         # ==================== INSTALL CLAUDE.md ====================
         if not skip_claude_md:
             if output_format != 'json':
-                print("\n📝 Installing CLAUDE.md...")
+                print("\n📝 Installing Empirica system prompt...")
 
             claude_md_src = plugin_dir / "templates" / "CLAUDE.md"
             claude_md_dst = claude_dir / "CLAUDE.md"
+            empirica_prompt_dst = claude_dir / "empirica-system-prompt.md"
+            include_line = "@~/.claude/empirica-system-prompt.md"
 
             if claude_md_src.exists():
-                if claude_md_dst.exists():
-                    backup = claude_dir / "CLAUDE.md.bak"
-                    shutil.copy2(claude_md_dst, backup)
-                    if output_format != 'json':
-                        print("   Backed up existing CLAUDE.md to CLAUDE.md.bak")
-
-                shutil.copy2(claude_md_src, claude_md_dst)
+                # Always write Empirica prompt to separate file (safe to overwrite)
+                shutil.copy2(claude_md_src, empirica_prompt_dst)
                 if output_format != 'json':
-                    print("   ✓ CLAUDE.md installed to ~/.claude/CLAUDE.md")
+                    print("   ✓ Empirica prompt written to ~/.claude/empirica-system-prompt.md")
+
+                if claude_md_dst.exists():
+                    # Check if include reference already exists
+                    existing_content = claude_md_dst.read_text()
+                    if include_line not in existing_content:
+                        # Prepend include reference to existing CLAUDE.md
+                        new_content = f"{include_line}\n\n{existing_content}"
+                        claude_md_dst.write_text(new_content)
+                        if output_format != 'json':
+                            print("   ✓ Added include reference to existing ~/.claude/CLAUDE.md")
+                    else:
+                        if output_format != 'json':
+                            print("   ✓ Include reference already present in ~/.claude/CLAUDE.md")
+                else:
+                    # No existing CLAUDE.md — create one with just the include
+                    claude_md_dst.write_text(f"{include_line}\n")
+                    if output_format != 'json':
+                        print("   ✓ Created ~/.claude/CLAUDE.md with Empirica include")
             else:
                 if output_format != 'json':
                     print("   ⚠️  CLAUDE.md template not found in plugin")

@@ -27,6 +27,62 @@ def get_workspace_db_path() -> Path:
     return Path.home() / '.empirica' / 'workspace' / 'workspace.db'
 
 
+def ensure_workspace_schema(conn) -> None:
+    """Create workspace tables if they don't exist.
+
+    Called before any workspace.db operations to ensure the schema is present.
+    This makes workspace-init and project-list work on fresh installs without
+    requiring a separate schema migration step.
+    """
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS global_projects (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            trajectory_path TEXT NOT NULL UNIQUE,
+            git_remote_url TEXT,
+            git_branch TEXT DEFAULT 'main',
+            total_transactions INTEGER DEFAULT 0,
+            total_findings INTEGER DEFAULT 0,
+            total_unknowns INTEGER DEFAULT 0,
+            total_dead_ends INTEGER DEFAULT 0,
+            total_goals INTEGER DEFAULT 0,
+            last_transaction_id TEXT,
+            last_transaction_timestamp REAL,
+            last_sync_timestamp REAL,
+            status TEXT DEFAULT 'active',
+            project_type TEXT DEFAULT 'product',
+            project_tags TEXT,
+            created_timestamp REAL NOT NULL,
+            updated_timestamp REAL NOT NULL,
+            metadata TEXT
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_global_projects_status
+        ON global_projects(status)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_global_projects_type
+        ON global_projects(project_type)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_global_projects_last_tx
+        ON global_projects(last_transaction_timestamp)
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS instance_bindings (
+            instance_id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            project_path TEXT,
+            bound_timestamp REAL NOT NULL,
+            FOREIGN KEY (project_id) REFERENCES global_projects(id)
+        )
+    """)
+    conn.commit()
+
+
 def get_workspace_projects() -> List[Dict[str, Any]]:
     """
     Get all projects from workspace database.
@@ -42,6 +98,7 @@ def get_workspace_projects() -> List[Dict[str, Any]]:
 
     try:
         conn = sqlite3.connect(str(workspace_db))
+        ensure_workspace_schema(conn)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 

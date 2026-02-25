@@ -28,6 +28,7 @@ from typing import Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
+
 class EpistemicDecisionEngine:
     """
     Makes epistemic decisions during workspace initialization.
@@ -677,6 +678,8 @@ def _register_in_workspace_db(
 
     try:
         conn = sqlite3.connect(str(workspace_db))
+        from .project_commands import ensure_workspace_schema
+        ensure_workspace_schema(conn)
         cursor = conn.cursor()
 
         # Check if project already exists by trajectory_path (folder linkage)
