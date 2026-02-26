@@ -559,8 +559,10 @@ When assessing:
 
 ## Sentinel Controls
 
-**DO NOT execute these commands.** These are user-only shell configuration options.
-The AI must never set these environment variables.
+**File-based control (preferred):** `~/.empirica/sentinel_enabled` — write `true` or `false`.
+Takes priority over env vars and is dynamically settable without session restart.
+
+**Environment variables (fallback, requires session restart):**
 
 | Variable | Values | Default | Effect |
 |----------|--------|---------|--------|

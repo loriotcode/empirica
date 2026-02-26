@@ -836,8 +836,15 @@ def main():
         sys.exit(0)
 
     # Check if sentinel looping is disabled (escape hatch)
-    if os.getenv('EMPIRICA_SENTINEL_LOOPING', 'true').lower() == 'false':
-        respond("allow", "Sentinel disabled")
+    # Priority: file flag > env var (file is dynamically settable, env var requires restart)
+    sentinel_flag = Path.home() / '.empirica' / 'sentinel_enabled'
+    if sentinel_flag.exists():
+        flag_val = sentinel_flag.read_text().strip().lower()
+        if flag_val == 'false':
+            respond("allow", "Sentinel disabled (file flag)")
+            sys.exit(0)
+    elif os.getenv('EMPIRICA_SENTINEL_LOOPING', 'true').lower() == 'false':
+        respond("allow", "Sentinel disabled (env var)")
         sys.exit(0)
 
     # === AUTHORIZATION CHECK ===
