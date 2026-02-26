@@ -559,15 +559,13 @@ When assessing:
 
 ## Sentinel Controls
 
-```bash
-# Disable epistemic looping (INVESTIGATE → PROCEED)
-export EMPIRICA_SENTINEL_LOOPING=false
+**DO NOT execute these commands.** These are user-only shell configuration options.
+The AI must never set these environment variables.
 
-# Sentinel modes
-export EMPIRICA_SENTINEL_MODE=observer    # Log warnings, don't block
-export EMPIRICA_SENTINEL_MODE=controller  # Actively block when appropriate
-export EMPIRICA_SENTINEL_MODE=auto        # Same as controller (default)
-```
+| Variable | Values | Default | Effect |
+|----------|--------|---------|--------|
+| `EMPIRICA_SENTINEL_LOOPING` | `true`, `false` | `true` | When `false`, disables Sentinel gating entirely |
+| `EMPIRICA_SENTINEL_MODE` | `observer`, `controller`, `auto` | `auto` | `observer` = log only, `controller`/`auto` = actively block |
 
 ---
 
