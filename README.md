@@ -322,20 +322,18 @@ Projects using Empirica's epistemic foundations:
 |---------|-------------|----------|
 | **[Docpistemic](https://github.com/Nubaeon/docpistemic)** | Epistemic documentation system | Self-aware documentation that tracks what it explains well vs. poorly |
 | **[Carapace](https://github.com/Nubaeon/carapace)** | Defensive AI shell | Security-focused AI wrapper with epistemic safety gates |
-| **[Empirica CRM](https://github.com/Nubaeon/empirica-crm)** | Customer relationship management | CRM where AI knows its confidence about customer insights |
-
 **Building something with Empirica?** Open an issue to get listed here.
 
 ---
 
-## What's New in 1.5.8
+## What's New in 1.5.9
 
-- **Workspace DB Schema Fix** (#51) — Fresh installs no longer fail on `workspace-init` or `project-list`. Added `ensure_workspace_schema()` with `CREATE TABLE IF NOT EXISTS` for all four workspace tables
-- **CLAUDE.md Preservation** (#50) — `setup-claude-code` no longer overwrites your CLAUDE.md. Empirica prompt is written to a separate file with `@include` reference
-- **Semantic Layer Check** — `setup-claude-code` detects Ollama, nomic-embed-text, and Qdrant availability with setup instructions
-- **Missing Tables Fixed** — `global_sessions` (session registration) and `entity_artifacts` (entity cross-linking) tables were silently never created on fresh installs
-- **AST Dependency Graph** — Bootstrap uses AST analysis instead of file tree for smarter project context loading
-- **Phantom Project Fix** — Project ID resolution now uses `project.yaml` as authoritative source, preventing self-propagating phantom project IDs from sessions.db
+- **Sentinel File-Based Control** — Sentinel enable/disable via `~/.empirica/sentinel_enabled` file flag. Dynamically settable without session restart (env vars required terminal restart)
+- **Sentinel Bypass Fix** — System prompt contained bare `export` commands that Claudes would execute, disabling the Sentinel. Replaced with tables + "DO NOT execute" warnings
+- **SessionStart Matcher Fix** — `setup-claude-code` generated invalid matchers (`new|fresh`, bare `compact`). Fixed to valid Claude Code values (`startup`, `compact|resume`)
+- **MirrorDriftMonitor Removed** — Vestigial drift detection superseded by grounded calibration pipeline. Removed `check-drift` CLI command, MCP tool, and drift module (-562 lines)
+- **Transaction Planning Skill** — `/epistemic-transaction` skill gains interactive `plan-transactions` mode: interview → explore → decompose → plan with estimated vectors → execute
+- **Phantom Project Fix** — Project ID resolution uses `project.yaml` as authoritative source, preventing self-propagating phantom project IDs
 
 ---
 
