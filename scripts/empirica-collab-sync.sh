@@ -194,7 +194,6 @@ check_repo() {
 }
 
 check_repo "empirica" "$REMOTE_HOME/empirica" "Nubaeon/empirica"
-check_repo "empirica-crm" "$REMOTE_HOME/empirica-crm" "Nubaeon/empirica-crm"
 
 echo ""
 
@@ -207,8 +206,7 @@ elif [[ "$MODE" == "sync" ]]; then
     echo ""
     echo "Next steps for collaborator:"
     echo "  1. Pull latest empirica: cd ~/empirica && git pull origin develop"
-    echo "  2. Pull latest empirica-crm: cd ~/empirica-crm && git pull origin main"
-    echo "  3. Reinstall: pip install -e ~/empirica -e ~/empirica/empirica-mcp -e ~/empirica-crm"
+    echo "  2. Reinstall: pip install -e ~/empirica -e ~/empirica/empirica-mcp"
     echo "  4. Restart Claude Code to pick up MCP changes"
 elif [[ "$MODE" == "pull" ]]; then
     echo -e "${GREEN}Pull complete!${NC}"

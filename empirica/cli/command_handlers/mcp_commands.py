@@ -288,7 +288,7 @@ def handle_mcp_list_tools_command(args):
         
         if args.verbose:
             print(f"\n💡 Use 'empirica mcp call <tool_name>' to test a tool")
-            print(f"💡 See docs/production/20_TOOL_CATALOG.md for detailed documentation")
+            print(f"💡 See docs/human/developers/MCP_SERVER_REFERENCE.md for detailed documentation")
         
     except Exception as e:
         handle_cli_error(e, "Listing MCP tools", getattr(args, 'verbose', False))
@@ -315,7 +315,7 @@ def handle_mcp_call_command(args):
         print(f"\n📝 Tool: {args.tool_name}")
         print(f"📝 Arguments: {json.dumps(tool_args, indent=2)}")
         print(f"\n💡 To use this tool, configure it in your IDE's MCP client")
-        print(f"💡 See docs/guides/setup/MCP_SERVERS_SETUP.md")
+        print(f"💡 See docs/human/developers/MCP_SERVER_REFERENCE.md")
         
     except Exception as e:
         handle_cli_error(e, "Calling MCP tool", getattr(args, 'verbose', False))
