@@ -1,6 +1,6 @@
 # Empirica Python API Reference
 
-**Framework Version:** 1.5.8
+**Framework Version:** 1.5.9
 **Status:** Production Ready
 
 ---
