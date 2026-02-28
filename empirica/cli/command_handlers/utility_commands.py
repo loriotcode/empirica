@@ -253,7 +253,7 @@ def handle_sessions_show_command(args):
                                 print(f"         DO: {vectors.get('do', 'N/A'):.2f}" if isinstance(vectors.get('do'), (int, float)) else f"         DO: N/A")
                                 print(f"         CONTEXT: {vectors.get('context', 'N/A'):.2f}" if isinstance(vectors.get('context'), (int, float)) else f"         CONTEXT: N/A")
                                 print(f"         UNCERTAINTY: {vectors.get('uncertainty', 'N/A'):.2f}" if isinstance(vectors.get('uncertainty'), (int, float)) else f"         UNCERTAINTY: N/A")
-                            except:
+                            except Exception:
                                 print(f"       {key}: {value[:100]}")
                         else:
                             value_preview = (value[:80] + '...') if len(value) > 80 else value

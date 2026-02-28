@@ -670,7 +670,7 @@ def handle_check_command(args):
             try:
                 if not sys.stdin.isatty():
                     config_data = parse_json_safely(sys.stdin.read())
-            except:
+            except Exception:
                 pass
 
         # Extract parameters from args or config

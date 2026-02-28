@@ -266,7 +266,7 @@ def handle_finding_log_command(args):
             row = cursor.fetchone()
             if row and row['ai_id']:
                 ai_id = row['ai_id']
-        except:
+        except Exception:
             pass
 
         db.close()
@@ -609,7 +609,7 @@ def handle_unknown_log_command(args):
             row = cursor.fetchone()
             if row and row['ai_id']:
                 ai_id = row['ai_id']
-        except:
+        except Exception:
             pass
 
         db.close()
@@ -893,7 +893,7 @@ def handle_deadend_log_command(args):
             row = cursor.fetchone()
             if row and row['ai_id']:
                 ai_id = row['ai_id']
-        except:
+        except Exception:
             pass
 
         db.close()

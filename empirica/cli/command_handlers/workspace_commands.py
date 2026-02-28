@@ -147,7 +147,7 @@ def _display_project(index, project):
             else:
                 months = delta.days // 30
                 time_ago = f"{months} month{'s' if months > 1 else ''} ago"
-        except:
+        except Exception:
             time_ago = "unknown"
     else:
         time_ago = "never"

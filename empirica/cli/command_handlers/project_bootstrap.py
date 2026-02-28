@@ -437,9 +437,9 @@ def handle_project_bootstrap_command(args):
                 if result.returncode == 0:
                     git_url = result.stdout.strip()
                     safe_print(f"🔗 Repository: {git_url}")
-            except:
+            except Exception:
                 pass
-            
+
             safe_print(f"📍 Location: {db.db_path.parent.parent if hasattr(db, 'db_path') and db.db_path else 'Unknown'}")
             safe_print(f"💾 Database: .empirica/sessions/sessions.db")
             safe_print()

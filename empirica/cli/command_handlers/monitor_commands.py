@@ -557,7 +557,7 @@ def handle_mco_load_command(args):
                 session_data = db.get_session(session_id)
                 if session_data:
                     ai_id = ai_id or session_data.get('ai_id')
-            except:
+            except Exception:
                 pass
 
         # Export snapshot
@@ -1425,7 +1425,7 @@ def handle_calibration_report_command(args):
             try:
                 dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
                 week_key = dt.strftime('%Y-W%W')
-            except:
+            except Exception:
                 week_key = 'unknown'
 
             # Collect per-vector data

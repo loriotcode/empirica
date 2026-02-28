@@ -399,7 +399,7 @@ def _save_chat_session(session_id: str, history: List[Dict]):
             # Create or get session
             try:
                 db.create_session(session_id, ai_id='chat', started_at=None)
-            except:
+            except Exception:
                 pass  # Session already exists
             
             # Save conversation as JSON file

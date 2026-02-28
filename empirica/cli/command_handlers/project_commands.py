@@ -959,7 +959,7 @@ def handle_project_switch_command(args):
                         bootstrap_result = _json.loads(result.stdout)
                         if output_format == 'human':
                             print("✅ Project context loaded (auto-bootstrap)")
-                    except:
+                    except Exception:
                         bootstrap_result = {"ok": True, "note": "bootstrap ran but non-JSON output"}
                 else:
                     bootstrap_result = {"ok": False, "error": result.stderr[:200]}
