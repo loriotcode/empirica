@@ -162,4 +162,4 @@ echo "true" > ~/.empirica/sentinel_enabled    # re-enable
 
 - [Configuration Reference](./CONFIGURATION_REFERENCE.md) — YAML config files
 - [Database Schema](./DATABASE_SCHEMA_UNIFIED.md) — Database structure
-- [Multi-Instance Isolation](../architecture/INSTANCE_ISOLATION.md) — Instance management
+- [Multi-Instance Isolation](../architecture/instance_isolation/ARCHITECTURE.md) — Instance management

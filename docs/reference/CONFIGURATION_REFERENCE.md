@@ -792,9 +792,8 @@ EMPIRICA_LOG_LEVEL=debug empirica session-create --ai-id test
 
 ## See Also
 
-- [CLI Commands Reference](CLI_COMMANDS_GENERATED.md)
-- [Python API Reference](PYTHON_API_GENERATED.md)
-- [MCP Server Documentation](MCP_SERVER_GENERATED.md)
+- [CLI Commands Reference](../human/developers/CLI_COMMANDS_UNIFIED.md)
+- [MCP Server Reference](../human/developers/MCP_SERVER_REFERENCE.md)
 
 ---
 

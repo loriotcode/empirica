@@ -329,7 +329,7 @@ rm -rf .empirica/
 
 - **Get started:** [01_START_HERE.md](01_START_HERE.md)
 - **Learn the concepts:** [EMPIRICA_EXPLAINED_SIMPLE.md](EMPIRICA_EXPLAINED_SIMPLE.md)
-- **See all commands:** [reference/CLI_COMMANDS_COMPLETE.md](reference/CLI_COMMANDS_COMPLETE.md)
+- **See all commands:** [CLI Commands Unified](../developers/CLI_COMMANDS_UNIFIED.md)
 
 ---
 

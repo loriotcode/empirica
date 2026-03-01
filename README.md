@@ -205,8 +205,8 @@ Then just start working — with Claude Code hooks active, the Sentinel automati
 empirica docs-explain --topic "epistemic vectors"
 empirica docs-explain --topic "CASCADE workflow"
 
-# List all available topics
-empirica docs-list
+# Assess documentation coverage
+empirica docs-assess
 ```
 
 ### Try the Demo Project
@@ -254,7 +254,7 @@ If you're integrating Empirica into an AI system:
 
 | Guide | Purpose |
 |-------|---------|
-| [CASCADE Workflow](docs/architecture/CASCADE_WORKFLOW.md) | The PREFLIGHT → CHECK → POSTFLIGHT loop |
+| [Noetic-Praxic Framework](docs/architecture/NOETIC_PRAXIC_FRAMEWORK.md) | The PREFLIGHT → CHECK → POSTFLIGHT loop |
 | [Epistemic Vectors Explained](docs/human/end-users/05_EPISTEMIC_VECTORS_EXPLAINED.md) | Deep dive into all 13 vectors |
 | [CLI Reference](docs/human/developers/CLI_COMMANDS_UNIFIED.md) | Complete command documentation |
 | [Storage Architecture](docs/architecture/STORAGE_ARCHITECTURE_COMPLETE.md) | Four-layer data persistence |

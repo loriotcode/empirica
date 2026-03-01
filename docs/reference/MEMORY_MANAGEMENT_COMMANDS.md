@@ -396,6 +396,6 @@ change. This command cleans them up.
 
 ## Related Documentation
 
-- [Attention Budget Architecture](../architecture/ATTENTION_BUDGET.md) — Technical details
+- [Sentinel Architecture](../architecture/SENTINEL_ARCHITECTURE.md) — Attention and gating details
 - [Multi-Session Learning](../human/developers/MULTI_SESSION_LEARNING.md) — Session coordination
 - [Environment Variables](./ENVIRONMENT_VARIABLES.md) — Configuration options
