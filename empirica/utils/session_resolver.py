@@ -91,7 +91,10 @@ def get_tty_session(warn_if_stale: bool = True) -> Optional[Dict[str, Any]]:
         - empirica_session_id: Empirica session UUID
         - project_path: Project directory path
         - tty_key: The TTY key used
+        - instance_id: TMUX pane instance identifier (e.g. 'tmux_3')
         - timestamp: When the mapping was written
+        - pid: Process ID that wrote the session
+        - ppid: Parent process ID
 
     Args:
         warn_if_stale: If True, logs warnings for potentially stale sessions
@@ -156,7 +159,8 @@ def write_tty_session(
         project_path: Project directory path (optional)
 
     Returns:
-        True if successfully written, False if neither TTY nor TMUX_PANE available.
+        True if at least one session file was written (TTY or instance_projects),
+        False if neither TTY nor TMUX_PANE is available.
     """
     from datetime import datetime
 

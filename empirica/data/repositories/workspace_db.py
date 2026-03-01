@@ -143,9 +143,6 @@ class WorkspaceDBRepository(BaseRepository):
 
         Returns:
             WorkspaceDBRepository instance
-
-        Raises:
-            FileNotFoundError: If workspace directory doesn't exist and can't be created.
         """
         db_path = _get_workspace_db_path()
         db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -250,7 +247,20 @@ class WorkspaceDBRepository(BaseRepository):
         last_transaction_id: Optional[str] = None,
         last_transaction_timestamp: Optional[float] = None,
     ) -> None:
-        """Update project statistics (transaction counts, last activity)."""
+        """Update project statistics (transaction counts, last activity).
+
+        Only non-None parameters are updated. Also sets updated_timestamp.
+
+        Args:
+            project_id: UUID of the project to update.
+            total_transactions: Cumulative transaction count.
+            total_findings: Cumulative finding count.
+            total_unknowns: Cumulative unknown count.
+            total_dead_ends: Cumulative dead-end count.
+            total_goals: Cumulative goal count.
+            last_transaction_id: UUID of the most recent transaction.
+            last_transaction_timestamp: Epoch timestamp of the most recent transaction.
+        """
         updates = []
         params = []
         if total_transactions is not None:

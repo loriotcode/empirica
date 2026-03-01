@@ -143,6 +143,9 @@ def get_empirica_root() -> Path:
 
     Returns:
         Path to .empirica root directory
+
+    Raises:
+        ValueError: If no .empirica root can be determined (not in git repo and no env vars set).
     """
     # 1. Check workspace root (Docker/multi-AI environments)
     if workspace_root := os.getenv('EMPIRICA_WORKSPACE_ROOT'):
@@ -200,6 +203,10 @@ def get_session_db_path() -> Path:
 
     Returns:
         Path to sessions.db
+
+    Raises:
+        ValueError: If no sessions.db path can be determined (not in git repo,
+            no context found, and no env vars set).
     """
     import sqlite3
 

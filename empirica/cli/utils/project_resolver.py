@@ -62,9 +62,17 @@ def get_current_git_repo() -> Optional[str]:
 
 
 def resolve_project_by_git_repo(git_repo: str, db) -> Optional[str]:
-    """
-    Resolve project by normalized git repo URL.
-    Returns the canonical project ID for this repo (creates if needed).
+    """Resolve project by normalized git repo URL.
+
+    Searches the projects table for a project whose repos JSON array contains
+    the given URL (after normalization). Returns the most recently active match.
+
+    Args:
+        git_repo: Normalized git remote URL to search for.
+        db: SessionDatabase instance with an adapter.conn connection.
+
+    Returns:
+        Project UUID if found, None otherwise.
     """
     if not git_repo:
         return None
