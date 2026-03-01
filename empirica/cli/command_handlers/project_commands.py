@@ -10,7 +10,6 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 from ..cli_utils import handle_cli_error
-from empirica.core.memory_gap_detector import MemoryGapDetector
 
 logger = logging.getLogger(__name__)
 
