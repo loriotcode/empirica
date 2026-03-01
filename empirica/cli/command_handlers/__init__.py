@@ -148,7 +148,6 @@ from .performance_commands import handle_benchmark_command, handle_performance_c
 # handle_goal_analysis_command removed - was in noetic_praxic_commands (deprecated)
 from .ask_handler import handle_ask_command
 from .chat_handler import handle_chat_command
-from .dashboard import handle_dashboard_command
 from .vision_commands import (
     handle_vision_analyze,
     handle_vision_log,
@@ -337,7 +336,6 @@ __all__ = [
     # User interface commands (for human users)
     'handle_ask_command',
     'handle_chat_command',
-    'handle_dashboard_command',
 
     # Vision commands
     'handle_vision_analyze',

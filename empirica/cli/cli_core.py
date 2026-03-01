@@ -407,7 +407,6 @@ def main(args=None):
 
             # User interface commands
             'chat': handle_chat_command,
-            'dashboard': handle_dashboard_command,
 
             # Vision commands
             'vision': handle_vision_analyze,
