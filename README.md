@@ -2,7 +2,7 @@
 
 > **Teaching AI to know what it knows—and what it doesn't**
 
-[![Version](https://img.shields.io/badge/version-1.5.9-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.5.9)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.6.0)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -167,13 +167,13 @@ empirica setup-claude-code  # Don't forget this step
 
 ```bash
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.5.9
+docker pull nubaeon/empirica:1.6.0
 
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.5.9-alpine
+docker pull nubaeon/empirica:1.6.0-alpine
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.5.9 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.6.0 /bin/bash
 ```
 
 ---
@@ -326,7 +326,7 @@ Projects using Empirica's epistemic foundations:
 
 ---
 
-## What's New in 1.5.9
+## What's New in 1.6.0
 
 - **Sentinel File-Based Control** — Sentinel enable/disable via `~/.empirica/sentinel_enabled` file flag. Dynamically settable without session restart (env vars required terminal restart)
 - **Sentinel Bypass Fix** — System prompt contained bare `export` commands that Claudes would execute, disabling the Sentinel. Replaced with tables + "DO NOT execute" warnings
@@ -366,6 +366,6 @@ See [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.5.9
+**Version:** 1.6.0
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*
