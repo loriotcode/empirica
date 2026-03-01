@@ -474,12 +474,30 @@ def handle_preflight_submit_command(args):
             except Exception:
                 pass
 
-            # CALIBRATION FEEDBACK: Gated by EMPIRICA_CALIBRATION_FEEDBACK (default: true)
-            # Controls all calibration enrichment in workflow output:
-            # - previous_transaction_feedback (grounded gaps from last transaction)
-            # - calibration_warnings in pattern retrieval (Qdrant)
-            # - future: epistemics trajectory, calibration trajectory retrieval
-            # Learning trajectory (informational) is independent of this flag.
+            # CALIBRATION FEEDBACK FLAG: EMPIRICA_CALIBRATION_FEEDBACK (default: true)
+            #
+            # Controls all calibration enrichment across the workflow:
+            #
+            #   PREFLIGHT:
+            #     - previous_transaction_feedback: grounded gaps from last transaction
+            #     - calibration_warnings: Qdrant search for similar past task patterns
+            #
+            #   CHECK:
+            #     - calibration_bias: systematic bias detection from past sessions
+            #
+            #   POSTFLIGHT:
+            #     - grounded_verification: ALWAYS runs (data collection, not feedback)
+            #     - Qdrant embedding of verification results: ALWAYS runs
+            #
+            # When set to 'false', all calibration FEEDBACK to the AI is suppressed.
+            # Data collection (POSTFLIGHT grounded verification) still runs so that
+            # calibration data accumulates for when feedback is re-enabled.
+            #
+            # The Sentinel gate is NOT affected by this flag — it uses RAW vectors
+            # for gating decisions, which is by design (see sentinel-gate.py).
+            #
+            # Learning trajectory (Bayesian PREFLIGHT->POSTFLIGHT deltas) is also
+            # independent of this flag — it's informational, not corrective.
             calibration_feedback_enabled = os.environ.get(
                 'EMPIRICA_CALIBRATION_FEEDBACK', 'true'
             ).lower() == 'true'
@@ -1466,7 +1484,9 @@ def handle_check_submit_command(args):
             except Exception as e:
                 logger.debug(f"Blindspot scan skipped: {e}")
 
-            # NOETIC RAG: CHECK pattern retrieval — enriched context for proceed/investigate decision
+            # NOETIC RAG: CHECK pattern retrieval — enriched context for proceed/investigate decision.
+            # The calibration_bias warning is gated by EMPIRICA_CALIBRATION_FEEDBACK
+            # (same flag as PREFLIGHT). See the flag comment in handle_preflight_command.
             try:
                 check_project_id = (bootstrap_result or {}).get('project_id') or bootstrap_status.get('project_id')
                 if check_project_id:
