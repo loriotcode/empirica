@@ -474,14 +474,19 @@ def handle_preflight_submit_command(args):
             except Exception:
                 pass
 
-            # INTRA-SESSION CALIBRATION FEEDBACK: Surface previous transaction's grounded gaps
-            # This closes the feedback loop WITHIN a session — the AI sees where it was wrong
-            # in the last transaction while it still has context to understand why.
-            # Distinct from learning_prior (aggregate Bayesian across all sessions) and
-            # calibration_warnings (semantically similar past tasks via Qdrant).
+            # CALIBRATION FEEDBACK: Gated by EMPIRICA_CALIBRATION_FEEDBACK (default: true)
+            # Controls all calibration enrichment in workflow output:
+            # - previous_transaction_feedback (grounded gaps from last transaction)
+            # - calibration_warnings in pattern retrieval (Qdrant)
+            # - future: epistemics trajectory, calibration trajectory retrieval
+            # Learning trajectory (informational) is independent of this flag.
+            calibration_feedback_enabled = os.environ.get(
+                'EMPIRICA_CALIBRATION_FEEDBACK', 'true'
+            ).lower() == 'true'
+
             previous_transaction_feedback = None
             try:
-                if ai_id and ai_id != 'unknown' and project_id:
+                if calibration_feedback_enabled and ai_id and ai_id != 'unknown' and project_id:
                     cursor = db.conn.cursor()
                     cursor.execute("""
                         SELECT gv.calibration_gaps, gv.overall_calibration_score,
@@ -550,6 +555,7 @@ def handle_preflight_submit_command(args):
                         include_goals=True,
                         include_assumptions=True,
                         include_decisions=True,
+                        include_calibration=calibration_feedback_enabled,
                         vectors=vectors,
                     )
                     if patterns and any(v for k, v in patterns.items() if k != 'time_gap'):
@@ -1465,6 +1471,9 @@ def handle_check_submit_command(args):
                 check_project_id = (bootstrap_result or {}).get('project_id') or bootstrap_status.get('project_id')
                 if check_project_id:
                     from empirica.core.qdrant.pattern_retrieval import check_against_patterns
+                    check_calibration = os.environ.get(
+                        'EMPIRICA_CALIBRATION_FEEDBACK', 'true'
+                    ).lower() == 'true'
                     check_patterns = check_against_patterns(
                         check_project_id,
                         reasoning or "",
@@ -1473,6 +1482,7 @@ def handle_check_submit_command(args):
                         include_eidetic=True,
                         include_goals=True,
                         include_assumptions=True,
+                        include_calibration=check_calibration,
                     )
                     if check_patterns and check_patterns.get("has_warnings"):
                         result["patterns"] = check_patterns

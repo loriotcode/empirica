@@ -359,6 +359,7 @@ def retrieve_task_patterns(
     include_goals: bool = False,
     include_assumptions: bool = False,
     include_decisions: bool = False,
+    include_calibration: bool = True,
     vectors: Optional[Dict] = None,
 ) -> Dict[str, any]:
     """
@@ -453,14 +454,17 @@ def retrieve_task_patterns(
     ]
 
     # Search for calibration warnings (grounded verification gaps from similar tasks)
-    calibration_warnings = _search_calibration_for_task(project_id, task_context, limits["findings"])
+    # Gated by include_calibration flag (controlled by EMPIRICA_CALIBRATION_FEEDBACK env var)
+    calibration_warnings = []
+    if include_calibration:
+        calibration_warnings = _search_calibration_for_task(project_id, task_context, limits["findings"])
 
     # Build result
     result = {
         "lessons": lessons,
         "dead_ends": dead_ends,
         "relevant_findings": relevant_findings,
-        "calibration_warnings": calibration_warnings,
+        "calibration_warnings": calibration_warnings if calibration_warnings else None,
         "time_gap": time_gap_info,
     }
 
@@ -640,6 +644,7 @@ def check_against_patterns(
     include_eidetic: bool = False,
     include_goals: bool = False,
     include_assumptions: bool = False,
+    include_calibration: bool = True,
 ) -> Dict[str, any]:
     """
     CHECK hook: Validate current approach against known patterns (Noetic RAG).
@@ -707,9 +712,11 @@ def check_against_patterns(
             )
 
     # Check calibration history for systematic bias
-    calibration_bias = _check_calibration_bias(project_id, current_approach, vectors)
-    if calibration_bias:
-        warnings["calibration_bias"] = calibration_bias
+    # Gated by include_calibration flag (controlled by EMPIRICA_CALIBRATION_FEEDBACK env var)
+    if include_calibration:
+        calibration_bias = _check_calibration_bias(project_id, current_approach, vectors)
+        if calibration_bias:
+            warnings["calibration_bias"] = calibration_bias
 
     # Noetic RAG: Related findings as additional context
     if include_findings and current_approach:
