@@ -7,9 +7,6 @@ Organizes CLI command handlers by semantic function for maintainability.
 # Import all command handlers
 from .onboard import handle_onboard_command
 from .setup_claude_code import handle_setup_claude_code_command
-# noetic_praxic_commands removed - deprecated stubs
-from .modality_commands import handle_modality_route_command
-# handle_modality_decision_command removed - was using deprecated cascade
 from .action_commands import (
     handle_investigate_log_command,
     handle_act_log_command
@@ -146,8 +143,6 @@ from .investigation_commands import (
 )
 from .performance_commands import handle_benchmark_command, handle_performance_command
 # handle_goal_analysis_command removed - was in noetic_praxic_commands (deprecated)
-from .ask_handler import handle_ask_command
-from .chat_handler import handle_chat_command
 from .vision_commands import (
     handle_vision_analyze,
     handle_vision_log,
@@ -185,9 +180,6 @@ __all__ = [
     'handle_onboard_command',
     'handle_setup_claude_code_command',
 
-    # Modality commands (EXPERIMENTAL)
-    'handle_modality_route_command',
-    
     # Action commands (INVESTIGATE and ACT phase tracking)
     'handle_investigate_log_command',
     'handle_act_log_command',
@@ -333,10 +325,6 @@ __all__ = [
     'handle_sessions_show_command',
     'handle_sessions_export_command',
     
-    # User interface commands (for human users)
-    'handle_ask_command',
-    'handle_chat_command',
-
     # Vision commands
     'handle_vision_analyze',
     'handle_vision_log',
