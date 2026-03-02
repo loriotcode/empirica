@@ -1509,36 +1509,14 @@ def handle_check_submit_command(args):
             except Exception as e:
                 logger.debug(f"CHECK pattern retrieval failed (optional): {e}")
 
-            # AUTO-POSTFLIGHT TRIGGER: Check if goal completion detected
-            # Uses completion and impact vectors to determine if a goal was completed
-            # This closes the epistemic loop automatically without user intervention
-            # Controlled by EMPIRICA_AUTO_POSTFLIGHT env var (default: true)
-            auto_postflight_enabled = os.getenv('EMPIRICA_AUTO_POSTFLIGHT', 'true').lower() == 'true'
-
-            if auto_postflight_enabled:
-                goal_completion = _check_goal_completion(vectors)
-
-                if goal_completion.get("triggered"):
-                    import sys as _sys
-                    print(f"🎯 Goal completion detected: {goal_completion.get('reason')}", file=_sys.stderr)
-                    print("📊 Auto-triggering POSTFLIGHT to capture learning delta...", file=_sys.stderr)
-
-                    postflight_result = _auto_postflight(
-                        session_id=session_id,
-                        vectors=vectors,
-                        trigger_reason=goal_completion.get('reason', 'completion threshold met')
-                    )
-
-                    result["auto_postflight"] = {
-                        "triggered": True,
-                        "success": postflight_result.get("ok", False),
-                        "reason": goal_completion.get("reason")
-                    }
-
-                    if postflight_result.get("ok"):
-                        print("✅ Auto-POSTFLIGHT captured successfully", file=_sys.stderr)
-                    else:
-                        print(f"⚠️  Auto-POSTFLIGHT failed: {postflight_result.get('error', 'unknown')}", file=_sys.stderr)
+            # AUTO-POSTFLIGHT REMOVED (2026-03-02):
+            # Previously CHECK auto-triggered POSTFLIGHT when completion >= 0.7 AND impact >= 0.5.
+            # This was wrong: CHECK is a noetic→praxic gate, not a completion event.
+            # High completion at CHECK means "I've learned enough to act" (noetic completion),
+            # not "I've finished acting" (praxic completion). Auto-POSTFLIGHT here closed
+            # transactions before any praxic work happened, locking the AI out of the Sentinel.
+            # POSTFLIGHT should only happen after actual work is done, triggered by the AI
+            # or session-end hook — never automatically from CHECK.
 
             # NOTE: Statusline cache was removed (2026-02-06). Statusline reads directly from DB.
 
@@ -1572,91 +1550,9 @@ def handle_check_submit_command(args):
         handle_cli_error(e, "Check submit", getattr(args, 'verbose', False))
 
 
-def _check_goal_completion(vectors: dict, calibration_adjustments: dict = None) -> dict:
-    """
-    Check if vectors indicate goal completion.
 
-    Thresholds (raw, before calibration):
-    - completion >= 0.7 (we underestimate by +0.14, so 0.7 raw ≈ 0.84 actual)
-    - impact >= 0.5 (if present)
-
-    Returns:
-        {
-            "triggered": bool,
-            "raw_completion": float,
-            "calibrated_completion": float,
-            "raw_impact": float,
-            "reason": str
-        }
-    """
-    completion = vectors.get('completion', 0.0)
-    impact = vectors.get('impact', 0.0)
-
-    # Apply calibration adjustment if available
-    completion_adj = 0.14  # Default from historical data
-    if calibration_adjustments and 'completion' in calibration_adjustments:
-        completion_adj = calibration_adjustments['completion']
-
-    calibrated_completion = completion + completion_adj
-
-    # Thresholds
-    COMPLETION_THRESHOLD = 0.7  # Raw threshold
-    IMPACT_THRESHOLD = 0.5
-
-    triggered = completion >= COMPLETION_THRESHOLD and impact >= IMPACT_THRESHOLD
-
-    reason = None
-    if triggered:
-        reason = f"Goal completion detected (completion={completion:.2f}→{calibrated_completion:.2f}, impact={impact:.2f})"
-    elif completion >= COMPLETION_THRESHOLD:
-        reason = f"High completion but low impact (completion={completion:.2f}, impact={impact:.2f})"
-    elif impact >= IMPACT_THRESHOLD:
-        reason = f"High impact but low completion (completion={completion:.2f}, impact={impact:.2f})"
-
-    return {
-        "triggered": triggered,
-        "raw_completion": completion,
-        "calibrated_completion": calibrated_completion,
-        "raw_impact": impact,
-        "reason": reason
-    }
-
-
-def _auto_postflight(session_id: str, vectors: dict, trigger_reason: str) -> dict:
-    """
-    Auto-submit POSTFLIGHT when goal completion is detected.
-
-    This closes the epistemic loop automatically without user intervention.
-    """
-    import subprocess
-
-    # Build POSTFLIGHT payload
-    payload = {
-        "session_id": session_id,
-        "vectors": vectors,
-        "learnings": [f"Auto-POSTFLIGHT triggered: {trigger_reason}"],
-        "delta_summary": "Auto-captured on goal completion detection"
-    }
-
-    try:
-        result = subprocess.run(
-            ['empirica', 'postflight-submit', '-'],
-            input=json.dumps(payload),
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-
-        if result.returncode == 0:
-            try:
-                output = json.loads(result.stdout)
-                return {"ok": True, "output": output}
-            except json.JSONDecodeError:
-                return {"ok": True, "output": result.stdout[:500]}
-        else:
-            return {"ok": False, "error": result.stderr[:500]}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+# _check_goal_completion and _auto_postflight REMOVED (2026-03-02)
+# See comment in handle_check_submit_command for rationale.
 
 
 def _extract_numeric_value(value):

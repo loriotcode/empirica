@@ -575,9 +575,8 @@ def configure_environment(config: dict) -> list[tuple[str, str]]:
         env_vars.append(("EMPIRICA_AUTOPILOT_MODE", "true"))
         print_success("Autopilot mode: ENABLED")
 
-    if config.get("auto_postflight"):
-        env_vars.append(("EMPIRICA_AUTO_POSTFLIGHT", "true"))
-        print_success("Auto-postflight: ENABLED")
+    # EMPIRICA_AUTO_POSTFLIGHT removed in 1.6.0 — CHECK no longer auto-triggers POSTFLIGHT
+    # Kept for backwards compatibility: setting is silently ignored
 
     if config.get("sentinel_looping", True):
         env_vars.append(("EMPIRICA_SENTINEL_LOOPING", "true"))

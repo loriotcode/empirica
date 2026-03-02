@@ -100,7 +100,7 @@ Controls PREFLIGHT enrichment (grounded gaps, calibration warnings), CHECK enric
 | Variable | Purpose | Default | Required |
 |----------|---------|---------|----------|
 | `EMPIRICA_AUTOPILOT_MODE` | Autonomous operation mode | `false` | No |
-| `EMPIRICA_AUTO_POSTFLIGHT` | Auto-submit POSTFLIGHT | `true` | No |
+| `EMPIRICA_AUTO_POSTFLIGHT` | **REMOVED** — Auto-POSTFLIGHT from CHECK removed in 1.6.0 | N/A | No |
 | `EMPIRICA_ENABLE_MODALITY_SWITCHER` | Enable adaptive model routing | `false` | No |
 
 ---

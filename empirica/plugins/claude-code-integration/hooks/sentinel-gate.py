@@ -605,6 +605,23 @@ def get_last_compact_timestamp(project_root: Path) -> Optional[datetime]:
         return None
 
 
+def is_plan_file(tool_input: dict) -> bool:
+    """Check if a Write/Edit targets a plan file (.claude/plans/).
+
+    Plan files are noetic artifacts — planning is investigation, not execution.
+    Allow writes to plan files without requiring CHECK authorization.
+    """
+    file_path = tool_input.get('file_path', '')
+    if not file_path:
+        return False
+    # Normalize path for reliable matching
+    try:
+        normalized = str(Path(file_path).resolve())
+    except Exception:
+        normalized = file_path
+    return '/.claude/plans/' in normalized
+
+
 def is_safe_bash_command(tool_input: dict) -> bool:
     """Check if a Bash command is in the safe (noetic) whitelist."""
     command = tool_input.get('command', '')
@@ -816,6 +833,13 @@ def main():
     # Rule 2: Safe Bash commands always allowed (read-only shell)
     if tool_name == 'Bash' and is_safe_bash_command(tool_input):
         respond("allow", "Safe Bash (read-only)")
+        sys.exit(0)
+
+    # Rule 2b: Plan file writes are noetic (planning is investigation, not execution)
+    # Claude Code writes plan files to ~/.claude/plans/ during plan mode.
+    # These should be allowed without CHECK since planning is inherently noetic work.
+    if tool_name in ('Write', 'Edit') and is_plan_file(tool_input):
+        respond("allow", f"Plan file write (noetic): {tool_name}")
         sys.exit(0)
 
     # Rule 3: Everything else is PRAXIC - requires CHECK authorization
