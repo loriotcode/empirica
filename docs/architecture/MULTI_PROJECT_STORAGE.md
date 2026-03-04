@@ -136,6 +136,14 @@ Empirica uses a **project-local primary** architecture:
 - `<project>/.empirica/lessons/*.yaml` - Project-specific lessons
 - `<project>/.git/refs/notes/empirica/` - Git-attached checkpoints
 
+### Layer 5: BRIDGE (Claude Code MEMORY.md)
+- `~/.claude/projects/{key}/memory/MEMORY.md` - Epistemically-curated hot cache
+- Auto-curated at session end from SQLite + Qdrant
+- Top 12 artifacts ranked by `impact × type_confidence × recency_decay`
+- Project-scoped (queries filter by `project_id`)
+- Claude Code auto-loads first 200 lines at session start
+- **Key derivation:** `{key}` = absolute project path with `/` → `-` (e.g., `/home/user/myapp` → `-home-user-myapp`)
+
 ---
 
 ## Key Relationships
@@ -314,10 +322,42 @@ Qdrant runs as separate service for semantic memory.
 | Config | `<repo>/.empirica/config.yaml` | `~/.empirica/config.yaml` |
 | Personas | `<repo>/.empirica/personas/` | `~/.empirica/personas/` |
 | Credentials | - | `~/.empirica/credentials.yaml` (always global) |
+| MEMORY.md hot cache | - | `~/.claude/projects/{key}/memory/MEMORY.md` (per-project) |
 
 **Resolution order:** Project-local `.empirica/` is checked first. Falls back to `~/.empirica/` only if local dir doesn't exist.
 
 **Always Global:** CRM data (clients, engagements), Qdrant vectors, and credentials are always stored globally because they span multiple projects.
+
+**Per-Project (Claude Code):** MEMORY.md is keyed by project path, ensuring project isolation. Multiple Claude instances on the same project share one MEMORY.md file.
+
+---
+
+---
+
+## Swarm Learning via MEMORY.md
+
+Multiple Claude Code instances working on the same project share one MEMORY.md file
+(keyed by git repo path). This creates emergent swarm learning:
+
+```
+Agent A: discovers dead-end → logs it → session ends → MEMORY.md updated
+Agent B: starts → loads MEMORY.md → sees dead-end → avoids it → finds solution
+Agent B: session ends → MEMORY.md updated with A's dead-end + B's finding
+Agent C: starts → gets combined epistemic state of A + B
+```
+
+**Properties:**
+- **No explicit coordination** — agents share via the memory file
+- **Confidence-ranked** — not all-or-nothing, weighted by epistemic quality
+- **Project-isolated** — scoped by project path, no cross-project bleeding
+- **Recency-aware** — old noise decays, recent insights surface
+- **Cumulative** — knowledge accumulates across agents and sessions
+- **Self-correcting** — cognitive immune system reduces confidence of contradicted findings
+
+The Qdrant layer adds depth: MEMORY.md is the hot cache (12 items),
+`project-search` gives semantic access to the full history.
+
+**See also:** [claude-code-symbiosis.md](./claude-code-symbiosis.md) for the full integration architecture.
 
 ---
 

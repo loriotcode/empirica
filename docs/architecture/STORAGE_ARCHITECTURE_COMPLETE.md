@@ -12,7 +12,7 @@
 
 ## Overview (Critical Infrastructure)
 
-This guide provides a comprehensive and visual explanation of Empirica's **four-layer storage architecture** and the critical distinction between git diffs (content tracking) and epistemic vectors (confidence tracking).
+This guide provides a comprehensive and visual explanation of Empirica's **four-layer storage architecture** (plus the Claude Code bridge layer) and the critical distinction between git diffs (content tracking) and epistemic vectors (confidence tracking).
 
 ### Diagram 1: Complete Storage Architecture Flow
 
@@ -25,8 +25,8 @@ This guide provides a comprehensive and visual explanation of Empirica's **four-
 - High-level overview of how data is compressed and accessed by different use cases (live dashboard, historical trends, debugging, crypto signing, semantic search).
 
 **Key Takeaways:**
-1.  **Four-layer storage** ensures data redundancy, semantic search, and optimized access patterns.
-2.  **Different storage for different use cases:** SQLite for fast SQL queries, Git Notes for compressed and distributed state, JSON Logs for full audit and debugging, Qdrant for semantic retrieval.
+1.  **Four-layer storage + bridge** ensures data redundancy, semantic search, and optimized access patterns.
+2.  **Different storage for different use cases:** SQLite for fast SQL queries, Git Notes for compressed and distributed state, JSON Logs for full audit and debugging, Qdrant for semantic retrieval, MEMORY.md for Claude Code hot cache.
 3.  **Significant token reduction** (e.g., 15,000 tokens → 450 tokens, 97% reduction) for efficient storage and transfer of epistemic state.
 
 ---
@@ -88,6 +88,7 @@ This guide provides a comprehensive and visual explanation of Empirica's **four-
 | **Git Notes** (WARM) | `refs/notes/empirica/session/...` | 450 tokens | Distributed, signed, compressed | Git commands |
 | **JSON Logs** (AUDIT) | `.empirica_reflex_logs/...` | 6,500 tokens | Full audit, debugging | File read |
 | **Qdrant** (SEARCH) | `localhost:6333` | 768-dim vectors | Semantic search, pattern retrieval | Vector similarity |
+| **MEMORY.md** (BRIDGE) | `~/.claude/projects/{key}/memory/` | ~12 items | Claude Code hot cache, swarm learning | Auto-loaded |
 
 ### Token Compression Levels
 
@@ -1000,6 +1001,52 @@ def get_low_confidence_sessions(project_id: str) -> List[Dict]:
     
     return [dict(row) for row in rows]
 ```
+
+---
+
+## Layer 5: Claude Code Bridge (MEMORY.md Hot Cache)
+
+**Purpose:** Epistemically-curated hot cache that bridges Empirica's storage layers into Claude Code's native memory system.
+
+**Location:** `~/.claude/projects/{key}/memory/MEMORY.md`
+
+**Key derivation:** Absolute project path with `/` → `-` (e.g., `/home/user/myapp` → `-home-user-myapp`)
+
+**Data Flow:**
+```
+Session ends (session-end-postflight hook)
+  │
+  ▼
+Fetch project-scoped breadcrumbs from SQLite
+  (project_findings, project_unknowns, project_dead_ends, goals, mistakes_made)
+  │
+  ▼
+Epistemic summarizer ranks by: impact × type_confidence × recency_decay
+  │
+  ▼
+Top 12 artifacts written to MEMORY.md
+  (preserving manual content via <!-- empirica-auto-start/end --> delimiters)
+  │
+  ▼
+Next session auto-loads MEMORY.md (first 200 lines)
+  │
+  ▼
+Agent starts with epistemically-ranked context, not raw history
+```
+
+**Ranking Formula:**
+```
+weight = impact × type_confidence × recency_decay
+
+type_confidence: finding(0.9) > dead_end(0.85) > mistake(0.85) > goal(0.75) > unknown(0.6)
+recency_decay:   exp(-0.029 × age_hours)  # 24-hour half-life
+```
+
+**Swarm Learning:** Multiple Claude instances on the same project share one MEMORY.md.
+Agent A's findings become Agent B's starting context. Dead-ends are surfaced to prevent
+re-exploration. The cognitive immune system self-corrects contradicted findings.
+
+**See also:** [claude-code-symbiosis.md](./claude-code-symbiosis.md)
 
 ---
 

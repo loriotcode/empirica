@@ -6,13 +6,16 @@ The Canonical storage layer provides the foundational persistence mechanisms for
 
 ## Philosophy
 
-Four-layer storage architecture:
+Four-layer storage architecture with a Claude Code bridge:
 1. **SQLite** (HOT) - Primary structured data (fast queries)
 2. **Git Notes** (WARM) - Distributed, version-controlled (portability)
 3. **JSON Logs** (AUDIT) - Human-readable audit trail (debugging)
 4. **Qdrant** (SEARCH) - Vector database for semantic retrieval
+5. **MEMORY.md** (BRIDGE) - Epistemically-curated hot cache for Claude Code
 
 Every epistemic operation writes to appropriate layers based on data type.
+The MEMORY.md bridge auto-curates top artifacts from Qdrant/SQLite into
+Claude Code's native `~/.claude/projects/{key}/memory/MEMORY.md` at session end.
 
 **Related docs:**
 - [STORAGE_ARCHITECTURE_COMPLETE.md](./STORAGE_ARCHITECTURE_COMPLETE.md) - Visual guide with diagrams and data flow
@@ -269,6 +272,10 @@ allowed = hooks.check_commit(
 | JSON Logs | `.empirica/logs/*.jsonl` | Human-readable audit trail |
 | Lessons | `.empirica/lessons/*.yaml` | Cold storage for lessons |
 | Qdrant | `localhost:6333` | Semantic vector search |
+| MEMORY.md | `~/.claude/projects/{key}/memory/MEMORY.md` | Claude Code hot cache (bridge) |
+
+**MEMORY.md key derivation:** The `{key}` is the absolute project path with `/` replaced by `-`.
+For example, `/home/user/code/myapp` → `-home-user-code-myapp`.
 
 ---
 
@@ -345,6 +352,33 @@ embeddings = provider.embed_batch([
 | `empirica_unknowns` | Questions | `unknown-log` |
 | `empirica_dead_ends` | Failed approaches | `deadend-log` |
 | `empirica_lessons` | Procedural knowledge | `lesson-create` |
+
+---
+
+## Claude Code Bridge (MEMORY.md Hot Cache)
+
+At session end, the `session-end-postflight` hook curates top epistemic artifacts
+into Claude Code's MEMORY.md:
+
+```
+Qdrant + SQLite → epistemic_summarizer → MEMORY.md
+                   (ranked by impact × type_confidence × recency_decay)
+```
+
+- **Max 12 items** auto-curated per session end
+- **Project-scoped**: queries filter by `project_id` resolved from `session_id`
+- **Preserves manual content**: auto-generated section delimited by `<!-- empirica-auto-start -->` / `<!-- empirica-auto-end -->`
+- **Swarm learning**: multiple Claude instances on the same project share one MEMORY.md, creating emergent knowledge sharing
+
+**Ranking formula:**
+```
+weight = impact × type_confidence × recency_decay
+
+type_confidence: finding(0.9) > dead_end(0.85) > mistake(0.85) > goal(0.75) > unknown(0.6)
+recency_decay:   exp(-0.029 × age_hours)  # 24-hour half-life
+```
+
+**Source:** `plugins/claude-code-integration/hooks/session-end-postflight.py`
 
 ---
 
