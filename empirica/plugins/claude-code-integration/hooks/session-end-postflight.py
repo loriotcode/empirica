@@ -12,15 +12,14 @@ explicitly run POSTFLIGHT.
 """
 
 import json
-import sys
-import subprocess
 import os
+import subprocess
+import sys
 from pathlib import Path
-from datetime import datetime
 
 # Import shared utilities from plugin lib
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from project_resolver import find_project_root  # noqa: E402
+from project_resolver import find_project_root
 
 sys.path.insert(0, str(Path.home() / 'empirical-ai' / 'empirica'))
 
@@ -150,12 +149,12 @@ def auto_postflight(session_id: str, vectors: dict) -> dict:
         return {"ok": False, "error": str(e)}
 
 
-def get_active_session() -> str:
+def get_active_session() -> str | None:
     """Get active session ID."""
     try:
         from empirica.utils.session_resolver import get_latest_session_id
         return get_latest_session_id(ai_id='claude-code', active_only=True)
-    except:
+    except Exception:
         return None
 
 
@@ -169,7 +168,7 @@ def _find_session_via_active_work(claude_session_id: str) -> tuple:
     try:
         active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if active_work_file.exists():
-            with open(active_work_file, 'r') as f:
+            with open(active_work_file) as f:
                 data = json.load(f)
             return data.get('empirica_session_id'), data.get('project_path')
     except Exception:
@@ -177,7 +176,7 @@ def _find_session_via_active_work(claude_session_id: str) -> tuple:
     return None, None
 
 
-def _cleanup_session_files(claude_session_id: str):
+def _cleanup_session_files(claude_session_id: str | None):
     """Clean up isolation files for a completed session.
 
     Safety net: removes active_work for this Claude session. The primary
@@ -201,7 +200,7 @@ def _cleanup_session_files(claude_session_id: str):
         if tty_sessions_dir.exists():
             for tty_file in tty_sessions_dir.glob('*.json'):
                 try:
-                    with open(tty_file, 'r') as f:
+                    with open(tty_file) as f:
                         data = json.load(f)
                     if data.get('claude_session_id') == claude_session_id:
                         tty_file.unlink()
@@ -212,12 +211,216 @@ def _cleanup_session_files(claude_session_id: str):
         pass
 
 
+MEMORY_AUTO_START = "<!-- empirica-auto-start -->"
+MEMORY_AUTO_END = "<!-- empirica-auto-end -->"
+
+
+def _get_memory_md_path() -> Path | None:
+    """Find the MEMORY.md path for current project."""
+    try:
+        # Derive project key same way Claude Code does (absolute path with / → -)
+        cwd = Path.cwd().resolve()
+        project_key = str(cwd).replace('/', '-')  # /home/... → -home-...
+        memory_dir = Path.home() / '.claude' / 'projects' / project_key / 'memory'
+        if memory_dir.exists():
+            return memory_dir / 'MEMORY.md'
+        # Try git root if cwd didn't match
+        project_root = find_project_root(allow_cwd_fallback=True)
+        if project_root:
+            project_key = str(project_root).replace('/', '-')
+            memory_dir = Path.home() / '.claude' / 'projects' / project_key / 'memory'
+            if memory_dir.exists():
+                return memory_dir / 'MEMORY.md'
+    except Exception:
+        pass
+    return None
+
+
+def _resolve_project_id(session_id: str, db_path: Path) -> str | None:
+    """Resolve project_id from session_id via DB lookup."""
+    try:
+        import sqlite3 as _sqlite3
+        conn = _sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT project_id FROM sessions WHERE session_id = ?",
+            (session_id,)
+        )
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return row[0]
+    except Exception:
+        pass
+    return None
+
+
+def _fetch_breadcrumbs(session_id: str) -> dict:
+    """Fetch recent breadcrumbs from DB for hot cache, scoped to project."""
+    result = {'findings': [], 'unknowns': [], 'dead_ends': [], 'goals': [], 'mistakes': []}
+    try:
+        db_path = Path.cwd() / '.empirica' / 'sessions' / 'sessions.db'
+        if not db_path.exists():
+            db_path = Path.home() / '.empirica' / 'sessions' / 'sessions.db'
+        if not db_path.exists():
+            return result
+
+        # Resolve project_id for isolation
+        project_id = _resolve_project_id(session_id, db_path)
+
+        import sqlite3 as _sqlite3
+        conn = _sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+
+        # Build WHERE clause — filter by project_id if available
+        if project_id:
+            pf = "WHERE project_id = ?"
+            pf_args = (project_id,)
+            uf = "WHERE is_resolved = 0 AND project_id = ?"
+            uf_args = (project_id,)
+            df = "WHERE project_id = ?"
+            df_args = (project_id,)
+            gf = "WHERE is_completed = 0 AND project_id = ?"
+            gf_args = (project_id,)
+        else:
+            pf = ""
+            pf_args = ()
+            uf = "WHERE is_resolved = 0"
+            uf_args = ()
+            df = ""
+            df_args = ()
+            gf = "WHERE is_completed = 0"
+            gf_args = ()
+
+        # Recent findings (last 20)
+        cursor.execute(f"""
+            SELECT finding, impact, created_timestamp FROM project_findings
+            {pf} ORDER BY created_timestamp DESC LIMIT 20
+        """, pf_args)
+        for row in cursor.fetchall():
+            result['findings'].append({
+                'finding': row[0], 'impact': row[1] or 0.5,
+                'created_timestamp': row[2]
+            })
+
+        # Open unknowns
+        cursor.execute(f"""
+            SELECT unknown, impact, created_timestamp FROM project_unknowns
+            {uf} ORDER BY created_timestamp DESC LIMIT 10
+        """, uf_args)
+        for row in cursor.fetchall():
+            result['unknowns'].append({
+                'unknown': row[0], 'impact': row[1] or 0.5,
+                'created_timestamp': row[2]
+            })
+
+        # Recent dead ends
+        cursor.execute(f"""
+            SELECT approach, why_failed, created_timestamp FROM project_dead_ends
+            {df} ORDER BY created_timestamp DESC LIMIT 10
+        """, df_args)
+        for row in cursor.fetchall():
+            result['dead_ends'].append({
+                'approach': row[0], 'why_failed': row[1],
+                'impact': 0.7, 'created_timestamp': row[2]
+            })
+
+        # Active goals
+        cursor.execute(f"""
+            SELECT objective, status, created_timestamp FROM goals
+            {gf} ORDER BY created_timestamp DESC LIMIT 10
+        """, gf_args)
+        for row in cursor.fetchall():
+            result['goals'].append({
+                'objective': row[0], 'status': row[1] or 'in_progress',
+                'impact': 0.6, 'created_timestamp': row[2]
+            })
+
+        # Recent mistakes (no project_id column — filter by session's project via join)
+        if project_id:
+            cursor.execute("""
+                SELECT m.mistake, m.created_timestamp FROM mistakes_made m
+                JOIN sessions s ON m.session_id = s.session_id
+                WHERE s.project_id = ?
+                ORDER BY m.created_timestamp DESC LIMIT 5
+            """, (project_id,))
+        else:
+            cursor.execute("""
+                SELECT mistake, created_timestamp FROM mistakes_made
+                ORDER BY created_timestamp DESC LIMIT 5
+            """)
+        for row in cursor.fetchall():
+            result['mistakes'].append({
+                'mistake': row[0], 'impact': 0.7,
+                'created_timestamp': row[1]
+            })
+
+        conn.close()
+    except Exception:
+        pass
+    return result
+
+
+def update_memory_hot_cache(session_id: str):
+    """
+    Update Claude Code's MEMORY.md with epistemically-ranked artifacts.
+
+    Preserves manual content. Auto-generated section is delimited by markers.
+    Keeps total auto section under ~100 lines to leave room for manual notes.
+    """
+    memory_path = _get_memory_md_path()
+    if not memory_path:
+        return
+
+    # Fetch and rank breadcrumbs
+    breadcrumbs = _fetch_breadcrumbs(session_id)
+
+    # Import summarizer
+    sys.path.insert(0, str(Path(__file__).parent))
+    from epistemic_summarizer import format_epistemic_focus
+
+    focus = format_epistemic_focus(
+        findings=breadcrumbs['findings'],
+        unknowns=breadcrumbs['unknowns'],
+        dead_ends=breadcrumbs['dead_ends'],
+        goals=breadcrumbs['goals'],
+        mistakes=breadcrumbs['mistakes'],
+        max_items=12,
+        session_id=session_id
+    )
+
+    auto_section = f"\n{MEMORY_AUTO_START}\n{focus}\n{MEMORY_AUTO_END}\n"
+
+    # Read existing MEMORY.md
+    if memory_path.exists():
+        existing = memory_path.read_text()
+    else:
+        existing = "# Empirica Project Memory\n"
+
+    # Replace or append auto section
+    if MEMORY_AUTO_START in existing and MEMORY_AUTO_END in existing:
+        # Replace existing auto section
+        start_idx = existing.index(MEMORY_AUTO_START)
+        end_idx = existing.index(MEMORY_AUTO_END) + len(MEMORY_AUTO_END)
+        # Include any trailing newline
+        if end_idx < len(existing) and existing[end_idx] == '\n':
+            end_idx += 1
+        updated = existing[:start_idx] + auto_section.lstrip('\n') + existing[end_idx:]
+    else:
+        # Append at end
+        updated = existing.rstrip('\n') + '\n' + auto_section
+
+    # Write back
+    memory_path.parent.mkdir(parents=True, exist_ok=True)
+    memory_path.write_text(updated)
+
+
 def main():
     """Main session end logic."""
     hook_input = {}
     try:
         hook_input = json.loads(sys.stdin.read())
-    except:
+    except Exception:
         pass
 
     # CRITICAL: Use claude_session_id from hook input for instance-aware resolution
@@ -289,6 +492,12 @@ def main():
     vectors['completion'] = max(vectors.get('completion', 0.5), 0.7)
 
     result = auto_postflight(session_id, vectors)
+
+    # Update MEMORY.md hot cache with ranked artifacts
+    try:
+        update_memory_hot_cache(session_id)
+    except Exception:
+        pass  # Non-critical — don't fail session end
 
     # Clean up session files AFTER POSTFLIGHT (post-test is the last consumer)
     _cleanup_session_files(claude_session_id)

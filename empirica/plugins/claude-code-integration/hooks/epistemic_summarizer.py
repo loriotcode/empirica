@@ -5,9 +5,8 @@ Replaces chronological ordering with epistemic relevance ranking.
 Design principle: Trust the system, observe results, iterate. Hedging prevents real testing.
 """
 import math
-import time
 import sqlite3
-from typing import List, Dict, Tuple, Optional
+import time
 from pathlib import Path
 
 # Type confidence scores (epistemic reliability)
@@ -35,11 +34,11 @@ RECENCY_HALF_LIFE_HOURS = 24
 DECAY_CONSTANT = math.log(2) / RECENCY_HALF_LIFE_HOURS  # ~0.029
 
 
-def calculate_weight(item: Dict, item_type: str) -> float:
+def calculate_weight(item: dict, item_type: str) -> float:
     """
     Calculate epistemic weight for ranking.
 
-    Formula: weight = impact × type_confidence × recency_decay
+    Formula: weight = impact * type_confidence * recency_decay
 
     Args:
         item: Dictionary with 'impact' and timestamp fields
@@ -82,7 +81,7 @@ def calculate_weight(item: Dict, item_type: str) -> float:
     return round(impact * type_conf * recency, 2)
 
 
-def rank_items(items: List[Tuple[Dict, str]]) -> List[Tuple[float, Dict, str]]:
+def rank_items(items: list[tuple[dict, str]]) -> list[tuple[float, dict, str]]:
     """
     Rank items by epistemic weight.
 
@@ -100,7 +99,7 @@ def rank_items(items: List[Tuple[Dict, str]]) -> List[Tuple[float, Dict, str]]:
     return sorted(weighted, key=lambda x: x[0], reverse=True)
 
 
-def format_item(weight: float, item: Dict, item_type: str) -> str:
+def format_item(weight: float, item: dict, item_type: str) -> str:
     """Format a single item for display."""
     type_label = item_type.replace('_', '-').title()
 
@@ -136,20 +135,59 @@ def format_item(weight: float, item: Dict, item_type: str) -> str:
     return f"- [{weight:.2f}] **{type_label}:** {text}"
 
 
+def _collect_typed_items(
+    findings: list[dict],
+    unknowns: list[dict],
+    dead_ends: list[dict],
+    goals: list[dict],
+    mistakes: list[dict] | None = None,
+    subtasks: list[dict] | None = None,
+) -> list[tuple[dict, str]]:
+    """Collect all artifact items with their type labels."""
+    all_items: list[tuple[dict, str]] = []
+    for f in (findings or []):
+        all_items.append((f, 'finding'))
+    for u in (unknowns or []):
+        all_items.append((u, 'unknown'))
+    for d in (dead_ends or []):
+        all_items.append((d, 'dead_end'))
+    for g in (goals or []):
+        all_items.append((g, 'goal'))
+    for m in (mistakes or []):
+        all_items.append((m, 'mistake'))
+    for st in (subtasks or []):
+        all_items.append((st, 'subtask'))
+    return all_items
+
+
+def _format_tier(
+    lines: list[str],
+    header: str,
+    items: list[tuple[float, dict, str]],
+) -> None:
+    """Append a weight-tier section to output lines."""
+    if not items:
+        return
+    lines.append(header)
+    for w, i, t in items:
+        lines.append(format_item(w, i, t))
+    lines.append("")
+
+
 def format_epistemic_focus(
-    findings: List[Dict],
-    unknowns: List[Dict],
-    dead_ends: List[Dict],
-    goals: List[Dict],
-    mistakes: Optional[List[Dict]] = None,
-    subtasks: Optional[List[Dict]] = None,
+    findings: list[dict],
+    unknowns: list[dict],
+    dead_ends: list[dict],
+    goals: list[dict],
+    mistakes: list[dict] | None = None,
+    subtasks: list[dict] | None = None,
     max_items: int = 15,
-    session_id: Optional[str] = None
+    session_id: str | None = None
 ) -> str:
     """
     Format epistemically-weighted summary for injection.
 
-    Returns markdown with items ranked by confidence × impact × recency.
+    Returns markdown with items ranked by confidence * impact * recency.
     Pure epistemic ranking - no chronological fallback.
 
     Args:
@@ -165,74 +203,43 @@ def format_epistemic_focus(
     Returns:
         Markdown-formatted epistemic focus section
     """
-    # Collect all items with their types
-    all_items = []
-
-    for f in (findings or []):
-        all_items.append((f, 'finding'))
-    for u in (unknowns or []):
-        all_items.append((u, 'unknown'))
-    for d in (dead_ends or []):
-        all_items.append((d, 'dead_end'))
-    for g in (goals or []):
-        all_items.append((g, 'goal'))
-    if mistakes:
-        for m in mistakes:
-            all_items.append((m, 'mistake'))
-    if subtasks:
-        for st in subtasks:
-            all_items.append((st, 'subtask'))
+    all_items = _collect_typed_items(
+        findings, unknowns, dead_ends, goals, mistakes, subtasks,
+    )
 
     if not all_items:
         return "## EPISTEMIC FOCUS\n\n*No breadcrumbs logged yet.*\n"
 
-    # Rank by weight
     ranked = rank_items(all_items)[:max_items]
 
     # Group by weight tier
     critical = [(w, i, t) for w, i, t in ranked if w > 0.7]
     important = [(w, i, t) for w, i, t in ranked if 0.4 <= w <= 0.7]
-    context = [(w, i, t) for w, i, t in ranked if w < 0.4]
+    context_items = [(w, i, t) for w, i, t in ranked if w < 0.4]
 
     lines = ["## EPISTEMIC FOCUS (Confidence-Ranked)\n"]
-
-    if critical:
-        lines.append("### Critical (weight > 0.7)")
-        for w, i, t in critical:
-            lines.append(format_item(w, i, t))
-        lines.append("")
-
-    if important:
-        lines.append("### Important (weight 0.4-0.7)")
-        for w, i, t in important:
-            lines.append(format_item(w, i, t))
-        lines.append("")
-
-    if context:
-        lines.append("### Context (weight < 0.4)")
-        for w, i, t in context:
-            lines.append(format_item(w, i, t))
-        lines.append("")
-
+    _format_tier(lines, "### Critical (weight > 0.7)", critical)
+    _format_tier(lines, "### Important (weight 0.4-0.7)", important)
+    _format_tier(lines, "### Context (weight < 0.4)", context_items)
     lines.append("---")
 
     # Retrieval guidance footer
     session_hint = f" --session-id {session_id}" if session_id else ""
     lines.append(f"📊 **{len(ranked)} items ranked** | For deeper context:")
     lines.append(f"- `empirica project-bootstrap{session_hint}` (full load + subtasks)")
-    lines.append(f"- `empirica project-search --task \"<query>\"` (Qdrant semantic)")
-    lines.append(f"- `git notes show --ref=breadcrumbs HEAD` (session narrative)\n")
+    lines.append("- `empirica project-search --task \"<query>\"` (Qdrant semantic)")
+    lines.append("- `git notes show --ref=breadcrumbs HEAD` (session narrative)\n")
 
     return "\n".join(lines)
 
 
 def log_compact_effectiveness(
     session_id: str,
-    pre_vectors: Dict,
-    post_check_vectors: Dict,
+    pre_vectors: dict,
+    post_check_vectors: dict,
     items_surfaced: int,
-    db_path: Optional[Path] = None
-) -> Dict:
+    db_path: Path | None = None
+) -> dict:
     """
     Log effectiveness metrics for each compact.
 
@@ -346,9 +353,9 @@ def log_compact_effectiveness(
 
 
 def get_effectiveness_history(
-    db_path: Optional[Path] = None,
+    db_path: Path | None = None,
     limit: int = 10
-) -> List[Dict]:
+) -> list[dict]:
     """
     Query compact effectiveness history for analysis.
 
