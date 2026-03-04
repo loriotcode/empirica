@@ -555,6 +555,18 @@ print(f"Cleaned up {cleaned} stale references")
 
 ---
 
+## Claude Code Bridge
+
+Breadcrumb data (findings, unknowns, dead-ends, goals, mistakes) feeds into Claude Code's
+`MEMORY.md` hot cache at session end via the epistemic summarizer. This means breadcrumbs
+logged via this API are automatically surfaced in the next Claude Code session, ranked by
+`impact × type_confidence × recency_decay`.
+
+**Source:** `plugins/claude-code-integration/hooks/session-end-postflight.py` → `update_memory_hot_cache()`
+**See also:** [claude-code-symbiosis.md](../../architecture/claude-code-symbiosis.md)
+
+---
+
 ## Best Practices
 
 1. **Log findings promptly** - Capture discoveries immediately to preserve context.

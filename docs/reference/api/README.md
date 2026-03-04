@@ -78,6 +78,25 @@
 - **Channels** - Direct, broadcast, crosscheck messaging
 - **Threads** - Conversation threading and handoffs
 
+### [Configuration & Profiles](config_profiles.md)
+- **InvestigationProfile** - Complete investigation configuration
+- **ActionThresholds** - Sentinel gate thresholds
+- **GoalScopeLoader** - Epistemic vector to scope mapping
+
+### [Data Infrastructure](data_infrastructure.md)
+- **DatabaseAdapter** - Abstract DB backend (SQLite/PostgreSQL)
+- **ConnectionPool** - Connection pooling with retry
+- **CircuitBreaker** - Cascading failure prevention
+
+### [Context Budget](context_budget.md)
+- **ContextBudgetManager** - Token-level context window management
+- **BudgetReport** - Budget state snapshots
+- **AttentionStatus** - Attention budget tracking
+
+### [Metrics](metrics.md)
+- **FlowStateMetrics** - Session productivity scoring
+- **TokenEfficiencyMetrics** - Token reduction validation
+
 ---
 
 ## API Philosophy
@@ -88,7 +107,7 @@
 
 **Modular Architecture:** APIs organized in logical modules that can be used independently while maintaining consistency.
 
-**Four-Layer Storage:** Data flows through SQLite (hot), Git Notes (warm), JSON Logs (audit), and Qdrant (search).
+**Storage Architecture:** Data flows through SQLite (hot), Git Notes (warm), JSON Logs (audit), Qdrant (search), and MEMORY.md (Claude Code bridge).
 
 ---
 
@@ -101,5 +120,5 @@ For new users, start with:
 
 ---
 
-**Total Modules:** 14 categories
+**Total Modules:** 18 categories
 **API Stability:** Production ready

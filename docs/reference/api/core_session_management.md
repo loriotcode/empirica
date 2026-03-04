@@ -355,6 +355,22 @@ if snapshot:
 
 ---
 
+## Claude Code Integration
+
+When sessions end, the `session-end-postflight` hook:
+1. Auto-captures POSTFLIGHT if the PREFLIGHT→POSTFLIGHT cycle wasn't explicitly closed
+2. Updates Claude Code's `MEMORY.md` with epistemically-ranked breadcrumbs from this session's project
+3. Cleans up instance isolation files (`active_work_*`, `tty_sessions/`)
+
+The `task-completed` hook bridges Claude Code tasks to Empirica goals:
+- Fuzzy-matches completed task subjects against open Empirica goals (threshold: 0.6)
+- Auto-completes matching goals via `empirica goals-complete`
+
+**Source:** `plugins/claude-code-integration/hooks/session-end-postflight.py`, `task-completed.py`
+**See also:** [claude-code-symbiosis.md](../../architecture/claude-code-symbiosis.md)
+
+---
+
 ## Best Practices
 
 1. **Always close the database connection** when done:

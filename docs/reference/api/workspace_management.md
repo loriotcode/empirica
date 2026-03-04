@@ -314,6 +314,16 @@ Configure via `EMPIRICA_STATUS_MODE` environment variable.
 
 ---
 
+## Python API
+
+### `class EpistemicDecisionEngine`
+
+**Module:** `empirica.cli.command_handlers.workspace_init`
+
+Makes epistemic decisions during workspace initialization — determines project structure, database placement, and configuration defaults based on detected environment signals (existing projects, git repos, directory layout).
+
+---
+
 ## Related Documentation
 
 - [WORKSPACE_DATABASE_SCHEMA.md](../WORKSPACE_DATABASE_SCHEMA.md) — Database schema

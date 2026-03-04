@@ -316,6 +316,144 @@ Methods typically raise:
 
 ---
 
+## Edit Verification
+
+### `class EditConfidenceAssessor`
+
+**Module:** `empirica.components.edit_verification.confidence_assessor`
+
+Assesses epistemic confidence in a proposed file edit before attempting it. Checks context freshness, whitespace ambiguity, and match uniqueness.
+
+```python
+from empirica.components.edit_verification.confidence_assessor import EditConfidenceAssessor
+
+assessor = EditConfidenceAssessor()
+result = assessor.assess(file_path="src/main.py", old_string="def foo():", new_string="def bar():")
+# Returns: {"confidence": 0.95, "strategy": "atomic", "warnings": []}
+```
+
+### `class EditStrategyExecutor`
+
+**Module:** `empirica.components.edit_verification.strategy_executor`
+
+Executes file edits using the strategy selected by `EditConfidenceAssessor` — atomic edit, bash fallback, or re-read-first.
+
+---
+
+## Release Readiness
+
+### `class AssessmentStatus`
+
+**Module:** `empirica.cli.command_handlers.release_commands`
+
+Enum for release-check outcomes: `PASS`, `WARN`, `FAIL`, `SKIP`.
+
+### `class CheckResult`
+
+**Module:** `empirica.cli.command_handlers.release_commands`
+
+Result of a single release-readiness check: name, status, message, and details.
+
+---
+
+## CLI Validation
+
+### `class CheckInput`
+
+**Module:** `empirica.cli.validation`
+
+Pydantic model validating the `check-submit` command payload — session_id, vectors, approach, reasoning.
+
+---
+
+## BEADS Integration
+
+### `class BeadsConfig`
+
+**Module:** `empirica.integrations.beads.config`
+
+Loads and caches `.empirica/config.yaml` for the BEADS workflow integration (issue tracking bridge).
+
+---
+
+## Action Hooks
+
+### `class EmpiricaActionHooks`
+
+**Module:** `empirica.integration.empirica_action_hooks`
+
+Static-method class that writes real-time JSON feeds for tmux panel displays (12D epistemic monitor).
+
+---
+
+## Documentation Tools
+
+### `class DocsExplainAgent`
+
+**Module:** `empirica.cli.command_handlers.docs_commands`
+
+Retrieves focused project documentation answers using Qdrant semantic search with keyword-matching fallback. Powers the `docs-explain` CLI command.
+
+---
+
+## API Authentication
+
+### `class APIKeyMiddleware`
+
+**Module:** `empirica.api.auth`
+
+WSGI middleware for API key authentication. Wraps a WSGI application and validates API keys from request headers before allowing access.
+
+---
+
+## Documentation Assessment
+
+### `class EpistemicDocsAgent`
+
+**Module:** `empirica.cli.command_handlers.docs_commands`
+
+Epistemic Documentation Assessment Agent. Performs comprehensive doc coverage analysis using module introspection, cross-referencing docstrings against API reference documents. Powers the `docs-assess` CLI command.
+
+---
+
+## Release Readiness
+
+### `class EpistemicReleaseAgent`
+
+**Module:** `empirica.cli.command_handlers.release_commands`
+
+Epistemic Release Agent — applies epistemic principles to release readiness. Runs checks across test status, doc coverage, version consistency, and changelog completeness. Powers the `release-check` CLI command.
+
+---
+
+## Vision (Experimental)
+
+### `class BasicImageAssessment`
+
+**Module:** `empirica.cli.command_handlers.vision_commands`
+
+Dataclass capturing basic image metadata and visual heuristics for slide assessment — dimensions, aspect ratio, pixel count, presentation flag.
+
+### `class SlideEpistemicAssessment`
+
+**Module:** `empirica.vision.slide_processor`
+
+Epistemic quality assessment of a single slide — path, slide number, and vector-based quality scores.
+
+### `class ReadableAssessment`
+
+**Module:** `empirica.vision.readable_translator`
+
+Human-readable slide assessment — slide number, quality level (Excellent/Good/Fair/Needs Work), and plain-English feedback.
+
+### `class HumanReadableTranslator`
+
+**Module:** `empirica.vision.readable_translator`
+
+Translates epistemic slide assessments (`SlideEpistemicAssessment`) into plain English (`ReadableAssessment`). Provides both single-slide and batch translation.
+
+---
+
 ## Data Layer Repositories
 
 The data layer uses the Repository pattern for database operations. All repositories extend `BaseRepository`.

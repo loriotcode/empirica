@@ -286,6 +286,45 @@ empirica agent-discover \
 
 ---
 
+## Data Classes
+
+### `class AgentAllocation`
+
+**Module:** `empirica.core.parallel_orchestrator`
+
+Allocation for a single parallel agent. Produced by `AttentionBudgetCalculator` and consumed by `ParallelOrchestrator.spawn_parallel()`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent_name` | `str` | Display name for the agent |
+| `domain` | `str` | Investigation domain (security, performance, etc.) |
+| `persona_id` | `str` | Persona to use for specialized expertise |
+| `budget` | `int` | Max findings this agent should produce |
+| `priority` | `float` | Priority weight (0.0-1.0) |
+| `expected_gain` | `float` | Shannon information gain estimate |
+| `priors` | `Dict[str, float]` | Domain-specific prior beliefs |
+| `task_focus` | `str` | Specific task aspect for this agent |
+
+### `class AggregatedSynthesis`
+
+**Module:** `empirica.core.parallel_orchestrator`
+
+Result of aggregating all parallel agent results. Returned by `ParallelOrchestrator.aggregate_results()`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `findings` | `List[str]` | Deduplicated findings from all agents |
+| `unknowns` | `List[str]` | Unresolved questions across agents |
+| `confidence_weighted_vectors` | `Dict[str, float]` | Merged epistemic vectors weighted by agent confidence |
+| `total_findings` | `int` | Total findings before dedup |
+| `total_accepted` | `int` | Findings accepted after dedup |
+| `total_rejected` | `int` | Findings rejected (duplicates/low-quality) |
+| `agent_summaries` | `List[Dict[str, Any]]` | Per-agent result summaries |
+| `consensus_domains` | `List[str]` | Domains where agents agree |
+| `conflict_domains` | `List[str]` | Domains where agents disagree |
+
+---
+
 ## Workflow Example
 
 ```bash

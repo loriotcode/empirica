@@ -12,7 +12,7 @@
 
 ## Overview
 
-Qdrant integration provides semantic search and memory embedding for Empirica. This is the 4th storage layer (SEARCH) in the 4-layer architecture:
+Qdrant integration provides semantic search and memory embedding for Empirica. This is the 4th storage layer (SEARCH) in the storage architecture:
 
 | Layer | Speed | Purpose | Location |
 |-------|-------|---------|----------|
@@ -195,6 +195,27 @@ warnings = check_against_patterns(
 
 ---
 
+## Claude Code Bridge (MEMORY.md Hot Cache)
+
+Qdrant data feeds into Claude Code's native `MEMORY.md` via the epistemic summarizer
+at session end. This creates an auto-curated hot cache:
+
+```
+Session end hook
+  → _fetch_breadcrumbs() queries SQLite (project-scoped)
+  → epistemic_summarizer.rank_items() ranks by impact × type_confidence × recency_decay
+  → Top 12 items written to ~/.claude/projects/{key}/memory/MEMORY.md
+  → Next Claude Code session auto-loads first 200 lines
+```
+
+The hot cache is complementary to Qdrant — MEMORY.md holds the top 12 items (auto-loaded),
+while `project-search` provides semantic access to the full Qdrant store on demand.
+
+**Source:** `plugins/claude-code-integration/hooks/session-end-postflight.py`
+**See also:** [claude-code-symbiosis.md](../../architecture/claude-code-symbiosis.md)
+
+---
+
 ## Implementation Files
 
 - `empirica/core/qdrant/embeddings.py` - EmbeddingsProvider, get_embedding, get_vector_size
@@ -204,4 +225,4 @@ warnings = check_against_patterns(
 ---
 
 **API Stability:** Beta
-**Last Updated:** 2026-01-09
+**Last Updated:** 2026-03-04
