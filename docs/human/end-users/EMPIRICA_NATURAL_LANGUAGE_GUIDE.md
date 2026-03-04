@@ -1,99 +1,221 @@
-# 🧠 Empirica Natural Language Guide
+# Empirica Natural Language Guide
 
-**How to use Empirica naturally - Human language that maps to Empirica workflows**
+**How to collaborate with AI using Empirica — the user's role in the epistemic workflow**
 
-This guide translates natural human language patterns into Empirica's epistemic workflow, making it intuitive to use for project management, research, and AI-first development.
+> **The key insight:** You don't learn CLI commands. You learn to *think in measured
+> transactions* — and guide the AI through natural language. The AI handles the CLI,
+> the measurement, and the artifact logging. You direct the epistemic flow.
 
 ---
 
-## 🏗️ Working with Claude: Transaction Architecture
+## Part 1: Getting Started
 
-When working with Claude (or any AI) using Empirica, the key insight is that **work happens in measured chunks called transactions**. Understanding this architecture helps you collaborate more effectively.
+### What Happens When You Install
 
-### What is a Transaction?
-
-A transaction is a measurement window: `PREFLIGHT → work → POSTFLIGHT`
-
-- **PREFLIGHT** declares what you're about to do and your starting state
-- **Work** happens (investigation + action)
-- **POSTFLIGHT** captures what you learned and accomplished
-
-The system compares these to measure learning delta and ground calibration against objective evidence.
-
-### The Noetic-Praxic Flow
-
-Within each transaction, Claude naturally moves through two phases:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      ONE TRANSACTION                             │
-│                                                                  │
-│  PREFLIGHT ──► NOETIC ──► CHECK ──► PRAXIC ──► POSTFLIGHT       │
-│      │          │          │         │            │              │
-│   Baseline   Investigate   Gate    Implement   Measure          │
-│   Assessment  & Learn    Decision  & Build    Learning          │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+```bash
+pip install empirica
+empirica setup-claude-code
 ```
 
-**Noetic phase:** Reading, searching, exploring, logging findings/unknowns
-**CHECK gate:** "Do I understand enough to act?"
-**Praxic phase:** Writing code, making changes, completing goals
+This single command installs the complete framework into Claude Code:
+- **Hooks** that automate session management, Sentinel gating, and context recovery
+- **Skills** (`/empirica`, `/epistemic-transaction`, `/empirica-framework`) for workflow guidance
+- **System prompt** injected as `@include` in your CLAUDE.md
+- **Statusline** showing real-time epistemic state in your terminal
+- **MCP server** configuration for IDE environments
 
-Both phases happen **within the same transaction**. CHECK is a gate, not a boundary.
+After setup, measurement starts automatically. You write code and collaborate normally —
+Empirica tracks what the AI knows and learns in the background.
+
+### Your First Session
+
+When you start Claude Code in a project with Empirica installed, several things happen automatically:
+
+1. **Session created** — A unique session ID is generated, linked to this project
+2. **Context loaded** — Previous findings, goals, and calibration are retrieved
+3. **Statusline active** — Your terminal shows the AI's current epistemic state
+4. **Sentinel watching** — The noetic firewall prevents premature action
+
+You don't need to do anything special. Just describe what you want to work on:
+
+> "I need to fix the authentication bug in the login flow."
+
+The AI will automatically:
+- Create a goal for this work
+- Run PREFLIGHT to establish a baseline assessment
+- Begin investigating (noetic phase) before making any changes
+- Log findings and unknowns as it reads your code
+- Ask CHECK when it believes it understands enough to act
+- Implement the fix (praxic phase) after passing the Sentinel gate
+- Run POSTFLIGHT to measure what was learned
+- Commit when complete
+
+### What the Statusline Shows
+
+The statusline in your terminal displays the AI's current state:
+
+```
+🧠 know:0.72 unc:0.18 │ ⏱ noetic │ 🎯 2 goals │ 📊 T3
+```
+
+This tells you: the AI's knowledge level (0.72), uncertainty (0.18), current phase (noetic/investigating),
+active goals (2), and which transaction it's on (T3). You can use this to guide the conversation:
+
+- Low know + high uncertainty → "Take more time investigating"
+- High know + low uncertainty → "I think we're ready to implement"
+- Many transactions → "Let's wrap up and commit what we have"
+
+### The `/empirica` Command
+
+Type `/empirica status` at any time to see the full epistemic state, or:
+- `/empirica on` — Enable tracking
+- `/empirica off` — Pause tracking (for exploratory chat)
+
+---
+
+## Part 2: The CASCADE Workflow
+
+### Transactions: The Core Unit of Work
+
+Every piece of measured work is a **transaction** — a cycle of investigation followed
+by action, bookended by measurement:
+
+```
+PREFLIGHT → Investigate → CHECK → Implement → POSTFLIGHT → POST-TEST
+   │           │            │         │            │            │
+Baseline    Noetic       Gate     Praxic       Measure     Verify vs
+Assessment   phase      decision   phase       learning     evidence
+```
+
+**Both investigation and implementation happen within the same transaction.**
+CHECK is a gate *inside* the transaction, not a boundary between transactions.
+
+### Your Role: Guide with Natural Language
+
+The CLI is for the AI, not for you. Your job is to **direct the epistemic flow**
+through conversation. Here are the phrases that drive each phase:
+
+#### Starting Work
+| You say | What happens |
+|---------|-------------|
+| "I need to add rate limiting to our API." | AI creates goals, runs PREFLIGHT, starts investigating |
+| "Can you investigate the codebase first?" | AI stays in noetic phase — reads, searches, logs findings |
+| "Break this into goals and plan the transactions." | AI decomposes the task, sequences transactions with dependencies |
+
+#### During Investigation (Noetic Phase)
+| You say | What happens |
+|---------|-------------|
+| "What do we still not know?" | AI checks open unknowns, searches project memory, surfaces gaps |
+| "That approach won't work. Log it as a dead-end." | AI logs dead-end with reason — this approach is never retried |
+| "I think the database schema changed last week." | AI logs this as an assumption with a confidence level |
+| "Check if there's prior work on this." | AI searches Qdrant memory for related findings from past sessions |
+
+#### Transitioning to Action
+| You say | What happens |
+|---------|-------------|
+| "I think we know enough. Let's implement." | AI submits CHECK, Sentinel validates readiness, transitions to praxic |
+| "How confident are you in this approach?" | AI reports current vectors, calibration biases, uncertainty levels |
+| "We need to investigate more before acting." | AI stays noetic, continues exploring |
+
+#### During Implementation (Praxic Phase)
+| You say | What happens |
+|---------|-------------|
+| "Good, implement the middleware." | AI writes code, runs tests, logs decisions |
+| "Let's use Redis for this — log that decision." | AI records the choice point with rationale |
+| "That's a good discovery, log it." | AI logs finding with impact score (discoveries happen during coding too) |
+
+#### Closing a Transaction
+| You say | What happens |
+|---------|-------------|
+| "Good work. Commit and close this transaction." | AI commits, runs POSTFLIGHT, measures the learning delta |
+| "Let's move to the next transaction." | AI reviews open artifacts, resolves unknowns, starts fresh PREFLIGHT |
+| "We're done with this goal." | AI marks goal complete with evidence, closes transaction |
+
+### The Sentinel: Why Investigation Comes First
+
+The **Sentinel** is a noetic firewall — it blocks destructive actions (editing files,
+running commands) until the AI has demonstrated sufficient understanding through CHECK.
+
+This isn't bureaucracy. It prevents the most common AI failure mode: **acting before
+understanding**. The AI can read, search, and explore freely (noetic tools). But it
+can't edit, write, or execute (praxic tools) until CHECK passes.
+
+You don't need to manage the Sentinel directly. It works automatically through hooks.
+If the AI says "CHECK returned investigate — I need to learn more before proceeding,"
+that's the Sentinel doing its job.
+
+### Noetic Artifacts: What Gets Logged
+
+As the AI investigates, it logs structured artifacts automatically:
+
+| Artifact | What it captures | Why it matters |
+|----------|-----------------|---------------|
+| **Finding** | A discovered fact, with measured impact (0.0–1.0) | Feeds memory, searchable in future sessions |
+| **Unknown** | A question that needs answering | Guides investigation, urgency increases with age |
+| **Dead-end** | A failed approach, with reason | Prevents re-exploration of paths that don't work |
+| **Assumption** | An unverified belief, with confidence level | Tracked until verified or falsified |
+| **Decision** | A choice point, with rationale and alternatives | Permanent audit trail of why choices were made |
+| **Mistake** | An error, with root cause and prevention strategy | Feeds the cognitive immune system |
+
+**You can trigger these naturally:**
+- "I discovered that..." → finding-log
+- "I'm not sure about..." → unknown-log
+- "That didn't work because..." → deadend-log
+- "I'm assuming that..." → assumption-log
+- "Let's go with X because..." → decision-log
+
+### A Real Example: Two-Transaction Feature
+
+**You:** "I need to add rate limiting to our API. Can you investigate the current setup and propose an approach?"
+
+**Transaction 1: Research & Design**
+
+The AI runs PREFLIGHT (know: 0.3, uncertainty: 0.6). Reads route handlers, middleware
+chain, existing auth setup. Logs findings: "Express middleware, no existing rate limiter,
+Redis already in stack." Logs unknown: "Which endpoints need rate limiting?"
+
+**You:** "Just the write endpoints and auth endpoints. Read endpoints are cached anyway."
+
+The AI logs finding, resolves unknown. Proposes plan: 3 goals across 2 transactions.
+Logs assumption: "Redis sliding window counter is sufficient" (confidence: 0.7).
+
+**You:** "Good plan. Let's implement the middleware in this transaction."
+
+The AI submits CHECK (know: 0.8, uncertainty: 0.15) → proceeds. Writes rate limiter
+middleware, wires it to endpoints, runs tests. Commits. POSTFLIGHT: know +0.5, uncertainty -0.45.
+
+**Transaction 2: Config & Tests** (informed by T1)
+
+The AI starts fresh PREFLIGHT — T1's findings are automatically loaded. Reviews open
+work: "Middleware implemented, write endpoints wired. Remaining: integration tests, edge cases."
+
+**You:** "Make sure we test the burst scenario — 100 requests in 1 second."
+
+The AI checks → proceeds. Adds per-endpoint config, writes burst test, discovers edge
+case (Redis connection failure leaves endpoints unprotected). Logs finding, adds fallback.
+Commits. POSTFLIGHT — closes all goals.
+
+**Behind the scenes:** 5 findings, 2 unknowns (resolved), 1 assumption (verified),
+1 decision (Redis sliding window), 3 goals (completed). All searchable in future sessions.
+
+### Between Transactions: Artifact Hygiene
+
+At the start of each new transaction, the AI should clean up:
+
+1. **Complete goals** — Mark finished work with evidence
+2. **Resolve unknowns** — Answered questions become findings
+3. **Verify assumptions** — Confirmed beliefs become findings; falsified become decisions
+
+**You can prompt this:** "Before we start the next transaction, let's review what's still open."
 
 ### Scoping Transactions
 
-**Human language:**
-> "I want to implement user authentication with OAuth2"
-
-**Claude's decomposition:**
-This is too big for one transaction. Claude will naturally break it down:
-
-1. **Transaction 1:** Research OAuth2 patterns, understand PKCE, log findings
-2. **Transaction 2:** Implement auth endpoints, write tests
-3. **Transaction 3:** Add token refresh, handle edge cases
-
-Each transaction has coherent scope - investigation + action on one aspect.
-
-### Spec-Driven Goal Decomposition
-
-For complex work, start with a spec. Claude can decompose it into goals:
-
-**Human language:**
-> "Here's the spec for our new feature. Can you break this into goals and work through them?"
-
-**What happens:**
-1. Claude reads the spec
-2. Creates goals for each major component
-3. Works through goals across multiple transactions
-4. Each transaction picks up one goal (or related subset)
-5. Artifacts (findings, unknowns) persist in memory across transactions
-
-```
-Spec Document
-    │
-    ▼
-┌─────────────────────────────────────────┐
-│  Goal A: Design auth flow               │
-│  Goal B: Implement endpoints            │
-│  Goal C: Add tests                      │
-│  Goal D: Write documentation            │
-└─────────────────────────────────────────┘
-    │
-    ▼
-Transaction 1: Goal A (noetic → praxic)
-Transaction 2: Goal B (informed by T1's findings)
-Transaction 3: Goal C + D (related, can combine)
-```
-
-### Transaction Scoping Guidelines
-
-| Scope | Example | Transactions |
-|-------|---------|--------------|
-| Small fix | Bug fix, config change | 1 transaction |
-| Feature | Schema + endpoints + tests | 2-3 transactions |
-| Architecture | Cross-cutting redesign | 3-5 transactions |
+| Task size | Example | Transactions |
+|-----------|---------|--------------|
+| Small | Bug fix, config change | 1 |
+| Medium | Feature with 2-3 files | 1-2 |
+| Large | Cross-cutting architecture | 2-3 |
+| Too large | "Redesign everything" | Split further |
 
 **Signs you need a new transaction:**
 - Scope grew beyond what PREFLIGHT declared
@@ -103,727 +225,198 @@ Transaction 3: Goal C + D (related, can combine)
 
 ---
 
-## 🤖 Earned Autonomy: How Claude Picks Tools
+## Part 3: How It All Fits Together
 
-Claude doesn't need to be told which Empirica commands to use. Given awareness of the available tools, Claude naturally selects the best fit for the work at hand.
-
-### The Abstraction Principle
-
-**Instead of:**
-> "Run empirica preflight-submit, then empirica finding-log, then..."
-
-**Just say:**
-> "Investigate the authentication flow and implement the fix"
-
-Claude will naturally:
-1. Run PREFLIGHT to open a measurement window
-2. Use noetic tools (Read, Grep, Glob) to investigate
-3. Log findings and unknowns as discovered
-4. Submit CHECK when ready to act
-5. Use praxic tools (Edit, Write, Bash) to implement
-6. Complete goals and run POSTFLIGHT
-
-### Epistemic Agents for Complex Investigation
-
-For multi-faceted problems, Claude can spawn epistemic agents in parallel:
-
-**Human language:**
-> "This bug could be in the auth layer, the database, or the API. Can you investigate all three?"
-
-**What happens:**
-Claude spawns parallel investigation agents:
-- `agent-spawn security` → investigates auth layer
-- `agent-spawn performance` → checks database queries
-- `agent-spawn architecture` → reviews API structure
-
-Results are consolidated, findings logged, and the noetic phase completes faster.
-
-### Creating Reusable Personas (Agent-Spawn)
-
-When Claude encounters novel problem domains, it can create new agent personas:
-
-**Human language:**
-> "We keep running into OAuth2 edge cases. Can you create an auth specialist agent?"
-
-**What happens:**
-Claude uses `agent-spawn` to create a reusable persona with:
-- Domain expertise in OAuth2/OIDC patterns
-- Specific investigation strategies
-- Knowledge of common pitfalls
-
-This persona persists and can be used in future work, providing better results for auth-related tasks.
-
-### The Autonomy Gradient
-
-Honest use of Empirica leads to **earned autonomy**:
+### The Architecture in 60 Seconds
 
 ```
-Low Trust ────────────────────────────────────► High Trust
-    │                                               │
-    │  Sentinel gates every action                  │  Sentinel adapts thresholds
-    │  Must justify each CHECK                      │  Streamlined workflows
-    │  More investigation required                  │  Can proceed on confidence
-    │                                               │
-    └───────────────────────────────────────────────┘
-                    Calibration improves
-                    over honest transactions
+You (natural language) ──► AI (Claude Code) ──► Empirica CLI ──► Storage
+       │                        │                     │              │
+   Direction              Investigation          Measurement    Persistence
+   Context                Implementation         Artifacts      Memory
+   Feedback               Logging                Calibration    Git notes
 ```
 
-**Key insight:** Gaming vectors degrades calibration. Honest self-assessment improves it. Better calibration → Sentinel trusts more → more autonomy.
+**You** bring direction, domain knowledge, and feedback.
+**The AI** investigates, implements, and handles all CLI operations.
+**Empirica** measures, logs, and persists everything.
+**Storage** keeps it all across sessions, compactions, and projects.
+
+### Hooks: Why Everything Is Automatic
+
+Empirica uses Claude Code's hook system to automate the workflow:
+
+| Hook | When it fires | What it does |
+|------|--------------|-------------|
+| **SessionStart** | Conversation begins | Creates session, loads context from previous work |
+| **PreToolUse** | Before any tool call | Sentinel gate — blocks praxic tools until CHECK passes |
+| **PreCompact** | Before context compression | Auto-commits state so nothing is lost |
+| **SessionEnd** | Conversation ends | Cleanup, persist final state |
+
+This means measurement happens without you doing anything. The AI's epistemic state
+is tracked from the moment the conversation starts to the moment it ends.
+
+### 4-Layer Storage: Where Everything Lives
+
+| Layer | What | Where | Purpose |
+|-------|------|-------|---------|
+| **HOT** | Active session state | Memory | Current transaction, live vectors |
+| **WARM** | Persistent structured data | SQLite (`.empirica/sessions/sessions.db`) | Sessions, goals, artifacts, calibration |
+| **SEARCH** | Semantic retrieval | Qdrant | Cross-session search by meaning |
+| **COLD** | Archival + versioned | Git notes | Travels with the code, shared across machines |
+
+**What this means for you:** When you start a new session, the AI can search for
+relevant findings from any previous session. When you push code, the git notes travel
+with it — another AI working on the same repo can see what was learned.
+
+### Dual-Track Calibration: How Trust Is Earned
+
+Calibration measures how well the AI knows what it knows:
+
+**Track 1 (Self-referential):** PREFLIGHT → POSTFLIGHT delta. Did the AI's
+self-assessment change consistently? This catches bias patterns ("always underestimates
+completion by +0.8").
+
+**Track 2 (Grounded):** POSTFLIGHT vectors vs objective evidence. After POSTFLIGHT,
+the system automatically checks: did tests pass? How many files changed? Were goals
+completed? The gap between self-assessment and reality = calibration accuracy.
+
+**Why this matters:** Good calibration → Sentinel loosens gates → AI gets more autonomy.
+Bad calibration → tighter gates → more investigation required before acting.
+
+This is **earned autonomy** — the AI earns trust through demonstrated accuracy, not
+through assertion. Gaming vectors (inflating self-assessment) is caught by Track 2
+and degrades autonomy.
+
+**You can check calibration:** "How's your calibration looking?" or "Show me the
+calibration report." The AI will run `empirica calibration-report --grounded`.
+
+### The Cognitive Immune System
+
+The system learns from mistakes:
+
+- **Findings** act as antigens — new facts that challenge existing beliefs
+- **Lessons** act as antibodies — procedural knowledge with confidence that decays
+  when contradicted by new findings
+- **Dead-ends** prevent re-exploration — once an approach fails, it's never retried
+
+This means the AI gets better over time within a project. Mistakes have prevention
+strategies. Failed approaches are remembered. Patterns are recognized across sessions.
+
+### Multi-Agent Coordination
+
+For complex problems, the AI can spawn specialist subagents:
+
+**You:** "This bug could be in the auth layer, the database, or the API. Can you investigate all three?"
+
+The AI spawns parallel investigation agents — each explores one angle. Results are
+consolidated, findings logged, and the noetic phase completes faster. Subagent work
+counts toward the parent transaction's tool budget.
+
+**Key patterns:**
+- **Parallel investigation** — multiple agents explore different angles simultaneously
+- **Sequential handoff** — one agent's findings feed into the next agent's starting context
+- **Specialist delegation** — domain-specific agents with focused expertise
+
+### Context Recovery Across Compactions
+
+When Claude Code compresses context (compaction), Empirica recovers automatically:
+
+1. **PreCompact hook** fires — saves current state to git notes
+2. Context is compressed — most conversation history is lost
+3. **SessionStart hook** fires on resume — loads project context, findings, goals, calibration
+4. The AI picks up where it left off, informed by everything it learned before compaction
+
+**You don't manage this.** It just works. The AI will say something like "Resuming from
+previous context — I see 3 open goals and 5 findings from before compaction."
+
+### The EWM Protocol: Personalizing the Workflow
+
+The Epistemic Workflow Management (EWM) protocol personalizes how Empirica works for you:
+
+**You:** `/ewm-interview`
+
+The AI interviews you about your goals, domains, tools, work preferences, and trust
+boundaries. It generates a `workflow-protocol.yaml` that configures:
+- Your autonomy level (how much the AI can do without checking in)
+- Your pushback style (direct, diplomatic, etc.)
+- What the AI can do autonomously vs. what needs a checkpoint
+- Your domain expertise (so the AI calibrates accordingly)
+- Non-negotiable rules
 
 ---
 
-## 🧩 Multi-Agent Collaboration Patterns
+## Quick Reference
 
-### Pattern 1: Parallel Investigation
-```
-Human: "Research this problem from multiple angles"
+### Natural Language → What Happens
 
-Claude spawns:
-├── Agent A: Security perspective
-├── Agent B: Performance perspective
-└── Agent C: Architecture perspective
+| You say | The AI does |
+|---------|------------|
+| "Fix the auth bug" | Creates goal, PREFLIGHT, investigates, CHECK, implements, POSTFLIGHT |
+| "Let's investigate first" | Stays noetic — reads, searches, logs findings |
+| "I think we're ready" | Submits CHECK to Sentinel |
+| "Good, implement it" | Transitions to praxic phase |
+| "Commit and close" | Commits code, runs POSTFLIGHT |
+| "What don't we know?" | Surfaces open unknowns from project memory |
+| "That won't work" | Logs dead-end with reason |
+| "How confident are you?" | Reports vectors and calibration |
+| "Break this into goals" | Decomposes task, creates goal hierarchy |
+| "Next transaction" | Cleans up artifacts, opens new PREFLIGHT |
 
-All run noetic phase in parallel
-Results consolidate → single CHECK → proceed to praxic
-```
+### Knowledge Assessment (What the Vectors Mean)
 
-### Pattern 2: Sequential Handoff
-```
-Transaction 1: Agent A investigates
-    └── Logs findings, unknowns
-    └── POSTFLIGHT captures state
+| You observe | What it indicates |
+|------------|------------------|
+| "I understand this well" | know: 0.8+ |
+| "I'm somewhat familiar" | know: 0.5–0.7 |
+| "I'm new to this" | know: 0.3–0.5 |
+| "I'm very confident" | uncertainty: <0.2 |
+| "I'm somewhat unsure" | uncertainty: 0.3–0.5 |
+| "I'm very uncertain" | uncertainty: 0.6+ |
 
-Transaction 2: Agent B picks up
-    └── Retrieves Agent A's artifacts
-    └── Continues from where A stopped
-```
+### The 13 Epistemic Vectors
 
-### Pattern 3: Specialist Delegation
-```
-Human: "Fix this auth bug"
+| Category | Vectors | What they measure |
+|----------|---------|------------------|
+| **Foundation** | know, do, context | Understanding, capability, situational awareness |
+| **Comprehension** | clarity, coherence, signal, density | How well the AI understands what it's looking at |
+| **Execution** | state, change, completion, impact | Progress and effect of work |
+| **Meta** | engagement, uncertainty | Motivation and self-assessed confidence |
 
-Claude recognizes auth domain:
-    └── Spawns auth-specialist agent (reusable persona)
-    └── Specialist runs full noetic-praxic cycle
-    └── Results flow back to main transaction
-```
+### Common Workflow Patterns
 
----
+**Quick fix (1 transaction):**
+> "Fix the typo in the README" → investigate → CHECK → fix → POSTFLIGHT
 
-## 💬 Collaborative Problem Solving
+**Feature (2-3 transactions):**
+> "Add OAuth2 authentication" → T1: research + design → T2: implement + test → T3: edge cases
 
-For complex collaborative work, structure your requests to enable Claude's full toolkit:
+**Investigation (1 noetic transaction):**
+> "Research how the payment system works" → deep read → findings logged → POSTFLIGHT (no praxic phase needed)
 
-### Good Patterns
-
-**Spec-first:**
-> "Here's our feature spec. Break it into goals, then work through each with proper investigation before implementing."
-
-**Multi-angle investigation:**
-> "This is a complex bug. Investigate from security, performance, and architecture angles before proposing a fix."
-
-**Measured iteration:**
-> "Implement this feature in transactions. After each transaction, tell me what you learned and what's next."
-
-### What Claude Does Automatically
-
-Given these patterns, Claude will naturally:
-
-| When Claude sees... | Claude does... |
-|---------------------|----------------|
-| Complex task | Creates goals, decomposes into transactions |
-| Ambiguity | Logs unknowns, investigates before acting |
-| Discovery | Logs findings immediately |
-| Failed approach | Logs dead-end to prevent re-exploration |
-| Decision point | Runs CHECK to assess readiness |
-| Coherent completion | Runs POSTFLIGHT, measures learning |
-| Multi-faceted problem | Spawns parallel investigation agents |
-| Recurring domain | Creates/uses specialist persona |
-
-### The Human's Role
-
-Your job is to:
-1. **Provide specs** for complex work (Claude decomposes)
-2. **Describe the outcome** you want (not the commands)
-3. **Review transaction boundaries** (approve POSTFLIGHT timing)
-4. **Provide feedback** on calibration (help Claude learn)
-
-Claude handles the rest - tool selection, artifact logging, transaction management.
+**Spec-driven (planned transactions):**
+> "Here's the spec. Break it into goals and work through them." → AI decomposes → sequential transactions
 
 ---
 
-## 🔮 Predictive Tool Selection (Future Direction)
+## Tips for Effective Collaboration
 
-Empirica's grounded prediction system can suggest tool chains based on task description. This enables Claude to predict not just epistemic vectors but the optimal workflow.
+1. **Describe outcomes, not commands.** Say "fix the auth bug" not "run empirica preflight-submit."
 
-### Current State → Future State
+2. **Let the AI investigate first.** The best results come from investigation before action.
+   If you're impatient, say "I think we know enough" — the AI will CHECK and proceed if ready.
 
-**Current:** 145+ granular CLI commands
-**Future:** Higher-level abstractions with predictive tool chains
+3. **Guide with questions.** "What do we still not know?" and "How confident are you?" drive
+   the workflow more effectively than giving step-by-step instructions.
 
-```
-# Current (granular)
-empirica preflight-submit --session-id xyz
-empirica finding-log --finding "..." --impact 0.8
-empirica check-submit --decision proceed
-empirica postflight-submit --reasoning "..."
+4. **Review transaction boundaries.** When the AI suggests closing a transaction, check: is this
+   a coherent chunk? Did we learn what we set out to learn? If yes, close it.
 
-# Future (abstracted)
-empirica transaction start --scope "implement auth endpoint"
-empirica noetic log finding "..." --impact 0.8
-empirica transaction gate
-empirica transaction close
-```
+5. **Trust the calibration.** If the AI says "I need to investigate more," it's usually right.
+   The Sentinel is calibrated from hundreds of past transactions.
 
-### Proposed Abstraction Layers
+6. **Use `/epistemic-transaction` for complex work.** This skill guides the AI through the
+   full P1-P5 planning procedure for multi-transaction tasks.
 
-| Layer | Commands | Purpose |
-|-------|----------|---------|
-| **transaction** | `start`, `gate`, `close`, `adopt` | Measurement boundaries |
-| **noetic** | `log`, `resolve`, `investigate`, `search` | Investigation artifacts |
-| **praxic** | `goal`, `act`, `complete`, `subtask` | Action artifacts |
-| **agent** | `spawn`, `report`, `orchestrate`, `parallel` | Multi-agent coordination |
-| **project** | `init`, `switch`, `bootstrap`, `handoff` | Project lifecycle |
-| **calibrate** | `report`, `drift`, `trajectory` | Calibration & monitoring |
-
-### Tool-Use Prediction
-
-When Claude receives a task, Empirica can predict the optimal workflow:
-
-**Input:**
-> "Implement OAuth2 authentication with PKCE for mobile clients"
-
-**Predicted Workflow:**
-```yaml
-task_analysis:
-  complexity: 0.7
-  domains: [auth, security, api]
-  estimated_transactions: 2
-
-transaction_1:
-  phase: noetic
-  tools_predicted:
-    - Grep: "OAuth2|PKCE|auth" in codebase
-    - Read: existing auth files
-    - WebSearch: "PKCE implementation patterns"
-  artifacts_expected:
-    - findings: 3-5
-    - unknowns: 1-2
-  gate_confidence_threshold: 0.75
-
-transaction_2:
-  phase: praxic
-  tools_predicted:
-    - Edit: auth endpoint files
-    - Write: new PKCE handler
-    - Bash: run auth tests
-  goals:
-    - "Implement PKCE flow"
-    - "Add token endpoint"
-    - "Write integration tests"
-```
-
-### Grounded Prediction Integration
-
-The prediction system uses:
-1. **Historical patterns** - What tools were used for similar tasks?
-2. **Calibration data** - How accurate were past predictions?
-3. **Domain signatures** - What tools work best for auth/perf/architecture?
-4. **Complexity estimation** - How many transactions will this need?
-
-```
-empirica suggest-workflow --task "Fix the authentication bug"
-
-Predicted workflow:
-├── Transaction 1 (noetic)
-│   ├── Grep: auth patterns
-│   ├── Read: auth files
-│   ├── finding-log: expected 2-3
-│   └── CHECK gate
-│
-└── Transaction 2 (praxic)
-    ├── Edit: fix implementation
-    ├── Bash: run tests
-    ├── goals-complete
-    └── POSTFLIGHT
-
-Confidence: 0.82 (based on 47 similar tasks)
-```
-
-### Why This Matters
-
-1. **Reduced cognitive load** - Claude doesn't decide tools, system predicts
-2. **Better calibration** - Compare predicted vs actual tool usage
-3. **Workflow optimization** - Learn which tool chains work best
-4. **Earned autonomy** - Accurate predictions → less human oversight
-
-### Deprecation Candidates
-
-As abstractions mature, granular commands can be deprecated:
-
-| Deprecate | Replace With |
-|-----------|--------------|
-| `preflight-submit` | `transaction start` |
-| `check-submit` | `transaction gate` |
-| `postflight-submit` | `transaction close` |
-| `finding-log`, `unknown-log`, `deadend-log` | `noetic log <type>` |
-| `goals-create`, `goals-complete` | `praxic goal <action>` |
-| `agent-spawn`, `agent-report` | `agent <action>` |
-
-The granular commands remain available for power users and scripting, but the natural workflow uses abstractions.
-
----
-
-## 🗣️ Natural Language Patterns for Empirica
-
-### 1. Starting a Project
-
-**Human Language:**
-> "I want to start working on a new AI research project about cognitive architectures"
-> "Let me begin a new project for the Empirica v2.0 release"
-> "I need to create a workspace for my machine learning experiments"
-
-**Empirica Translation:**
-```bash
-# Create a session for your project
-empirica session-create --ai-id "research-ai" --project-name "cognitive-architectures"
-
-# Bootstrap to get started
-empirica project-bootstrap --session-id <your-session-id>
-```
-
-**Key Concept:** Every project starts with a session that tracks your epistemic state.
-
----
-
-### 2. Setting Goals
-
-**Human Language:**
-> "My goal is to implement the new CASCADE workflow by Friday"
-> "I want to research token efficiency patterns this week"
-> "I need to fix the database migration issues before the release"
-
-**Empirica Translation:**
-```bash
-# Create a goal with natural language
-empirica goals-create --session-id <session-id> --objective "Implement CASCADE workflow v2.0"
-
-# Break it down into subtasks
-echo '{"session_id": "<session-id>", "description": "Design the PREFLIGHT phase", "importance": "high"}' | empirica goals-add-subtask -
-echo '{"session_id": "<session-id>", "description": "Implement CHECK gates", "importance": "high"}' | empirica goals-add-subtask -
-echo '{"session_id": "<session-id>", "description": "Create POSTFLIGHT metrics", "importance": "high"}' | empirica goals-add-subtask -
-```
-
-**Natural Language Tip:** Use clear, specific objectives that describe what you want to accomplish.
-
----
-
-### 3. Assessing Your Knowledge (PREFLIGHT)
-
-**Human Language:**
-> "I think I understand OAuth2 pretty well, but I'm not sure about the token refresh part"
-> "I'm confident I can implement this feature, but I might need help with the database schema"
-> "I'm completely new to this area - I'll need to do a lot of research"
-
-**Empirica Translation:**
-```bash
-# Be honest about what you know
-echo '{
-  "session_id": "<session-id>",
-  "vectors": {
-    "engagement": 0.9,
-    "know": 0.7,
-    "do": 0.8,
-    "context": 0.6,
-    "uncertainty": 0.3
-  },
-  "reasoning": "I understand OAuth2 basics well but need to research token refresh patterns and database integration."
-}' | empirica preflight-submit -
-```
-
-**Natural Language Mapping:**
-- "I think I understand" → `know: 0.7`
-- "I'm not sure about" → `uncertainty: 0.3`
-- "I'm confident I can implement" → `do: 0.8`
-- "I might need help with" → `context: 0.6`
-
----
-
-### 4. Tracking What You Learn (Findings)
-
-**Human Language:**
-> "I discovered that OAuth2 requires PKCE for mobile apps"
-> "I learned that the database uses a different schema than I expected"
-> "I found the documentation for the API endpoints"
-
-**Empirica Translation:**
-```bash
-# Log findings as you discover them
-echo '{
-  "project_id": "<project-id>",
-  "session_id": "<session-id>",
-  "finding": "OAuth2 requires PKCE for mobile applications",
-  "impact": 0.9
-}' | empirica finding-log -
-
-echo '{
-  "project_id": "<project-id>",
-  "session_id": "<session-id>",
-  "finding": "Database schema uses project_ prefix for all tables",
-  "impact": 0.8
-}' | empirica finding-log -
-```
-
-**Natural Language Tip:** Log findings immediately when you discover something new - don't wait until the end!
-
----
-
-### 5. Identifying What You Don't Know (Unknowns)
-
-**Human Language:**
-> "I'm not sure how the token refresh mechanism works"
-> "I don't understand the database migration process yet"
-> "I need to figure out how to integrate with the existing API"
-
-**Empirica Translation:**
-```bash
-# Track unknowns to guide your investigation
-echo '{
-  "project_id": "<project-id>",
-  "session_id": "<session-id>",
-  "unknown": "Token refresh mechanism implementation details",
-  "impact": 0.8
-}' | empirica unknown-log -
-
-echo '{
-  "project_id": "<project-id>",
-  "session_id": "<session-id>",
-  "unknown": "Database migration process for existing users",
-  "impact": 0.7
-}' | empirica unknown-log -
-```
-
-**Natural Language Tip:** Be specific about what you don't know - this helps focus your research.
-
----
-
-### 6. Making Decisions (CHECK Gates)
-
-**Human Language:**
-> "I think I understand enough to implement this feature"
-> "I'm still not sure about this approach - I should do more research"
-> "I've learned enough to make a decision, but I want to double-check"
-
-**Empirica Translation:**
-```bash
-# Use CHECK gates for decision points
-echo '{
-  "session_id": "<session-id>",
-  "vectors": {"know": 0.75, "uncertainty": 0.25, "context": 0.8},
-  "reasoning": "Understood OAuth2 token flow and refresh patterns, but still need to confirm lifetime config"
-}' | empirica check-submit -
-```
-
-**Natural Language Mapping:**
-- "I think I understand enough" → `confidence: 0.75`
-- "I should do more research" → `confidence: 0.5`
-- "I've learned enough" → `confidence: 0.8`
-
-**Decision Logic:**
-- `confidence >= 0.7` → Proceed with implementation
-- `confidence < 0.7` → Investigate more
-
----
-
-### 7. Measuring What You Learned (POSTFLIGHT)
-
-**Human Language:**
-> "I learned a lot about OAuth2 implementation patterns"
-> "I'm much more confident about database migrations now"
-> "I discovered several important considerations for the API design"
-
-**Empirica Translation:**
-```bash
-# Measure your learning delta
-echo '{
-  "session_id": "<session-id>",
-  "vectors": {
-    "engagement": 0.9,
-    "know": 0.85,
-    "do": 0.9,
-    "context": 0.8,
-    "uncertainty": 0.15
-  },
-  "reasoning": "Successfully implemented OAuth2 with PKCE. Learned token refresh patterns, discovered rotation policy. Much more confident now."
-}' | empirica postflight-submit -
-```
-
-**Natural Language Tip:** Compare your POSTFLIGHT with your PREFLIGHT to see your learning delta!
-
----
-
-### 8. Switching Between Projects
-
-**Human Language:**
-> "I need to switch from the research project to the implementation project"
-> "Let me pause this work and come back to it later"
-> "I want to resume my work on the database migration project"
-
-**Empirica Translation:**
-```bash
-# Save your current context
-empirica session-snapshot --session-id <current-session-id>
-
-# Switch to another project
-empirica project-switch --project-id <new-project-id>
-
-# Or resume a previous session
-empirica sessions-resume --ai-id "your-ai-id"
-```
-
-**Natural Language Tip:** Use sessions to maintain context when switching between projects.
-
----
-
-### 9. Managing Complex Workflows
-
-**Human Language:**
-> "I need to coordinate multiple AI agents on this project"
-> "Let me check what work is ready to be done"
-> "I want to see what other team members have discovered"
-
-**Empirica Translation:**
-```bash
-# Check for ready work (epistemic + dependency filtering)
-empirica goals-ready --session-id <session-id>
-
-# See what others have discovered
-empirica project-bootstrap --project-id <project-id> --depth auto
-
-# Claim a task
-empirica goals-claim --goal-id <goal-id>
-```
-
-**Natural Language Tip:** Use `goals-ready` to find work that matches your current capability.
-
----
-
-### 10. AI-First Development Patterns
-
-**Human Language:**
-> "I need to implement this feature using AI-first principles"
-> "Let me design this system with epistemic transparency"
-> "I want to create a workflow that measures learning"
-
-**Empirica Translation:**
-```bash
-# AI-First Implementation Pattern
-
-# 1. Start with PREFLIGHT
-echo '{"session_id": "<session-id>", "vectors": {"engagement": 0.9, "know": 0.6, "uncertainty": 0.4}, "reasoning": "Starting AI-first implementation"}' | empirica preflight-submit -
-
-# 2. Do your work with CHECK gates as needed
-# ... implementation ...
-
-# 3. Measure learning with POSTFLIGHT
-echo '{"session_id": "<session-id>", "vectors": {"engagement": 0.9, "know": 0.85, "uncertainty": 0.15}, "reasoning": "Completed AI-first implementation with measurable learning"}' | empirica postflight-submit -
-```
-
-**Natural Language Tip:** Always start with PREFLIGHT and end with POSTFLIGHT to measure your learning!
-
----
-
-## 🎯 Natural Language Cheat Sheet
-
-### Common Phrases → Empirica Commands
-
-| Human Language | Empirica Command |
-|----------------|-------------------|
-| "I want to start a project" | `empirica session-create` |
-| "Let me assess what I know" | `empirica preflight-submit` |
-| "I discovered something new" | `empirica finding-log` |
-| "I don't understand this yet" | `empirica unknown-log` |
-| "I think I'm ready to proceed" | `empirica check` |
-| "Let me see what I learned" | `empirica postflight-submit` |
-| "I need to switch projects" | `empirica project-switch` |
-| "What work is ready?" | `empirica goals-ready` |
-
-### Knowledge Assessment Mapping
-
-| Human Phrase | Epistemic Vector |
-|--------------|------------------|
-| "I understand this well" | `know: 0.8+` |
-| "I'm somewhat familiar" | `know: 0.5-0.7` |
-| "I'm new to this" | `know: 0.3-0.5` |
-| "I'm completely unfamiliar" | `know: <0.3` |
-| "I'm very confident" | `uncertainty: <0.2` |
-| "I'm somewhat unsure" | `uncertainty: 0.3-0.5` |
-| "I'm very uncertain" | `uncertainty: 0.6+` |
-
-### Decision Confidence Mapping
-
-| Human Phrase | Confidence Score |
-|--------------|------------------|
-| "I'm ready to implement" | `confidence: 0.8+` |
-| "I think I understand enough" | `confidence: 0.7-0.8` |
-| "I need to learn more" | `confidence: 0.5-0.7` |
-| "I'm completely lost" | `confidence: <0.5` |
-
----
-
-## 🧠 Cognitive Patterns for Natural Use
-
-### 1. **Think Out Loud**
-Instead of: "Let me figure this out silently"
-Try: "I'm assessing my current knowledge about this topic"
-→ `empirica preflight-submit`
-
-### 2. **Acknowledge Unknowns**
-Instead of: "I'll just push through"
-Try: "I don't understand this part yet - let me track that"
-→ `empirica unknown-log`
-
-### 3. **Celebrate Learning**
-Instead of: "I'm done"
-Try: "Let me measure what I actually learned"
-→ `empirica postflight-submit`
-
-### 4. **Context Switching**
-Instead of: "Where was I?"
-Try: "Let me load my previous context"
-→ `empirica project-bootstrap`
-
-### 5. **Collaborative Work**
-Instead of: "What should I work on?"
-Try: "Let me find work that matches my current capability"
-→ `empirica goals-ready`
-
----
-
-## 📚 Natural Language Workflow Examples
-
-### Example 1: Research Project
-
-**Human Thought Process:**
-> "I want to research cognitive architectures. I understand the basics but need to learn more about specific patterns. Let me start by assessing what I know, then track my discoveries as I go."
-
-**Empirica Flow:**
-```bash
-# Start session
-SESSION=$(empirica session-create --ai-id "research-ai" --quiet)
-
-# Assess baseline knowledge
-echo '{"session_id": "$SESSION", "vectors": {"know": 0.5, "uncertainty": 0.6}, "reasoning": "Starting cognitive architecture research"}' | empirica preflight-submit -
-
-# Research and log findings
-echo '{"session_id": "$SESSION", "finding": "Discovered dual-process theory patterns"}' | empirica finding-log -
-echo '{"session_id": "$SESSION", "finding": "Learned about System 1 vs System 2 interactions"}' | empirica finding-log -
-
-# Track unknowns
-echo '{"session_id": "$SESSION", "unknown": "Need to understand implementation patterns"}' | empirica unknown-log -
-
-# Measure learning
-echo '{"session_id": "$SESSION", "vectors": {"know": 0.8, "uncertainty": 0.2}, "reasoning": "Completed cognitive architecture research"}' | empirica postflight-submit -
-```
-
-### Example 2: Implementation Project
-
-**Human Thought Process:**
-> "I need to implement the new CASCADE workflow. I'm pretty confident about the design but want to track my progress and measure what I learn during implementation."
-
-**Empirica Flow:**
-```bash
-# Start with project context
-SESSION=$(empirica session-create --ai-id "implementation-ai" --quiet)
-
-# Set goal
-echo '{"session_id": "$SESSION", "objective": "Implement CASCADE workflow v2.0"}' | empirica goals-create -
-
-# Assess baseline
-echo '{"session_id": "$SESSION", "vectors": {"know": 0.7, "do": 0.8, "uncertainty": 0.3}, "reasoning": "Starting CASCADE implementation"}' | empirica preflight-submit -
-
-# Implementation work...
-
-# Check decision point
-echo '{"session_id": "$SESSION", "vectors": {"know": 0.85, "uncertainty": 0.15, "context": 0.9}, "reasoning": "Implemented PREFLIGHT phase and designed CHECK gates"}' | empirica check-submit -
-
-# Complete implementation
-
-# Measure learning
-echo '{"session_id": "$SESSION", "vectors": {"know": 0.9, "do": 0.95, "uncertainty": 0.1}, "reasoning": "Successfully implemented CASCADE workflow"}' | empirica postflight-submit -
-```
-
-### Example 3: Multi-Agent Coordination
-
-**Human Thought Process:**
-> "I need to coordinate with other AI agents on this complex project. Let me find work that's ready and matches my current capability."
-
-**Empirica Flow:**
-```bash
-# Check ready work
-empirica goals-ready --session-id $SESSION
-
-# Claim a task that matches my capability
-echo '{"goal_id": "<ready-goal-id>"}' | empirica goals-claim -
-
-# Load context for the task
-empirica project-bootstrap --project-id <project-id> --depth auto
-
-# Work on the task with full CASCADE workflow
-# ... PREFLIGHT → WORK → POSTFLIGHT ...
-
-# Complete the task
-echo '{"goal_id": "<goal-id>", "evidence": "Completed task with measurable learning"}' | empirica goals-complete -
-```
-
----
-
-## 💡 Tips for Natural Empirica Use
-
-### 1. **Use Your Natural Voice**
-Don't try to speak like a computer - use your normal thought patterns and map them to Empirica commands.
-
-### 2. **Be Honest About Knowledge**
-Empirica works best when you're honest about what you know and don't know.
-
-### 3. **Log Findings Immediately**
-When you discover something new, log it right away - don't wait until the end.
-
-### 4. **Use CHECK Gates Liberally**
-Whenever you're making a decision, use a CHECK gate to assess your confidence.
-
-### 5. **Always Measure Learning**
-The magic of Empirica is in the PREFLIGHT → POSTFLIGHT delta. Always complete the cycle.
-
-### 6. **Leverage Context Switching**
-Use sessions and bootstraps to maintain context when switching between projects.
-
-### 7. **Find Work That Fits You**
-Use `goals-ready` to find tasks that match your current capability and knowledge.
-
----
-
-## 🎓 Learning Empirica Naturally
-
-The more you use Empirica, the more natural it becomes. Start by:
-
-1. **Mapping your thoughts** to the workflow patterns above
-2. **Using the cheat sheet** when you're unsure
-3. **Practicing the examples** with your own projects
-4. **Measuring your learning** with each task
-
-Over time, the epistemic workflow will become second nature, and you'll naturally think in terms of knowledge assessment, finding tracking, and learning measurement.
-
-**Remember:** Empirica is designed to work with your natural cognitive patterns, not against them!
-
----
-
-## 📖 Further Reading
-
-- [Sentinel Architecture](../../architecture/SENTINEL_ARCHITECTURE.md) - Complete CASCADE workflow reference
-- [Epistemic Vectors Explained](05_EPISTEMIC_VECTORS_EXPLAINED.md) - Understanding the vectors
-- [First-Time Setup](guides/FIRST_TIME_SETUP.md) - Getting started
-- [System Prompt](../developers/system-prompts/CANONICAL_CORE.md) - Full reference
-
-**Happy epistemic tracking!** 🧠✨
+7. **Be honest about what you know.** The AI calibrates to your domain expertise. If you're
+   an expert in auth but new to databases, say so — the investigation will focus accordingly.
