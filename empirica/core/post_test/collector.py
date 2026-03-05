@@ -69,20 +69,22 @@ class EvidenceProfile:
     Profiles:
     - "code": ruff, radon, pyright, pytest, git (default for repos with .py files)
     - "prose": textstat, proselint, vale, document metrics, source quality
-    - "hybrid": all evidence sources (code + prose)
+    - "web": build verification, HTML validation, link integrity, terminology, assets
+    - "hybrid": all evidence sources (code + prose + web when detected)
     - "auto": detect from project content (falls back to "code")
 
     Set via:
-    - project.yaml: evidence_profile: prose
-    - CLI flag: --evidence-profile prose
-    - Environment: EMPIRICA_EVIDENCE_PROFILE=prose
+    - project.yaml: evidence_profile: web
+    - CLI flag: --evidence-profile web
+    - Environment: EMPIRICA_EVIDENCE_PROFILE=web
     """
     CODE = "code"
     PROSE = "prose"
+    WEB = "web"
     HYBRID = "hybrid"
     AUTO = "auto"
 
-    VALID = {CODE, PROSE, HYBRID, AUTO}
+    VALID = {CODE, PROSE, WEB, HYBRID, AUTO}
 
     @staticmethod
     def resolve(explicit: Optional[str] = None,
@@ -166,10 +168,19 @@ class PostTestCollector:
             project_path=self._detect_project_path(),
         )
         if profile == EvidenceProfile.AUTO:
-            # Auto-detect: if session has .py file changes, use code; else prose
+            # Auto-detect from changed file extensions
             changed = self._get_session_changed_files()
             has_code = any(f.endswith('.py') for f in changed)
-            return EvidenceProfile.CODE if has_code else EvidenceProfile.PROSE
+            from .web_collector import WEB_EXTENSIONS
+            has_web = any(Path(f).suffix in WEB_EXTENSIONS for f in changed)
+            if has_web and has_code:
+                return EvidenceProfile.HYBRID
+            elif has_web:
+                return EvidenceProfile.WEB
+            elif has_code:
+                return EvidenceProfile.CODE
+            else:
+                return EvidenceProfile.PROSE
         return profile
 
     def _detect_project_path(self) -> Optional[str]:
@@ -202,6 +213,18 @@ class PostTestCollector:
             ("source_quality", prose._collect_source_quality),
             ("action_verification", prose._collect_action_verification),
         ]
+
+    def _get_web_collectors(self) -> List[tuple]:
+        """Get web-specific evidence collectors."""
+        from .web_collector import WebEvidenceCollector
+        web = WebEvidenceCollector(
+            session_id=self.session_id,
+            project_id=self.project_id,
+            db=self._get_db(),
+            phase=self.phase,
+            check_timestamp=self.check_timestamp,
+        )
+        return [("web", lambda: web.collect_all())]
 
     def collect_all(self) -> EvidenceBundle:
         """Collect evidence from all available sources.
@@ -240,12 +263,14 @@ class PostTestCollector:
             ]
         elif profile == EvidenceProfile.PROSE:
             profile_collectors = self._get_prose_collectors()
+        elif profile == EvidenceProfile.WEB:
+            profile_collectors = self._get_web_collectors()
         elif profile == EvidenceProfile.HYBRID:
             profile_collectors = [
                 ("pytest", self._collect_test_results),
                 ("git", self._collect_git_metrics),
                 ("code_quality", self._collect_code_quality_metrics),
-            ] + self._get_prose_collectors()
+            ] + self._get_prose_collectors() + self._get_web_collectors()
         else:
             # Fallback to code
             profile_collectors = [
