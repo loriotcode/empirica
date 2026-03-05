@@ -151,6 +151,7 @@ def handle_project_init_command(args):
             'version': '2.0',
             'name': project_name,
             'description': project_description or f"{project_name} project",
+            'project_id': None,  # Placeholder — filled after DB creation
             'type': project_type,
             'domain': project_domain,
             'classification': classification,
@@ -160,7 +161,10 @@ def handle_project_init_command(args):
             'tags': tags,
             'created_at': datetime.now().strftime('%Y-%m-%d'),
             'created_by': os.environ.get('USER', 'unknown'),
-            'repository': git_url,
+        }
+        if git_url:
+            project_config['repository'] = git_url
+        project_config.update({
             'contacts': [],
             'engagements': [],
             'edges': [],
@@ -173,7 +177,7 @@ def handle_project_init_command(args):
                 'method': 'path_match'
             },
             'domain_config': {},
-        }
+        })
         
         import yaml
         with open(project_config_path, 'w') as f:
