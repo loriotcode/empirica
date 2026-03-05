@@ -2050,12 +2050,17 @@ def handle_postflight_submit_command(args):
             # Collects objective evidence → maps to vectors → Bayesian update → trajectory → export
             grounded_verification = None
             try:
+                import os
                 from empirica.core.post_test.grounded_calibration import run_grounded_verification
+                from empirica.core.post_test.collector import EvidenceProfile
                 from empirica.core.post_test.phase_boundary import detect_phase_boundary
 
                 db = _get_db_for_session(session_id)
                 session = db.get_session(session_id)
                 project_id = session.get('project_id') if session else None
+
+                # Resolve evidence profile from env/config/auto-detect
+                evidence_profile = EvidenceProfile.resolve(project_path=os.getcwd())
 
                 # Detect CHECK phase boundary for noetic/praxic split
                 phase_boundary = None
@@ -2076,6 +2081,7 @@ def handle_postflight_submit_command(args):
                     db=db,
                     project_id=project_id,
                     phase_boundary=phase_boundary,
+                    evidence_profile=evidence_profile,
                 )
 
                 if grounded_verification:
