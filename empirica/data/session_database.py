@@ -1566,10 +1566,32 @@ class SessionDatabase:
 
         reference_docs = self.breadcrumbs.get_project_reference_docs(project_id)
 
+        # Decisions are permanent audit trail — load from Qdrant (static, no decay)
+        decisions = []
+        DECISIONS_LIMIT = 10
+        try:
+            from empirica.core.qdrant.vector_store import _check_qdrant_available, _get_qdrant_client, _decisions_collection
+            if _check_qdrant_available():
+                client = _get_qdrant_client()
+                coll = _decisions_collection(project_id)
+                if client and client.collection_exists(coll):
+                    results = client.scroll(collection_name=coll, limit=DECISIONS_LIMIT, with_payload=True)
+                    for pt in results[0]:
+                        p = pt.payload or {}
+                        decisions.append({
+                            'choice': p.get('choice', ''),
+                            'rationale': p.get('rationale', ''),
+                            'reversibility': p.get('reversibility', 'exploratory'),
+                            'confidence': p.get('confidence_at_decision'),
+                        })
+        except Exception:
+            pass  # Qdrant unavailable — decisions won't load (non-fatal)
+
         result = {
             'findings': findings,
             'unknowns': unknowns,
             'dead_ends': dead_ends,
+            'decisions': decisions,
             'mistakes_to_avoid': recent_mistakes,
             'reference_docs': reference_docs
         }
@@ -2069,12 +2091,16 @@ class SessionDatabase:
         def _slim_dead_end(d: dict) -> dict:
             return {'approach': d.get('approach'), 'why_failed': d.get('why_failed')}
 
+        def _slim_decision(d: dict) -> dict:
+            return {'choice': d.get('choice'), 'rationale': d.get('rationale')}
+
         # Apply depth filter
         if depth == "minimal":
             # ~2k tokens target: essentials only
             breadcrumbs['findings'] = [_slim_finding(f) for f in breadcrumbs.get('findings', [])[:5]]
             breadcrumbs['unknowns'] = [_slim_unknown(u) for u in breadcrumbs.get('unknowns', [])[:5]]
             breadcrumbs['dead_ends'] = [_slim_dead_end(d) for d in breadcrumbs.get('dead_ends', [])[:3]]
+            breadcrumbs['decisions'] = [_slim_decision(d) for d in breadcrumbs.get('decisions', [])[:3]]
             breadcrumbs['mistakes_to_avoid'] = breadcrumbs.get('mistakes_to_avoid', [])[:2]
             breadcrumbs['goals'] = [_slim_goal(g) for g in breadcrumbs.get('goals', [])[:1]]
             breadcrumbs['active_goals'] = [_slim_goal(g) for g in breadcrumbs.get('active_goals', [])[:2]]
@@ -2094,6 +2120,7 @@ class SessionDatabase:
             breadcrumbs['dead_ends'] = [_slim_dead_end(d) for d in breadcrumbs.get('dead_ends', [])[:5]]
             breadcrumbs['mistakes_to_avoid'] = breadcrumbs.get('mistakes_to_avoid', [])[:5]
             breadcrumbs['goals'] = [_slim_goal(g) for g in breadcrumbs.get('goals', [])[:5]]
+            breadcrumbs['decisions'] = [_slim_decision(d) for d in breadcrumbs.get('decisions', [])[:5]]
             breadcrumbs['active_goals'] = [_slim_goal(g) for g in breadcrumbs.get('active_goals', [])[:5]]
             breadcrumbs['reference_docs'] = breadcrumbs.get('reference_docs', [])[:5]
             breadcrumbs['incomplete_work'] = breadcrumbs.get('incomplete_work', [])[:3]
