@@ -1748,8 +1748,34 @@ class SessionDatabase:
             'description': project.get('description', ''),
             'status': project.get('status', 'active'),
             'repos': repos,
-            'total_sessions': project.get('total_sessions', 0)
+            'total_sessions': project.get('total_sessions', 0),
+            'total_goals': project.get('total_goals', 0),
         }
+
+        # Enrich from project.yaml if available (v2.0 identity fields)
+        try:
+            from empirica.config.project_config_loader import load_project_config
+            project_config = load_project_config()
+            if project_config:
+                yaml_enrichment = {'type': project_config.type}
+                if project_config.domain:
+                    yaml_enrichment['domain'] = project_config.domain
+                if project_config.classification != 'internal':
+                    yaml_enrichment['classification'] = project_config.classification
+                yaml_enrichment['evidence_profile'] = project_config.evidence_profile
+                if project_config.languages:
+                    yaml_enrichment['languages'] = project_config.languages
+                if project_config.tags:
+                    yaml_enrichment['tags'] = project_config.tags
+                if project_config.contacts:
+                    yaml_enrichment['contacts'] = project_config.contacts
+                if project_config.engagements:
+                    yaml_enrichment['engagements'] = project_config.engagements
+                if project_config.edges:
+                    yaml_enrichment['edges'] = project_config.edges
+                breadcrumbs['project'].update(yaml_enrichment)
+        except Exception:
+            pass  # project.yaml enrichment is non-fatal
 
         if latest_handoff:
             breadcrumbs['latest_handoff'] = latest_handoff

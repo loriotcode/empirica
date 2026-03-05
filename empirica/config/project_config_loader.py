@@ -14,21 +14,110 @@ logger = logging.getLogger(__name__)
 
 
 class ProjectConfig:
-    """Project configuration with subject mappings"""
-    
+    """Project configuration with subject mappings and v2.0 identity metadata."""
+
+    # Valid project types (universal across domains)
+    VALID_TYPES = [
+        'software', 'content', 'research', 'data', 'design',
+        'operations', 'strategic', 'engagement', 'legal',
+    ]
+
+    VALID_CLASSIFICATIONS = ['open', 'internal', 'restricted']
+
+    VALID_STATUSES = ['active', 'dormant', 'archived']
+
     def __init__(self, config_data: Dict[str, Any]) -> None:
         """Initialize project config from configuration dictionary."""
+        # Schema version
+        self.version = config_data.get('version', '1.0')
+
+        # Core identity (v1.0)
         self.project_id = config_data.get('project_id')
         self.name = config_data.get('name', 'Unknown Project')
         self.description = config_data.get('description', '')
+
+        # Identity enrichment (v2.0)
+        self.type = self._validated(config_data.get('type', 'software'), self.VALID_TYPES, 'software', 'type')
+        self.domain = config_data.get('domain', '')
+        self.classification = self._validated(config_data.get('classification', 'internal'), self.VALID_CLASSIFICATIONS, 'internal', 'classification')
+        self.status = self._validated(config_data.get('status', 'active'), self.VALID_STATUSES, 'active', 'status')
+
+        # Evidence & language
+        self.evidence_profile = config_data.get('evidence_profile', 'auto')
+        self.languages = config_data.get('languages', [])
+        self.tags = config_data.get('tags', [])
+
+        # Provenance
+        self.created_at = config_data.get('created_at')
+        self.created_by = config_data.get('created_by')
+        self.repository = config_data.get('repository')
+
+        # Participant references (IDs + roles — full profiles in Workspace CRM)
+        self.contacts = config_data.get('contacts', [])
+
+        # Engagement references (IDs — lifecycle in Workspace CRM)
+        self.engagements = config_data.get('engagements', [])
+
+        # Relationship edges (typed links to other entities)
+        self.edges = config_data.get('edges', [])
+
+        # Existing v1.0 fields
         self.subjects = config_data.get('subjects', {})
         self.default_subject = config_data.get('default_subject')
         self.auto_detect = config_data.get('auto_detect', {'enabled': True, 'method': 'path_match'})
-
-        # BEADS integration settings
         self.beads = config_data.get('beads', {})
         self.default_use_beads = self.beads.get('default_enabled', False)
-    
+
+        # Domain extension point
+        self.domain_config = config_data.get('domain_config', {})
+
+    @staticmethod
+    def _validated(value: str, valid_set: List[str], default: str, field_name: str) -> str:
+        """Validate value against known set, warn and default if invalid."""
+        if value in valid_set:
+            return value
+        logger.warning(f"Unknown {field_name} '{value}', defaulting to '{default}'")
+        return default
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize config back to dict for yaml round-tripping."""
+        d: Dict[str, Any] = {
+            'version': self.version,
+            'name': self.name,
+            'description': self.description,
+        }
+        if self.project_id:
+            d['project_id'] = self.project_id
+        d['type'] = self.type
+        if self.domain:
+            d['domain'] = self.domain
+        d['classification'] = self.classification
+        d['status'] = self.status
+        d['evidence_profile'] = self.evidence_profile
+        if self.languages:
+            d['languages'] = self.languages
+        if self.tags:
+            d['tags'] = self.tags
+        if self.created_at:
+            d['created_at'] = self.created_at
+        if self.created_by:
+            d['created_by'] = self.created_by
+        if self.repository:
+            d['repository'] = self.repository
+        if self.contacts:
+            d['contacts'] = self.contacts
+        if self.engagements:
+            d['engagements'] = self.engagements
+        if self.edges:
+            d['edges'] = self.edges
+        d['beads'] = self.beads if self.beads else {'default_enabled': False}
+        if self.subjects:
+            d['subjects'] = self.subjects
+        d['auto_detect'] = self.auto_detect
+        if self.domain_config:
+            d['domain_config'] = self.domain_config
+        return d
+
     def get_subject_for_path(self, current_path: str) -> Optional[str]:
         """
         Detect subject from current working directory.

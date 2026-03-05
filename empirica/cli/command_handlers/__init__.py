@@ -102,6 +102,7 @@ from .ecosystem_commands import (
     handle_ecosystem_check_command,
 )
 from .project_init import handle_project_init_command
+from .project_update import handle_project_update_command
 from .workspace_init import handle_workspace_init_command
 from .project_search import (
     handle_project_search_command,
@@ -267,6 +268,7 @@ __all__ = [
     'handle_project_bootstrap_command',
     'handle_project_switch_command',
     'handle_project_init_command',
+    'handle_project_update_command',
     'handle_workspace_overview_command',
     'handle_workspace_map_command',
     'handle_workspace_list_command',

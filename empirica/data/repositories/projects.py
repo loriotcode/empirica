@@ -21,8 +21,13 @@ logger = logging.getLogger(__name__)
 class ProjectRepository(BaseRepository):
     """Repository for project-level management and context"""
 
-    # Valid project types for workspace management
-    PROJECT_TYPES = ['product', 'application', 'feature', 'research', 'documentation', 'infrastructure', 'operations']
+    # Valid project types (v2.0 universal taxonomy)
+    PROJECT_TYPES = [
+        'software', 'content', 'research', 'data', 'design',
+        'operations', 'strategic', 'engagement', 'legal',
+        # Legacy types (backward compat)
+        'product', 'application', 'feature', 'documentation', 'infrastructure',
+    ]
 
     def create_project(
         self,

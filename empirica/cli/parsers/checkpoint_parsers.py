@@ -218,10 +218,51 @@ def add_checkpoint_parsers(subparsers):
     project_init_parser.add_argument('--project-description', help='Project description')
     project_init_parser.add_argument('--enable-beads', action='store_true', help='Enable BEADS by default')
     project_init_parser.add_argument('--create-semantic-index', action='store_true', help='Create SEMANTIC_INDEX.yaml template')
+    project_init_parser.add_argument('--type', choices=[
+        'software', 'content', 'research', 'data', 'design',
+        'operations', 'strategic', 'engagement', 'legal',
+    ], help='Project type (default: software)')
+    project_init_parser.add_argument('--domain', help='Domain taxonomy (e.g., ai/measurement)')
+    project_init_parser.add_argument('--classification', choices=['open', 'internal', 'restricted'],
+                                     default='internal', help='Access classification')
+    project_init_parser.add_argument('--evidence-profile', choices=['code', 'prose', 'hybrid', 'auto'],
+                                     default='auto', help='Evidence profile for grounded calibration')
+    project_init_parser.add_argument('--languages', nargs='+', help='Programming languages')
+    project_init_parser.add_argument('--tags', nargs='+', help='Project tags')
     project_init_parser.add_argument('--non-interactive', action='store_true', help='Skip interactive prompts')
     project_init_parser.add_argument('--force', action='store_true', help='Reinitialize if already initialized')
     project_init_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     project_init_parser.add_argument('--verbose', action='store_true', help='Show detailed operation info')
+
+    # Project update command (update project.yaml fields after init)
+    project_update_parser = subparsers.add_parser(
+        'project-update',
+        help='Update project.yaml fields (type, domain, contacts, edges, etc.)'
+    )
+    project_update_parser.add_argument('--type', choices=[
+        'software', 'content', 'research', 'data', 'design',
+        'operations', 'strategic', 'engagement', 'legal',
+    ], help='Project type')
+    project_update_parser.add_argument('--domain', help='Domain taxonomy (e.g., ai/measurement)')
+    project_update_parser.add_argument('--classification', choices=['open', 'internal', 'restricted'],
+                                       help='Access classification')
+    project_update_parser.add_argument('--status', choices=['active', 'dormant', 'archived'],
+                                       help='Project status')
+    project_update_parser.add_argument('--evidence-profile', choices=['code', 'prose', 'hybrid', 'auto'],
+                                       help='Evidence profile for grounded calibration')
+    project_update_parser.add_argument('--languages', nargs='+', help='Set programming languages')
+    project_update_parser.add_argument('--tags', nargs='+', help='Set project tags (replaces all)')
+    project_update_parser.add_argument('--add-tag', help='Add a single tag')
+    project_update_parser.add_argument('--remove-tag', help='Remove a single tag')
+    project_update_parser.add_argument('--add-contact', help='Add contact by ID')
+    project_update_parser.add_argument('--roles', nargs='+', help='Roles for --add-contact (e.g., owner architect)')
+    project_update_parser.add_argument('--remove-contact', help='Remove contact by ID')
+    project_update_parser.add_argument('--add-edge', help='Add edge to entity (e.g., project/empirica-iris)')
+    project_update_parser.add_argument('--relation', help='Relation type for --add-edge (default: related)')
+    project_update_parser.add_argument('--remove-edge', help='Remove edge to entity')
+    project_update_parser.add_argument('--migrate', action='store_true', help='Upgrade v1.0 to v2.0 with auto-detected values')
+    project_update_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
+    project_update_parser.add_argument('--verbose', action='store_true', help='Show detailed info')
 
     # Project create command
     project_create_parser = subparsers.add_parser(

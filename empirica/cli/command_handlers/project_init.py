@@ -75,21 +75,41 @@ def handle_project_init_command(args):
         project_description = None
         enable_beads = False
         create_semantic_index = False
-        
+        project_type = 'software'
+        project_domain = ''
+        evidence_profile = 'auto'
+        classification = 'internal'
+        languages = []
+        tags = []
+
         if interactive and output_format != 'json':
             print("📋 Project Configuration\n")
-            
+
             # Get project name
             default_name = git_root.name
             project_name = input(f"Project name [{default_name}]: ").strip() or default_name
-            
+
             # Get description
             project_description = input("Project description (optional): ").strip() or None
-            
+
+            # Project type
+            type_choices = 'software|content|research|data|design|operations|strategic|engagement|legal'
+            type_input = input(f"\nProject type [{type_choices}] (software): ").strip().lower()
+            if type_input and type_input in type_choices.split('|'):
+                project_type = type_input
+
+            # Domain
+            project_domain = input("Domain (e.g., ai/measurement, bio/genomics): ").strip()
+
+            # Evidence profile
+            ep_input = input("Evidence profile [code/prose/hybrid/auto] (auto): ").strip().lower()
+            if ep_input in ('code', 'prose', 'hybrid', 'auto'):
+                evidence_profile = ep_input
+
             # BEADS integration
             beads_response = input("\nEnable BEADS issue tracking by default? [y/N]: ").strip().lower()
             enable_beads = beads_response in ('y', 'yes')
-            
+
             # Semantic index
             semantic_response = input("Create SEMANTIC_INDEX.yaml template? [y/N]: ").strip().lower()
             create_semantic_index = semantic_response in ('y', 'yes')
@@ -99,6 +119,12 @@ def handle_project_init_command(args):
             project_description = getattr(args, 'project_description', None)
             enable_beads = getattr(args, 'enable_beads', False)
             create_semantic_index = getattr(args, 'create_semantic_index', False)
+            project_type = getattr(args, 'type', None) or 'software'
+            project_domain = getattr(args, 'domain', None) or ''
+            evidence_profile = getattr(args, 'evidence_profile', None) or 'auto'
+            classification = getattr(args, 'classification', None) or 'internal'
+            languages = getattr(args, 'languages', None) or []
+            tags = getattr(args, 'tags', None) or []
         
         # Create project.yaml with BEADS config
         project_config_path = git_root / '.empirica' / 'project.yaml'
@@ -116,10 +142,28 @@ def handle_project_init_command(args):
         except Exception:
             git_url = None
         
+        # Auto-detect languages from build files if not specified
+        if not languages:
+            languages = _auto_detect_languages(git_root)
+
+        from datetime import datetime
         project_config = {
-            'version': '1.0',
+            'version': '2.0',
             'name': project_name,
             'description': project_description or f"{project_name} project",
+            'type': project_type,
+            'domain': project_domain,
+            'classification': classification,
+            'status': 'active',
+            'evidence_profile': evidence_profile,
+            'languages': languages,
+            'tags': tags,
+            'created_at': datetime.now().strftime('%Y-%m-%d'),
+            'created_by': os.environ.get('USER', 'unknown'),
+            'repository': git_url,
+            'contacts': [],
+            'engagements': [],
+            'edges': [],
             'beads': {
                 'default_enabled': enable_beads,
             },
@@ -127,7 +171,8 @@ def handle_project_init_command(args):
             'auto_detect': {
                 'enabled': True,
                 'method': 'path_match'
-            }
+            },
+            'domain_config': {},
         }
         
         import yaml
@@ -173,7 +218,9 @@ def handle_project_init_command(args):
             project_id = db.create_project(
                 name=project_name,
                 description=project_description,
-                repos=[git_url] if git_url else None
+                repos=[git_url] if git_url else None,
+                project_type=project_type,
+                project_tags=tags if tags else None,
             )
 
         # Update project.yaml with project_id
@@ -389,3 +436,34 @@ def handle_project_init_command(args):
         from ..cli_utils import handle_cli_error
         handle_cli_error(e, "Project init", getattr(args, 'verbose', False))
         return None
+
+
+def _auto_detect_languages(git_root: Path) -> list:
+    """Auto-detect programming languages from build/config files."""
+    detected = []
+    indicators = {
+        'python': ['pyproject.toml', 'setup.py', 'setup.cfg', 'requirements.txt', 'Pipfile'],
+        'typescript': ['tsconfig.json'],
+        'javascript': ['package.json'],
+        'go': ['go.mod'],
+        'rust': ['Cargo.toml'],
+        'java': ['pom.xml', 'build.gradle', 'build.gradle.kts'],
+        'ruby': ['Gemfile'],
+        'php': ['composer.json'],
+        'c#': ['*.csproj', '*.sln'],
+        'swift': ['Package.swift'],
+        'r': ['DESCRIPTION', '.Rproj'],
+    }
+    for lang, files in indicators.items():
+        for pattern in files:
+            if '*' in pattern:
+                if list(git_root.glob(pattern)):
+                    detected.append(lang)
+                    break
+            elif (git_root / pattern).exists():
+                detected.append(lang)
+                break
+    # Don't duplicate: if typescript detected, don't also add javascript from package.json
+    if 'typescript' in detected and 'javascript' in detected:
+        detected.remove('javascript')
+    return detected
