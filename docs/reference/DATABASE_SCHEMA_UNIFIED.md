@@ -40,11 +40,12 @@ sessions (1) ──> (N) epistemic_snapshots
 cascades (1) ──> (N) bayesian_beliefs
 ```
 
-### 3a. Verification & Grounded Calibration (4 tables, v1.5.0)
+### 3a. Verification & Grounded Calibration (5 tables, v1.5.0+)
 - **grounded_beliefs** - Parallel to bayesian_beliefs but evidence-based (objective grounding)
 - **verification_evidence** - Raw objective evidence records per session
 - **grounded_verifications** - Per-session self-assessed vs grounded comparison results
 - **calibration_trajectory** - POSTFLIGHT-to-POSTFLIGHT tracking points for long-term calibration
+- **calibration_insights** - Systemic calibration patterns detected across verification history *(v1.5.10)*
 
 **Relationships:**
 ```
@@ -52,6 +53,7 @@ sessions (1) ──> (N) grounded_beliefs
 sessions (1) ──> (N) verification_evidence
 sessions (1) ──> (N) grounded_verifications
 sessions (1) ──> (N) calibration_trajectory
+sessions (1) ──> (N) calibration_insights
 ```
 
 ### 4. Goals & Tasks System (6 tables)
@@ -388,6 +390,24 @@ projects (1) ──> (N) auto_captured_issues
 - `timestamp` REAL NOT NULL
 
 > POSTFLIGHT-to-POSTFLIGHT trajectory points. Tracks how self-assessed vs grounded values evolve over time per vector, enabling long-term calibration trend analysis. Phase-aware: noetic trajectory (investigation calibration), praxic trajectory (action calibration). Used by dynamic thresholds to compute earned autonomy. Indexed on `(ai_id, vector_name, timestamp)` and `(ai_id, phase, vector_name, timestamp)`.
+
+#### `calibration_insights`
+**13 columns** *(v1.5.10)*
+- `insight_id` TEXT PRIMARY KEY
+- `session_id` TEXT
+- `transaction_id` TEXT
+- `vector` TEXT
+- `phase` TEXT *(noetic/praxic/both)*
+- `pattern` TEXT *(chronic_overestimate, chronic_underestimate, evidence_gap, phase_mismatch, volatile)*
+- `severity` REAL *(0.0-1.0)*
+- `description` TEXT
+- `suggestion` TEXT *(machine-readable improvement hint)*
+- `evidence_sources` TEXT *(JSON array)*
+- `observation_count` INTEGER
+- `acted_on` BOOLEAN DEFAULT FALSE
+- `created_at` REAL
+
+> Systemic calibration patterns detected by `CalibrationInsightsAnalyzer` across recent grounded verifications. Each insight identifies a recurring measurement issue (e.g., chronic overestimation of a vector, evidence gap for a phase) and suggests an improvement. The `acted_on` flag closes the feedback loop: when an insight leads to an actual improvement in evidence collection, mark it acted_on to track method improvement over time.
 
 ---
 

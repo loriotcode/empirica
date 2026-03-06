@@ -192,10 +192,18 @@ empirica source-add --title "..." --source-url "..." --source-type doc
 
 ---
 
-## CALIBRATION (Dual-Track)
+## CALIBRATION (Dual-Track, Phase-Weighted)
 
 **Track 1 (self-referential):** PREFLIGHT->POSTFLIGHT delta measures learning trajectory.
 **Track 2 (grounded):** POSTFLIGHT vs objective evidence measures calibration accuracy.
+
+**Phase-weighted holistic score:** Grounded calibration runs separately for noetic and
+praxic phases. The holistic score is weighted by actual tool distribution — a 90% noetic
+transaction weights noetic calibration at 0.9 and praxic at 0.1. This prevents pure
+research from being penalized on action-based metrics.
+
+POSTFLIGHT output includes `phase_weights`, `holistic_calibration_score`, `holistic_gaps`,
+and `insights[]` (systemic patterns: chronic bias, evidence gaps, phase mismatch, volatility).
 
 Bias corrections are computed automatically from your calibration history.
 Check `empirica calibration-report --grounded` to see your current biases.

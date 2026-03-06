@@ -1,8 +1,8 @@
 # Phase-Aware Calibration: Noetic vs Praxic Grounding
 
-**Status:** DESIGN SPEC
+**Status:** IMPLEMENTED (Phases 1-2 complete + phase-weighted holistic score + calibration insights loop)
 **Author:** David + Claude Code
-**Date:** 2026-02-10
+**Date:** 2026-02-10 (updated 2026-03-06)
 **Depends on:** Grounded Calibration (v1.5.0), Sentinel Architecture, CHECK Gate
 
 ---
@@ -166,35 +166,80 @@ Auto-tighten:          Calibration accuracy drops -> gates tighten automatically
 
 ---
 
-## Implementation Approach
+## Implementation Status
 
-### Phase 1: Split Evidence Collection
+### Phase 1: Split Evidence Collection -- COMPLETE (v1.5.1)
 
-Modify `postflight-submit` grounded verification to:
-1. Identify CHECK boundary timestamp(s) in the transaction
-2. Partition evidence into pre-CHECK (noetic) and post-CHECK (praxic)
-3. Compute separate divergence scores per phase
-4. Store both tracks in `grounded_calibration` with phase labels
+- `detect_phase_boundary()` finds CHECK proceed timestamp
+- `PostTestCollector(phase="noetic"|"praxic")` filters evidence by `check_timestamp`
+- `EvidenceMapper.map_evidence(phase=...)` returns phase-tagged `GroundedAssessment`
+- `grounded_beliefs` and `grounded_verifications` tables have `phase` column
+- `run_grounded_verification()` runs separate noetic + praxic passes
 
-**Key change:** `calibration_score` becomes `noetic_calibration_score` + `praxic_calibration_score`.
+### Phase 2: Noetic Evidence Sources -- COMPLETE (v1.5.1)
 
-### Phase 2: Noetic Evidence Sources
+Noetic-specific evidence collected pre-CHECK:
+- Unknowns surfaced (epistemic honesty)
+- Dead-ends identified (pattern recognition)
+- Investigation findings (knowledge depth)
+- CHECK iterations (investigate decisions counted)
+- Source consultation quality
 
-Add evidence collectors for the noetic phase:
-- Query count from Qdrant (already logged in pattern_retrieval)
-- File examination count from session (instrument via hooks)
-- Unknowns/findings ratio (already in artifacts)
-- Coverage metric: collections queried / collections available
-- Dead-end avoidance: pattern-check calls during noetic phase
+### Phase 2.5: Phase-Weighted Holistic Score -- COMPLETE (v1.5.9+)
 
-### Phase 3: Dynamic Thresholds
+The Sentinel now splits tool counts into `noetic_tool_calls` and `praxic_tool_calls`
+based on existing tool classification (NOETIC_TOOLS set + safe bash detection).
+
+At POSTFLIGHT, the holistic calibration score is computed as a weighted average:
+
+```
+holistic_score = noetic_weight * noetic_calibration + praxic_weight * praxic_calibration
+```
+
+Where weights are derived from tool call distribution:
+- 95% noetic tools -> noetic_weight=0.9, praxic_weight=0.1 (floor applied)
+- 50/50 split -> equal weights
+- noetic_only transaction -> 100% noetic weight
+
+Floor: any phase with evidence gets minimum 0.1 weight to prevent complete zeroing.
+
+**POSTFLIGHT output now includes:**
+```json
+{
+  "phase_weights": {"noetic": 0.92, "praxic": 0.08, "source": "tool_classification"},
+  "holistic_calibration_score": 0.15,
+  "holistic_gaps": {"know": 0.12, "signal": 0.08}
+}
+```
+
+### Phase 2.6: Calibration Insights Loop -- COMPLETE (v1.5.9+)
+
+New `CalibrationInsightsAnalyzer` detects systemic patterns across verification history:
+
+| Pattern | Detection | Suggestion |
+|---------|-----------|------------|
+| **chronic_overestimate** | Same vector overestimated in >70% of records | Reduce self-assessment |
+| **chronic_underestimate** | Same vector underestimated in >70% of records | Increase self-assessment |
+| **evidence_gap** | Vector has evidence in <30% of verifications | Add evidence source |
+| **phase_mismatch** | Gap >2x larger in one phase than the other | Phase evidence imbalance |
+| **volatile** | Gap direction flips in >50% of consecutive pairs | Stabilize evidence |
+
+Insights are:
+- Stored in `calibration_insights` table (with `acted_on` flag for closing the loop)
+- Exported to `.breadcrumbs.yaml` for session-start injection
+- Included in POSTFLIGHT output as `insights[]`
+
+This creates a feedback loop: each calibration cycle identifies where evidence
+collection is weak, which informs improvements to the collection methods themselves.
+
+### Phase 3: Dynamic Thresholds -- PENDING
 
 - Add `calibration_trajectory` per-phase tracking
 - Sentinel reads phase-specific calibration history
 - Threshold computation at PREFLIGHT (for CHECK gate) and CHECK (for action gate)
 - Safety floors hardcoded, not adjustable by calibration
 
-### Phase 4: Domain-Scoped Autonomy
+### Phase 4: Domain-Scoped Autonomy -- PENDING
 
 - Tag calibration records with domain (from finding subjects)
 - Per-domain threshold computation

@@ -5,6 +5,13 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.10] - 2026-03-06
+
+### Added
+- **Phase-Weighted Holistic Calibration** - Sentinel splits tool counts into `noetic_tool_calls` / `praxic_tool_calls`. POSTFLIGHT computes holistic calibration score weighted by actual phase distribution. Pure research transactions no longer penalized on praxic grounding.
+- **Calibration Insights Loop** - New `CalibrationInsightsAnalyzer` detects systemic patterns (chronic bias, evidence gaps, phase mismatch, volatile vectors) across verification history. Insights stored in `calibration_insights` table and exported to `.breadcrumbs.yaml`.
+- **Web Evidence Profile** - New `WebEvidenceCollector` with 5 evidence sources: build verification, HTML validation, link integrity, terminology consistency, asset verification.
+
 ## [1.5.6] - 2026-02-22
 
 ### Added
