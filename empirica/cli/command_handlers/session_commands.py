@@ -9,6 +9,7 @@ Provides commands for:
 
 import json
 import logging
+import os
 from datetime import datetime
 from ..cli_utils import handle_cli_error, print_header
 
@@ -901,7 +902,7 @@ def handle_transaction_adopt_command(args):
 
     # Step 2: Update instance_projects mapping
     instance_projects_dir = Path.home() / '.empirica' / 'instance_projects'
-    instance_projects_dir.mkdir(parents=True, exist_ok=True)
+    instance_projects_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 
     to_instance_file = instance_projects_dir / f'{to_instance}.json'
     try:
@@ -912,6 +913,7 @@ def handle_transaction_adopt_command(args):
         }
         with open(to_instance_file, 'w') as f:
             json.dump(instance_data, f, indent=2)
+        os.chmod(to_instance_file, 0o600)
         result["actions"].append(f"Updated: {to_instance_file}")
     except Exception as e:
         result["warning"] = f"Failed to update instance_projects: {e}"

@@ -181,7 +181,7 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
     try:
         instance_id = get_instance_id()
         instance_dir = Path.home() / '.empirica' / 'instance_projects'
-        instance_dir.mkdir(parents=True, exist_ok=True)
+        instance_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         instance_file = instance_dir / f'{instance_id}.json'
 
         # Get TTY key if available
@@ -202,6 +202,7 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
         }
         with open(instance_file, 'w') as f:
             json.dump(instance_data, f, indent=2)
+        os.chmod(instance_file, 0o600)
 
         # Write session-specific active_work file (with claude_session_id suffix if available)
         if claude_session_id:
@@ -221,6 +222,7 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
         }
         with open(active_work_file, 'w') as f:
             json.dump(active_work_data, f, indent=2)
+        os.chmod(active_work_file, 0o600)
 
         # Also write claude_session_id to TTY session file if available.
         # CLI commands (session-create) write TTY session but WITHOUT claude_session_id
@@ -228,7 +230,7 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
         # Without this, project-switch via Bash tool can't reverse-lookup instance_id.
         if tty_key and claude_session_id:
             tty_sessions_dir = Path.home() / '.empirica' / 'tty_sessions'
-            tty_sessions_dir.mkdir(parents=True, exist_ok=True)
+            tty_sessions_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
             tty_session_file = tty_sessions_dir / f'{tty_key}.json'
 
             # Read existing data (session-create may have written it already)
@@ -252,6 +254,7 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
 
             with open(tty_session_file, 'w') as f:
                 json.dump(tty_data, f, indent=2)
+            os.chmod(tty_session_file, 0o600)
 
         return True
     except Exception as e:

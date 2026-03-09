@@ -188,7 +188,7 @@ class StatuslineCache:
         self.project_path = project_path
 
         # Ensure cache directory exists
-        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        CACHE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
 
     @property
     def cache_file(self) -> Path:
@@ -219,6 +219,7 @@ class StatuslineCache:
                     json.dump(entry.to_dict(), f, indent=2)
                 finally:
                     _unlock_file(f)
+            os.chmod(self.cache_file, 0o600)
 
             return True
         except Exception:

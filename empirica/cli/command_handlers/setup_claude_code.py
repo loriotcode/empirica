@@ -28,7 +28,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 PLUGIN_NAME = "empirica-integration"
-PLUGIN_VERSION = "1.6.1"
+PLUGIN_VERSION = "1.6.2"
 
 
 def _find_python() -> str:
@@ -167,8 +167,8 @@ def handle_setup_claude_code_command(args):
         plugins_dir.mkdir(parents=True, exist_ok=True)
         marketplace_dir.mkdir(parents=True, exist_ok=True)
         empirica_dir.mkdir(parents=True, exist_ok=True)
-        (empirica_dir / "instance_projects").mkdir(exist_ok=True)
-        (empirica_dir / "statusline_cache").mkdir(exist_ok=True)
+        (empirica_dir / "instance_projects").mkdir(exist_ok=True, mode=0o700)
+        (empirica_dir / "statusline_cache").mkdir(exist_ok=True, mode=0o700)
 
         # Bootstrap active_work.json
         active_work_file = empirica_dir / "active_work.json"

@@ -115,12 +115,13 @@ def _write_active_work_for_new_conversation(
             }
             with open(active_work_file, 'w') as f:
                 json.dump(work_data, f, indent=2)
+            os.chmod(active_work_file, 0o600)
 
         # ALWAYS update instance_projects - instance_id isolation works even without claude_session_id
         # This is the primary isolation mechanism for multi-pane tmux setups
         if instance_id:
             instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
-            instance_file.parent.mkdir(parents=True, exist_ok=True)
+            instance_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             instance_data = {
                 'project_path': project_path,
                 'claude_session_id': claude_session_id,  # May be null, that's OK
@@ -129,6 +130,7 @@ def _write_active_work_for_new_conversation(
             }
             with open(instance_file, 'w') as f:
                 json.dump(instance_data, f, indent=2)
+            os.chmod(instance_file, 0o600)
 
         return True
     except Exception:

@@ -1310,6 +1310,7 @@ def update_active_context(
         # Atomic write
         with open(active_work_file, 'w') as f:
             json.dump(data, f, indent=2)
+        os.chmod(active_work_file, 0o600)
 
         logger.debug(f"update_active_context: updated {active_work_file.name}")
         return True
