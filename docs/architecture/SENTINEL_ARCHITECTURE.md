@@ -316,6 +316,61 @@ compliance = sentinel.check_compliance(
 )
 ```
 
+#### Additional Sentinel Methods
+
+##### `auto_orchestrate()`
+Full autonomous orchestration entry point. Combines loop tracking initialization, agent infrastructure wiring, and orchestration into a single call.
+
+```python
+result = sentinel.auto_orchestrate(
+    task="Review patient data handling",
+    max_agents=3,
+    merge_strategy=MergeStrategy.UNION,
+    scope_breadth=0.6,   # Higher = more loops expected
+    scope_duration=0.5
+)
+# Returns OrchestrationResult with loop_info attached
+```
+
+Internally: calls `init_loop_tracking()`, auto-wires agent infrastructure if not already connected, then delegates to `orchestrate(execute_agents=True)`.
+
+##### `from_goal()`
+Class method to create a pre-configured Sentinel from a goal's scope vectors.
+
+```python
+sentinel = Sentinel.from_goal(goal_id="abc123", session_id="sess456")
+# Reads scope_breadth, scope_duration, scope_coordination from goals table
+# Returns Sentinel with loop tracking initialized from goal scope
+```
+
+Useful when a goal already defines its scope — avoids manually specifying `scope_breadth`/`scope_duration`.
+
+##### `wire_agent_infrastructure()`
+Connects the Sentinel to Empirica's existing `agent-spawn`/`agent-aggregate` CLI infrastructure.
+
+```python
+sentinel.wire_agent_infrastructure()
+# Registers spawn_fn (via spawn_epistemic_agent) and aggregate_fn (via aggregate_branches)
+# Called automatically by auto_orchestrate() if not already wired
+```
+
+##### Compliance Gate Decision Priority
+
+When `check_compliance()` evaluates triggered gates, it applies a strict priority ordering:
+
+```
+HALT_AND_AUDIT  →  halt        (highest — stops everything)
+REQUIRE_HUMAN   →  require_human
+ESCALATE        →  escalate
+INVESTIGATE     →  investigate
+(no gates)      →  threshold check:
+                     uncertainty > trigger → investigate
+                     know ≥ confidence_to_proceed → proceed
+                     otherwise → investigate  (lowest)
+```
+
+The first matching priority level wins. If multiple gates trigger at different levels, the most severe action takes precedence.
+
 ---
 
 ## Integration with CASCADE
