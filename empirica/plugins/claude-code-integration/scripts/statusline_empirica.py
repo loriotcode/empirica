@@ -498,10 +498,15 @@ def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id:
                     _gas_inst_data = _json.load(f)
                 _gas_session_id = _gas_inst_data.get('empirica_session_id')
                 if _gas_session_id:
+                    # Trust instance_projects as authoritative — don't filter by
+                    # end_time IS NULL. The file is updated by SessionStart hooks
+                    # and project-switch, so it reflects the CURRENT instance state.
+                    # Filtering by end_time causes stale fallthrough when a session
+                    # was auto-closed but is still the instance's active session.
                     cursor.execute("""
                         SELECT session_id, ai_id, start_time
                         FROM sessions
-                        WHERE session_id = ? AND end_time IS NULL
+                        WHERE session_id = ?
                     """, (_gas_session_id,))
                     row = cursor.fetchone()
                     if row:
@@ -534,10 +539,11 @@ def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id:
                     pass
 
             if empirica_session_id:
+                # Same rationale as Priority 0: active_work file is authoritative.
                 cursor.execute("""
                     SELECT session_id, ai_id, start_time
                     FROM sessions
-                    WHERE session_id = ? AND end_time IS NULL
+                    WHERE session_id = ?
                 """, (empirica_session_id,))
                 row = cursor.fetchone()
                 if row:
