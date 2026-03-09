@@ -5,10 +5,12 @@
 The Sentinel is the gate controller of Empirica's cognitive architecture. It governs the transition between noetic (investigation) and praxic (action) phases, enforces compliance, and tracks epistemic transactions.
 
 **Related docs:**
+- [Sentinel Gate Reference](../reference/SENTINEL_GATE_REFERENCE.md) - Implementation reference for sentinel-gate.py (tool classification, decision flow, env vars)
+- [Sentinel Constitution](./SENTINEL_CONSTITUTION.md) - Governance principles for the measurement system
 - [NOETIC_PRAXIC_FRAMEWORK.md](./NOETIC_PRAXIC_FRAMEWORK.md) - The noetic/praxic phase framework
+- [Phase-Aware Calibration](./PHASE_AWARE_CALIBRATION.md) - How phase-split tool counts feed calibration
 - [CASCADE Workflow](../../plugins/claude-code-integration/skills/empirica-framework/references/cascade-workflow.md) - PREFLIGHT→CHECK→POSTFLIGHT phases
 - [CONFIGURATION_REFERENCE.md](../reference/CONFIGURATION_REFERENCE.md) - EMPIRICA_SENTINEL_LOOPING and autopilot settings
-- [Architecture README](./README.md) - System overview
 
 ## Philosophy
 
@@ -341,138 +343,31 @@ sentinel.start_loop()    sentinel.check_compliance()   sentinel.complete_loop() 
 
 ## Autonomy Calibration Loop
 
-The Sentinel implements an adaptive transaction scope feedback loop:
+The Sentinel tracks tool calls per transaction and nudges the agent toward natural POSTFLIGHT points using adaptive thresholds derived from past transaction history.
 
-### Three Touch Points
+Three-touch feedback loop: PREFLIGHT (computes avg_turns) → Sentinel (increments count, computes nudge) → POSTFLIGHT (records final count, closes loop).
 
-```
-PREFLIGHT                    Sentinel (each PreToolUse)          POSTFLIGHT
-    |                               |                                |
- Queries last 20             Increments tool_call_count        Records final count
- POSTFLIGHT reflex_data      Computes nudge ratio              in reflex_data
- → avg_turns                 = count / avg_turns               → closes feedback loop
-```
+Nudges are informational — the agent decides when to POSTFLIGHT based on work coherence, not thresholds.
 
-### Implementation Details
-
-**PREFLIGHT** (`workflow_commands.py`):
-- Queries `json_extract(reflex_data, '$.tool_call_count')` from last 20 POSTFLIGHTs
-- Computes mean → writes `avg_turns` to `active_transaction_{instance}.json`
-- First transaction has no history → `avg_turns = 0` (nudging disabled)
-
-**Sentinel** (`sentinel-gate.py`):
-- `_try_increment_tool_count()`: Reads transaction file, increments `tool_call_count`, atomic write-back via tmpfile+rename
-- `_compute_nudge()`: Computes `ratio = count / avg_turns`, returns threshold message
-- Nudge appended to `permissionDecisionReason` on allow decisions
-- `suppressOutput` set to `False` when nudge active (ensures user sees it)
-
-**POSTFLIGHT** (`workflow_commands.py`):
-- Reads `tool_call_count` and `avg_turns` from transaction file
-- Stores both in `reflex_data` checkpoint metadata
-- This data feeds the NEXT transaction's PREFLIGHT avg calculation
-
-### Nudge Thresholds
-
-| Ratio | Level | Behavior |
-|-------|-------|----------|
-| < 1.0x | None | Silent pass-through |
-| >= 1.0x | Info | "Past average. Natural POSTFLIGHT point." |
-| >= 1.5x | Warning | "Consider POSTFLIGHT soon." |
-| >= 2.0x | Strong | "POSTFLIGHT strongly recommended." |
-
-### Design Rationale
-
-- **Informational, not forced:** The agent decides when to POSTFLIGHT. Forcing closure
-  at arbitrary points produces incoherent transactions with meaningless deltas.
-- **Adaptive to working style:** avg_turns converges to the agent's actual pattern.
-  A thorough researcher will have higher avg_turns than a quick fixer.
-- **Includes delegated work:** Subagent tool calls are added to parent's count,
-  preventing budget evasion via delegation.
+> **Full details:** [Sentinel Gate Reference](../reference/SENTINEL_GATE_REFERENCE.md#autonomy-calibration-loop)
 
 ---
 
 ## Subagent CASCADE Exemption
 
-Subagents (spawned via Claude Code's Task tool) are exempt from Sentinel gating.
+Subagents bypass Sentinel gating. Detection: no `active_work_{session_id}.json` exists for the subagent's Claude session ID. Rationale: the parent's CHECK already authorized the spawn; double-gating is redundant.
 
-### Detection Mechanism
+Subagent tool calls are counted post-hoc via SubagentStop and added to the parent's `delegated_tool_calls`.
 
-```python
-# In sentinel-gate.py main(), before main processing:
-claude_session_id = hook_input.get('session_id')
-for aw_file in (~/.empirica/).glob('active_work_*.json'):
-    if aw_file.stem.replace('active_work_', '') == claude_session_id:
-        is_known_session = True
-        break
-if not is_known_session:
-    respond("allow", "Subagent exemption")
-    sys.exit(0)
-```
-
-**Logic:** Parent sessions always have an `active_work_{session_id}.json` file
-(written by session-init hook). Subagents have different Claude session IDs
-and no active_work file → they're detected and exempted.
-
-### Rationale
-
-1. The parent's CHECK already authorized the spawn
-2. Subagents don't have their own PREFLIGHT/CHECK state
-3. Double-gating would block all subagent tool use
-4. Subagents are bounded by `maxTurns` and attention budget instead
-
-### Tool Count Isolation
-
-Subagent tool calls are NOT counted in the Sentinel's per-PreToolUse increment.
-Instead, SubagentStop aggregates the count post-hoc and adds it to the parent's
-`delegated_tool_calls`. This prevents double-counting.
+> **Full details:** [Sentinel Gate Reference](../reference/SENTINEL_GATE_REFERENCE.md#subagent-exemption)
 
 ---
 
 ## Claude Code Hook Integration
 
-The Sentinel also integrates with Claude Code via a PreToolUse hook that gates praxic tools (Edit, Write, certain Bash commands).
+The Sentinel integrates with Claude Code via a `PreToolUse` hook (`sentinel-gate.py`) that classifies all tool calls as noetic or praxic and gates praxic actions.
 
-### Hook: sentinel-gate.py
-
-Location: `plugins/claude-code-integration/hooks/sentinel-gate.py`
-
-**Behavior:**
-1. Intercepts Edit, Write, and non-read-only Bash commands
-2. Checks for valid CHECK with `decision="proceed"`
-3. Blocks if no CHECK or CHECK returned "investigate"
-4. Validates vector thresholds (know >= 0.70, uncertainty <= 0.35)
-
-**Environment Variables:**
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EMPIRICA_SENTINEL_LOOPING` | `true` | Set to `false` to disable Sentinel gating entirely (env var fallback) |
-| `EMPIRICA_SENTINEL_CHECK_EXPIRY` | `false` | Set to `true` to enable 30-minute CHECK expiry |
-
-**File-based control (preferred):** `~/.empirica/sentinel_enabled` — write `true` or `false`.
-Takes priority over the env var and is dynamically settable without session restart.
-The AI can toggle this at runtime; env vars require restarting the terminal/session.
-
-**Note on CHECK Expiry:** The age-based expiry is disabled by default because users may pause work and resume later. Wall-clock time doesn't reflect actual session activity. Enable with caution.
-
-### hooks.json Configuration
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [{
-          "type": "command",
-          "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/sentinel-gate.py",
-          "timeout": 10
-        }]
-      }
-    ]
-  }
-}
-```
+> **Full implementation reference:** [Sentinel Gate Reference](../reference/SENTINEL_GATE_REFERENCE.md) — covers decision flow, tool classification, safe command lists, anti-gaming protections, environment variables, and response format.
 
 ---
 
