@@ -1,8 +1,8 @@
 # Phase-Aware Calibration: Noetic vs Praxic Grounding
 
-**Status:** IMPLEMENTED (Phases 1-2 complete + phase-weighted holistic score + calibration insights loop)
+**Status:** IMPLEMENTED (Phases 1-2.8 complete + phase-weighted holistic score + calibration insights loop + actionable feedback)
 **Author:** David + Claude Code
-**Date:** 2026-02-10 (updated 2026-03-06)
+**Date:** 2026-02-10 (updated 2026-03-09)
 **Depends on:** Grounded Calibration (v1.5.0), Sentinel Architecture, CHECK Gate
 
 ---
@@ -168,13 +168,19 @@ Auto-tighten:          Calibration accuracy drops -> gates tighten automatically
 
 ## Implementation Status
 
-### Phase 1: Split Evidence Collection -- COMPLETE (v1.5.1)
+### Phase 1: Split Evidence Collection -- COMPLETE (v1.5.1, updated v1.6.1)
 
 - `detect_phase_boundary()` finds CHECK proceed timestamp
 - `PostTestCollector(phase="noetic"|"praxic")` filters evidence by `check_timestamp`
 - `EvidenceMapper.map_evidence(phase=...)` returns phase-tagged `GroundedAssessment`
 - `grounded_beliefs` and `grounded_verifications` tables have `phase` column
 - `run_grounded_verification()` runs separate noetic + praxic passes
+- **Profile-specific collectors excluded from noetic phase** (v1.6.1): Code quality (ruff,
+  radon, pyright), test results (pytest), git metrics, prose metrics, and web metrics only
+  run during praxic or combined phases. Noetic grounding uses only epistemic process evidence
+  (artifact counts, investigation thoroughness, sentinel decisions). This prevents
+  deterministic output-quality metrics from conflating noetic calibration — a principle that
+  applies across all domains, not just software engineering.
 
 ### Phase 2: Noetic Evidence Sources -- COMPLETE (v1.5.1)
 
@@ -231,6 +237,29 @@ Insights are:
 
 This creates a feedback loop: each calibration cycle identifies where evidence
 collection is weak, which informs improvements to the collection methods themselves.
+
+### Phase 2.8: Actionable PREFLIGHT Feedback -- COMPLETE (v1.6.1)
+
+PREFLIGHT now includes `suggested_ranges` in `previous_transaction_feedback`. For each
+vector with a significant gap (|gap| > 0.1), the system computes a suggested range
+from the grounded posterior mean ± 1 standard deviation:
+
+```json
+{
+  "previous_transaction_feedback": {
+    "significant_gaps": {"know": 0.348, "signal": -0.129},
+    "suggested_ranges": {
+      "know": {"grounded_mean": 0.77, "suggest_low": 0.75, "suggest_high": 0.78},
+      "signal": {"grounded_mean": 0.85, "suggest_low": 0.83, "suggest_high": 0.87}
+    },
+    "note": "Use suggested_ranges to calibrate your next self-assessment."
+  }
+}
+```
+
+Requires >= 3 grounded observations per vector before suggesting ranges (avoids
+premature suggestions from sparse data). Range narrows as evidence accumulates —
+this is correct Bayesian behavior, not a bug.
 
 ### Phase 3: Dynamic Thresholds -- PENDING
 
