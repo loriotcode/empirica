@@ -243,6 +243,7 @@ def handle_preflight_submit_command(args):
             vectors = validated.vectors
             reasoning = validated.reasoning or ''
             task_context = validated.task_context or ''
+            work_context = getattr(validated, 'work_context', None)
             output_format = 'json'  # AI-first always uses JSON output
         else:
             # LEGACY MODE: Use CLI flags
@@ -250,6 +251,7 @@ def handle_preflight_submit_command(args):
             vectors = parse_json_safely(args.vectors) if isinstance(args.vectors, str) else args.vectors
             reasoning = args.reasoning
             task_context = getattr(args, 'task_context', '') or ''  # For pattern retrieval
+            work_context = None  # Legacy mode doesn't support work_context
             output_format = getattr(args, 'output', 'json')  # Default to JSON
 
             # Validate required fields for legacy mode
@@ -358,6 +360,21 @@ def handle_preflight_submit_command(args):
                         status="open",
                         project_path=resolved_project_path
                     )
+
+                    # Inject work_context into transaction file if provided
+                    if work_context:
+                        try:
+                            from empirica.utils.session_resolver import read_active_transaction_full, _get_instance_suffix
+                            suffix = _get_instance_suffix()
+                            tx_file = Path(resolved_project_path) / '.empirica' / f'active_transaction{suffix}.json'
+                            if tx_file.exists():
+                                with open(tx_file, 'r') as f:
+                                    tx_d = _json.load(f)
+                                tx_d['work_context'] = work_context
+                                with open(tx_file, 'w') as f:
+                                    _json.dump(tx_d, f, indent=2)
+                        except Exception:
+                            pass  # Non-fatal
 
                     # CRITICAL: Update active context with the session_id used by PREFLIGHT
                     # This ensures sentinel reads the SAME session_id that PREFLIGHT wrote to
@@ -1957,6 +1974,7 @@ def handle_postflight_submit_command(args):
             postflight_avg_turns = 0
             postflight_phase_tool_counts = None
             postflight_context_shifts = {'solicited_prompts': 0, 'unsolicited_prompts': 0}
+            postflight_work_context = None
             try:
                 import time
                 from empirica.utils.session_resolver import write_active_transaction, get_active_project_path
@@ -1996,6 +2014,8 @@ def handle_postflight_submit_command(args):
                         'solicited_prompts': tx_data.get('solicited_prompt_count', 0),
                         'unsolicited_prompts': tx_data.get('unsolicited_prompt_count', 0),
                     }
+                    # Work context for maturity-aware normalization
+                    postflight_work_context = tx_data.get('work_context')
                     # Update to closed status - preserve project_path from transaction
                     write_active_transaction(
                         transaction_id=postflight_transaction_id,
@@ -2142,6 +2162,7 @@ def handle_postflight_submit_command(args):
                     phase_boundary=phase_boundary,
                     evidence_profile=evidence_profile,
                     phase_tool_counts=postflight_phase_tool_counts,
+                    work_context=postflight_work_context,
                 )
 
                 if grounded_verification:

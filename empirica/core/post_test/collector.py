@@ -125,16 +125,19 @@ class PostTestCollector:
     def __init__(self, session_id: str, project_id: Optional[str] = None,
                  db=None, phase: str = "combined",
                  check_timestamp: Optional[float] = None,
-                 evidence_profile: Optional[str] = None):
+                 evidence_profile: Optional[str] = None,
+                 work_context: Optional[str] = None):
         self.session_id = session_id
         self.project_id = project_id
         self.phase = phase  # "noetic", "praxic", or "combined"
         self.check_timestamp = check_timestamp  # CHECK boundary timestamp
         self.evidence_profile = evidence_profile
+        self.work_context = work_context  # greenfield|iteration|investigation|refactor
         self._db = db
         self._owns_db = False
         self._session_goal_ids: Optional[List[str]] = None
         self._project_root: Optional[str] = None  # Lazy-resolved
+        self._project_maturity: Optional[Dict[str, Any]] = None  # Lazy-resolved
 
     def _get_db(self):
         if self._db is None:
@@ -233,6 +236,61 @@ class PostTestCollector:
             pass
 
         return None
+
+    def _detect_project_maturity(self) -> Dict[str, Any]:
+        """Detect project maturity from git history for normalization curve selection.
+
+        Returns cached dict with:
+        - total_commits: int — total commits in repo history
+        - is_greenfield: bool — ≤3 prior commits (new project)
+        - is_young: bool — <10 commits
+        - maturity: str — "greenfield" | "young" | "mature"
+
+        Used by _collect_git_metrics and _collect_issue_metrics to adjust
+        normalization divisors. A root commit creating 8 files is maximal change,
+        not 0.2 change.
+        """
+        if self._project_maturity is not None:
+            return self._project_maturity
+
+        # Default: assume mature (current behavior)
+        result = {"total_commits": 100, "is_greenfield": False,
+                  "is_young": False, "maturity": "mature"}
+
+        # work_context override: if explicitly set to greenfield, trust it
+        if self.work_context == "greenfield":
+            result.update({"total_commits": 1, "is_greenfield": True,
+                           "is_young": True, "maturity": "greenfield"})
+            self._project_maturity = result
+            return result
+
+        project_root = self._resolve_project_root()
+        if not project_root:
+            self._project_maturity = result
+            return result
+
+        try:
+            proc = subprocess.run(
+                ["git", "rev-list", "--count", "HEAD"],
+                capture_output=True, text=True, timeout=5,
+                cwd=project_root,
+            )
+            if proc.returncode == 0:
+                total = int(proc.stdout.strip())
+                result["total_commits"] = total
+                result["is_greenfield"] = total <= 3
+                result["is_young"] = total < 10
+                if total <= 3:
+                    result["maturity"] = "greenfield"
+                elif total < 10:
+                    result["maturity"] = "young"
+                else:
+                    result["maturity"] = "mature"
+        except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+            pass
+
+        self._project_maturity = result
+        return result
 
     def _get_prose_collectors(self) -> List[tuple]:
         """Get prose-specific evidence collectors."""
@@ -496,6 +554,33 @@ class PostTestCollector:
                 metadata={"session_id": self.session_id},
             ))
 
+            # Goal completion also grounds impact and change:
+            # completing goals = delivering impact, creating change
+            if completed > 0:
+                # Impact: completing any goals shows delivered value
+                impact_score = min(1.0, ratio * 1.2)  # Boost slightly — completion is strong impact signal
+                items.append(EvidenceItem(
+                    source="goals",
+                    metric_name="goal_completion_impact",
+                    value=impact_score,
+                    raw_value={"completed": completed, "total": total},
+                    quality=EvidenceQuality.SEMI_OBJECTIVE,
+                    supports_vectors=["impact"],
+                    metadata={"session_id": self.session_id},
+                ))
+
+                # Change: completed goals = state change happened
+                change_score = ratio  # Direct ratio — completing half the goals = 0.5 change
+                items.append(EvidenceItem(
+                    source="goals",
+                    metric_name="goal_completion_change",
+                    value=change_score,
+                    raw_value={"completed": completed, "total": total},
+                    quality=EvidenceQuality.SEMI_OBJECTIVE,
+                    supports_vectors=["change"],
+                    metadata={"session_id": self.session_id},
+                ))
+
         # Token estimation accuracy (estimated vs actual)
         cursor.execute("""
             SELECT
@@ -722,7 +807,12 @@ class PostTestCollector:
         return items
 
     def _collect_issue_metrics(self) -> List[EvidenceItem]:
-        """Collect auto-captured issues for this session."""
+        """Collect auto-captured issues for this session.
+
+        Maturity-aware: greenfield projects with zero issues produce no evidence
+        rather than a floored 0.2, because absence of issues in a new project
+        is not meaningful signal for impact.
+        """
         items = []
         db = self._get_db()
         cursor = db.conn.cursor()
@@ -770,6 +860,20 @@ class PostTestCollector:
                 quality=EvidenceQuality.SEMI_OBJECTIVE,
                 supports_vectors=["signal"],
             ))
+        else:
+            # No issues at all — only provide evidence for mature projects
+            # where zero issues is meaningful. For greenfield/young projects,
+            # absence of issues is not informative (no code to have issues with).
+            maturity = self._detect_project_maturity()
+            if not maturity["is_greenfield"] and not maturity["is_young"]:
+                items.append(EvidenceItem(
+                    source="issues",
+                    metric_name="issue_resolution_ratio",
+                    value=1.0,
+                    raw_value={"resolved": 0, "total": 0, "note": "no issues in mature project"},
+                    quality=EvidenceQuality.INFERRED,
+                    supports_vectors=["impact"],
+                ))
 
         return items
 
@@ -898,9 +1002,17 @@ class PostTestCollector:
         return items
 
     def _collect_git_metrics(self) -> List[EvidenceItem]:
-        """Collect git-based metrics for this session's timeframe."""
+        """Collect git-based metrics for this session's timeframe.
+
+        Maturity-aware normalization:
+        - Greenfield (≤3 commits): any commit with file creation = high change/do.
+          A root commit creating N files is maximal change, not commit_count/5.0.
+        - Young (<10 commits): file creation weighted higher than commit count.
+        - Mature (10+): standard divisors (commit/5, files/10).
+        """
         items = []
         project_root = self._resolve_project_root()
+        maturity = self._detect_project_maturity()
 
         # Get session start time for git log filtering
         db = self._get_db()
@@ -926,18 +1038,28 @@ class PostTestCollector:
                 commit_count = len(commits)
 
                 if commit_count > 0:
-                    # Normalize: 1-2 commits = 0.5, 5+ = 1.0
-                    do_score = min(1.0, commit_count / 5.0)
+                    # Maturity-aware normalization for commit count
+                    if maturity["is_greenfield"]:
+                        # Greenfield: any commits = high do/change
+                        do_score = min(1.0, commit_count / 2.0)
+                    elif maturity["is_young"]:
+                        # Young: lower divisor
+                        do_score = min(1.0, commit_count / 3.0)
+                    else:
+                        # Mature: standard
+                        do_score = min(1.0, commit_count / 5.0)
+
                     items.append(EvidenceItem(
                         source="git",
                         metric_name="commit_count",
                         value=do_score,
-                        raw_value={"commits": commit_count},
+                        raw_value={"commits": commit_count,
+                                   "maturity": maturity["maturity"]},
                         quality=EvidenceQuality.OBJECTIVE,
                         supports_vectors=["do", "change"],
                     ))
 
-            # Count lines changed (stat)
+            # Count files changed (stat)
             result = subprocess.run(
                 ["git", "diff", "--stat", "--shortstat", "HEAD~3..HEAD"],
                 capture_output=True, text=True, timeout=5,
@@ -950,13 +1072,24 @@ class PostTestCollector:
                 files_match = re.search(r'(\d+) files? changed', stat_line)
                 if files_match:
                     files_changed = int(files_match.group(1))
-                    # Normalize: 1-3 files = 0.3, 10+ = 1.0
-                    state_score = min(1.0, files_changed / 10.0)
+
+                    # Maturity-aware normalization for files changed
+                    if maturity["is_greenfield"]:
+                        # Greenfield: 3+ files = 1.0 (creating a project)
+                        state_score = min(1.0, files_changed / 3.0)
+                    elif maturity["is_young"]:
+                        # Young: 5+ files = 1.0
+                        state_score = min(1.0, files_changed / 5.0)
+                    else:
+                        # Mature: standard
+                        state_score = min(1.0, files_changed / 10.0)
+
                     items.append(EvidenceItem(
                         source="git",
                         metric_name="files_changed",
                         value=state_score,
-                        raw_value={"files": files_changed},
+                        raw_value={"files": files_changed,
+                                   "maturity": maturity["maturity"]},
                         quality=EvidenceQuality.OBJECTIVE,
                         supports_vectors=["state", "change"],
                     ))
