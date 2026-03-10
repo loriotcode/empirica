@@ -119,3 +119,28 @@ Use --learning-trajectory to see PREFLIGHT→POSTFLIGHT deltas (learning, not ca
         help='Show learning trajectory (PREFLIGHT→POSTFLIGHT deltas) - NOT calibration')
     calibration_parser.add_argument('--trajectory', action='store_true',
         help='Show calibration trend over time (closing/widening/stable)')
+
+    # Calibration dispute command - AI pushback on measurement artifacts
+    dispute_parser = subparsers.add_parser('calibration-dispute',
+        help='Dispute a grounded calibration measurement as a measurement artifact',
+        description="""
+File a dispute when grounded calibration reports a gap that's a measurement bug,
+not a real overestimate. Example: greenfield project getting change=0.2 when creating
+an entire repo from scratch.
+
+Disputes are stored in SQLite and flagged in subsequent calibration reports.
+        """)
+    dispute_parser.add_argument('--vector', required=True,
+        help='Vector name to dispute (e.g., change, impact, do)')
+    dispute_parser.add_argument('--reported', type=float, required=True,
+        help='The grounded value reported by post-test (e.g., 0.2)')
+    dispute_parser.add_argument('--expected', type=float, required=True,
+        help='The value you believe is correct (e.g., 0.85)')
+    dispute_parser.add_argument('--reason', required=True,
+        help='Why this measurement is wrong (e.g., "Greenfield repo, normalization inappropriate")')
+    dispute_parser.add_argument('--evidence', default='',
+        help='Supporting evidence (e.g., "git log --stat shows 8 files created")')
+    dispute_parser.add_argument('--session-id',
+        help='Session to dispute (default: active session)')
+    dispute_parser.add_argument('--output', choices=['human', 'json'], default='json',
+        help='Output format (default: json)')

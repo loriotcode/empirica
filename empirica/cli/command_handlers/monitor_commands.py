@@ -1743,3 +1743,103 @@ def handle_system_status_command(args):
 
     except Exception as e:
         handle_cli_error(e, "System Status", getattr(args, 'verbose', False))
+
+
+def handle_calibration_dispute_command(args):
+    """Handle calibration-dispute command — AI pushback on measurement artifacts.
+
+    When grounded calibration reports a gap that's a measurement bug (not a real
+    overestimate), the AI files a dispute. Disputes are stored in SQLite and
+    flagged in subsequent calibration reports.
+    """
+    import json
+    import sys
+    import uuid
+    import time
+
+    try:
+        from empirica.data.session_database import SessionDatabase
+        from empirica.utils.session_resolver import get_active_empirica_session_id
+
+        vector = args.vector
+        reported = args.reported
+        expected = args.expected
+        reason = args.reason
+        evidence = getattr(args, 'evidence', None) or ''
+        output_format = getattr(args, 'output', 'json')
+
+        # Validate vector name
+        valid_vectors = {'know', 'uncertainty', 'context', 'engagement', 'clarity',
+                         'coherence', 'signal', 'density', 'state', 'change',
+                         'completion', 'impact', 'do'}
+        if vector not in valid_vectors:
+            result = {"ok": False, "error": f"Invalid vector: {vector}. Must be one of: {', '.join(sorted(valid_vectors))}"}
+            print(json.dumps(result))
+            sys.exit(1)
+
+        # Resolve session
+        session_id = getattr(args, 'session_id', None)
+        if not session_id:
+            session_id = get_active_empirica_session_id()
+        if not session_id:
+            result = {"ok": False, "error": "No active session. Use --session-id or start a session first."}
+            print(json.dumps(result))
+            sys.exit(1)
+
+        # Read work_context from active transaction if available
+        work_context = None
+        try:
+            from empirica.utils.session_resolver import get_active_project_path
+            from empirica.core.statusline_cache import get_instance_id
+            from pathlib import Path
+            instance_id = get_instance_id()
+            suffix = f"_{instance_id}" if instance_id else ""
+            project_path = get_active_project_path()
+            if project_path:
+                tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
+                if tx_file.exists():
+                    with open(tx_file) as f:
+                        tx = json.load(f)
+                    work_context = tx.get('work_context')
+        except Exception:
+            pass
+
+        # Store the dispute
+        db = SessionDatabase()
+        dispute_id = str(uuid.uuid4())
+        db.conn.execute("""
+            INSERT INTO calibration_disputes
+                (dispute_id, session_id, vector, reported_value, expected_value,
+                 reason, evidence, work_context, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)
+        """, (dispute_id, session_id, vector, reported, expected,
+              reason, evidence, work_context, time.time()))
+        db.conn.commit()
+        db.close()
+
+        result = {
+            "ok": True,
+            "dispute_id": dispute_id,
+            "vector": vector,
+            "reported": reported,
+            "expected": expected,
+            "reason": reason,
+            "work_context": work_context,
+        }
+
+        if output_format == 'json':
+            print(json.dumps(result, indent=2))
+        else:
+            gap = abs(reported - expected)
+            print(f"Dispute filed: {vector}")
+            print(f"  Reported (grounded): {reported:.2f}")
+            print(f"  Expected (actual):   {expected:.2f}")
+            print(f"  Gap:                 {gap:.2f}")
+            print(f"  Reason: {reason}")
+            if work_context:
+                print(f"  Context: {work_context}")
+            print(f"  ID: {dispute_id[:8]}...")
+
+    except Exception as e:
+        print(json.dumps({"ok": False, "error": str(e)}))
+        sys.exit(1)

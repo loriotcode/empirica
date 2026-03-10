@@ -1067,6 +1067,35 @@ def migration_031_phase_aware_calibration(cursor: sqlite3.Cursor):
     logger.info("✅ Migration 031 complete: Phase-aware calibration columns added")
 
 
+def migration_032_calibration_disputes(cursor: sqlite3.Cursor):
+    """Add calibration_disputes table for AI pushback on measurement artifacts."""
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS calibration_disputes (
+            dispute_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            vector TEXT NOT NULL,
+            reported_value REAL NOT NULL,
+            expected_value REAL NOT NULL,
+            reason TEXT NOT NULL,
+            evidence TEXT,
+            work_context TEXT,
+            status TEXT DEFAULT 'open',
+            resolution TEXT,
+            created_at REAL DEFAULT (strftime('%s', 'now')),
+            FOREIGN KEY (session_id) REFERENCES sessions(session_id)
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_calibration_disputes_session
+            ON calibration_disputes(session_id)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_calibration_disputes_vector_status
+            ON calibration_disputes(vector, status)
+    """)
+    logger.info("✅ Migration 032 complete: calibration_disputes table created")
+
+
 ALL_MIGRATIONS: List[Tuple[str, str, Callable]] = [
     ("001_cascade_workflow_columns", "Add CASCADE workflow tracking to cascades", migration_001_cascade_workflow_columns),
     ("002_epistemic_delta", "Add epistemic delta JSON to cascades", migration_002_epistemic_delta),
@@ -1099,4 +1128,5 @@ ALL_MIGRATIONS: List[Tuple[str, str, Callable]] = [
     ("029_goals_transaction_index", "Add index on goals.transaction_id for transaction-scoped queries", migration_029_goals_transaction_index),
     ("030_entity_agnostic_intent_layer", "Add entity_type/entity_id to artifact tables, assumptions and decisions tables (v0.6.0)", migration_030_entity_agnostic_intent_layer),
     ("031_phase_aware_calibration", "Add phase column to grounded verification tables for noetic/praxic calibration split", migration_031_phase_aware_calibration),
+    ("032_calibration_disputes", "Add calibration_disputes table for AI pushback on measurement artifacts", migration_032_calibration_disputes),
 ]
