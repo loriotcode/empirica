@@ -124,3 +124,8 @@ from empirica.core.qdrant.decay import (  # noqa: F401
     apply_staleness_signal,
     update_assumption_urgency,
 )
+
+# --- Rebuild from DB ---
+from empirica.core.qdrant.rebuild import (  # noqa: F401
+    rebuild_qdrant_from_db,
+)
