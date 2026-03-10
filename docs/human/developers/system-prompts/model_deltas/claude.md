@@ -1,4 +1,4 @@
-# Claude Model Delta - v1.6.1
+# Claude Model Delta - v1.6.2
 
 **Applies to:** Claude (all versions)
 **Last Updated:** 2026-02-21

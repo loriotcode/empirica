@@ -1,4 +1,4 @@
-# Qwen Model Delta - v1.6.1
+# Qwen Model Delta - v1.6.2
 
 **Applies to:** Qwen (all versions)
 **Last Updated:** 2026-02-21

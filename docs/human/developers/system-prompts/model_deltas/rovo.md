@@ -1,4 +1,4 @@
-# Rovo Model Delta - v1.6.1
+# Rovo Model Delta - v1.6.2
 
 **Applies to:** Atlassian Rovo
 **Last Updated:** 2026-02-21
