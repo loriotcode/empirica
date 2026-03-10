@@ -478,6 +478,20 @@ def add_checkpoint_parsers(subparsers):
     unknown_resolve_parser.add_argument('--output', choices=['human', 'json'], default='json', help='Output format (default: json)')
     unknown_resolve_parser.add_argument('--verbose', action='store_true', help='Show detailed operation info')
 
+    # Unknown list command
+    unknown_list_parser = subparsers.add_parser(
+        'unknown-list',
+        help='List project unknowns (open or resolved)'
+    )
+    unknown_list_parser.add_argument('--project-id', required=False, help='Project UUID')
+    unknown_list_parser.add_argument('--session-id', required=False, help='Session UUID (to derive project)')
+    unknown_list_parser.add_argument('--resolved', action='store_true', help='Show resolved unknowns instead of open')
+    unknown_list_parser.add_argument('--all', action='store_true', dest='show_all', help='Show both open and resolved')
+    unknown_list_parser.add_argument('--subject', help='Filter by subject/workstream')
+    unknown_list_parser.add_argument('--limit', type=int, default=30, help='Max unknowns to show (default: 30)')
+    unknown_list_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
+    unknown_list_parser.add_argument('--verbose', action='store_true', help='Show detailed operation info')
+
     # Dead end log command
     deadend_log_parser = subparsers.add_parser(
         'deadend-log',

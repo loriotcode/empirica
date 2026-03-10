@@ -86,6 +86,7 @@ from .project_commands import (
 from .artifact_log_commands import (
     handle_finding_log_command,
     handle_unknown_log_command,
+    handle_unknown_list_command,
     handle_unknown_resolve_command,
     handle_deadend_log_command,
     handle_assumption_log_command,
@@ -279,6 +280,7 @@ __all__ = [
     'handle_ecosystem_check_command',
     'handle_finding_log_command',
     'handle_unknown_log_command',
+    'handle_unknown_list_command',
     'handle_unknown_resolve_command',
     'handle_deadend_log_command',
     'handle_assumption_log_command',

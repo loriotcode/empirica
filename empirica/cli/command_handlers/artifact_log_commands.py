@@ -732,6 +732,138 @@ def handle_unknown_resolve_command(args):
         return 1
 
 
+def handle_unknown_list_command(args):
+    """Handle unknown-list command - list project unknowns with optional filters.
+
+    Unknowns are PROJECT-SCOPED. Auto-derives project_id from active context.
+    """
+    try:
+        from empirica.data.session_database import SessionDatabase
+
+        session_id = getattr(args, 'session_id', None)
+        project_id = getattr(args, 'project_id', None)
+        show_resolved = getattr(args, 'resolved', False)
+        show_all = getattr(args, 'show_all', False)
+        subject = getattr(args, 'subject', None)
+        limit = getattr(args, 'limit', 30)
+        output_format = getattr(args, 'output', 'human')
+
+        db = SessionDatabase()
+        cursor = db.conn.cursor()
+
+        # Auto-derive project_id from context
+        if not project_id:
+            if session_id:
+                cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
+                row = cursor.fetchone()
+                if row and row[0]:
+                    project_id = row[0]
+
+            if not project_id:
+                try:
+                    from empirica.utils.session_resolver import get_active_context
+                    context = get_active_context()
+                    ctx_session = context.get('empirica_session_id')
+                    if ctx_session:
+                        cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (ctx_session,))
+                        row = cursor.fetchone()
+                        if row and row[0]:
+                            project_id = row[0]
+                except Exception:
+                    pass
+
+        # Build query
+        query = """
+            SELECT id, unknown, is_resolved, resolved_by, impact, subject,
+                   created_timestamp, resolved_timestamp, goal_id
+            FROM project_unknowns
+            WHERE 1=1
+        """
+        params = []
+
+        if project_id:
+            query += " AND project_id = ?"
+            params.append(project_id)
+
+        if not show_all:
+            if show_resolved:
+                query += " AND is_resolved = 1"
+            else:
+                query += " AND is_resolved = 0"
+
+        if subject:
+            query += " AND subject = ?"
+            params.append(subject)
+
+        query += " ORDER BY created_timestamp DESC LIMIT ?"
+        params.append(limit)
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        unknowns = []
+        for row in rows:
+            unknowns.append({
+                "id": row[0],
+                "unknown": row[1],
+                "is_resolved": bool(row[2]),
+                "resolved_by": row[3],
+                "impact": row[4],
+                "subject": row[5],
+                "created_at": row[6],
+                "resolved_at": row[7],
+                "goal_id": row[8],
+            })
+
+        db.close()
+
+        # Build filter description
+        filters_applied = []
+        if project_id:
+            filters_applied.append(f"project={project_id[:8]}...")
+        if subject:
+            filters_applied.append(f"subject={subject}")
+        filter_desc = ", ".join(filters_applied) if filters_applied else "all"
+        status_desc = "all" if show_all else ("resolved" if show_resolved else "open")
+
+        result = {
+            "ok": True,
+            "unknowns_count": len(unknowns),
+            "unknowns": unknowns,
+            "filters": {
+                "project_id": project_id,
+                "status": status_desc,
+                "subject": subject,
+            },
+        }
+
+        if output_format == 'json':
+            return result
+        else:
+            print(f"{'=' * 70}")
+            print(f"❓ UNKNOWNS ({status_desc.upper()}) - {len(unknowns)} found [{filter_desc}]")
+            print(f"{'=' * 70}")
+            print()
+
+            if not unknowns:
+                print("   (No unknowns found)")
+            else:
+                for i, u in enumerate(unknowns, 1):
+                    status_emoji = "✅" if u['is_resolved'] else "❓"
+                    impact_str = f" [impact={u['impact']:.1f}]" if u['impact'] else ""
+                    print(f"{status_emoji} {i}. {u['unknown'][:75]}")
+                    resolved_info = f" | Resolved: {u['resolved_by'][:30]}" if u['resolved_by'] else ""
+                    goal_info = f" | Goal: {u['goal_id'][:8]}" if u['goal_id'] else ""
+                    print(f"   ID: {u['id'][:8]}...{impact_str}{goal_info}{resolved_info}")
+                    print()
+
+            return None
+
+    except Exception as e:
+        handle_cli_error(e, "Unknown list", getattr(args, 'verbose', False))
+        return 1
+
+
 def handle_deadend_log_command(args):
     """Handle deadend-log command - AI-first with config file support"""
     try:
