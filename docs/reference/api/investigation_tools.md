@@ -1,6 +1,6 @@
 # Investigation Tools API Reference
 
-**Version:** 1.6.2
+**Version:** 1.6.3
 **Module:** `empirica.cli.command_handlers.workflow_commands`
 **Purpose:** NOETIC phase tools for exploration, hypothesizing, and evidence gathering
 

@@ -1,7 +1,7 @@
-# Empirica System Prompt - CLAUDE v1.6.2
+# Empirica System Prompt - CLAUDE v1.6.3
 
 **Model:** CLAUDE | **Generated:** 2026-02-26
-**Syncs with:** Empirica v1.6.2
+**Syncs with:** Empirica v1.6.3
 **Change:** Sentinel file-flag, matcher fix, MirrorDriftMonitor removed, plan-transactions skill
 **Status:** AUTHORITATIVE
 
@@ -467,7 +467,7 @@ Empirica is **cognitive infrastructure**, not just a CLI. In practice:
 
 ## CLAUDE-SPECIFIC
 
-# Claude Model Delta - v1.6.2
+# Claude Model Delta - v1.6.3
 
 **Applies to:** Claude (all versions)
 **Last Updated:** 2026-02-21
