@@ -54,7 +54,9 @@ MODEL_DIMENSIONS = {
     "mxbai-embed-large": 1024,
     "bge-m3": 1024,  # BGE-M3: dense + sparse + colbert, multilingual
     "bge-large": 1024,
-    "qwen3-embedding": 1024,  # Qwen3 embedding model
+    "qwen3-embedding": 1024,  # Qwen3 embedding model (0.6B default tag)
+    "qwen3-embedding:0.6b": 1024,  # Explicit 0.6B tag
+    "qwen3-embedding:8b": 4096,  # 8B variant — different dimensions!
     "snowflake-arctic-embed": 1024,
     "snowflake-arctic-embed2": 1024,
     "granite-embedding": 768,
@@ -287,7 +289,7 @@ class EmbeddingsProvider:
         }
 
         try:
-            resp = requests.post(url, json=payload, timeout=30)
+            resp = requests.post(url, json=payload, timeout=60)
             resp.raise_for_status()
             data = resp.json()
             embedding = data.get("embedding", [])
@@ -296,9 +298,22 @@ class EmbeddingsProvider:
                 logger.warning(f"Ollama returned empty embedding for model {self.model}")
                 return self._embed_local_hash(text)  # Fallback
 
-            # Cache vector size for consistency checks
+            # Validate and cache actual vector size from model response
+            actual_size = len(embedding)
+            if self._vector_size is not None and actual_size != self._vector_size:
+                logger.error(
+                    f"DIMENSION MISMATCH: Ollama model '{self.model}' returned {actual_size}d vectors "
+                    f"but Empirica expected {self._vector_size}d. This will cause Qdrant upsert failures. "
+                    f"Check that you pulled the correct model tag — e.g., 'qwen3-embedding' (1024d) "
+                    f"vs 'qwen3-embedding:8b' (4096d). Run 'empirica rebuild --qdrant' after fixing."
+                )
+                raise ValueError(
+                    f"Embedding dimension mismatch: model '{self.model}' returned {actual_size}d, "
+                    f"expected {self._vector_size}d. Pull the correct model tag or update "
+                    f"EMPIRICA_EMBEDDINGS_MODEL to match your Ollama model."
+                )
             if self._vector_size is None:
-                self._vector_size = len(embedding)
+                self._vector_size = actual_size
                 logger.info(f"Ollama {self.model} vector size: {self._vector_size}")
 
             return embedding
