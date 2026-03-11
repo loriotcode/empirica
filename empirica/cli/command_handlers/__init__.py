@@ -94,6 +94,9 @@ from .artifact_log_commands import (
     handle_refdoc_add_command,
     handle_source_add_command,
 )
+from .training_commands import (
+    handle_training_export_command,
+)
 from .workspace_commands import (
     handle_workspace_overview_command,
     handle_workspace_map_command,
@@ -288,6 +291,7 @@ __all__ = [
     'handle_decision_log_command',
     'handle_refdoc_add_command',
     'handle_source_add_command',
+    'handle_training_export_command',
     'handle_project_search_command',
     'handle_project_embed_command',
     'handle_code_embed_command',

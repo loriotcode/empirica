@@ -56,7 +56,7 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
                     'Investigation': ['investigate', 'investigate-create-branch', 'investigate-checkpoint-branch', 'investigate-merge-branches', 'investigate-multi'],
                     'Monitoring': ['monitor', 'assess-state', 'trajectory-project', 'efficiency-report'],
                     'Skills': ['skill-suggest', 'skill-fetch', 'skill-extract'],
-                    'Utilities': ['log-token-saving', 'config', 'performance', 'qdrant-status', 'qdrant-cleanup'],
+                    'Utilities': ['log-token-saving', 'config', 'performance', 'qdrant-status', 'qdrant-cleanup', 'training-export'],
                     'Vision': ['vision'],
                     'Epistemics': ['epistemics-list', 'epistemics-show'],
                     'User Interface': ['chat'],
@@ -382,6 +382,9 @@ def main(args=None):
             'decision-log': handle_decision_log_command,
             'refdoc-add': handle_refdoc_add_command,
             'source-add': handle_source_add_command,
+
+            # Training data export
+            'training-export': handle_training_export_command,
 
             # Sync commands (git notes synchronization)
             'sync-config': handle_sync_config_command,

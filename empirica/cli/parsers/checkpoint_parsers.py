@@ -582,6 +582,23 @@ def add_checkpoint_parsers(subparsers):
     source_add_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     source_add_parser.add_argument('--verbose', action='store_true', help='Verbose output')
 
+    # Training data export
+    training_export_parser = subparsers.add_parser(
+        'training-export',
+        help='Export epistemic transaction data as JSONL for model fine-tuning'
+    )
+    training_export_parser.add_argument('--output-path', help='Output JSONL file path (default: stdout)')
+    training_export_parser.add_argument('--project-id', help='Filter by project (prefix match)')
+    training_export_parser.add_argument('--ai-id', help='Filter by AI ID (e.g., claude-code)')
+    training_export_parser.add_argument('--min-vectors', type=int, default=3,
+        help='Minimum vector count to include a transaction (default: 3)')
+    training_export_parser.add_argument('--no-artifacts', action='store_true',
+        help='Exclude noetic artifacts (findings, unknowns, dead-ends)')
+    training_export_parser.add_argument('--no-grounded', action='store_true',
+        help='Exclude grounded calibration data')
+    training_export_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
+    training_export_parser.add_argument('--verbose', action='store_true', help='Show detailed info')
+
     # NEW: Goal Management Commands (MCP v2 Integration)
     # Aliases: goals-X → goal-X (singular), short aliases (gc, gl, etc.)
 
