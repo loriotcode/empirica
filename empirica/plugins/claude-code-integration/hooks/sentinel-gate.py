@@ -96,6 +96,9 @@ SAFE_BASH_PREFIXES = (
     'man ', 'info ', 'help ',
     # Testing (read-only check)
     'test ', '[ ',
+    # Static analysis (read-only)
+    'pyright', 'ruff check', 'radon ',
+    'mypy ', 'flake8 ', 'pylint ',
 )
 
 # Dangerous shell operators (command injection prevention)
@@ -372,9 +375,9 @@ def is_transition_command(command: str) -> bool:
 _autonomy_nudge = ""  # Module-level: set during increment, read by respond
 
 
-def _try_increment_tool_count(claude_session_id: str = None,
-                              tool_name: str = None,
-                              tool_input: dict = None) -> tuple:
+def _try_increment_tool_count(claude_session_id: Optional[str] = None,
+                              tool_name: Optional[str] = None,
+                              tool_input: Optional[dict] = None) -> tuple:
     """Increment tool_call_count in the active transaction file.
 
     Lightweight — no heavy imports. Uses project_resolver (already imported)

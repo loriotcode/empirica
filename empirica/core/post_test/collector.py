@@ -1238,7 +1238,6 @@ class PostTestCollector:
         Tool availability is detected at runtime — missing tools are skipped.
         """
         items = []
-        import re
         project_root = self._resolve_project_root()
 
         # Get files changed during this session from git
@@ -1333,7 +1332,7 @@ class PostTestCollector:
 
                 all_complexities = []
                 high_complexity_count = 0  # CC >= 11 (grade C or worse)
-                for file_path, functions in cc_data.items():
+                for _, functions in cc_data.items():
                     for func in functions:
                         cc = func.get("complexity", 0)
                         all_complexities.append(cc)
