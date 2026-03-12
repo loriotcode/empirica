@@ -349,6 +349,7 @@ class PostTestCollector:
             universal.append(("goals", self._collect_goal_metrics))
             universal.append(("issues", self._collect_issue_metrics))
             universal.append(("triage", self._collect_triage_metrics))
+            universal.append(("codebase_model", self._collect_codebase_model_metrics))
 
         # Profile-specific collectors — only run during praxic/combined phases.
         # These measure OUTPUT quality (code quality, test results, build verification,
@@ -1002,6 +1003,97 @@ class PostTestCollector:
                     supports_vectors=["change"],
                     metadata={"work_type": "triage"},
                 ))
+
+        return items
+
+    def _collect_codebase_model_metrics(self) -> List[EvidenceItem]:
+        """Collect codebase entity graph metrics for grounded calibration.
+
+        Measures structural understanding of the codebase via entity extraction:
+        - Entities discovered/updated during this session → know, context
+        - Entity invalidations (deleted code) → change
+        - Constraints (learned conventions) → coherence, signal
+
+        Only runs if codebase_model tables exist (migration 033+).
+        """
+        items = []
+        db = self._get_db()
+        cursor = db.conn.cursor()
+
+        # Check if codebase_entities table exists
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='codebase_entities'"
+        )
+        if not cursor.fetchone():
+            return items
+
+        # Entities linked to this session
+        try:
+            entity_stats = db.codebase_model.session_entity_stats(self.session_id)
+        except Exception:
+            return items
+
+        total_entities = sum(entity_stats.values())
+        if total_entities > 0:
+            # Entity discovery → know (understanding of codebase structure)
+            # Normalize: 5 entities = 0.3, 20 = 0.6, 50+ = 1.0
+            know_score = min(1.0, total_entities / 50.0)
+            items.append(EvidenceItem(
+                source="codebase_model",
+                metric_name="entities_discovered",
+                value=know_score,
+                raw_value={
+                    "total": total_entities,
+                    "by_type": entity_stats,
+                },
+                quality=EvidenceQuality.SEMI_OBJECTIVE,
+                supports_vectors=["know", "context"],
+                metadata={"work_type": "entity_extraction"},
+            ))
+
+        # Facts created this session
+        try:
+            fact_count = db.codebase_model.session_fact_count(self.session_id)
+        except Exception:
+            fact_count = 0
+
+        if fact_count > 0:
+            # Facts → signal (understanding of what changed and why)
+            signal_score = min(1.0, fact_count / 20.0)
+            items.append(EvidenceItem(
+                source="codebase_model",
+                metric_name="facts_created",
+                value=signal_score,
+                raw_value={"count": fact_count},
+                quality=EvidenceQuality.SEMI_OBJECTIVE,
+                supports_vectors=["signal", "density"],
+                metadata={"work_type": "entity_extraction"},
+            ))
+
+        # Active constraints for the project → coherence (learned conventions)
+        if self.project_id:
+            try:
+                constraints = db.codebase_model.get_constraints(
+                    project_id=self.project_id
+                )
+                if constraints:
+                    total_violations = sum(c.get('violation_count', 0) for c in constraints)
+                    # More constraints with violations = better convention awareness
+                    coherence_score = min(1.0, len(constraints) / 10.0)
+                    items.append(EvidenceItem(
+                        source="codebase_model",
+                        metric_name="convention_constraints",
+                        value=coherence_score,
+                        raw_value={
+                            "constraint_count": len(constraints),
+                            "total_violations": total_violations,
+                        },
+                        quality=EvidenceQuality.SEMI_OBJECTIVE,
+                        supports_vectors=["coherence", "signal"],
+                        metadata={"work_type": "entity_extraction"},
+                    ))
+            except Exception:
+                pass
 
         return items
 

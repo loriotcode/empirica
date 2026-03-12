@@ -1572,6 +1572,42 @@ def handle_check_submit_command(args):
             except Exception as e:
                 logger.debug(f"CHECK pattern retrieval failed (optional): {e}")
 
+            # CODEBASE MODEL: Entity graph context injection at CHECK time.
+            # Surfaces active entities, constraints, and relationships for the project.
+            # Non-fatal — skipped if codebase model tables don't exist yet.
+            try:
+                check_project_id = (bootstrap_result or {}).get('project_id') or bootstrap_status.get('project_id')
+                if check_project_id:
+                    from empirica.data.session_database import SessionDatabase
+                    from empirica.config.path_resolver import get_session_db_path
+                    codebase_db_path = get_session_db_path()
+                    if codebase_db_path:
+                        codebase_db = SessionDatabase(codebase_db_path)
+                        try:
+                            entity_count = codebase_db.codebase_model.count_entities(
+                                check_project_id, active_only=True
+                            )
+                            if entity_count > 0:
+                                constraints = codebase_db.codebase_model.get_constraints(
+                                    project_id=check_project_id
+                                )
+                                result["codebase_context"] = {
+                                    "active_entities": entity_count,
+                                    "constraints": [
+                                        {
+                                            "rule": c['rule_name'],
+                                            "type": c['constraint_type'],
+                                            "violations": c['violation_count'],
+                                            "description": c['description'],
+                                        }
+                                        for c in constraints[:5]
+                                    ] if constraints else [],
+                                }
+                        finally:
+                            codebase_db.close()
+            except Exception as e:
+                logger.debug(f"Codebase context injection skipped: {e}")
+
             # AUTO-POSTFLIGHT REMOVED (2026-03-02):
             # Previously CHECK auto-triggered POSTFLIGHT when completion >= 0.7 AND impact >= 0.5.
             # This was wrong: CHECK is a noetic→praxic gate, not a completion event.

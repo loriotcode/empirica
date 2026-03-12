@@ -126,6 +126,19 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 PLUGIN_DIR/hooks/entity-extractor.py",
+            "timeout": 5,
+            "allowFailure": true
+          }
+        ]
+      }
+    ],
     "SubagentStop": [
       {
         "matcher": ".*",
