@@ -14,6 +14,7 @@ from .trajectory_schema import SCHEMAS as TRAJECTORY_SCHEMAS
 from .concept_graph_schema import SCHEMAS as CONCEPT_GRAPH_SCHEMAS
 from .extended_schema import SCHEMAS as EXTENDED_SCHEMAS
 from .verification_schema import SCHEMAS as VERIFICATION_SCHEMAS
+from .codebase_model_schema import SCHEMAS as CODEBASE_MODEL_SCHEMAS
 
 # All schemas in execution order
 ALL_SCHEMAS = (
@@ -25,7 +26,8 @@ ALL_SCHEMAS = (
     TRAJECTORY_SCHEMAS +
     CONCEPT_GRAPH_SCHEMAS +
     EXTENDED_SCHEMAS +
-    VERIFICATION_SCHEMAS
+    VERIFICATION_SCHEMAS +
+    CODEBASE_MODEL_SCHEMAS
 )
 
 __all__ = [
@@ -39,4 +41,5 @@ __all__ = [
     'CONCEPT_GRAPH_SCHEMAS',
     'EXTENDED_SCHEMAS',
     'VERIFICATION_SCHEMAS',
+    'CODEBASE_MODEL_SCHEMAS',
 ]
