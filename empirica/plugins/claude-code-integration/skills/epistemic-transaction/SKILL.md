@@ -294,6 +294,8 @@ empirica preflight-submit - << 'EOF'
 {
   "session_id": "<ID>",
   "task_context": "Transaction 1: Implement auth middleware. Scope: middleware chain, role guards, unit tests.",
+  "work_type": "code",
+  "work_context": "iteration",
   "vectors": {
     "know": 0.5, "uncertainty": 0.4,
     "context": 0.6, "clarity": 0.7,
@@ -307,6 +309,10 @@ empirica preflight-submit - << 'EOF'
 }
 EOF
 ```
+
+**Context fields (optional, improve grounded calibration):**
+- `work_type`: `code|infra|research|release|debug|config|docs|data|comms|design|audit` — scales evidence weights by source relevance (e.g., infra work won't be penalized for low git metrics)
+- `work_context`: `greenfield|iteration|investigation|refactor` — adjusts normalization baselines for project maturity
 
 **PREFLIGHT declares scope.** If scope creeps during work, that's a signal to
 POSTFLIGHT and start a new transaction.
