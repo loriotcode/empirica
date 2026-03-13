@@ -1372,8 +1372,7 @@ resume_previous_session(ai_id="copilot", count=1)
 {
   "mcpServers": {
     "empirica": {
-      "command": "python",
-      "args": ["/path/to/empirica/mcp_local/empirica_mcp_server.py"]
+      "command": "empirica-mcp"
     }
   }
 }
@@ -1384,11 +1383,9 @@ resume_previous_session(ai_id="copilot", count=1)
 {
   "mcpServers": {
     "empirica": {
-      "command": "python",
-      "args": ["/path/to/empirica/mcp_local/empirica_mcp_server.py"],
+      "command": "empirica-mcp",
       "env": {
         "EMPIRICA_DATA_DIR": "/path/to/.empirica",
-        "PYTHONPATH": "/path/to/empirica",
         "EMPIRICA_LOG_LEVEL": "info"
       }
     }
@@ -1404,7 +1401,7 @@ resume_previous_session(ai_id="copilot", count=1)
 
 ```bash
 # Test server directly
-python mcp_local/empirica_mcp_server.py
+empirica-mcp
 
 # Check logs
 tail -f ~/.empirica/mcp_server.log

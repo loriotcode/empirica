@@ -214,7 +214,7 @@ docker run -p 3000:3000 nubaeon/empirica:1.6.3 empirica-mcp
 ## Requirements
 
 - Python 3.11+
-- empirica >= 1.4.0
+- empirica >= 1.5.0
 - mcp >= 1.0.0
 
 ---

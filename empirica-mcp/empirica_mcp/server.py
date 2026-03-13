@@ -31,7 +31,7 @@ import sys
 import logging
 import shutil
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -2580,7 +2580,8 @@ def build_cli_command(tool_name: str, arguments: dict) -> List[str]:
         "query_handoff_reports": ["handoff-query"],
 
         # Mistakes Tracking
-        "log_mistake": ["mistake-log"],
+        "mistake_log": ["mistake-log"],  # Enriched version with entity linking
+        "log_mistake": ["mistake-log"],  # Legacy version (fewer params)
         "query_mistakes": ["mistake-query"],
 
         # Phase 1: Cross-AI Coordination
@@ -2722,7 +2723,6 @@ def build_cli_command(tool_name: str, arguments: dict) -> List[str]:
         "next_session_context": "next-session-context",  # MCP uses next_session_context, CLI uses next-session-context
         "artifacts_created": "artifacts",  # MCP uses artifacts_created, CLI uses artifacts (for handoff-create)
         "project_id": "project-id",  # MCP uses project_id, CLI uses project-id (for project commands)
-        "goal_id": "goal-id",  # MCP uses goal_id, CLI uses goal-id (for project finding/unknown/deadend)
         "subtask_id": "subtask-id",  # MCP uses subtask_id, CLI uses subtask-id (for project finding/unknown/deadend)
         "session_id": "session-id",  # MCP uses session_id, CLI uses session-id (for project finding/unknown/deadend)
         "doc_path": "doc-path",  # MCP uses doc_path, CLI uses doc-path (for refdoc-add)
