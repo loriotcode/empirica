@@ -69,6 +69,11 @@ def _intents_collection(project_id: str) -> str:
     return f"project_{project_id}_intents"
 
 
+def _workspace_index_collection() -> str:
+    """Global workspace index collection (cross-project entity-navigable pointers)."""
+    return "workspace_index"
+
+
 def init_collections(project_id: str) -> bool:
     """Check Qdrant availability for a project.
 
@@ -164,7 +169,7 @@ def recreate_global_collections() -> dict:
     Returns dict with success status for each collection.
     """
     results = {}
-    for name in ["global_learnings", "personas"]:
+    for name in ["global_learnings", "personas", "workspace_index"]:
         results[name] = recreate_collection(name)
     return results
 

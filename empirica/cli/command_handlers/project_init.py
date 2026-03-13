@@ -32,18 +32,34 @@ def handle_project_init_command(args):
         from empirica.config.path_resolver import get_git_root, ensure_empirica_structure, create_default_config
         from empirica.data.session_database import SessionDatabase
         
-        # Check if in git repo
-        git_root = get_git_root()
-        if not git_root:
-            print("❌ Error: Not in a git repository")
-            print("\nRun 'git init' first, then try again")
-            return None
-        
         # Auto-detect non-interactive: explicit flag OR no TTY OR JSON output
         explicit_non_interactive = getattr(args, 'non_interactive', False)
         has_tty = sys.stdin.isatty() if hasattr(sys.stdin, 'isatty') else False
         output_format = getattr(args, 'output', 'default')
         interactive = not explicit_non_interactive and has_tty and output_format != 'json'
+
+        # Check if in git repo — offer to init one if not
+        git_root = get_git_root()
+        if not git_root:
+            import subprocess
+            if interactive:
+                response = input("Not in a git repository. Initialize one? [Y/n]: ").strip().lower()
+                if response in ('n', 'no'):
+                    print("Aborted. Run 'git init' manually, then try again.")
+                    return None
+                subprocess.run(['git', 'init'], check=True)
+                git_root = get_git_root()
+            elif output_format == 'json' or explicit_non_interactive:
+                # Auto-init silently in non-interactive mode
+                subprocess.run(['git', 'init'], capture_output=True, check=True)
+                git_root = get_git_root()
+
+            if not git_root:
+                if output_format == 'json':
+                    print(json.dumps({"ok": False, "error": "Not in a git repository"}))
+                else:
+                    print("Error: Not in a git repository. Run 'git init' first.")
+                return None
         
         # Check if already initialized
         config_path = git_root / '.empirica' / 'config.yaml'

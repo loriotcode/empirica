@@ -93,7 +93,10 @@ from .artifact_log_commands import (
     handle_decision_log_command,
     handle_refdoc_add_command,
     handle_source_add_command,
+    handle_engagement_focus_command,
 )
+from .workspace_search import handle_workspace_search_command
+from .git_commands import handle_save_command, handle_history_command
 from .training_commands import (
     handle_training_export_command,
 )
@@ -366,6 +369,12 @@ __all__ = [
     'handle_lesson_replay_end_command',
     'handle_lesson_stats_command',
     'handle_lesson_embed_command',
+
+    # Workspace search + engagement focus + git abstractions
+    'handle_workspace_search_command',
+    'handle_engagement_focus_command',
+    'handle_save_command',
+    'handle_history_command',
 
     # Artifact generation
     'handle_artifacts_generate_command',

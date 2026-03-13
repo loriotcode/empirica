@@ -386,6 +386,43 @@ def add_checkpoint_parsers(subparsers):
     ecosystem_check_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     ecosystem_check_parser.add_argument('--verbose', action='store_true', help='Show detailed operation info')
 
+    # Engagement focus command — set active engagement for auto-linking
+    engagement_focus_parser = subparsers.add_parser(
+        'engagement-focus',
+        help='Set active engagement for current transaction (auto-links all artifacts)'
+    )
+    engagement_focus_parser.add_argument('engagement_id', nargs='?', help='Engagement UUID or name')
+    engagement_focus_parser.add_argument('--clear', action='store_true', help='Clear active engagement')
+    engagement_focus_parser.add_argument('--output', choices=['json', 'default'], default='json', help='Output format')
+
+    # Workspace search command — cross-project entity-navigable semantic search
+    workspace_search_parser = subparsers.add_parser(
+        'workspace-search',
+        help='Search across all projects by entity or semantic query'
+    )
+    workspace_search_parser.add_argument('--entity', help='Entity filter: TYPE/ID (e.g., contact/david, org/acme)')
+    workspace_search_parser.add_argument('--task', help='Semantic search query')
+    workspace_search_parser.add_argument('--project-id', help='Restrict to specific project')
+    workspace_search_parser.add_argument('--limit', type=int, default=20, help='Maximum results')
+    workspace_search_parser.add_argument('--output', choices=['json', 'human'], default='json', help='Output format')
+
+    # Git abstraction: save command — git add + commit with auto-message
+    save_parser = subparsers.add_parser(
+        'save',
+        help='Save current work (git add + commit with auto-generated message)'
+    )
+    save_parser.add_argument('--message', '-m', help='Custom commit message')
+    save_parser.add_argument('--output', choices=['json', 'default'], default='json', help='Output format')
+
+    # Git abstraction: history command — epistemic timeline from git log + notes
+    history_parser = subparsers.add_parser(
+        'history',
+        help='Show epistemic timeline from git log + notes'
+    )
+    history_parser.add_argument('--entity', help='Filter by entity: TYPE/ID')
+    history_parser.add_argument('--limit', type=int, default=20, help='Maximum entries')
+    history_parser.add_argument('--output', choices=['json', 'human'], default='human', help='Output format')
+
     # Project semantic search command (Qdrant-backed)
     project_search_parser = subparsers.add_parser(
         'project-search',

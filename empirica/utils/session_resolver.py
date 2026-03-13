@@ -884,6 +884,68 @@ def read_active_transaction(claude_session_id: str = None) -> Optional[str]:
     return None
 
 
+def set_active_engagement(engagement_id: str, claude_session_id: str = None) -> bool:
+    """Set the active engagement on the current transaction file.
+
+    When set, artifact logging (finding-log, decision-log, etc.) auto-inherits
+    this engagement as entity context. Cleared on transaction close.
+
+    Returns True if set, False if no active transaction.
+    """
+    import os
+    import tempfile
+
+    from pathlib import Path
+    suffix = _get_instance_suffix()
+
+    project_path = get_active_project_path(claude_session_id)
+    if project_path:
+        tx_path = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
+    else:
+        tx_path = Path.home() / '.empirica' / f'active_transaction{suffix}.json'
+
+    if not tx_path.exists():
+        return False
+
+    try:
+        with open(tx_path, 'r') as f:
+            tx_data = json.load(f)
+
+        if tx_data.get('status') != 'open':
+            return False
+
+        tx_data['active_engagement'] = engagement_id
+        tx_data['updated_at'] = __import__('time').time()
+
+        # Atomic write
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=str(tx_path.parent))
+        try:
+            with os.fdopen(tmp_fd, 'w') as tmp_f:
+                json.dump(tx_data, tmp_f, indent=2)
+            os.rename(tmp_path, str(tx_path))
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+
+        return True
+    except Exception:
+        return False
+
+
+def get_active_engagement(claude_session_id: str = None) -> Optional[str]:
+    """Read active_engagement from the current transaction file.
+
+    Returns engagement ID or None if no engagement is focused.
+    """
+    data = read_active_transaction_full(claude_session_id)
+    if data:
+        return data.get('active_engagement')
+    return None
+
+
 def _validate_session_in_db(session_id: str) -> bool:
     """Check if a session_id exists in the sessions table.
 

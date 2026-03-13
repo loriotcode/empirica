@@ -2065,6 +2065,28 @@ def handle_postflight_submit_command(args):
                 postflight_tool_call_count = 0
                 postflight_avg_turns = 0
 
+            # Collect entity context for git notes (cross-project provenance)
+            postflight_entity_context = []
+            try:
+                from empirica.data.repositories.workspace_db import WorkspaceDBRepository
+                from empirica.utils.session_resolver import read_active_transaction_full as _pf_read_tx
+                _pf_tx = _pf_read_tx()
+                if _pf_tx and _pf_tx.get('transaction_id'):
+                    with WorkspaceDBRepository.open() as _pf_ws:
+                        _pf_links = _pf_ws.get_entity_artifacts_by_transaction(_pf_tx['transaction_id'])
+                        seen = set()
+                        for _l in _pf_links:
+                            key = f"{_l['entity_type']}:{_l['entity_id']}"
+                            if key not in seen:
+                                seen.add(key)
+                                postflight_entity_context.append({
+                                    "entity_type": _l['entity_type'],
+                                    "entity_id": _l['entity_id'],
+                                    "artifact_type": _l['artifact_type'],
+                                })
+            except Exception:
+                pass  # Entity context is optional enrichment
+
             # Add checkpoint - this writes to ALL 3 storage layers atomically (round auto-increments)
             # tool_call_count is stored in reflex_data so PREFLIGHT can compute avg_turns
             checkpoint_id = logger_instance.add_checkpoint(
@@ -2080,7 +2102,8 @@ def handle_postflight_submit_command(args):
                     "transaction_id": postflight_transaction_id,
                     "tool_call_count": postflight_tool_call_count,
                     "avg_turns_at_start": postflight_avg_turns,
-                    "context_shifts": postflight_context_shifts if postflight_context_shifts.get('unsolicited_prompts', 0) > 0 else None
+                    "context_shifts": postflight_context_shifts if postflight_context_shifts.get('unsolicited_prompts', 0) > 0 else None,
+                    "entity_context": postflight_entity_context or None,
                 }
             )
 
@@ -2405,6 +2428,27 @@ def handle_postflight_submit_command(args):
             except Exception as e:
                 # Memory sync is optional (requires Qdrant)
                 logger.debug(f"Memory sync skipped: {e}")
+
+            # WORKSPACE INDEX: Sync entity-linked artifacts to cross-project index
+            workspace_indexed = 0
+            try:
+                from empirica.core.qdrant.connection import _check_qdrant_available as _ws_qdrant_check
+                from empirica.utils.session_resolver import read_active_transaction_full as _ws_read_tx
+
+                _ws_tx = _ws_read_tx()
+                _ws_transaction_id = _ws_tx.get('transaction_id') if _ws_tx else None
+
+                if _ws_qdrant_check() and session and session.get('project_id') and _ws_transaction_id:
+                    from empirica.core.qdrant.workspace_index import sync_transaction_to_index
+                    workspace_indexed = sync_transaction_to_index(
+                        project_id=session['project_id'],
+                        session_id=session_id,
+                        transaction_id=_ws_transaction_id,
+                    )
+                    if workspace_indexed:
+                        logger.debug(f"POSTFLIGHT: Indexed {workspace_indexed} entity-linked artifacts to workspace_index")
+            except Exception as e_ws:
+                logger.debug(f"Workspace index sync skipped (non-fatal): {e_ws}")
 
             # NOETIC RAG: POSTFLIGHT decay triggers + auto-global-sync
             global_synced = False
