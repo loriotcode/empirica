@@ -1067,6 +1067,78 @@ def migration_031_phase_aware_calibration(cursor: sqlite3.Cursor):
     logger.info("✅ Migration 031 complete: Phase-aware calibration columns added")
 
 
+def migration_032_calibration_disputes(cursor: sqlite3.Cursor):
+    """Add calibration_disputes table for AI pushback on measurement artifacts."""
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS calibration_disputes (
+            dispute_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            vector TEXT NOT NULL,
+            reported_value REAL NOT NULL,
+            expected_value REAL NOT NULL,
+            reason TEXT NOT NULL,
+            evidence TEXT,
+            work_context TEXT,
+            status TEXT DEFAULT 'open',
+            resolution TEXT,
+            created_at REAL DEFAULT (strftime('%s', 'now')),
+            FOREIGN KEY (session_id) REFERENCES sessions(session_id)
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_calibration_disputes_session
+            ON calibration_disputes(session_id)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_calibration_disputes_vector_status
+            ON calibration_disputes(vector, status)
+    """)
+    logger.info("✅ Migration 032 complete: calibration_disputes table created")
+
+
+def migration_033_codebase_model(cursor: sqlite3.Cursor):
+    """
+    Add codebase model tables for temporal entity tracking.
+
+    Tables are created via SCHEMAS (CREATE IF NOT EXISTS) so this migration
+    is a no-op for fresh installs. For upgrades, it ensures the tables exist
+    and adds FTS5 for fact full-text search.
+
+    Inspired by world-model-mcp (MIT, github.com/Nubaeon/world-model-mcp).
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Tables are created via codebase_model_schema.py SCHEMAS (idempotent).
+    # This migration adds FTS5 virtual table for fact search.
+    cursor.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS codebase_facts_fts USING fts5(
+            fact_text,
+            content='codebase_facts',
+            content_rowid='rowid'
+        )
+    """)
+
+    # Sync triggers for FTS5
+    cursor.execute("""
+        CREATE TRIGGER IF NOT EXISTS codebase_facts_ai AFTER INSERT ON codebase_facts BEGIN
+            INSERT INTO codebase_facts_fts(rowid, fact_text) VALUES (new.rowid, new.fact_text);
+        END
+    """)
+    cursor.execute("""
+        CREATE TRIGGER IF NOT EXISTS codebase_facts_ad AFTER DELETE ON codebase_facts BEGIN
+            DELETE FROM codebase_facts_fts WHERE rowid = old.rowid;
+        END
+    """)
+    cursor.execute("""
+        CREATE TRIGGER IF NOT EXISTS codebase_facts_au AFTER UPDATE ON codebase_facts BEGIN
+            UPDATE codebase_facts_fts SET fact_text = new.fact_text WHERE rowid = new.rowid;
+        END
+    """)
+
+    logger.info("✅ Migration 033 complete: Codebase model tables and FTS5 index created")
+
+
 ALL_MIGRATIONS: List[Tuple[str, str, Callable]] = [
     ("001_cascade_workflow_columns", "Add CASCADE workflow tracking to cascades", migration_001_cascade_workflow_columns),
     ("002_epistemic_delta", "Add epistemic delta JSON to cascades", migration_002_epistemic_delta),
@@ -1099,4 +1171,6 @@ ALL_MIGRATIONS: List[Tuple[str, str, Callable]] = [
     ("029_goals_transaction_index", "Add index on goals.transaction_id for transaction-scoped queries", migration_029_goals_transaction_index),
     ("030_entity_agnostic_intent_layer", "Add entity_type/entity_id to artifact tables, assumptions and decisions tables (v0.6.0)", migration_030_entity_agnostic_intent_layer),
     ("031_phase_aware_calibration", "Add phase column to grounded verification tables for noetic/praxic calibration split", migration_031_phase_aware_calibration),
+    ("032_calibration_disputes", "Add calibration_disputes table for AI pushback on measurement artifacts", migration_032_calibration_disputes),
+    ("033_codebase_model", "Add codebase model tables for temporal entity tracking (world-model-mcp absorption)", migration_033_codebase_model),
 ]

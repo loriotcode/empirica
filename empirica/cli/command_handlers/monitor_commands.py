@@ -456,7 +456,7 @@ def handle_monitor_cost_command(args):
 
 
 # NOTE: handle_pre_summary_snapshot, handle_post_summary_drift_check, and
-# handle_check_drift_command were removed in v1.6.3. MirrorDriftMonitor was
+# handle_check_drift_command were removed in v1.6.4. MirrorDriftMonitor was
 # superseded by the grounded calibration pipeline (postflight → post-test →
 # bayesian updates) which detects drift through objective evidence rather
 # than vector-to-vector temporal comparison.
@@ -1166,6 +1166,98 @@ def handle_trajectory_project_command(args):
         handle_cli_error(e, "Trajectory Project", getattr(args, 'verbose', False))
 
 
+def _get_open_disputes(db) -> dict:
+    """Get open disputes keyed by vector name."""
+    try:
+        cursor = db.conn.cursor()
+        cursor.execute("""
+            SELECT vector, reported_value, expected_value, reason, created_at
+            FROM calibration_disputes
+            WHERE status = 'open'
+            ORDER BY created_at DESC
+        """)
+        disputes = {}
+        for row in cursor.fetchall():
+            vector = row[0]
+            if vector not in disputes:
+                disputes[vector] = {
+                    'reported': row[1],
+                    'expected': row[2],
+                    'reason': row[3],
+                    'created_at': row[4],
+                }
+        return disputes
+    except Exception:
+        return {}
+
+
+def _show_disputes(output_format: str):
+    """Show all calibration disputes (open and resolved)."""
+    import json
+    from datetime import datetime
+    from empirica.data.session_database import SessionDatabase
+
+    try:
+        db = SessionDatabase()
+        cursor = db.conn.cursor()
+        cursor.execute("""
+            SELECT dispute_id, vector, reported_value, expected_value,
+                   reason, evidence, work_context, status, resolution, created_at
+            FROM calibration_disputes
+            ORDER BY created_at DESC
+        """)
+        rows = cursor.fetchall()
+        db.close()
+
+        if not rows:
+            if output_format == 'json':
+                print(json.dumps({"ok": True, "disputes": [], "count": 0}))
+            else:
+                print("No calibration disputes filed.")
+            return
+
+        disputes = []
+        for row in rows:
+            disputes.append({
+                "dispute_id": row[0],
+                "vector": row[1],
+                "reported": row[2],
+                "expected": row[3],
+                "reason": row[4],
+                "evidence": row[5],
+                "work_context": row[6],
+                "status": row[7],
+                "resolution": row[8],
+                "created_at": row[9],
+            })
+
+        if output_format == 'json':
+            print(json.dumps({"ok": True, "disputes": disputes, "count": len(disputes)}, indent=2))
+        else:
+            print("=" * 70)
+            print(f"⚖️  CALIBRATION DISPUTES ({len(disputes)} total)")
+            print("=" * 70)
+            for d in disputes:
+                status_icon = "🟢" if d["status"] == "open" else "⚪"
+                ts = datetime.fromtimestamp(d["created_at"]).strftime("%Y-%m-%d %H:%M") if d["created_at"] else "?"
+                print(f"\n{status_icon} [{d['status'].upper()}] {d['vector']}  ({ts})")
+                print(f"   Reported: {d['reported']:.2f}  Expected: {d['expected']:.2f}  Gap: {abs(d['reported'] - d['expected']):.2f}")
+                print(f"   Reason: {d['reason']}")
+                if d["evidence"]:
+                    print(f"   Evidence: {d['evidence']}")
+                if d["work_context"]:
+                    print(f"   Context: {d['work_context']}")
+                if d["resolution"]:
+                    print(f"   Resolution: {d['resolution']}")
+            print()
+
+    except Exception as e:
+        if output_format == 'json':
+            print(json.dumps({"ok": False, "error": str(e)}))
+        else:
+            print(f"Error loading disputes: {e}")
+
+
 def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str, show_trajectory: bool):
     """Show grounded calibration (POSTFLIGHT → POST-TEST evidence comparison).
 
@@ -1183,6 +1275,9 @@ def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str,
         grounded_adjustments = gcm.get_grounded_adjustments(ai_id)
         divergence = gcm.get_calibration_divergence(ai_id)
 
+        # Load open disputes
+        open_disputes = _get_open_disputes(db)
+
         total_grounded_evidence = sum(
             b.evidence_count for b in grounded_beliefs.values()
         )
@@ -1196,6 +1291,11 @@ def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str,
                 "adjustments": grounded_adjustments,
                 "divergence": divergence,
             }
+            if open_disputes:
+                result["disputed_vectors"] = {
+                    v: {"reason": d["reason"], "expected": d["expected"]}
+                    for v, d in open_disputes.items()
+                }
             print(json.dumps(result, indent=2))
         else:
             print("=" * 70)
@@ -1206,6 +1306,8 @@ def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str,
             print("(test results, git metrics, artifact counts, goal completion)")
             print()
             print(f"Total evidence observations: {total_grounded_evidence}")
+            if open_disputes:
+                print(f"Open disputes: {len(open_disputes)} vector(s)")
             print()
 
             if divergence:
@@ -1222,15 +1324,27 @@ def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str,
                 for vector, data in sorted_div:
                     gap = data['gap']
                     sign = "+" if gap >= 0 else ""
-                    prefix = "⚠️ " if abs(gap) >= 0.15 else "   "
+                    disputed = vector in open_disputes
+                    prefix = "⚖️ " if disputed else ("⚠️ " if abs(gap) >= 0.15 else "   ")
+                    suffix = " [DISPUTED]" if disputed else ""
                     print(
                         f"{prefix}{vector:<12} "
                         f"{data['self_referential_mean']:>12.2f} "
                         f"{data['grounded_mean']:>10.2f} "
                         f"{sign}{gap:>7.2f} "
                         f"{data['grounded_evidence']:>10}"
+                        f"{suffix}"
                     )
                 print("-" * 70)
+
+                # Show dispute details
+                if open_disputes:
+                    print()
+                    print("⚖️  OPEN DISPUTES (measurement artifacts flagged by AI):")
+                    for vector, dispute in open_disputes.items():
+                        print(f"   {vector}: reported={dispute['reported']:.2f}, "
+                              f"expected={dispute['expected']:.2f} — {dispute['reason']}")
+                    print("   (Disputed vectors have reduced weight in Bayesian updates)")
             else:
                 print("   No grounded data yet. Run POSTFLIGHT sessions to collect evidence.")
 
@@ -1243,7 +1357,8 @@ def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str,
                     reverse=True,
                 ):
                     sign = "+" if adj >= 0 else ""
-                    print(f"   {vector}: {sign}{adj:.2f}")
+                    disputed = " [DISPUTED]" if vector in open_disputes else ""
+                    print(f"   {vector}: {sign}{adj:.2f}{disputed}")
             print()
 
         # Optional trajectory trend
@@ -1308,9 +1423,14 @@ def handle_calibration_report_command(args):
         update_prompt = getattr(args, 'update_prompt', False)
         verbose = getattr(args, 'verbose', False)
 
-        # Check mode: grounded (default) vs learning-trajectory
+        # Check mode: grounded (default) vs learning-trajectory vs list-disputes
         show_learning_trajectory = getattr(args, 'learning_trajectory', False)
         show_trajectory_trend = getattr(args, 'trajectory', False)
+        list_disputes = getattr(args, 'list_disputes', False)
+
+        # --list-disputes: show all disputes
+        if list_disputes:
+            return _show_disputes(output_format)
 
         # DEFAULT: Show grounded calibration (the real calibration)
         if not show_learning_trajectory:
@@ -1743,3 +1863,103 @@ def handle_system_status_command(args):
 
     except Exception as e:
         handle_cli_error(e, "System Status", getattr(args, 'verbose', False))
+
+
+def handle_calibration_dispute_command(args):
+    """Handle calibration-dispute command — AI pushback on measurement artifacts.
+
+    When grounded calibration reports a gap that's a measurement bug (not a real
+    overestimate), the AI files a dispute. Disputes are stored in SQLite and
+    flagged in subsequent calibration reports.
+    """
+    import json
+    import sys
+    import uuid
+    import time
+
+    try:
+        from empirica.data.session_database import SessionDatabase
+        from empirica.utils.session_resolver import get_active_empirica_session_id
+
+        vector = args.vector
+        reported = args.reported
+        expected = args.expected
+        reason = args.reason
+        evidence = getattr(args, 'evidence', None) or ''
+        output_format = getattr(args, 'output', 'json')
+
+        # Validate vector name
+        valid_vectors = {'know', 'uncertainty', 'context', 'engagement', 'clarity',
+                         'coherence', 'signal', 'density', 'state', 'change',
+                         'completion', 'impact', 'do'}
+        if vector not in valid_vectors:
+            result = {"ok": False, "error": f"Invalid vector: {vector}. Must be one of: {', '.join(sorted(valid_vectors))}"}
+            print(json.dumps(result))
+            sys.exit(1)
+
+        # Resolve session
+        session_id = getattr(args, 'session_id', None)
+        if not session_id:
+            session_id = get_active_empirica_session_id()
+        if not session_id:
+            result = {"ok": False, "error": "No active session. Use --session-id or start a session first."}
+            print(json.dumps(result))
+            sys.exit(1)
+
+        # Read work_context from active transaction if available
+        work_context = None
+        try:
+            from empirica.utils.session_resolver import get_active_project_path
+            from empirica.core.statusline_cache import get_instance_id
+            from pathlib import Path
+            instance_id = get_instance_id()
+            suffix = f"_{instance_id}" if instance_id else ""
+            project_path = get_active_project_path()
+            if project_path:
+                tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
+                if tx_file.exists():
+                    with open(tx_file) as f:
+                        tx = json.load(f)
+                    work_context = tx.get('work_context')
+        except Exception:
+            pass
+
+        # Store the dispute
+        db = SessionDatabase()
+        dispute_id = str(uuid.uuid4())
+        db.conn.execute("""
+            INSERT INTO calibration_disputes
+                (dispute_id, session_id, vector, reported_value, expected_value,
+                 reason, evidence, work_context, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)
+        """, (dispute_id, session_id, vector, reported, expected,
+              reason, evidence, work_context, time.time()))
+        db.conn.commit()
+        db.close()
+
+        result = {
+            "ok": True,
+            "dispute_id": dispute_id,
+            "vector": vector,
+            "reported": reported,
+            "expected": expected,
+            "reason": reason,
+            "work_context": work_context,
+        }
+
+        if output_format == 'json':
+            print(json.dumps(result, indent=2))
+        else:
+            gap = abs(reported - expected)
+            print(f"Dispute filed: {vector}")
+            print(f"  Reported (grounded): {reported:.2f}")
+            print(f"  Expected (actual):   {expected:.2f}")
+            print(f"  Gap:                 {gap:.2f}")
+            print(f"  Reason: {reason}")
+            if work_context:
+                print(f"  Context: {work_context}")
+            print(f"  ID: {dispute_id[:8]}...")
+
+    except Exception as e:
+        print(json.dumps({"ok": False, "error": str(e)}))
+        sys.exit(1)

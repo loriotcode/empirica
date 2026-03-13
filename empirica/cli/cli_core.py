@@ -46,7 +46,7 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
                     'CASCADE Workflow': ['preflight-submit', 'check', 'check-submit', 'postflight-submit'],
                     'Goals & Tasks': ['goals-create', 'goals-list', 'goals-search', 'goals-complete', 'goals-claim', 'goals-add-subtask', 'goals-add-dependency', 'goals-complete-subtask', 'goals-get-subtasks', 'goals-progress', 'goals-discover', 'goals-ready', 'goals-resume', 'goals-mark-stale', 'goals-get-stale', 'goals-refresh'],
                     'Project Management': ['project-init', 'project-update', 'project-create', 'project-list', 'project-switch', 'project-bootstrap', 'project-handoff', 'project-search', 'project-embed', 'code-embed', 'doc-check'],
-                    'Workspace': ['workspace-init', 'workspace-map', 'workspace-list', 'workspace-overview', 'ecosystem-check'],
+                    'Workspace': ['workspace-init', 'workspace-map', 'workspace-list', 'workspace-overview', 'workspace-search', 'engagement-focus', 'ecosystem-check', 'save', 'history'],
                     'Checkpoints': ['checkpoint-create', 'checkpoint-load', 'checkpoint-list', 'checkpoint-diff', 'checkpoint-sign', 'checkpoint-verify', 'checkpoint-signatures'],
                     'Sync': ['sync-config', 'sync-push', 'sync-pull', 'sync-status', 'rebuild', 'artifacts-generate'],
                     'Identity': ['identity-create', 'identity-export', 'identity-list', 'identity-verify'],
@@ -56,7 +56,7 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
                     'Investigation': ['investigate', 'investigate-create-branch', 'investigate-checkpoint-branch', 'investigate-merge-branches', 'investigate-multi'],
                     'Monitoring': ['monitor', 'assess-state', 'trajectory-project', 'efficiency-report'],
                     'Skills': ['skill-suggest', 'skill-fetch', 'skill-extract'],
-                    'Utilities': ['log-token-saving', 'config', 'performance', 'qdrant-status', 'qdrant-cleanup'],
+                    'Utilities': ['log-token-saving', 'config', 'performance', 'qdrant-status', 'qdrant-cleanup', 'training-export'],
                     'Vision': ['vision'],
                     'Epistemics': ['epistemics-list', 'epistemics-show'],
                     'User Interface': ['chat'],
@@ -329,6 +329,7 @@ def main(args=None):
             'trajectory-project': handle_trajectory_project_command,
             'compact-analysis': handle_compact_analysis,
             'calibration-report': handle_calibration_report_command,
+            'calibration-dispute': handle_calibration_dispute_command,
 
             # Checkpoint commands
             'checkpoint-create': handle_checkpoint_create_command,
@@ -366,6 +367,10 @@ def main(args=None):
             'workspace-list': handle_workspace_list_command,
             'workspace-init': handle_workspace_init_command,
             'ecosystem-check': handle_ecosystem_check_command,
+            'workspace-search': handle_workspace_search_command,
+            'engagement-focus': handle_engagement_focus_command,
+            'save': handle_save_command,
+            'history': handle_history_command,
             'project-search': handle_project_search_command,
             'project-embed': handle_project_embed_command,
             'code-embed': handle_code_embed_command,
@@ -381,6 +386,9 @@ def main(args=None):
             'decision-log': handle_decision_log_command,
             'refdoc-add': handle_refdoc_add_command,
             'source-add': handle_source_add_command,
+
+            # Training data export
+            'training-export': handle_training_export_command,
 
             # Sync commands (git notes synchronization)
             'sync-config': handle_sync_config_command,

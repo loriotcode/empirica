@@ -1,6 +1,6 @@
 # CASCADE Workflow API Reference
 
-**Version:** 1.6.3
+**Version:** 1.6.4
 **Purpose:** Epistemic measurement phases for AI self-assessment and grounded calibration
 
 ---
@@ -310,12 +310,14 @@ POSTFLIGHT automatically triggers grounded calibration, which compares self-asse
 |--------|---------|-----------------|
 | pytest results | OBJECTIVE | know, do, clarity |
 | Git metrics | OBJECTIVE | do, change, state |
+| Code quality (ruff, radon, pyright) | SEMI_OBJECTIVE | clarity, coherence, density, signal, know, do |
 | Goal/subtask completion | SEMI_OBJECTIVE | completion, do, know |
 | Artifact ratios | SEMI_OBJECTIVE | know, uncertainty, signal |
 | Issue resolution | SEMI_OBJECTIVE | impact, signal |
 | Sentinel decisions | SEMI_OBJECTIVE | context, uncertainty |
+| Codebase model (entities, facts, constraints) | SEMI_OBJECTIVE | know, context, signal, density, coherence |
 
-**Ungroundable vectors:** engagement, coherence, density (no objective signal)
+**Ungroundable vectors:** engagement (no objective signal)
 
 ---
 

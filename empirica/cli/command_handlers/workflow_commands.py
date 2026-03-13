@@ -243,6 +243,7 @@ def handle_preflight_submit_command(args):
             vectors = validated.vectors
             reasoning = validated.reasoning or ''
             task_context = validated.task_context or ''
+            work_context = getattr(validated, 'work_context', None)
             output_format = 'json'  # AI-first always uses JSON output
         else:
             # LEGACY MODE: Use CLI flags
@@ -250,6 +251,7 @@ def handle_preflight_submit_command(args):
             vectors = parse_json_safely(args.vectors) if isinstance(args.vectors, str) else args.vectors
             reasoning = args.reasoning
             task_context = getattr(args, 'task_context', '') or ''  # For pattern retrieval
+            work_context = None  # Legacy mode doesn't support work_context
             output_format = getattr(args, 'output', 'json')  # Default to JSON
 
             # Validate required fields for legacy mode
@@ -358,6 +360,21 @@ def handle_preflight_submit_command(args):
                         status="open",
                         project_path=resolved_project_path
                     )
+
+                    # Inject work_context into transaction file if provided
+                    if work_context:
+                        try:
+                            from empirica.utils.session_resolver import read_active_transaction_full, _get_instance_suffix
+                            suffix = _get_instance_suffix()
+                            tx_file = Path(resolved_project_path) / '.empirica' / f'active_transaction{suffix}.json'
+                            if tx_file.exists():
+                                with open(tx_file, 'r') as f:
+                                    tx_d = _json.load(f)
+                                tx_d['work_context'] = work_context
+                                with open(tx_file, 'w') as f:
+                                    _json.dump(tx_d, f, indent=2)
+                        except Exception:
+                            pass  # Non-fatal
 
                     # CRITICAL: Update active context with the session_id used by PREFLIGHT
                     # This ensures sentinel reads the SAME session_id that PREFLIGHT wrote to
@@ -1342,7 +1359,7 @@ def handle_check_submit_command(args):
                 # (Note: In real flow, pre_check would run BEFORE check-submit)
                 # For now, document that this should be called by orchestration layer
                 
-                # Post-CHECK drift detection removed in v1.6.3 — superseded by
+                # Post-CHECK drift detection removed in v1.6.4 — superseded by
                 # grounded calibration pipeline (postflight → post-test → bayesian updates)
             except Exception as e:
                 # Hook failures are non-critical
@@ -1554,6 +1571,42 @@ def handle_check_submit_command(args):
                         result["patterns"] = check_patterns
             except Exception as e:
                 logger.debug(f"CHECK pattern retrieval failed (optional): {e}")
+
+            # CODEBASE MODEL: Entity graph context injection at CHECK time.
+            # Surfaces active entities, constraints, and relationships for the project.
+            # Non-fatal — skipped if codebase model tables don't exist yet.
+            try:
+                check_project_id = (bootstrap_result or {}).get('project_id') or bootstrap_status.get('project_id')
+                if check_project_id:
+                    from empirica.data.session_database import SessionDatabase
+                    from empirica.config.path_resolver import get_session_db_path
+                    codebase_db_path = get_session_db_path()
+                    if codebase_db_path:
+                        codebase_db = SessionDatabase(codebase_db_path)
+                        try:
+                            entity_count = codebase_db.codebase_model.count_entities(
+                                check_project_id, active_only=True
+                            )
+                            if entity_count > 0:
+                                constraints = codebase_db.codebase_model.get_constraints(
+                                    project_id=check_project_id
+                                )
+                                result["codebase_context"] = {
+                                    "active_entities": entity_count,
+                                    "constraints": [
+                                        {
+                                            "rule": c['rule_name'],
+                                            "type": c['constraint_type'],
+                                            "violations": c['violation_count'],
+                                            "description": c['description'],
+                                        }
+                                        for c in constraints[:5]
+                                    ] if constraints else [],
+                                }
+                        finally:
+                            codebase_db.close()
+            except Exception as e:
+                logger.debug(f"Codebase context injection skipped: {e}")
 
             # AUTO-POSTFLIGHT REMOVED (2026-03-02):
             # Previously CHECK auto-triggered POSTFLIGHT when completion >= 0.7 AND impact >= 0.5.
@@ -1957,6 +2010,7 @@ def handle_postflight_submit_command(args):
             postflight_avg_turns = 0
             postflight_phase_tool_counts = None
             postflight_context_shifts = {'solicited_prompts': 0, 'unsolicited_prompts': 0}
+            postflight_work_context = None
             try:
                 import time
                 from empirica.utils.session_resolver import write_active_transaction, get_active_project_path
@@ -1996,6 +2050,8 @@ def handle_postflight_submit_command(args):
                         'solicited_prompts': tx_data.get('solicited_prompt_count', 0),
                         'unsolicited_prompts': tx_data.get('unsolicited_prompt_count', 0),
                     }
+                    # Work context for maturity-aware normalization
+                    postflight_work_context = tx_data.get('work_context')
                     # Update to closed status - preserve project_path from transaction
                     write_active_transaction(
                         transaction_id=postflight_transaction_id,
@@ -2008,6 +2064,28 @@ def handle_postflight_submit_command(args):
                 logger.debug(f"Transaction close failed (non-fatal): {e}")
                 postflight_tool_call_count = 0
                 postflight_avg_turns = 0
+
+            # Collect entity context for git notes (cross-project provenance)
+            postflight_entity_context = []
+            try:
+                from empirica.data.repositories.workspace_db import WorkspaceDBRepository
+                from empirica.utils.session_resolver import read_active_transaction_full as _pf_read_tx
+                _pf_tx = _pf_read_tx()
+                if _pf_tx and _pf_tx.get('transaction_id'):
+                    with WorkspaceDBRepository.open() as _pf_ws:
+                        _pf_links = _pf_ws.get_entity_artifacts_by_transaction(_pf_tx['transaction_id'])
+                        seen = set()
+                        for _l in _pf_links:
+                            key = f"{_l['entity_type']}:{_l['entity_id']}"
+                            if key not in seen:
+                                seen.add(key)
+                                postflight_entity_context.append({
+                                    "entity_type": _l['entity_type'],
+                                    "entity_id": _l['entity_id'],
+                                    "artifact_type": _l['artifact_type'],
+                                })
+            except Exception:
+                pass  # Entity context is optional enrichment
 
             # Add checkpoint - this writes to ALL 3 storage layers atomically (round auto-increments)
             # tool_call_count is stored in reflex_data so PREFLIGHT can compute avg_turns
@@ -2024,7 +2102,8 @@ def handle_postflight_submit_command(args):
                     "transaction_id": postflight_transaction_id,
                     "tool_call_count": postflight_tool_call_count,
                     "avg_turns_at_start": postflight_avg_turns,
-                    "context_shifts": postflight_context_shifts if postflight_context_shifts.get('unsolicited_prompts', 0) > 0 else None
+                    "context_shifts": postflight_context_shifts if postflight_context_shifts.get('unsolicited_prompts', 0) > 0 else None,
+                    "entity_context": postflight_entity_context or None,
                 }
             )
 
@@ -2134,14 +2213,47 @@ def handle_postflight_submit_command(args):
                 except Exception as e:
                     logger.debug(f"Phase boundary detection failed (non-fatal): {e}")
 
+                # Resolve domain from project_type for Tier 1 calibration weights
+                domain = None
+                project_type = ""
+                if session:
+                    project_type = session.get("project_type", "")
+                    _TYPE_TO_DOMAIN = {
+                        "product": "software", "application": "software",
+                        "feature": "software", "infrastructure": "operations",
+                        "operations": "operations", "research": "research",
+                        "documentation": "consulting",
+                    }
+                    domain = _TYPE_TO_DOMAIN.get(project_type, "default")
+
+                # Load Tier 2 per-vector calibration weights from project.yaml
+                tier2_weights = None
+                try:
+                    from pathlib import Path as _Path
+                    proj_yaml = _Path.cwd() / ".empirica" / "project.yaml"
+                    if proj_yaml.exists():
+                        import yaml
+                        with open(proj_yaml) as _f:
+                            proj_cfg = yaml.safe_load(_f) or {}
+                        tier2_weights = proj_cfg.get("calibration_weights")
+                    # Generate defaults if not seeded (pre-existing projects)
+                    if not tier2_weights:
+                        from .project_init import _seed_calibration_weights
+                        tier2_weights = _seed_calibration_weights(project_type or "software")
+                except Exception as e:
+                    logger.debug(f"Tier 2 weight loading failed (non-fatal): {e}")
+
                 grounded_verification = run_grounded_verification(
                     session_id=session_id,
                     postflight_vectors=vectors,
                     db=db,
                     project_id=project_id,
+                    domain=domain,
                     phase_boundary=phase_boundary,
                     evidence_profile=evidence_profile,
                     phase_tool_counts=postflight_phase_tool_counts,
+                    work_context=postflight_work_context,
+                    per_vector_weights=tier2_weights,
                 )
 
                 if grounded_verification:
@@ -2348,6 +2460,27 @@ def handle_postflight_submit_command(args):
             except Exception as e:
                 # Memory sync is optional (requires Qdrant)
                 logger.debug(f"Memory sync skipped: {e}")
+
+            # WORKSPACE INDEX: Sync entity-linked artifacts to cross-project index
+            workspace_indexed = 0
+            try:
+                from empirica.core.qdrant.connection import _check_qdrant_available as _ws_qdrant_check
+                from empirica.utils.session_resolver import read_active_transaction_full as _ws_read_tx
+
+                _ws_tx = _ws_read_tx()
+                _ws_transaction_id = _ws_tx.get('transaction_id') if _ws_tx else None
+
+                if _ws_qdrant_check() and session and session.get('project_id') and _ws_transaction_id:
+                    from empirica.core.qdrant.workspace_index import sync_transaction_to_index
+                    workspace_indexed = sync_transaction_to_index(
+                        project_id=session['project_id'],
+                        session_id=session_id,
+                        transaction_id=_ws_transaction_id,
+                    )
+                    if workspace_indexed:
+                        logger.debug(f"POSTFLIGHT: Indexed {workspace_indexed} entity-linked artifacts to workspace_index")
+            except Exception as e_ws:
+                logger.debug(f"Workspace index sync skipped (non-fatal): {e_ws}")
 
             # NOETIC RAG: POSTFLIGHT decay triggers + auto-global-sync
             global_synced = False

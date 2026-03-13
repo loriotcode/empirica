@@ -46,6 +46,10 @@ class PreflightInput(BaseModel):
     vectors: Dict[str, float] = Field(description="Epistemic vector values")
     reasoning: Optional[str] = Field(default="", max_length=5000, description="Reasoning for assessment")
     task_context: Optional[str] = Field(default="", max_length=2000, description="Context for pattern retrieval")
+    work_context: Optional[str] = Field(
+        default=None, description="Work context for maturity-aware calibration normalization",
+        pattern="^(greenfield|iteration|investigation|refactor)$",
+    )
 
     @field_validator('session_id')
     @classmethod

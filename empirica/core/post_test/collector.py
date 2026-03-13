@@ -2,12 +2,20 @@
 Post-Test Evidence Collector
 
 Gathers objective, non-self-referential evidence from available sources:
+
+Universal (all phases):
+- Artifact metrics: findings, unknowns, dead-ends, mistakes (SQLite)
+- Noetic quality: investigation depth, breadcrumb density (SQLite)
+- Sentinel gate decisions: CHECK proceed/investigate ratio (SQLite)
+
+Praxic phase (after CHECK):
 - Goal/subtask completion metrics (SQLite)
-- Noetic artifact counts: findings, unknowns, dead-ends, mistakes (SQLite)
-- Auto-captured issues (SQLite)
-- Sentinel gate decisions (SQLite)
+- Issue and triage metrics (SQLite)
+- Codebase model: entities discovered, facts created, constraints (SQLite)
+- Non-git file changes: files edited outside git repos (transaction file + mtime)
+- Git metrics: commits, file change density (subprocess, optional)
+- Code quality: ruff, radon, pyright on changed files (subprocess, optional)
 - Test results from pytest JSON report (file-based, optional)
-- Git metrics: commits, lines changed (subprocess, optional)
 
 Each evidence source is independent and failure-tolerant. The collector
 returns whatever evidence it can gather.
@@ -125,16 +133,21 @@ class PostTestCollector:
     def __init__(self, session_id: str, project_id: Optional[str] = None,
                  db=None, phase: str = "combined",
                  check_timestamp: Optional[float] = None,
-                 evidence_profile: Optional[str] = None):
+                 evidence_profile: Optional[str] = None,
+                 work_context: Optional[str] = None,
+                 preflight_timestamp: Optional[float] = None):
         self.session_id = session_id
         self.project_id = project_id
         self.phase = phase  # "noetic", "praxic", or "combined"
         self.check_timestamp = check_timestamp  # CHECK boundary timestamp
+        self.preflight_timestamp = preflight_timestamp  # Transaction start
         self.evidence_profile = evidence_profile
+        self.work_context = work_context  # greenfield|iteration|investigation|refactor
         self._db = db
         self._owns_db = False
         self._session_goal_ids: Optional[List[str]] = None
         self._project_root: Optional[str] = None  # Lazy-resolved
+        self._project_maturity: Optional[Dict[str, Any]] = None  # Lazy-resolved
 
     def _get_db(self):
         if self._db is None:
@@ -202,8 +215,8 @@ class PostTestCollector:
             try:
                 from empirica.utils.session_resolver import _resolve_via_workspace_db
                 project_info = _resolve_via_workspace_db(self.project_id)
-                if project_info and project_info.get("trajectory_path"):
-                    path = project_info["trajectory_path"]
+                if project_info and (project_info.get("project_path") or project_info.get("trajectory_path")):
+                    path = project_info.get("project_path") or project_info["trajectory_path"]
                     if Path(path).is_dir():
                         self._project_root = path
                         return self._project_root
@@ -233,6 +246,61 @@ class PostTestCollector:
             pass
 
         return None
+
+    def _detect_project_maturity(self) -> Dict[str, Any]:
+        """Detect project maturity from git history for normalization curve selection.
+
+        Returns cached dict with:
+        - total_commits: int — total commits in repo history
+        - is_greenfield: bool — ≤3 prior commits (new project)
+        - is_young: bool — <10 commits
+        - maturity: str — "greenfield" | "young" | "mature"
+
+        Used by _collect_git_metrics and _collect_issue_metrics to adjust
+        normalization divisors. A root commit creating 8 files is maximal change,
+        not 0.2 change.
+        """
+        if self._project_maturity is not None:
+            return self._project_maturity
+
+        # Default: assume mature (current behavior)
+        result = {"total_commits": 100, "is_greenfield": False,
+                  "is_young": False, "maturity": "mature"}
+
+        # work_context override: if explicitly set to greenfield, trust it
+        if self.work_context == "greenfield":
+            result.update({"total_commits": 1, "is_greenfield": True,
+                           "is_young": True, "maturity": "greenfield"})
+            self._project_maturity = result
+            return result
+
+        project_root = self._resolve_project_root()
+        if not project_root:
+            self._project_maturity = result
+            return result
+
+        try:
+            proc = subprocess.run(
+                ["git", "rev-list", "--count", "HEAD"],
+                capture_output=True, text=True, timeout=5,
+                cwd=project_root,
+            )
+            if proc.returncode == 0:
+                total = int(proc.stdout.strip())
+                result["total_commits"] = total
+                result["is_greenfield"] = total <= 3
+                result["is_young"] = total < 10
+                if total <= 3:
+                    result["maturity"] = "greenfield"
+                elif total < 10:
+                    result["maturity"] = "young"
+                else:
+                    result["maturity"] = "mature"
+        except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+            pass
+
+        self._project_maturity = result
+        return result
 
     def _get_prose_collectors(self) -> List[tuple]:
         """Get prose-specific evidence collectors."""
@@ -290,6 +358,9 @@ class PostTestCollector:
         if self.phase in ("praxic", "combined"):
             universal.append(("goals", self._collect_goal_metrics))
             universal.append(("issues", self._collect_issue_metrics))
+            universal.append(("triage", self._collect_triage_metrics))
+            universal.append(("codebase_model", self._collect_codebase_model_metrics))
+            universal.append(("non_git_files", self._collect_non_git_file_metrics))
 
         # Profile-specific collectors — only run during praxic/combined phases.
         # These measure OUTPUT quality (code quality, test results, build verification,
@@ -495,6 +566,33 @@ class PostTestCollector:
                 supports_vectors=["completion", "do"],
                 metadata={"session_id": self.session_id},
             ))
+
+            # Goal completion also grounds impact and change:
+            # completing goals = delivering impact, creating change
+            if completed > 0:
+                # Impact: completing any goals shows delivered value
+                impact_score = min(1.0, ratio * 1.2)  # Boost slightly — completion is strong impact signal
+                items.append(EvidenceItem(
+                    source="goals",
+                    metric_name="goal_completion_impact",
+                    value=impact_score,
+                    raw_value={"completed": completed, "total": total},
+                    quality=EvidenceQuality.SEMI_OBJECTIVE,
+                    supports_vectors=["impact"],
+                    metadata={"session_id": self.session_id},
+                ))
+
+                # Change: completed goals = state change happened
+                change_score = ratio  # Direct ratio — completing half the goals = 0.5 change
+                items.append(EvidenceItem(
+                    source="goals",
+                    metric_name="goal_completion_change",
+                    value=change_score,
+                    raw_value={"completed": completed, "total": total},
+                    quality=EvidenceQuality.SEMI_OBJECTIVE,
+                    supports_vectors=["change"],
+                    metadata={"session_id": self.session_id},
+                ))
 
         # Token estimation accuracy (estimated vs actual)
         cursor.execute("""
@@ -722,7 +820,12 @@ class PostTestCollector:
         return items
 
     def _collect_issue_metrics(self) -> List[EvidenceItem]:
-        """Collect auto-captured issues for this session."""
+        """Collect auto-captured issues for this session.
+
+        Maturity-aware: greenfield projects with zero issues produce no evidence
+        rather than a floored 0.2, because absence of issues in a new project
+        is not meaningful signal for impact.
+        """
         items = []
         db = self._get_db()
         cursor = db.conn.cursor()
@@ -770,8 +873,381 @@ class PostTestCollector:
                 quality=EvidenceQuality.SEMI_OBJECTIVE,
                 supports_vectors=["signal"],
             ))
+        else:
+            # No issues at all — only provide evidence for mature projects
+            # where zero issues is meaningful. For greenfield/young projects,
+            # absence of issues is not informative (no code to have issues with).
+            maturity = self._detect_project_maturity()
+            if not maturity["is_greenfield"] and not maturity["is_young"]:
+                items.append(EvidenceItem(
+                    source="issues",
+                    metric_name="issue_resolution_ratio",
+                    value=1.0,
+                    raw_value={"resolved": 0, "total": 0, "note": "no issues in mature project"},
+                    quality=EvidenceQuality.INFERRED,
+                    supports_vectors=["impact"],
+                ))
 
         return items
+
+    def _collect_triage_metrics(self) -> List[EvidenceItem]:
+        """Collect evidence from epistemic triage work during this session.
+
+        Triage is praxic work that doesn't produce code artifacts:
+        - Completing goals (via goals-complete) → do, completion
+        - Resolving unknowns (via unknown-resolve) → do, know
+        - Logging findings → know
+
+        Uses timestamps to capture work done DURING this session, regardless
+        of which session originally created the artifact. A goal created in
+        session A but completed in session B should count as session B's work.
+
+        This ensures that triage sessions (cleaning unknowns, completing goals,
+        organizing artifacts) get proper `do` grounding instead of 0.0.
+        """
+        items = []
+        db = self._get_db()
+        cursor = db.conn.cursor()
+
+        # Get session start time for timeframe filtering
+        cursor.execute(
+            "SELECT start_time FROM sessions WHERE session_id = ?",
+            (self.session_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return items
+
+        # Handle both unix timestamp and ISO format
+        raw_start = str(row[0])
+        try:
+            session_start = float(raw_start)
+        except ValueError:
+            from datetime import datetime as _dt
+            try:
+                session_start = _dt.fromisoformat(raw_start).timestamp()
+            except Exception:
+                return items
+
+        # Goals completed during this session (by completed_timestamp, not session_id)
+        cursor.execute("""
+            SELECT COUNT(*) FROM goals
+            WHERE status = 'completed'
+              AND completed_timestamp >= ?
+              AND completed_timestamp IS NOT NULL
+        """, (session_start,))
+        goals_completed = cursor.fetchone()[0]
+
+        # Total active goals at session start (for ratio)
+        cursor.execute("""
+            SELECT COUNT(*) FROM goals
+            WHERE created_timestamp <= ?
+              AND (status != 'completed' OR completed_timestamp >= ?)
+        """, (session_start + 1, session_start))
+        total_goals_in_scope = max(cursor.fetchone()[0], goals_completed)
+
+        if goals_completed > 0:
+            # Goal completion → do (completing goals = doing work)
+            # Normalize: 1 = 0.4, 3 = 0.7, 5+ = 1.0
+            do_score = min(1.0, 0.4 + (goals_completed - 1) * 0.15)
+            items.append(EvidenceItem(
+                source="triage",
+                metric_name="goals_completed",
+                value=do_score,
+                raw_value={
+                    "completed": goals_completed,
+                    "in_scope": total_goals_in_scope,
+                },
+                quality=EvidenceQuality.SEMI_OBJECTIVE,
+                supports_vectors=["do", "completion"],
+                metadata={"work_type": "triage"},
+            ))
+
+            # Completion ratio (if meaningful denominator)
+            if total_goals_in_scope > 0:
+                completion_ratio = min(1.0, goals_completed / total_goals_in_scope)
+                items.append(EvidenceItem(
+                    source="triage",
+                    metric_name="goal_completion_ratio",
+                    value=completion_ratio,
+                    raw_value={
+                        "completed": goals_completed,
+                        "in_scope": total_goals_in_scope,
+                    },
+                    quality=EvidenceQuality.SEMI_OBJECTIVE,
+                    supports_vectors=["completion", "change"],
+                    metadata={"work_type": "triage"},
+                ))
+
+        # Unknowns resolved during this session (by resolved_timestamp)
+        cursor.execute("""
+            SELECT COUNT(*) FROM project_unknowns
+            WHERE is_resolved = 1
+              AND resolved_timestamp >= ?
+              AND resolved_timestamp IS NOT NULL
+        """, (session_start,))
+        unknowns_resolved = cursor.fetchone()[0]
+
+        if unknowns_resolved > 0:
+            # Resolving unknowns IS doing work — epistemic action
+            # Normalize: 5 = 0.3, 15 = 0.6, 30+ = 1.0
+            resolve_do_score = min(1.0, unknowns_resolved / 30.0)
+            items.append(EvidenceItem(
+                source="triage",
+                metric_name="unknowns_resolved",
+                value=resolve_do_score,
+                raw_value={"resolved": unknowns_resolved},
+                quality=EvidenceQuality.SEMI_OBJECTIVE,
+                supports_vectors=["do", "know"],
+                metadata={"work_type": "triage"},
+            ))
+
+            # High resolution count also signals change happened
+            if unknowns_resolved >= 5:
+                change_score = min(1.0, unknowns_resolved / 20.0)
+                items.append(EvidenceItem(
+                    source="triage",
+                    metric_name="triage_change",
+                    value=change_score,
+                    raw_value={"unknowns_resolved": unknowns_resolved},
+                    quality=EvidenceQuality.SEMI_OBJECTIVE,
+                    supports_vectors=["change"],
+                    metadata={"work_type": "triage"},
+                ))
+
+        return items
+
+    def _collect_codebase_model_metrics(self) -> List[EvidenceItem]:
+        """Collect codebase entity graph metrics for grounded calibration.
+
+        Measures structural understanding of the codebase via entity extraction:
+        - Entities discovered/updated during this session → know, context
+        - Entity invalidations (deleted code) → change
+        - Constraints (learned conventions) → coherence, signal
+
+        Only runs if codebase_model tables exist (migration 033+).
+        """
+        items = []
+        db = self._get_db()
+        cursor = db.conn.cursor()
+
+        # Check if codebase_entities table exists
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='codebase_entities'"
+        )
+        if not cursor.fetchone():
+            return items
+
+        # Entities linked to this session
+        try:
+            entity_stats = db.codebase_model.session_entity_stats(self.session_id)
+        except Exception:
+            return items
+
+        total_entities = sum(entity_stats.values())
+        if total_entities > 0:
+            # Entity discovery → know (understanding of codebase structure)
+            # Normalize: 5 entities = 0.3, 20 = 0.6, 50+ = 1.0
+            know_score = min(1.0, total_entities / 50.0)
+            items.append(EvidenceItem(
+                source="codebase_model",
+                metric_name="entities_discovered",
+                value=know_score,
+                raw_value={
+                    "total": total_entities,
+                    "by_type": entity_stats,
+                },
+                quality=EvidenceQuality.SEMI_OBJECTIVE,
+                supports_vectors=["know", "context"],
+                metadata={"work_type": "entity_extraction"},
+            ))
+
+        # Facts created this session
+        try:
+            fact_count = db.codebase_model.session_fact_count(self.session_id)
+        except Exception:
+            fact_count = 0
+
+        if fact_count > 0:
+            # Facts → signal (understanding of what changed and why)
+            signal_score = min(1.0, fact_count / 20.0)
+            items.append(EvidenceItem(
+                source="codebase_model",
+                metric_name="facts_created",
+                value=signal_score,
+                raw_value={"count": fact_count},
+                quality=EvidenceQuality.SEMI_OBJECTIVE,
+                supports_vectors=["signal", "density"],
+                metadata={"work_type": "entity_extraction"},
+            ))
+
+        # Active constraints for the project → coherence (learned conventions)
+        if self.project_id:
+            try:
+                constraints = db.codebase_model.get_constraints(
+                    project_id=self.project_id
+                )
+                if constraints:
+                    total_violations = sum(c.get('violation_count', 0) for c in constraints)
+                    # More constraints with violations = better convention awareness
+                    coherence_score = min(1.0, len(constraints) / 10.0)
+                    items.append(EvidenceItem(
+                        source="codebase_model",
+                        metric_name="convention_constraints",
+                        value=coherence_score,
+                        raw_value={
+                            "constraint_count": len(constraints),
+                            "total_violations": total_violations,
+                        },
+                        quality=EvidenceQuality.SEMI_OBJECTIVE,
+                        supports_vectors=["coherence", "signal"],
+                        metadata={"work_type": "entity_extraction"},
+                    ))
+            except Exception:
+                pass
+
+        return items
+
+    def _collect_non_git_file_metrics(self) -> List[EvidenceItem]:
+        """Collect evidence of file changes outside the git repository.
+
+        When work happens in directories that aren't git-tracked (e.g.
+        ~/.claude/plugins/, config files outside repos), git metrics see
+        zero changes and grounded calibration penalizes state/change/do.
+
+        This collector reads:
+        1. edited_files from the active transaction file (set by Sentinel)
+        2. file_path from codebase_entities for this session
+
+        Files inside the git repo are excluded (already covered by git metrics).
+        """
+        items = []
+        project_root = self._resolve_project_root()
+
+        # Determine git root for filtering
+        git_root = None
+        if project_root:
+            try:
+                result = subprocess.run(
+                    ["git", "rev-parse", "--show-toplevel"],
+                    capture_output=True, text=True, timeout=5,
+                    cwd=project_root,
+                )
+                if result.returncode == 0:
+                    git_root = result.stdout.strip()
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                pass
+
+        # Source 1: edited_files from transaction file
+        non_git_files: set = set()
+        tx_edited = self._get_transaction_edited_files()
+        for fp in tx_edited:
+            if self._is_outside_git(fp, git_root):
+                non_git_files.add(fp)
+
+        # Source 2: codebase_entities file_path for this session
+        try:
+            db = self._get_db()
+            cursor = db.conn.cursor()
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='codebase_entities'"
+            )
+            if cursor.fetchone():
+                cursor.execute(
+                    "SELECT DISTINCT file_path FROM codebase_entities WHERE session_id = ? AND file_path IS NOT NULL",
+                    (self.session_id,),
+                )
+                for row in cursor.fetchall():
+                    fp = row[0]
+                    if fp and self._is_outside_git(fp, git_root):
+                        non_git_files.add(fp)
+        except Exception:
+            pass
+
+        if not non_git_files:
+            return items
+
+        # Verify files actually exist and were recently modified
+        existing_files = []
+        tx_start = self.preflight_timestamp or self.check_timestamp
+        for fp in non_git_files:
+            p = Path(fp)
+            if p.exists():
+                # If we have a transaction start time, check mtime
+                if tx_start:
+                    try:
+                        mtime = p.stat().st_mtime
+                        # 1s buffer for float precision loss in JSON serialization
+                        if mtime >= (tx_start - 1.0):
+                            existing_files.append(fp)
+                    except OSError:
+                        pass
+                else:
+                    existing_files.append(fp)
+
+        if not existing_files:
+            return items
+
+        file_count = len(existing_files)
+
+        # Normalize: 1-2 files = 0.3, 3-5 = 0.6, 6+ = 0.8+
+        change_score = min(1.0, 0.15 * file_count + 0.15)
+
+        items.append(EvidenceItem(
+            source="non_git_files",
+            metric_name="files_edited_outside_git",
+            value=change_score,
+            raw_value={
+                "files": file_count,
+                "paths": existing_files[:20],  # Cap for storage
+                "git_root": git_root or "none",
+            },
+            quality=EvidenceQuality.SEMI_OBJECTIVE,
+            supports_vectors=["state", "change", "do"],
+            metadata={"work_type": "non_git_file_edit"},
+        ))
+
+        return items
+
+    def _get_transaction_edited_files(self) -> List[str]:
+        """Read edited_files list from the active transaction JSON.
+
+        The Sentinel's _try_increment_tool_count appends file_path for
+        every Edit/Write tool call to the transaction file.
+        """
+        from empirica.utils.session_resolver import get_instance_id
+
+        instance_id = get_instance_id()
+        suffix = f'_{instance_id}' if instance_id else ''
+
+        # Try project .empirica/ first, then global
+        search_paths = []
+        project_root = self._resolve_project_root()
+        if project_root:
+            search_paths.append(Path(project_root) / '.empirica' / f'active_transaction{suffix}.json')
+        search_paths.append(Path.home() / '.empirica' / f'active_transaction{suffix}.json')
+
+        for tx_path in search_paths:
+            if tx_path.exists():
+                try:
+                    with open(tx_path, 'r') as f:
+                        tx = json.load(f)
+                    return tx.get('edited_files', [])
+                except Exception:
+                    pass
+        return []
+
+    @staticmethod
+    def _is_outside_git(file_path: str, git_root: Optional[str]) -> bool:
+        """Check if a file path is outside the git repository."""
+        if not git_root:
+            return True  # No git root = everything is non-git
+        try:
+            resolved = str(Path(file_path).resolve())
+            git_resolved = str(Path(git_root).resolve())
+            return not (resolved == git_resolved or resolved.startswith(git_resolved + '/'))
+        except (OSError, ValueError):
+            return True
 
     def _collect_sentinel_metrics(self) -> List[EvidenceItem]:
         """Collect sentinel gate decisions for this session."""
@@ -867,7 +1343,7 @@ class PostTestCollector:
                 value=pass_rate,
                 raw_value={"passed": passed, "failed": failed, "total": total},
                 quality=EvidenceQuality.OBJECTIVE,
-                supports_vectors=["know", "do"],
+                supports_vectors=["know", "do", "state"],
             ))
 
         # Coverage data (if present via pytest-cov JSON)
@@ -897,27 +1373,56 @@ class PostTestCollector:
 
         return items
 
-    def _collect_git_metrics(self) -> List[EvidenceItem]:
-        """Collect git-based metrics for this session's timeframe."""
-        items = []
-        project_root = self._resolve_project_root()
+    def _get_transaction_since(self) -> Optional[str]:
+        """Get the transaction start timestamp as a git --since argument.
 
-        # Get session start time for git log filtering
+        Priority: preflight_timestamp > check_timestamp (praxic) > session start.
+        Returns "@<unix_timestamp>" string or None.
+        """
+        # For praxic phase, scope from CHECK (when action started)
+        if self.phase == "praxic" and self.check_timestamp:
+            return "@" + str(int(self.check_timestamp))
+        # For combined/noetic, scope from PREFLIGHT (transaction start)
+        if self.preflight_timestamp:
+            return "@" + str(int(self.preflight_timestamp))
+        # Fallback: session start
         db = self._get_db()
         cursor = db.conn.cursor()
-        cursor.execute("""
-            SELECT start_time FROM sessions WHERE session_id = ?
-        """, (self.session_id,))
+        cursor.execute(
+            "SELECT start_time FROM sessions WHERE session_id = ?",
+            (self.session_id,),
+        )
         row = cursor.fetchone()
+        if row:
+            try:
+                return "@" + str(int(float(str(row[0]))))
+            except (ValueError, TypeError):
+                pass
+        return None
 
-        if not row:
+    def _collect_git_metrics(self) -> List[EvidenceItem]:
+        """Collect git-based metrics scoped to the current transaction.
+
+        Transaction-scoped: uses PREFLIGHT timestamp (or CHECK for praxic)
+        as the --since boundary, not a fixed HEAD~N window.
+
+        Modular change density: instead of files_changed / fixed_divisor,
+        computes files_touched / total_files_in_touched_directories.
+        This captures "how much did this transaction reshape the modules
+        it worked in?" rather than "what fraction of the whole codebase?".
+        """
+        items = []
+        project_root = self._resolve_project_root()
+        maturity = self._detect_project_maturity()
+
+        since = self._get_transaction_since()
+        if not since:
             return items
 
         try:
-            # Count commits since session start
+            # Count commits since transaction start
             result = subprocess.run(
-                ["git", "log", "--oneline", "--since=@" + str(int(float(str(row[0])))),
-                 "--format=%H"],
+                ["git", "log", "--oneline", "--since=" + since, "--format=%H"],
                 capture_output=True, text=True, timeout=5,
                 cwd=project_root,
             )
@@ -926,45 +1431,229 @@ class PostTestCollector:
                 commit_count = len(commits)
 
                 if commit_count > 0:
-                    # Normalize: 1-2 commits = 0.5, 5+ = 1.0
-                    do_score = min(1.0, commit_count / 5.0)
+                    # Maturity-aware normalization for commit count
+                    if maturity["is_greenfield"]:
+                        do_score = min(1.0, commit_count / 2.0)
+                    elif maturity["is_young"]:
+                        do_score = min(1.0, commit_count / 3.0)
+                    else:
+                        do_score = min(1.0, commit_count / 5.0)
+
                     items.append(EvidenceItem(
                         source="git",
                         metric_name="commit_count",
                         value=do_score,
-                        raw_value={"commits": commit_count},
+                        raw_value={"commits": commit_count,
+                                   "maturity": maturity["maturity"]},
                         quality=EvidenceQuality.OBJECTIVE,
                         supports_vectors=["do", "change"],
                     ))
 
-            # Count lines changed (stat)
+            # Files changed since transaction start (transaction-scoped)
             result = subprocess.run(
-                ["git", "diff", "--stat", "--shortstat", "HEAD~3..HEAD"],
+                ["git", "log", "--name-only", "--format=",
+                 "--diff-filter=ACMR", "--since=" + since],
+                capture_output=True, text=True, timeout=5,
+                cwd=project_root,
+            )
+            if result.returncode == 0:
+                changed_files = {
+                    f.strip() for f in result.stdout.strip().split('\n')
+                    if f.strip()
+                }
+                # Also include staged/unstaged changes
+                for diff_args in [["--cached"], []]:
+                    staged = subprocess.run(
+                        ["git", "diff", "--name-only", "--diff-filter=ACMR"] + diff_args,
+                        capture_output=True, text=True, timeout=5,
+                        cwd=project_root,
+                    )
+                    if staged.returncode == 0:
+                        changed_files.update(
+                            f.strip() for f in staged.stdout.strip().split('\n')
+                            if f.strip()
+                        )
+
+                files_changed = len(changed_files)
+                if files_changed > 0:
+                    # Modular change density: files touched / total files in touched dirs
+                    change_density = self._compute_change_density(
+                        changed_files, project_root,
+                    )
+
+                    items.append(EvidenceItem(
+                        source="git",
+                        metric_name="files_changed",
+                        value=change_density["state_score"],
+                        raw_value={
+                            "files": files_changed,
+                            "module_files": change_density["module_files"],
+                            "density": change_density["density"],
+                            "modules": change_density["modules_touched"],
+                            "maturity": maturity["maturity"],
+                        },
+                        quality=EvidenceQuality.OBJECTIVE,
+                        supports_vectors=["state", "change"],
+                    ))
+
+            # LOC delta: insertions + deletions for richer change signal
+            # Use git log --stat (not git diff, which doesn't support --since)
+            result = subprocess.run(
+                ["git", "log", "--shortstat", "--format=", "--since=" + since],
                 capture_output=True, text=True, timeout=5,
                 cwd=project_root,
             )
             if result.returncode == 0 and result.stdout.strip():
-                # Parse "X files changed, Y insertions(+), Z deletions(-)"
-                stat_line = result.stdout.strip().split('\n')[-1]
                 import re
-                files_match = re.search(r'(\d+) files? changed', stat_line)
-                if files_match:
-                    files_changed = int(files_match.group(1))
-                    # Normalize: 1-3 files = 0.3, 10+ = 1.0
-                    state_score = min(1.0, files_changed / 10.0)
+                # Aggregate across all commits in the period
+                insertions = sum(int(m.group(1)) for m in
+                                 re.finditer(r'(\d+) insertion', result.stdout))
+                deletions = sum(int(m.group(1)) for m in
+                                re.finditer(r'(\d+) deletion', result.stdout))
+                total_loc = insertions + deletions
+                if total_loc > 0:
+                    # Normalize: 50 LOC = 0.3, 200 = 0.6, 500+ = 1.0
+                    loc_score = min(1.0, total_loc / 500.0)
                     items.append(EvidenceItem(
                         source="git",
-                        metric_name="files_changed",
-                        value=state_score,
-                        raw_value={"files": files_changed},
+                        metric_name="loc_delta",
+                        value=loc_score,
+                        raw_value={
+                            "insertions": insertions,
+                            "deletions": deletions,
+                            "total": total_loc,
+                        },
                         quality=EvidenceQuality.OBJECTIVE,
-                        supports_vectors=["state", "change"],
+                        supports_vectors=["change", "do"],
                     ))
+
+            # A/M/D file ratio: character of changes
+            # Use git log (not git diff, which doesn't support --since)
+            amd_counts = {}
+            for filter_code, label in [("A", "added"), ("M", "modified"), ("D", "deleted")]:
+                result = subprocess.run(
+                    ["git", "log", "--name-only", "--format=",
+                     f"--diff-filter={filter_code}", "--since=" + since],
+                    capture_output=True, text=True, timeout=5,
+                    cwd=project_root,
+                )
+                if result.returncode == 0:
+                    amd_counts[label] = len({
+                        f.strip() for f in result.stdout.strip().split('\n')
+                        if f.strip()
+                    })
+                else:
+                    amd_counts[label] = 0
+
+            total_amd = sum(amd_counts.values())
+            if total_amd > 0:
+                # State awareness: knowing what was added vs modified vs removed
+                # Weighted: new files = high state change, modify = medium, delete = lower
+                weighted = (amd_counts["added"] * 1.0 +
+                            amd_counts["modified"] * 0.5 +
+                            amd_counts["deleted"] * 0.3)
+                amd_score = min(1.0, weighted / max(total_amd, 1))
+                items.append(EvidenceItem(
+                    source="git",
+                    metric_name="amd_file_ratio",
+                    value=amd_score,
+                    raw_value=amd_counts,
+                    quality=EvidenceQuality.OBJECTIVE,
+                    supports_vectors=["state", "change"],
+                ))
+
+            # Working tree cleanliness: committed everything = state awareness
+            result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                capture_output=True, text=True, timeout=5,
+                cwd=project_root,
+            )
+            if result.returncode == 0:
+                uncommitted = len([
+                    l for l in result.stdout.strip().split('\n') if l.strip()
+                ])
+                # Clean tree = 1.0, progressively lower with more uncommitted files
+                clean_score = max(0.0, 1.0 - min(1.0, uncommitted / 10.0))
+                items.append(EvidenceItem(
+                    source="git",
+                    metric_name="working_tree_cleanliness",
+                    value=clean_score,
+                    raw_value={"uncommitted_files": uncommitted},
+                    quality=EvidenceQuality.OBJECTIVE,
+                    supports_vectors=["state"],
+                ))
 
         except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
             pass
 
         return items
+
+    def _compute_change_density(
+        self,
+        changed_files: set,
+        project_root: str,
+    ) -> Dict[str, Any]:
+        """Compute modular change density: files touched / files in touched dirs.
+
+        Instead of normalizing against the whole codebase (files/10), we measure
+        how much the touched modules were reshaped. Touching 12/30 files across
+        5 directories = 0.4 density, which better reflects variance of work than
+        12/total_project_files.
+
+        Returns dict with density, state_score, and metadata.
+        """
+        root = Path(project_root)
+
+        # Find unique parent directories of changed files
+        touched_dirs: set = set()
+        for f in changed_files:
+            parent = str(Path(f).parent)
+            if parent == '.':
+                parent = ''
+            touched_dirs.add(parent)
+
+        # Count total tracked files in those directories (non-recursive per dir)
+        module_files = 0
+        for d in touched_dirs:
+            dir_path = root / d if d else root
+            if dir_path.is_dir():
+                # Count files that git tracks in this directory (non-recursive)
+                try:
+                    result = subprocess.run(
+                        ["git", "ls-files", str(d) + "/" if d else "."],
+                        capture_output=True, text=True, timeout=5,
+                        cwd=project_root,
+                    )
+                    if result.returncode == 0:
+                        # Filter to direct children only (not recursive)
+                        dir_prefix = d + "/" if d else ""
+                        direct_files = [
+                            f for f in result.stdout.strip().split('\n')
+                            if f.strip() and f.count('/') == dir_prefix.count('/')
+                        ]
+                        module_files += len(direct_files)
+                except (subprocess.TimeoutExpired, FileNotFoundError):
+                    pass
+
+        # Fallback: if we couldn't count module files, use maturity-based divisor
+        if module_files == 0:
+            maturity = self._detect_project_maturity()
+            if maturity["is_greenfield"]:
+                divisor = 3.0
+            elif maturity["is_young"]:
+                divisor = 5.0
+            else:
+                divisor = 10.0
+            density = min(1.0, len(changed_files) / divisor)
+        else:
+            density = min(1.0, len(changed_files) / max(module_files, 1))
+
+        return {
+            "density": round(density, 4),
+            "state_score": density,
+            "module_files": module_files,
+            "modules_touched": len(touched_dirs),
+        }
 
     def _collect_code_quality_metrics(self) -> List[EvidenceItem]:
         """Collect code quality evidence from static analysis tools.
@@ -977,7 +1666,6 @@ class PostTestCollector:
         Tool availability is detected at runtime — missing tools are skipped.
         """
         items = []
-        import re
         project_root = self._resolve_project_root()
 
         # Get files changed during this session from git
@@ -1072,7 +1760,7 @@ class PostTestCollector:
 
                 all_complexities = []
                 high_complexity_count = 0  # CC >= 11 (grade C or worse)
-                for file_path, functions in cc_data.items():
+                for _, functions in cc_data.items():
                     for func in functions:
                         cc = func.get("complexity", 0)
                         all_complexities.append(cc)
@@ -1143,12 +1831,15 @@ class PostTestCollector:
         return items
 
     def _get_session_changed_files(self) -> List[str]:
-        """Get files changed during this session via git.
+        """Get files changed during this transaction/session via git.
 
         Combines three sources:
-        1. Committed changes since session start (git log)
+        1. Committed changes since transaction start (git log --since)
         2. Staged but uncommitted changes (git diff --cached)
         3. Unstaged working tree changes (git diff)
+
+        Uses transaction timestamp (PREFLIGHT/CHECK) when available,
+        falls back to session start time.
 
         All git commands run with cwd=project_root so they query the correct repo.
         Returned paths are relative to project_root (as git outputs them).
@@ -1156,24 +1847,26 @@ class PostTestCollector:
         all_files: set = set()
         project_root = self._resolve_project_root()
 
-        db = self._get_db()
-        cursor = db.conn.cursor()
-        cursor.execute(
-            "SELECT start_time FROM sessions WHERE session_id = ?",
-            (self.session_id,),
-        )
-        row = cursor.fetchone()
+        # Prefer transaction-scoped timestamp
+        since = self._get_transaction_since()
+        if not since:
+            # Fallback to session start
+            db = self._get_db()
+            cursor = db.conn.cursor()
+            cursor.execute(
+                "SELECT start_time FROM sessions WHERE session_id = ?",
+                (self.session_id,),
+            )
+            row = cursor.fetchone()
+            if row:
+                try:
+                    since = "@" + str(int(float(str(row[0]))))
+                except (ValueError, TypeError):
+                    pass
 
         try:
-            # 1. Committed changes since session start
-            if row:
-                start_time = str(row[0])
-                # Handle both unix timestamps and ISO format
-                try:
-                    since = str(int(float(start_time)))
-                except ValueError:
-                    # ISO format — pass directly to git --since
-                    since = start_time
+            # 1. Committed changes since transaction/session start
+            if since:
                 result = subprocess.run(
                     ["git", "log", "--name-only", "--format=",
                      "--diff-filter=ACMR", "--since=" + since],

@@ -98,6 +98,25 @@ SCHEMAS = [
     )
     """,
 
+    # Calibration disputes - AI pushback on measurement artifacts
+    """
+    CREATE TABLE IF NOT EXISTS calibration_disputes (
+        dispute_id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        vector TEXT NOT NULL,
+        reported_value REAL NOT NULL,
+        expected_value REAL NOT NULL,
+        reason TEXT NOT NULL,
+        evidence TEXT,
+        work_context TEXT,
+        status TEXT DEFAULT 'open',
+        resolution TEXT,
+        created_at REAL DEFAULT (strftime('%s', 'now')),
+
+        FOREIGN KEY (session_id) REFERENCES sessions(session_id)
+    )
+    """,
+
     # Indexes
     """
     CREATE INDEX IF NOT EXISTS idx_grounded_beliefs_ai_vector

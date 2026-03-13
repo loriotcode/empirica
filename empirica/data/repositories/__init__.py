@@ -15,6 +15,7 @@ from .projects import ProjectRepository
 from .utilities import TokenRepository, CommandRepository, WorkspaceRepository
 from .vectors import VectorRepository
 from .metrics import MetricsRepository
+from .codebase_model import CodebaseModelRepository
 
 __all__ = [
     'BaseRepository',
@@ -29,4 +30,5 @@ __all__ = [
     'WorkspaceRepository',
     'VectorRepository',
     'MetricsRepository',
+    'CodebaseModelRepository',
 ]

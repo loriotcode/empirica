@@ -115,7 +115,7 @@ class SessionDatabase:
             SessionRepository, CascadeRepository, GoalDataRepository,
             BranchRepository, BreadcrumbRepository, ProjectRepository,
             TokenRepository, CommandRepository, WorkspaceRepository,
-            VectorRepository, MetricsRepository
+            VectorRepository, MetricsRepository, CodebaseModelRepository
         )
         self.sessions = SessionRepository(self.conn)
         self.cascades = CascadeRepository(self.conn)
@@ -128,6 +128,7 @@ class SessionDatabase:
         self.workspace = WorkspaceRepository(self.conn)
         self.vectors = VectorRepository(self.conn)
         self.metrics = MetricsRepository(self.conn)
+        self.codebase_model = CodebaseModelRepository(self.conn)
 
         # Core repositories need special handling to avoid circular dependency
         # We'll initialize them lazily when first accessed

@@ -93,6 +93,12 @@ from .artifact_log_commands import (
     handle_decision_log_command,
     handle_refdoc_add_command,
     handle_source_add_command,
+    handle_engagement_focus_command,
+)
+from .workspace_search import handle_workspace_search_command
+from .git_commands import handle_save_command, handle_history_command
+from .training_commands import (
+    handle_training_export_command,
 )
 from .workspace_commands import (
     handle_workspace_overview_command,
@@ -136,6 +142,7 @@ from .monitor_commands import (
     handle_mco_load_command,
     handle_assess_state_command, handle_trajectory_project_command,
     handle_calibration_report_command, handle_system_status_command,
+    handle_calibration_dispute_command,
 )
 from .compact_analysis import handle_compact_analysis
 from .investigation_commands import (
@@ -287,6 +294,7 @@ __all__ = [
     'handle_decision_log_command',
     'handle_refdoc_add_command',
     'handle_source_add_command',
+    'handle_training_export_command',
     'handle_project_search_command',
     'handle_project_embed_command',
     'handle_code_embed_command',
@@ -314,6 +322,7 @@ __all__ = [
     'handle_trajectory_project_command',
     'handle_calibration_report_command',
     'handle_system_status_command',
+    'handle_calibration_dispute_command',
     'handle_compact_analysis',
 
     # Investigation commands
@@ -360,6 +369,12 @@ __all__ = [
     'handle_lesson_replay_end_command',
     'handle_lesson_stats_command',
     'handle_lesson_embed_command',
+
+    # Workspace search + engagement focus + git abstractions
+    'handle_workspace_search_command',
+    'handle_engagement_focus_command',
+    'handle_save_command',
+    'handle_history_command',
 
     # Artifact generation
     'handle_artifacts_generate_command',

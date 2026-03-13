@@ -40,7 +40,7 @@ _lib_path = Path(__file__).parent.parent / 'lib'
 if str(_lib_path) not in sys.path:
     sys.path.insert(0, str(_lib_path))
 
-from project_resolver import get_active_project_path, get_instance_id, get_active_session_id
+from project_resolver import get_active_project_path, get_instance_id, get_active_session_id, detect_environment
 
 # Noetic tools - read/investigate/search - always allowed (whitelist)
 NOETIC_TOOLS = {
@@ -52,6 +52,21 @@ NOETIC_TOOLS = {
     'Skill',                                  # Skill invocation
     'KillShell',                              # Process management (cleanup)
 }
+
+# Chrome MCP tools classified by effect (noetic = read-only, praxic = mutating)
+NOETIC_MCP_CHROME = {
+    'mcp__claude-in-chrome__tabs_context_mcp',    # List open tabs
+    'mcp__claude-in-chrome__tabs_create_mcp',     # Open new tab (viewing, not mutation)
+    'mcp__claude-in-chrome__navigate',            # Navigate to URL (viewing)
+    'mcp__claude-in-chrome__read_page',           # Read page content
+    'mcp__claude-in-chrome__get_page_text',       # Get page text
+    'mcp__claude-in-chrome__find',                # Find text on page
+    'mcp__claude-in-chrome__read_console_messages',   # Read console output
+    'mcp__claude-in-chrome__read_network_requests',   # Read network activity
+    'mcp__claude-in-chrome__screenshot',          # Capture page screenshot
+    'mcp__claude-in-chrome__gif_creator',          # Record page interaction
+}
+# Praxic Chrome MCP tools (require CHECK): form_input, javascript_tool, computer
 
 # Safe Bash command prefixes - read-only operations (ACL)
 SAFE_BASH_PREFIXES = (
@@ -70,6 +85,7 @@ SAFE_BASH_PREFIXES = (
     'gh issue list', 'gh issue view', 'gh issue status',
     'gh pr list', 'gh pr view', 'gh pr status', 'gh pr checks',
     'gh repo view', 'gh release list', 'gh release view',
+    'gh search ',  # Search repos, issues, PRs, code (read-only)
     'gh api ',  # API calls (read-only by default)
     # Environment inspection
     'pwd', 'echo ', 'printf ', 'env', 'printenv', 'set',
@@ -95,6 +111,9 @@ SAFE_BASH_PREFIXES = (
     'man ', 'info ', 'help ',
     # Testing (read-only check)
     'test ', '[ ',
+    # Static analysis (read-only)
+    'pyright', 'ruff check', 'radon ',
+    'mypy ', 'flake8 ', 'pylint ',
 )
 
 # Dangerous shell operators (command injection prevention)
@@ -167,28 +186,6 @@ def get_pause_file_path() -> Path:
         safe_id = instance_id.replace('/', '-').replace('%', '')
         return PAUSE_FILE_BASE / f'sentinel_paused_{safe_id}'
     return PAUSE_FILE_GLOBAL
-
-
-def get_instance_id() -> Optional[str]:
-    """Get instance identifier for multi-Claude isolation.
-
-    Priority: TMUX_PANE (works in hooks) > TTY (works in CLI).
-    Returns None if neither available.
-    """
-    try:
-        tmux_pane = os.environ.get('TMUX_PANE')
-        if tmux_pane:
-            return f"tmux_{tmux_pane.lstrip('%')}"
-        # Fallback to TTY for non-tmux users
-        import subprocess
-        result = subprocess.run(['tty'], capture_output=True, text=True, timeout=2)
-        if result.returncode == 0:
-            tty = result.stdout.strip()
-            if tty and tty != 'not a tty':
-                return tty.replace('/dev/', '').replace('/', '-')
-    except Exception:
-        pass
-    return None
 
 
 def is_empirica_paused() -> bool:
@@ -371,9 +368,9 @@ def is_transition_command(command: str) -> bool:
 _autonomy_nudge = ""  # Module-level: set during increment, read by respond
 
 
-def _try_increment_tool_count(claude_session_id: str = None,
-                              tool_name: str = None,
-                              tool_input: dict = None) -> tuple:
+def _try_increment_tool_count(claude_session_id: Optional[str] = None,
+                              tool_name: Optional[str] = None,
+                              tool_input: Optional[dict] = None) -> tuple:
     """Increment tool_call_count in the active transaction file.
 
     Lightweight — no heavy imports. Uses project_resolver (already imported)
@@ -438,6 +435,7 @@ def _try_increment_tool_count(claude_session_id: str = None,
         if tool_name:
             _is_noetic = (
                 tool_name in NOETIC_TOOLS
+                or tool_name in NOETIC_MCP_CHROME
                 or (tool_name == 'Bash' and tool_input and is_safe_bash_command(tool_input))
                 or (tool_name in ('Write', 'Edit') and tool_input and is_plan_file(tool_input))
             )
@@ -445,6 +443,16 @@ def _try_increment_tool_count(claude_session_id: str = None,
                 tx['noetic_tool_calls'] = tx.get('noetic_tool_calls', 0) + 1
             else:
                 tx['praxic_tool_calls'] = tx.get('praxic_tool_calls', 0) + 1
+
+        # Track edited file paths for non-git file change detection
+        # Used by grounded calibration to detect work outside git repos
+        if tool_name in ('Edit', 'Write') and tool_input:
+            fp = tool_input.get('file_path', '')
+            if fp:
+                edited = tx.get('edited_files', [])
+                if fp not in edited:
+                    edited.append(fp)
+                    tx['edited_files'] = edited
 
         # Context-shift tracking: flag when AI asks user a question
         # UserPromptSubmit hook reads this to classify solicited vs unsolicited
@@ -848,7 +856,7 @@ def main():
     # === NOETIC FIREWALL: Whitelist-based access control ===
 
     # Rule 1: Noetic tools always allowed (read/investigate)
-    if tool_name in NOETIC_TOOLS:
+    if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME:
         respond("allow", f"Noetic tool: {tool_name}")
         sys.exit(0)
 
@@ -905,6 +913,24 @@ def main():
         respond("allow", "Sentinel disabled (env var)")
         sys.exit(0)
 
+    # === ENVIRONMENT CONTEXT ===
+    # Detect remote/container/CI environments and check trusted_hosts
+    env_context = detect_environment()
+    env_annotation = ""
+    if env_context['is_remote'] or env_context['is_container'] or env_context['is_ci']:
+        env_type = (
+            "SSH" if env_context['is_remote']
+            else "container" if env_context['is_container']
+            else "CI"
+        )
+        if env_context['is_trusted']:
+            env_annotation = f" [REMOTE:{env_type}:trusted ({env_context['trust_source']})]"
+        else:
+            env_annotation = (
+                f" [REMOTE:{env_type}:UNTRUSTED — {env_context['trust_source']}. "
+                f"Add '{env_context['hostname']}' to ~/.empirica/trusted_hosts to trust this host]"
+            )
+
     # === AUTHORIZATION CHECK ===
 
     # Setup imports - find empirica package if not already installed
@@ -957,6 +983,27 @@ def main():
                 if not _tx_closed:
                     current_transaction_id = tx_data.get('transaction_id')
                     tx_session_id = tx_candidate_session
+                else:
+                    # CLOSED TRANSACTION SHORT-CIRCUIT: Don't fall through to
+                    # stale session fallback which produces confusing errors
+                    # like "No valid CHECK found" when the real issue is
+                    # "loop closed, run new PREFLIGHT".
+                    # Allow noetic tools (Read, Grep, Glob, etc.) and safe Bash
+                    # to pass — only block praxic actions.
+                    if tool_name == 'Bash':
+                        command = tool_input.get('command', '')
+                        if is_safe_bash_command(tool_input):
+                            respond("allow", "Safe Bash (transaction closed, artifact lifecycle)")
+                            sys.exit(0)
+                        if is_transition_command(command):
+                            respond("allow", "Transition command (starting new cycle)")
+                            sys.exit(0)
+                    elif tool_name in NOETIC_TOOLS:
+                        respond("allow", "Noetic tool (transaction closed)")
+                        sys.exit(0)
+                    # Praxic tool with closed transaction → correct error message
+                    respond("deny", "Epistemic loop closed (POSTFLIGHT completed). Run new PREFLIGHT to start next goal.")
+                    sys.exit(0)
             except Exception:
                 pass
 
@@ -976,7 +1023,7 @@ def main():
             pass
 
     if not session_id:
-        respond("allow", "WARNING: No session found. Run: empirica session-create --ai-id claude-code && empirica preflight-submit -")
+        respond("allow", f"WARNING: No session found. Run: empirica session-create --ai-id claude-code && empirica preflight-submit -{env_annotation}")
         sys.exit(0)
 
     # SessionDatabase uses path_resolver internally for DB location
@@ -1055,7 +1102,7 @@ def main():
                 respond("allow", f"Transition command (no PREFLIGHT yet - starting new cycle).{pre_tx_nudge}")
                 sys.exit(0)
         db.close()
-        respond("deny", f"No open transaction. Submit PREFLIGHT with your self-assessed vectors to begin measured work.{pre_tx_nudge}")
+        respond("deny", f"No open transaction. Submit PREFLIGHT with your self-assessed vectors to begin measured work.{pre_tx_nudge}{env_annotation}")
         sys.exit(0)
 
     preflight_know, preflight_uncertainty, preflight_timestamp, preflight_project_id = preflight_row
@@ -1175,7 +1222,7 @@ def main():
     # AUTO-PROCEED: If PREFLIGHT passes readiness gate, skip CHECK requirement
     if raw_know >= KNOW_THRESHOLD and raw_unc <= UNCERTAINTY_THRESHOLD:
         db.close()
-        respond("allow", "PREFLIGHT confidence sufficient - proceeding")
+        respond("allow", f"PREFLIGHT confidence sufficient - proceeding{env_annotation}")
         sys.exit(0)
 
     # PREFLIGHT confidence too low - require explicit CHECK
@@ -1280,10 +1327,10 @@ def main():
     raw_check_unc = uncertainty or 1
 
     if raw_check_know >= KNOW_THRESHOLD and raw_check_unc <= UNCERTAINTY_THRESHOLD:
-        respond("allow", "CHECK passed - proceeding")
+        respond("allow", f"CHECK passed - proceeding{env_annotation}")
         sys.exit(0)
     else:
-        respond("deny", "CHECK confidence insufficient. Continue investigation, then re-submit CHECK.")
+        respond("deny", f"CHECK confidence insufficient. Continue investigation, then re-submit CHECK.{env_annotation}")
         sys.exit(0)
 
 

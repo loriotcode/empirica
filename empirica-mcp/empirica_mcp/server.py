@@ -3,7 +3,7 @@
 Empirica MCP Server - Epistemic Middleware for AI Agents
 
 Full-featured MCP server providing:
-- **55 tools** wrapping Empirica CLI commands
+- **100+ tools** wrapping Empirica CLI commands
 - **Epistemic middleware** for confidence-gated actions
 - **Sentinel integration** for CHECK gate decisions
 - **CASCADE workflow** (PREFLIGHT → CHECK → POSTFLIGHT)
@@ -21,17 +21,16 @@ CASCADE Philosophy:
 - Scope is vectorial (self-assessed): {"breadth": 0-1, "duration": 0-1, "coordination": 0-1}
 - Trust AI reasoning: Let agents assess epistemic state → scope vectors
 
-Version: 1.4.1
+Version: 1.6.4
 """
 
 import asyncio
-import subprocess
 import json
-import sys
 import logging
 import shutil
+import subprocess
+import sys
 from pathlib import Path
-from typing import List, Dict, Any
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -39,21 +38,21 @@ logger = logging.getLogger(__name__)
 # Add paths for proper imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from empirica.data.session_database import SessionDatabase
 from empirica.config.path_resolver import get_session_db_path
+from empirica.data.session_database import SessionDatabase
 from empirica.utils.session_resolver import resolve_session_id
 
 # Auto-capture for error tracking
 try:
-    from empirica.core.issue_capture import get_auto_capture, IssueSeverity, IssueCategory
+    from empirica.core.issue_capture import IssueCategory, IssueSeverity, get_auto_capture
 except ImportError:
     get_auto_capture = None
     IssueSeverity = None
     IssueCategory = None
 
+from mcp import types
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp import types
 
 # Empirica CLI configuration - use PATH for portability
 EMPIRICA_CLI = shutil.which("empirica")
@@ -133,6 +132,7 @@ app = Server("empirica-v2")
 
 # Enable epistemic mode via environment variable
 import os
+
 ENABLE_EPISTEMIC = os.getenv("EMPIRICA_EPISTEMIC_MODE", "false").lower() == "true"
 EPISTEMIC_PERSONALITY = os.getenv("EMPIRICA_PERSONALITY", "balanced_architect")
 
@@ -149,7 +149,7 @@ else:
 # ============================================================================
 
 @app.list_tools()
-async def list_tools() -> List[types.Tool]:
+async def list_tools() -> list[types.Tool]:
     """List all available Empirica tools"""
 
     tools = [
@@ -249,7 +249,7 @@ async def list_tools() -> List[types.Tool]:
 
         types.Tool(
             name="finding_log",
-            description="Log a finding (what was learned) to session and optionally project",
+            description="Log a finding (what was learned) to session and optionally project. Supports entity linking for cross-project knowledge graphs.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -257,7 +257,13 @@ async def list_tools() -> List[types.Tool]:
                     "finding": {"type": "string", "description": "What was learned or discovered"},
                     "impact": {"type": "number", "description": "Impact score 0.0-1.0", "minimum": 0.0, "maximum": 1.0},
                     "goal_id": {"type": "string", "description": "Optional goal UUID to link finding"},
-                    "subtask_id": {"type": "string", "description": "Optional subtask UUID to link finding"}
+                    "subtask_id": {"type": "string", "description": "Optional subtask UUID to link finding"},
+                    "project_id": {"type": "string", "description": "Project UUID (auto-detected if omitted)"},
+                    "subject": {"type": "string", "description": "Subject/workstream identifier (auto-detected from directory if omitted)"},
+                    "scope": {"type": "string", "description": "Scope: session (ephemeral), project (persistent), or both (dual-log)", "enum": ["session", "project", "both"]},
+                    "entity_type": {"type": "string", "description": "Entity type this artifact relates to", "enum": ["project", "organization", "contact", "engagement"]},
+                    "entity_id": {"type": "string", "description": "Entity UUID (organization, contact, or engagement ID)"},
+                    "via": {"type": "string", "description": "Discovery channel (cli, email, linkedin, calendar, agent, web)"}
                 },
                 "required": ["session_id", "finding"]
             }
@@ -265,14 +271,20 @@ async def list_tools() -> List[types.Tool]:
 
         types.Tool(
             name="unknown_log",
-            description="Log an unknown (what remains unclear) to session and optionally project",
+            description="Log an unknown (what remains unclear) to session and optionally project. Supports entity linking.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "session_id": {"type": "string", "description": "Session ID"},
                     "unknown": {"type": "string", "description": "What remains unclear or needs investigation"},
                     "goal_id": {"type": "string", "description": "Optional goal UUID to link unknown"},
-                    "subtask_id": {"type": "string", "description": "Optional subtask UUID to link unknown"}
+                    "subtask_id": {"type": "string", "description": "Optional subtask UUID to link unknown"},
+                    "project_id": {"type": "string", "description": "Project UUID (auto-detected if omitted)"},
+                    "subject": {"type": "string", "description": "Subject/workstream identifier (auto-detected from directory if omitted)"},
+                    "scope": {"type": "string", "description": "Scope: session (ephemeral), project (persistent), or both (dual-log)", "enum": ["session", "project", "both"]},
+                    "entity_type": {"type": "string", "description": "Entity type this artifact relates to", "enum": ["project", "organization", "contact", "engagement"]},
+                    "entity_id": {"type": "string", "description": "Entity UUID (organization, contact, or engagement ID)"},
+                    "via": {"type": "string", "description": "Discovery channel (cli, email, linkedin, calendar, agent, web)"}
                 },
                 "required": ["session_id", "unknown"]
             }
@@ -280,7 +292,7 @@ async def list_tools() -> List[types.Tool]:
 
         types.Tool(
             name="mistake_log",
-            description="Log a mistake (error to avoid in future) to session and optionally project",
+            description="Log a mistake (error to avoid in future) to session and optionally project. Supports entity linking.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -290,7 +302,13 @@ async def list_tools() -> List[types.Tool]:
                     "prevention": {"type": "string", "description": "How to prevent in future"},
                     "cost_estimate": {"type": "string", "description": "Time/resources wasted (e.g., '2 hours')"},
                     "goal_id": {"type": "string", "description": "Optional goal UUID to link mistake"},
-                    "subtask_id": {"type": "string", "description": "Optional subtask UUID to link mistake"}
+                    "subtask_id": {"type": "string", "description": "Optional subtask UUID to link mistake"},
+                    "project_id": {"type": "string", "description": "Project UUID (auto-detected if omitted)"},
+                    "scope": {"type": "string", "description": "Scope: session (ephemeral), project (persistent), or both (dual-log)", "enum": ["session", "project", "both"]},
+                    "entity_type": {"type": "string", "description": "Entity type this artifact relates to", "enum": ["project", "organization", "contact", "engagement"]},
+                    "entity_id": {"type": "string", "description": "Entity UUID (organization, contact, or engagement ID)"},
+                    "via": {"type": "string", "description": "Discovery channel (cli, email, linkedin, calendar, agent, web)"},
+                    "root_cause_vector": {"type": "string", "description": "Epistemic vector that caused the mistake (e.g., KNOW, CONTEXT)"}
                 },
                 "required": ["session_id", "mistake", "why_wrong", "prevention"]
             }
@@ -298,7 +316,7 @@ async def list_tools() -> List[types.Tool]:
 
         types.Tool(
             name="deadend_log",
-            description="Log a dead-end (approach that didn't work) to session and optionally project",
+            description="Log a dead-end (approach that didn't work) to session and optionally project. Supports entity linking.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -306,7 +324,13 @@ async def list_tools() -> List[types.Tool]:
                     "approach": {"type": "string", "description": "What approach was tried"},
                     "why_failed": {"type": "string", "description": "Why it didn't work"},
                     "goal_id": {"type": "string", "description": "Optional goal UUID to link dead-end"},
-                    "subtask_id": {"type": "string", "description": "Optional subtask UUID to link dead-end"}
+                    "subtask_id": {"type": "string", "description": "Optional subtask UUID to link dead-end"},
+                    "project_id": {"type": "string", "description": "Project UUID (auto-detected if omitted)"},
+                    "subject": {"type": "string", "description": "Subject/workstream identifier (auto-detected from directory if omitted)"},
+                    "scope": {"type": "string", "description": "Scope: session (ephemeral), project (persistent), or both (dual-log)", "enum": ["session", "project", "both"]},
+                    "entity_type": {"type": "string", "description": "Entity type this artifact relates to", "enum": ["project", "organization", "contact", "engagement"]},
+                    "entity_id": {"type": "string", "description": "Entity UUID (organization, contact, or engagement ID)"},
+                    "via": {"type": "string", "description": "Discovery channel (cli, email, linkedin, calendar, agent, web)"}
                 },
                 "required": ["session_id", "approach", "why_failed"]
             }
@@ -314,7 +338,7 @@ async def list_tools() -> List[types.Tool]:
 
         types.Tool(
             name="assumption_log",
-            description="Log an unverified assumption with confidence level. Track beliefs that need validation.",
+            description="Log an unverified assumption with confidence level. Track beliefs that need validation. Supports entity linking.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -322,7 +346,11 @@ async def list_tools() -> List[types.Tool]:
                     "assumption": {"type": "string", "description": "The assumption being made"},
                     "confidence": {"type": "number", "description": "Confidence in this assumption (0.0-1.0)", "minimum": 0.0, "maximum": 1.0},
                     "domain": {"type": "string", "description": "Domain scope (e.g., security, architecture)"},
-                    "goal_id": {"type": "string", "description": "Optional goal UUID to link assumption"}
+                    "goal_id": {"type": "string", "description": "Optional goal UUID to link assumption"},
+                    "project_id": {"type": "string", "description": "Project UUID (auto-detected if omitted)"},
+                    "entity_type": {"type": "string", "description": "Entity type this artifact relates to", "enum": ["project", "organization", "contact", "engagement"]},
+                    "entity_id": {"type": "string", "description": "Entity UUID (organization, contact, or engagement ID)"},
+                    "via": {"type": "string", "description": "Discovery channel (cli, email, linkedin, calendar, agent, web)"}
                 },
                 "required": ["session_id", "assumption"]
             }
@@ -330,7 +358,7 @@ async def list_tools() -> List[types.Tool]:
 
         types.Tool(
             name="decision_log",
-            description="Log a decision with alternatives considered and rationale. Track choice points for future reference.",
+            description="Log a decision with alternatives considered and rationale. Track choice points for future reference. Supports entity linking.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -341,7 +369,11 @@ async def list_tools() -> List[types.Tool]:
                     "confidence": {"type": "number", "description": "Confidence in this decision (0.0-1.0)", "minimum": 0.0, "maximum": 1.0},
                     "reversibility": {"type": "string", "enum": ["exploratory", "committal", "forced"], "description": "How reversible is this decision?"},
                     "domain": {"type": "string", "description": "Domain scope (e.g., security, architecture)"},
-                    "goal_id": {"type": "string", "description": "Optional goal UUID to link decision"}
+                    "goal_id": {"type": "string", "description": "Optional goal UUID to link decision"},
+                    "project_id": {"type": "string", "description": "Project UUID (auto-detected if omitted)"},
+                    "entity_type": {"type": "string", "description": "Entity type this artifact relates to", "enum": ["project", "organization", "contact", "engagement"]},
+                    "entity_id": {"type": "string", "description": "Entity UUID (organization, contact, or engagement ID)"},
+                    "via": {"type": "string", "description": "Discovery channel (cli, email, linkedin, calendar, agent, web)"}
                 },
                 "required": ["session_id", "choice", "alternatives", "rationale"]
             }
@@ -1003,6 +1035,665 @@ async def list_tools() -> List[types.Tool]:
                 "required": ["file_path", "old_str", "new_str"]
             }
         ),
+
+        # ========== Tier 1 Tools (v1.6.4 additions) ==========
+
+        types.Tool(
+            name="goals_complete",
+            description="Complete a goal - mark it as done with an optional reason. Can trigger POSTFLIGHT and branch merge.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "goal_id": {"type": "string", "description": "Goal UUID to complete"},
+                    "reason": {"type": "string", "description": "Why the goal is complete"},
+                    "run_postflight": {"type": "boolean", "description": "Run POSTFLIGHT before completing"},
+                    "merge_branch": {"type": "boolean", "description": "Merge git branch to main after completing"},
+                    "delete_branch": {"type": "boolean", "description": "Delete branch after merge"},
+                    "create_handoff": {"type": "boolean", "description": "Create handoff report on completion"}
+                },
+                "required": ["goal_id"]
+            }
+        ),
+
+        types.Tool(
+            name="project_search",
+            description="Semantic search over project knowledge - finds findings, unknowns, decisions, lessons, and episodic narratives via Qdrant.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "string", "description": "Project UUID to search within"},
+                    "task": {"type": "string", "description": "Natural language search query"},
+                    "type": {"type": "string", "description": "Search scope: 'focused' (eidetic+episodic), 'all' (all 4 collections), 'docs', 'memory'", "enum": ["focused", "all", "docs", "memory"]},
+                    "limit": {"type": "integer", "description": "Max results to return (default: 10)"},
+                    "global_search": {"type": "boolean", "description": "Include cross-project global learnings"}
+                },
+                "required": ["task"]
+            }
+        ),
+
+        types.Tool(
+            name="source_add",
+            description="Add a reference source (URL, document, paper) to the current session for provenance tracking. Must specify --noetic or --praxic to indicate the phase.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID"},
+                    "title": {"type": "string", "description": "Source title or name"},
+                    "url": {"type": "string", "description": "URL of the source"},
+                    "path": {"type": "string", "description": "Local file path of the source"},
+                    "source_type": {"type": "string", "description": "Type: doc, spec, api, blog, paper, code, other"},
+                    "description": {"type": "string", "description": "Brief description of the source"},
+                    "noetic": {"type": "boolean", "description": "Source used during investigation phase"},
+                    "praxic": {"type": "boolean", "description": "Source used during implementation phase"},
+                    "confidence": {"type": "number", "description": "Confidence in source reliability 0.0-1.0"}
+                },
+                "required": ["title"]
+            }
+        ),
+
+        types.Tool(
+            name="unknown_list",
+            description="List all open unknowns for the current session or project - see what questions remain unanswered.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID to filter by"},
+                    "project_id": {"type": "string", "description": "Project UUID to filter by"},
+                    "resolved": {"type": "boolean", "description": "Show resolved unknowns instead of open"},
+                    "all": {"type": "boolean", "description": "Show both open and resolved"},
+                    "subject": {"type": "string", "description": "Filter by subject/workstream"},
+                    "limit": {"type": "integer", "description": "Max unknowns to show (default: 30)"}
+                },
+                "required": []
+            }
+        ),
+
+        types.Tool(
+            name="goals_search",
+            description="Search goals by keyword or filter - find goals across sessions and projects.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query text"},
+                    "status": {"type": "string", "description": "Filter by status: active, completed, stale, all"},
+                    "limit": {"type": "integer", "description": "Max results (default: 20)"}
+                },
+                "required": ["query"]
+            }
+        ),
+
+        types.Tool(
+            name="goals_add_dependency",
+            description="Add a dependency between goals - goal B depends on goal A being completed first.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "goal_id": {"type": "string", "description": "The dependent goal UUID (the one that must wait)"},
+                    "depends_on": {"type": "string", "description": "The prerequisite goal UUID (the one that must be done first)"}
+                },
+                "required": ["goal_id", "depends_on"]
+            }
+        ),
+
+        types.Tool(
+            name="issue_show",
+            description="Show detailed information about a specific auto-captured issue.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "issue_id": {"type": "string", "description": "Issue UUID to show"}
+                },
+                "required": ["issue_id"]
+            }
+        ),
+
+        types.Tool(
+            name="issue_resolve",
+            description="Resolve an auto-captured issue - mark it as fixed with evidence.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "issue_id": {"type": "string", "description": "Issue UUID to resolve"},
+                    "resolution": {"type": "string", "description": "How the issue was resolved"}
+                },
+                "required": ["issue_id", "resolution"]
+            }
+        ),
+
+        types.Tool(
+            name="issue_stats",
+            description="Get issue statistics - counts by category, severity, and resolution rate.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Optional session to scope stats"}
+                },
+                "required": []
+            }
+        ),
+
+        types.Tool(
+            name="session_rollup",
+            description="Create a summary rollup of a session - aggregates findings, unknowns, decisions, and goal progress for handoff or archival.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID to roll up"}
+                },
+                "required": ["session_id"]
+            }
+        ),
+
+        types.Tool(
+            name="act_log",
+            description="Log structured actions taken (what was done) - complements finding-log (what was learned). Actions is a JSON array.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID"},
+                    "actions": {"type": "string", "description": "JSON array of actions taken, e.g. '[\"wrote test\", \"fixed bug\"]'"},
+                    "artifacts": {"type": "string", "description": "JSON array of files modified/created"},
+                    "goal_id": {"type": "string", "description": "Optional goal UUID being worked on"}
+                },
+                "required": ["actions"]
+            }
+        ),
+
+        types.Tool(
+            name="calibration_report",
+            description="Get calibration report - shows vector deltas, grounded verification gaps, and bias corrections.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID"},
+                    "grounded": {"type": "boolean", "description": "Show grounded calibration (Track 2)"},
+                    "trajectory": {"type": "boolean", "description": "Show calibration trajectory over time"}
+                },
+                "required": []
+            }
+        ),
+
+        # ========== Tier 2 Tools: Lesson Subsystem ==========
+
+        types.Tool(
+            name="lesson_create",
+            description="Create a structured lesson from investigation findings - captures reusable knowledge with steps, domains, and prerequisites.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Lesson name/title"},
+                    "json": {"type": "string", "description": "Inline JSON lesson data (name, domain, steps[], prerequisites[], etc.)"},
+                    "input": {"type": "string", "description": "Path to JSON file with lesson data, or '-' for stdin"}
+                },
+                "required": []
+            }
+        ),
+
+        types.Tool(
+            name="lesson_load",
+            description="Load a specific lesson by ID - retrieves full lesson content including steps, prerequisites, and replay history.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "lesson_id": {"type": "string", "description": "Lesson UUID to load"},
+                    "steps_only": {"type": "boolean", "description": "Only show steps (compact view)"}
+                },
+                "required": ["lesson_id"]
+            }
+        ),
+
+        types.Tool(
+            name="lesson_list",
+            description="List available lessons - browse the lesson library, optionally filtered by domain.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "domain": {"type": "string", "description": "Filter by domain (e.g., security, architecture)"},
+                    "limit": {"type": "integer", "description": "Maximum results (default: 20)"}
+                },
+                "required": []
+            }
+        ),
+
+        types.Tool(
+            name="lesson_search",
+            description="Search lessons semantically - find lessons by query text, by which vector they improve, or by domain.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Semantic search query"},
+                    "improves": {"type": "string", "description": "Find lessons that improve this vector (know, do, context, etc.)"},
+                    "domain": {"type": "string", "description": "Filter by domain"},
+                    "limit": {"type": "integer", "description": "Maximum results (default: 10)"}
+                },
+                "required": []
+            }
+        ),
+
+        types.Tool(
+            name="lesson_recommend",
+            description="Get lesson recommendations based on current epistemic state - suggests lessons to close knowledge gaps.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID to load epistemic state from"},
+                    "know": {"type": "number", "description": "Current know vector (0-1)"},
+                    "do": {"type": "number", "description": "Current do vector (0-1)"},
+                    "context": {"type": "number", "description": "Current context vector (0-1)"},
+                    "uncertainty": {"type": "number", "description": "Current uncertainty vector (0-1)"},
+                    "threshold": {"type": "number", "description": "Threshold for 'acceptable' (default: 0.6)"}
+                },
+                "required": []
+            }
+        ),
+
+        types.Tool(
+            name="lesson_path",
+            description="Generate a learning path to a target lesson - shows prerequisite chain and what's already completed.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "target": {"type": "string", "description": "Target lesson ID"},
+                    "completed": {"type": "string", "description": "Comma-separated list of already completed lesson IDs"}
+                },
+                "required": ["target"]
+            }
+        ),
+
+        types.Tool(
+            name="lesson_replay_start",
+            description="Start replaying a lesson - begins a guided walkthrough of lesson steps in a session.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "lesson_id": {"type": "string", "description": "Lesson ID to replay"},
+                    "session_id": {"type": "string", "description": "Session ID for replay context"},
+                    "ai_id": {"type": "string", "description": "AI agent ID performing the replay"}
+                },
+                "required": ["lesson_id", "session_id"]
+            }
+        ),
+
+        types.Tool(
+            name="lesson_replay_end",
+            description="End a lesson replay - records outcome (success/failed), steps completed, and any errors.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "replay_id": {"type": "string", "description": "Replay ID from lesson-replay-start"},
+                    "success": {"type": "boolean", "description": "Mark replay as successful"},
+                    "failed": {"type": "boolean", "description": "Mark replay as failed"},
+                    "steps_completed": {"type": "integer", "description": "Number of steps completed"},
+                    "error": {"type": "string", "description": "Error message if failed"}
+                },
+                "required": ["replay_id"]
+            }
+        ),
+
+        types.Tool(
+            name="lesson_stats",
+            description="Get lesson statistics - total lessons, domain breakdown, replay success rates.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+
+        # ========== Tier 2 Tools: Investigation Subsystem ==========
+
+        types.Tool(
+            name="investigate_log",
+            description="Log structured investigation findings with evidence - batch-log discoveries from an investigation.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID (auto-derived from active transaction)"},
+                    "findings": {"type": "string", "description": "JSON array of findings discovered"},
+                    "evidence": {"type": "string", "description": "JSON object with evidence (file paths, line numbers, etc.)"}
+                },
+                "required": ["findings"]
+            }
+        ),
+
+        types.Tool(
+            name="investigate_create_branch",
+            description="Create an investigation branch - fork the epistemic state to explore a hypothesis without polluting the main session.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Parent session ID"},
+                    "investigation_path": {"type": "string", "description": "What is being investigated (e.g., 'oauth2', 'memory-leak')"},
+                    "description": {"type": "string", "description": "Description of the investigation"},
+                    "preflight_vectors": {"type": "string", "description": "Epistemic vectors at branch start (JSON)"}
+                },
+                "required": ["session_id", "investigation_path"]
+            }
+        ),
+
+        types.Tool(
+            name="investigate_checkpoint_branch",
+            description="Checkpoint an investigation branch - record postflight vectors and resource usage at a point in the investigation.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "branch_id": {"type": "string", "description": "Branch ID to checkpoint"},
+                    "postflight_vectors": {"type": "string", "description": "Epistemic vectors after investigation (JSON)"},
+                    "tokens_spent": {"type": "integer", "description": "Tokens spent in investigation"},
+                    "time_spent": {"type": "number", "description": "Time spent in investigation (minutes)"}
+                },
+                "required": ["branch_id", "postflight_vectors"]
+            }
+        ),
+
+        types.Tool(
+            name="investigate_merge_branches",
+            description="Merge investigation branches - compare branches from a multi-path investigation and select the best path.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID"},
+                    "round": {"type": "integer", "description": "Investigation round number"},
+                    "tag_losers": {"type": "boolean", "description": "Auto-tag losing branches as dead ends with divergence reason"}
+                },
+                "required": ["session_id"]
+            }
+        ),
+
+        types.Tool(
+            name="investigate_multi",
+            description="Run a multi-persona investigation - dispatch a task to multiple persona lenses and aggregate results.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task": {"type": "string", "description": "Task for all personas to investigate"},
+                    "personas": {"type": "string", "description": "Comma-separated persona IDs (e.g., 'security,ux,performance')"},
+                    "session_id": {"type": "string", "description": "Session ID"},
+                    "context": {"type": "string", "description": "Additional context from parent investigation"},
+                    "aggregate_strategy": {"type": "string", "description": "How to merge results", "enum": ["epistemic-score", "consensus", "all"]}
+                },
+                "required": ["task", "personas", "session_id"]
+            }
+        ),
+
+        # ========== Tier 2 Tools: Assessment Subsystem ==========
+
+        types.Tool(
+            name="assess_state",
+            description="Assess current epistemic state - AI self-assessment of knowledge, uncertainty, and readiness using the 13-vector model.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session UUID for context"},
+                    "prompt": {"type": "string", "description": "Self-assessment context/evidence"},
+                    "turtle": {"type": "boolean", "description": "Recursive grounding check: verify observer stability before observing"}
+                },
+                "required": []
+            }
+        ),
+
+        types.Tool(
+            name="assess_component",
+            description="Assess a code component's health - applies epistemic vectors to analyze coupling, stability, complexity, and risk.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Path to file or package to assess (relative or absolute)"},
+                    "project_root": {"type": "string", "description": "Root directory of the project (default: current directory)"}
+                },
+                "required": ["path"]
+            }
+        ),
+
+        types.Tool(
+            name="assess_compare",
+            description="Compare two code components side by side - identifies which is healthier based on epistemic vectors.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path_a": {"type": "string", "description": "First component path"},
+                    "path_b": {"type": "string", "description": "Second component path"},
+                    "project_root": {"type": "string", "description": "Root directory of the project (default: current directory)"}
+                },
+                "required": ["path_a", "path_b"]
+            }
+        ),
+
+        types.Tool(
+            name="assess_directory",
+            description="Recursively assess all Python files in a directory - ranks components by health, showing the worst offenders.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Directory to assess"},
+                    "project_root": {"type": "string", "description": "Root directory of the project (default: current directory)"},
+                    "top": {"type": "integer", "description": "Show top N worst components (default: 10)"},
+                    "include_init": {"type": "boolean", "description": "Include __init__.py files (excluded by default)"}
+                },
+                "required": ["path"]
+            }
+        ),
+
+        # ========== Tier 2 Tools: Agent Subsystem ==========
+
+        types.Tool(
+            name="agent_spawn",
+            description="Spawn an investigation agent - creates a child session with a specific task and optional persona lens.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Parent session ID"},
+                    "task": {"type": "string", "description": "Task for the agent"},
+                    "persona": {"type": "string", "description": "Persona ID to use (e.g., security, performance)"},
+                    "turtle": {"type": "boolean", "description": "Auto-select best emerged persona for task"},
+                    "context": {"type": "string", "description": "Additional context from parent"}
+                },
+                "required": ["session_id", "task"]
+            }
+        ),
+
+        types.Tool(
+            name="agent_report",
+            description="Submit an agent report - record postflight data for a spawned agent's investigation branch.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "branch_id": {"type": "string", "description": "Branch ID from agent-spawn"},
+                    "postflight": {"type": "string", "description": "Postflight JSON data or '-' for stdin"}
+                },
+                "required": ["branch_id"]
+            }
+        ),
+
+        types.Tool(
+            name="agent_aggregate",
+            description="Aggregate agent results - merge findings from multiple spawned agents in a round.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID"},
+                    "round": {"type": "integer", "description": "Investigation round to aggregate"}
+                },
+                "required": ["session_id"]
+            }
+        ),
+
+        types.Tool(
+            name="agent_parallel",
+            description="Run parallel investigation agents - auto-allocate budget across domains with configurable strategy.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Parent session ID"},
+                    "task": {"type": "string", "description": "Investigation task"},
+                    "budget": {"type": "integer", "description": "Total findings budget (default: 20)"},
+                    "max_agents": {"type": "integer", "description": "Maximum parallel agents (default: 5)"},
+                    "strategy": {"type": "string", "description": "Budget allocation strategy", "enum": ["information_gain", "uniform", "priority"]},
+                    "domains": {"type": "array", "items": {"type": "string"}, "description": "Override investigation domains (auto-detected if not specified)"}
+                },
+                "required": ["session_id", "task"]
+            }
+        ),
+
+        types.Tool(
+            name="agent_export",
+            description="Export an agent's investigation results - serialize branch findings for sharing or archival.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "branch_id": {"type": "string", "description": "Branch ID to export"},
+                    "output_file": {"type": "string", "description": "Output file path (prints to stdout if not specified)"},
+                    "register": {"type": "boolean", "description": "Register to sharing network (Qdrant)"}
+                },
+                "required": ["branch_id"]
+            }
+        ),
+
+        types.Tool(
+            name="agent_import",
+            description="Import an agent's investigation results - load serialized branch findings into a session.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session to import into"},
+                    "input_file": {"type": "string", "description": "Agent JSON file to import"}
+                },
+                "required": ["session_id", "input_file"]
+            }
+        ),
+
+        types.Tool(
+            name="agent_discover",
+            description="Discover available agents - search the sharing network for agents by domain expertise and reputation.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "domain": {"type": "string", "description": "Search by domain expertise (e.g., security, multi-persona)"},
+                    "min_reputation": {"type": "number", "description": "Minimum reputation score (0.0-1.0)"},
+                    "limit": {"type": "integer", "description": "Maximum results"}
+                },
+                "required": []
+            }
+        ),
+
+        # ========== Tier 2 Tools: Persona Subsystem ==========
+
+        types.Tool(
+            name="persona_list",
+            description="List available personas - browse emerged specialist lenses (security, performance, UX, etc.).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "domain": {"type": "string", "description": "Filter by domain (e.g., security, performance)"}
+                },
+                "required": []
+            }
+        ),
+
+        types.Tool(
+            name="persona_show",
+            description="Show detailed persona information - view expertise, emerged traits, and investigation history.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "persona_id": {"type": "string", "description": "Persona ID to show"}
+                },
+                "required": ["persona_id"]
+            }
+        ),
+
+        types.Tool(
+            name="persona_promote",
+            description="Promote a persona - elevate an emerged persona to primary status for increased influence.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "persona_id": {"type": "string", "description": "Persona ID to promote"}
+                },
+                "required": ["persona_id"]
+            }
+        ),
+
+        types.Tool(
+            name="persona_find",
+            description="Find the best persona for a task - match a task description against persona expertise.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task": {"type": "string", "description": "Task description to match against"},
+                    "limit": {"type": "integer", "description": "Maximum results (default: 5)"}
+                },
+                "required": ["task"]
+            }
+        ),
+
+        # ========== Tier 2 Tools: Memory Subsystem ==========
+
+        types.Tool(
+            name="memory_prime",
+            description="Prime memory with domain-specific context - pre-load relevant findings and allocate investigation budget across domains.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID for budget tracking"},
+                    "domains": {"type": "string", "description": "JSON array of domain names, e.g. '[\"security\", \"architecture\"]'"},
+                    "budget": {"type": "integer", "description": "Total findings budget to allocate (default: 20)"},
+                    "know": {"type": "number", "description": "Current know vector (0.0-1.0, default: 0.5)"},
+                    "uncertainty": {"type": "number", "description": "Current uncertainty vector (0.0-1.0, default: 0.5)"},
+                    "prior_findings": {"type": "string", "description": "JSON object of prior findings per domain"},
+                    "dead_ends": {"type": "string", "description": "JSON object of dead ends per domain"},
+                    "persist": {"type": "boolean", "description": "Persist budget to database for later retrieval"}
+                },
+                "required": ["session_id", "domains"]
+            }
+        ),
+
+        types.Tool(
+            name="memory_scope",
+            description="Query memory by scope and zone - retrieve context items filtered by breadth, duration, zone (anchor/working/cache), and type.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID for context management"},
+                    "scope_breadth": {"type": "number", "description": "Scope breadth (0.0=narrow, 1.0=wide)"},
+                    "scope_duration": {"type": "number", "description": "Scope duration (0.0=ephemeral, 1.0=long-term)"},
+                    "zone": {"type": "string", "description": "Specific zone to query", "enum": ["anchor", "working", "cache", "all"]},
+                    "content_type": {"type": "string", "description": "Filter by content type (finding, unknown, goal, etc.)"},
+                    "min_priority": {"type": "number", "description": "Minimum priority score to include"}
+                },
+                "required": ["session_id"]
+            }
+        ),
+
+        types.Tool(
+            name="memory_value",
+            description="Value-of-information memory retrieval - finds highest-value memories for a query within a token budget.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID"},
+                    "query": {"type": "string", "description": "Query text to match against memories"},
+                    "budget": {"type": "integer", "description": "Token budget for retrieval (default: 5000)"},
+                    "project_id": {"type": "string", "description": "Project ID (auto-detected if not provided)"},
+                    "min_gain": {"type": "number", "description": "Minimum information gain to include (default: 0.1)"},
+                    "include_eidetic": {"type": "boolean", "description": "Include eidetic (fact) memory"},
+                    "include_episodic": {"type": "boolean", "description": "Include episodic (narrative) memory"}
+                },
+                "required": ["session_id", "query"]
+            }
+        ),
+
+        types.Tool(
+            name="memory_report",
+            description="Get memory health report - shows zone utilization, staleness, and retrieval statistics for a session.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID"}
+                },
+                "required": ["session_id"]
+            }
+        ),
     ]
 
     return tools
@@ -1012,17 +1703,17 @@ async def list_tools() -> List[types.Tool]:
 # ============================================================================
 
 @app.call_tool(validate_input=False)  # CASCADE = guidance, not enforcement
-async def call_tool(name: str, arguments: dict) -> List[types.TextContent]:
+async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     """Route tool calls to appropriate handler
-    
+
     Note: validate_input=False allows flexible AI self-assessment.
     Schemas provide guidance, but don't enforce rigid validation.
     Handlers parse parameters flexibly (strings, objects, etc.)
-    
+
     Epistemic Middleware: If enabled (EMPIRICA_EPISTEMIC_MODE=true),
     wraps all calls with vector-driven self-awareness.
     """
-    
+
     # If epistemic middleware enabled, route through it
     if epistemic_middleware:
         return await epistemic_middleware.handle_request(
@@ -1034,7 +1725,7 @@ async def call_tool(name: str, arguments: dict) -> List[types.TextContent]:
         return await _call_tool_impl(name, arguments)
 
 
-async def _call_tool_impl(name: str, arguments: dict) -> List[types.TextContent]:
+async def _call_tool_impl(name: str, arguments: dict) -> list[types.TextContent]:
     """Internal tool call implementation (wrapped by middleware if enabled)"""
 
     try:
@@ -1085,7 +1776,7 @@ async def _call_tool_impl(name: str, arguments: dict) -> List[types.TextContent]
                     )
             except Exception:
                 pass  # Don't let auto-capture errors break the response
-        
+
         # Return structured error
         return [types.TextContent(
             type="text",
@@ -1101,7 +1792,7 @@ async def _call_tool_impl(name: str, arguments: dict) -> List[types.TextContent]
 # Direct Python Handlers (AI-Centric)
 # ============================================================================
 
-async def handle_blindspot_scan_direct(arguments: dict) -> List[types.TextContent]:
+async def handle_blindspot_scan_direct(arguments: dict) -> list[types.TextContent]:
     """Scan for epistemic blindspots using the prediction plugin.
 
     Direct Python handler - imports empirica-prediction at runtime.
@@ -1124,8 +1815,8 @@ async def handle_blindspot_scan_direct(arguments: dict) -> List[types.TextConten
 
         # Auto-detect project from DB if not provided
         if not project_id:
-            from pathlib import Path
             import sqlite3
+            from pathlib import Path
             db_path = Path.cwd() / ".empirica" / "sessions" / "sessions.db"
             if db_path.exists():
                 conn = sqlite3.connect(db_path)
@@ -1180,7 +1871,7 @@ async def handle_blindspot_scan_direct(arguments: dict) -> List[types.TextConten
         )]
 
 
-async def handle_skill_suggest_direct(arguments: dict) -> List[types.TextContent]:
+async def handle_skill_suggest_direct(arguments: dict) -> list[types.TextContent]:
     """Vector-aware skill/tool suggestion using ToolRouter.
 
     Combines epistemic vector routing (mode + tool recommendations) with
@@ -1233,8 +1924,9 @@ async def handle_skill_suggest_direct(arguments: dict) -> List[types.TextContent
 
         # Local skill discovery (existing behavior)
         try:
-            import yaml  # type: ignore
             from pathlib import Path
+
+            import yaml  # type: ignore
             skills_dir = Path.cwd() / "project_skills"
             local_skills = []
             if skills_dir.exists():
@@ -1264,25 +1956,25 @@ async def handle_skill_suggest_direct(arguments: dict) -> List[types.TextContent
         )]
 
 
-async def handle_create_goal_direct(arguments: dict) -> List[types.TextContent]:
+async def handle_create_goal_direct(arguments: dict) -> list[types.TextContent]:
     """Handle create_goal directly in Python (no CLI conversion)
-    
+
     AI-centric design: accepts scope as object, no schema conversion needed.
     """
     try:
+        import uuid
+
+        from empirica.core.canonical.empirica_git import GitGoalStore
         from empirica.core.goals.repository import GoalRepository
         from empirica.core.goals.types import Goal, ScopeVector, SuccessCriterion
-        from empirica.core.canonical.empirica_git import GitGoalStore
-        import uuid
-        import time
-        
+
         # Extract arguments
         session_id = arguments["session_id"]
         objective = arguments["objective"]
-        
+
         # Parse scope: AI self-assesses vectors (no semantic presets - that's heuristics!)
         scope_arg = arguments.get("scope", {"breadth": 0.3, "duration": 0.2, "coordination": 0.1})
-        
+
         # If somehow a string comes in, convert to default and let AI know to use vectors
         if isinstance(scope_arg, str):
             # Don't try to interpret semantic names - that's adding heuristics back!
@@ -1291,13 +1983,13 @@ async def handle_create_goal_direct(arguments: dict) -> List[types.TextContent]:
             scope_dict = {"breadth": 0.3, "duration": 0.2, "coordination": 0.1}
         else:
             scope_dict = scope_arg
-        
+
         scope = ScopeVector(
             breadth=scope_dict.get("breadth", 0.3),
             duration=scope_dict.get("duration", 0.2),
             coordination=scope_dict.get("coordination", 0.1)
         )
-        
+
         # Parse success criteria
         success_criteria_list = arguments.get("success_criteria", [])
         success_criteria_objects = []
@@ -1309,12 +2001,12 @@ async def handle_create_goal_direct(arguments: dict) -> List[types.TextContent]:
                 is_required=True,
                 is_met=False
             ))
-        
+
         # Optional parameters
         estimated_complexity = arguments.get("estimated_complexity")
         constraints = arguments.get("constraints")
         metadata = arguments.get("metadata", {})
-        
+
         # Create Goal object
         goal = Goal.create(
             objective=objective,
@@ -1324,13 +2016,13 @@ async def handle_create_goal_direct(arguments: dict) -> List[types.TextContent]:
             constraints=constraints,
             metadata=metadata
         )
-        
+
         # Save to database
         # Fix: Use path_resolver to get correct database location (repo-local, not home)
         goal_repo = GoalRepository(db_path=str(get_session_db_path()))
         success = goal_repo.save_goal(goal, session_id)
         goal_repo.close()
-        
+
         if not success:
             return [types.TextContent(
                 type="text",
@@ -1341,7 +2033,7 @@ async def handle_create_goal_direct(arguments: dict) -> List[types.TextContent]:
                     "session_id": session_id
                 }, indent=2)
             )]
-        
+
         # Store in git notes for cross-AI discovery (safe degradation)
         try:
             ai_id = arguments.get("ai_id", "empirica_mcp")
@@ -1354,14 +2046,14 @@ async def handle_create_goal_direct(arguments: dict) -> List[types.TextContent]:
                 "constraints": constraints,
                 "metadata": metadata
             }
-            
+
             goal_store.store_goal(
                 goal_id=goal.id,
                 session_id=session_id,
                 ai_id=ai_id,
                 goal_data=goal_data
             )
-        except Exception as e:
+        except Exception:
             # Safe degradation - don't fail goal creation if git storage fails
             pass
 
@@ -1407,9 +2099,9 @@ async def handle_create_goal_direct(arguments: dict) -> List[types.TextContent]:
             "timestamp": goal.created_timestamp,
             "qdrant_embedded": qdrant_embedded
         }
-        
+
         return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-        
+
     except Exception as e:
         return [types.TextContent(
             type="text",
@@ -1421,9 +2113,9 @@ async def handle_create_goal_direct(arguments: dict) -> List[types.TextContent]:
             }, indent=2)
         )]
 
-async def handle_get_calibration_report(arguments: dict) -> List[types.TextContent]:
+async def handle_get_calibration_report(arguments: dict) -> list[types.TextContent]:
     """Handle get_calibration_report by querying SQLite reflexes directly
-    
+
     Note: CLI 'empirica calibration' is deprecated (used heuristics).
     This handler queries session reflexes for genuine calibration data.
     """
@@ -1441,7 +2133,7 @@ async def handle_get_calibration_report(arguments: dict) -> List[types.TextConte
         # Query reflexes for PREFLIGHT and POSTFLIGHT
         db = SessionDatabase(db_path=str(get_session_db_path()))
         cursor = db.conn.cursor()
-        
+
         # Get PREFLIGHT assessment
         cursor.execute("""
             SELECT engagement, know, do, context, clarity, coherence, signal, density,
@@ -1451,7 +2143,7 @@ async def handle_get_calibration_report(arguments: dict) -> List[types.TextConte
             ORDER BY timestamp DESC LIMIT 1
         """, (session_id,))
         preflight = cursor.fetchone()
-        
+
         # Get POSTFLIGHT assessment
         cursor.execute("""
             SELECT engagement, know, do, context, clarity, coherence, signal, density,
@@ -1461,9 +2153,9 @@ async def handle_get_calibration_report(arguments: dict) -> List[types.TextConte
             ORDER BY timestamp DESC LIMIT 1
         """, (session_id,))
         postflight = cursor.fetchone()
-        
+
         db.close()
-        
+
         if not preflight:
             return [types.TextContent(
                 type="text",
@@ -1474,14 +2166,14 @@ async def handle_get_calibration_report(arguments: dict) -> List[types.TextConte
                     "suggestion": "Execute PREFLIGHT first using submit_preflight_assessment"
                 }, indent=2)
             )]
-        
+
         # Build calibration report
-        vector_names = ["engagement", "know", "do", "context", "clarity", "coherence", 
+        vector_names = ["engagement", "know", "do", "context", "clarity", "coherence",
                        "signal", "density", "state", "change", "completion", "impact", "uncertainty"]
-        
+
         preflight_vectors = {name: preflight[i] for i, name in enumerate(vector_names)}
         preflight_reasoning = preflight[13]
-        
+
         result = {
             "ok": True,
             "session_id": session_id,
@@ -1491,18 +2183,18 @@ async def handle_get_calibration_report(arguments: dict) -> List[types.TextConte
                 "overall_confidence": sum([v for k, v in preflight_vectors.items() if k != 'uncertainty']) / 12
             }
         }
-        
+
         # Add POSTFLIGHT if available
         if postflight:
             postflight_vectors = {name: postflight[i] for i, name in enumerate(vector_names)}
             postflight_reasoning = postflight[13]
-            
+
             # Calculate deltas
             deltas = {
                 name: round(postflight_vectors[name] - preflight_vectors[name], 3)
                 for name in vector_names
             }
-            
+
             result["postflight"] = {
                 "vectors": postflight_vectors,
                 "reasoning": postflight_reasoning,
@@ -1514,12 +2206,12 @@ async def handle_get_calibration_report(arguments: dict) -> List[types.TextConte
                 "do_growth": deltas["do"],
                 "uncertainty_reduction": -deltas["uncertainty"]  # Negative means reduced uncertainty (good!)
             }
-            
+
             # Calibration assessment
             know_improved = deltas["know"] > 0
             do_improved = deltas["do"] > 0
             uncertainty_reduced = deltas["uncertainty"] < 0
-            
+
             if know_improved and do_improved and uncertainty_reduced:
                 result["calibration"] = "well_calibrated"
             elif deltas["know"] < -0.1 or deltas["do"] < -0.1:
@@ -1531,7 +2223,7 @@ async def handle_get_calibration_report(arguments: dict) -> List[types.TextConte
         else:
             result["postflight"] = None
             result["message"] = "POSTFLIGHT not yet completed - run submit_postflight_assessment to enable calibration"
-        
+
         # Add grounded verification data if available
         try:
             gdb = SessionDatabase(db_path=str(get_session_db_path()))
@@ -1570,25 +2262,25 @@ async def handle_get_calibration_report(arguments: dict) -> List[types.TextConte
             }, indent=2)
         )]
 
-async def handle_edit_with_confidence(arguments: dict) -> List[types.TextContent]:
+async def handle_edit_with_confidence(arguments: dict) -> list[types.TextContent]:
     """
     Handle edit_with_confidence - metacognitive edit verification.
-    
+
     Assesses epistemic confidence BEFORE attempting edit, then executes
     using optimal strategy: atomic_edit, bash_fallback, or re_read_first.
-    
+
     Returns success status, strategy used, confidence score, and reasoning.
     """
     try:
         from empirica.components.edit_verification import EditConfidenceAssessor, EditStrategyExecutor
-        
+
         # Extract arguments
         file_path = arguments.get("file_path")
         old_str = arguments.get("old_str")
         new_str = arguments.get("new_str")
         context_source = arguments.get("context_source", "memory")
         session_id = arguments.get("session_id")
-        
+
         # Validate required arguments
         if not all([file_path, old_str is not None, new_str is not None]):
             return [types.TextContent(
@@ -1599,21 +2291,21 @@ async def handle_edit_with_confidence(arguments: dict) -> List[types.TextContent
                     "received": {k: v for k, v in arguments.items() if k in ["file_path", "old_str", "new_str"]}
                 }, indent=2)
             )]
-        
+
         # Initialize components
         assessor = EditConfidenceAssessor()
         executor = EditStrategyExecutor()
-        
+
         # Step 1: Assess epistemic confidence
         assessment = assessor.assess(
             file_path=file_path,
             old_str=old_str,
             context_source=context_source
         )
-        
+
         # Step 2: Get recommended strategy
         strategy, reasoning = assessor.recommend_strategy(assessment)
-        
+
         # Step 3: Execute with chosen strategy
         result = await executor.execute_strategy(
             strategy=strategy,
@@ -1622,15 +2314,15 @@ async def handle_edit_with_confidence(arguments: dict) -> List[types.TextContent
             new_str=new_str,
             assessment=assessment
         )
-        
+
         # Step 4: Log for calibration tracking (if session_id provided)
         if session_id and result.get("success"):
             try:
-                from empirica.data.session_database import SessionDatabase
                 from empirica.config.path_resolver import get_session_db_path
+                from empirica.data.session_database import SessionDatabase
                 # Fix: Use path_resolver to get correct database location (repo-local, not home)
                 db = SessionDatabase(db_path=str(get_session_db_path()))
-                
+
                 # Log to reflexes for calibration tracking
                 db.log_reflex(
                     session_id=session_id,
@@ -1643,7 +2335,7 @@ async def handle_edit_with_confidence(arguments: dict) -> List[types.TextContent
             except Exception as log_error:
                 # Don't fail edit if logging fails
                 logger.warning(f"Failed to log edit verification to reflexes: {log_error}")
-        
+
         # Return structured result
         return [types.TextContent(
             type="text",
@@ -1663,7 +2355,7 @@ async def handle_edit_with_confidence(arguments: dict) -> List[types.TextContent
                 "file_path": file_path
             }, indent=2)
         )]
-        
+
     except Exception as e:
         import traceback
         return [types.TextContent(
@@ -1680,7 +2372,7 @@ async def handle_edit_with_confidence(arguments: dict) -> List[types.TextContent
 # CLI Router
 # ============================================================================
 
-async def route_to_cli(tool_name: str, arguments: dict) -> List[types.TextContent]:
+async def route_to_cli(tool_name: str, arguments: dict) -> list[types.TextContent]:
     """Route MCP tool call to Empirica CLI command"""
 
     # Build CLI command
@@ -1715,6 +2407,7 @@ async def route_to_cli(tool_name: str, arguments: dict) -> List[types.TextConten
             cmd,
             capture_output=True,
             text=True,
+            stdin=subprocess.DEVNULL,  # Prevent CLI from reading MCP's stdin (fixes postflight hang)
             cwd=cwd  # Use project_path if specified, else current working directory
         )
     )
@@ -1770,8 +2463,8 @@ def parse_cli_output(tool_name: str, stdout: str, stderr: str, arguments: dict) 
         ai_id = arguments.get('ai_id', ai_id_from_output or 'unknown')
 
         try:
-            from empirica.data.session_database import SessionDatabase
             from empirica.config.path_resolver import get_session_db_path
+            from empirica.data.session_database import SessionDatabase
 
             # If we didn't get the session_id from output, create it in the database
             if not session_id:
@@ -1849,7 +2542,7 @@ def parse_cli_output(tool_name: str, stdout: str, stderr: str, arguments: dict) 
         "note": "Text output - CLI command doesn't support --output json yet"
     }, indent=2)
 
-def build_cli_command(tool_name: str, arguments: dict) -> List[str]:
+def build_cli_command(tool_name: str, arguments: dict) -> list[str]:
     """Build CLI command from MCP tool name and arguments"""
 
     # Map MCP tool name → CLI command
@@ -1888,7 +2581,8 @@ def build_cli_command(tool_name: str, arguments: dict) -> List[str]:
         "query_handoff_reports": ["handoff-query"],
 
         # Mistakes Tracking
-        "log_mistake": ["mistake-log"],
+        "mistake_log": ["mistake-log"],  # Enriched version with entity linking
+        "log_mistake": ["mistake-log"],  # Legacy version (fewer params)
         "query_mistakes": ["mistake-query"],
 
         # Phase 1: Cross-AI Coordination
@@ -1936,16 +2630,80 @@ def build_cli_command(tool_name: str, arguments: dict) -> List[str]:
         # skill_suggest: handled by handle_skill_suggest_direct (vector-aware)
         "workspace_map": ["workspace-map"],
         "unknown_resolve": ["unknown-resolve"],
+
+        # Tier 1 additions (v1.6.4)
+        "goals_complete": ["goals-complete"],
+        "project_search": ["project-search"],
+        "source_add": ["source-add"],
+        "unknown_list": ["unknown-list"],
+        "goals_search": ["goals-search"],
+        "goals_add_dependency": ["goals-add-dependency"],
+        "issue_show": ["issue-show"],
+        "issue_resolve": ["issue-resolve"],
+        "issue_stats": ["issue-stats"],
+        "session_rollup": ["session-rollup"],
+        "act_log": ["act-log"],
+        "calibration_report": ["calibration-report"],
+
+        # Tier 2: Lesson subsystem
+        "lesson_create": ["lesson-create"],
+        "lesson_load": ["lesson-load"],
+        "lesson_list": ["lesson-list"],
+        "lesson_search": ["lesson-search"],
+        "lesson_recommend": ["lesson-recommend"],
+        "lesson_path": ["lesson-path"],
+        "lesson_replay_start": ["lesson-replay-start"],
+        "lesson_replay_end": ["lesson-replay-end"],
+        "lesson_stats": ["lesson-stats"],
+
+        # Tier 2: Investigation subsystem
+        "investigate_log": ["investigate-log"],
+        "investigate_create_branch": ["investigate-create-branch"],
+        "investigate_checkpoint_branch": ["investigate-checkpoint-branch"],
+        "investigate_merge_branches": ["investigate-merge-branches"],
+        "investigate_multi": ["investigate-multi"],
+
+        # Tier 2: Assessment subsystem
+        "assess_state": ["assess-state"],
+        "assess_component": ["assess-component"],
+        "assess_compare": ["assess-compare"],
+        "assess_directory": ["assess-directory"],
+
+        # Tier 2: Agent subsystem
+        "agent_spawn": ["agent-spawn"],
+        "agent_report": ["agent-report"],
+        "agent_aggregate": ["agent-aggregate"],
+        "agent_parallel": ["agent-parallel"],
+        "agent_export": ["agent-export"],
+        "agent_import": ["agent-import"],
+        "agent_discover": ["agent-discover"],
+
+        # Tier 2: Persona subsystem
+        "persona_list": ["persona-list"],
+        "persona_show": ["persona-show"],
+        "persona_promote": ["persona-promote"],
+        "persona_find": ["persona-find"],
+
+        # Tier 2: Memory subsystem
+        "memory_prime": ["memory-prime"],
+        "memory_scope": ["memory-scope"],
+        "memory_value": ["memory-value"],
+        "memory_report": ["memory-report"],
     }
-    
+
     # Commands that take positional arguments (not flags)
-    # Format: command_name: (positional_arg_name, remaining_args_as_flags)
+    # Format: command_name: arg_name (string) or [arg1, arg2] (list for multiple positionals)
     positional_args = {
         "preflight": "prompt",           # preflight <prompt> [--session-id ...]
         "postflight": "session_id",      # postflight <session_id> [--summary ...]
         "sessions-show": "session_id",   # sessions-show <session_id>
         "session-snapshot": "session_id", # session-snapshot <session_id>
         "calibration": "session_id",     # calibration <session_id>
+        # Tier 2: commands with positional arguments
+        "investigate": "target",         # investigate <target> [--type ...]
+        "assess-component": "path",      # assess-component <path> [--project-root ...]
+        "assess-compare": ["path_a", "path_b"],  # assess-compare <path_a> <path_b>
+        "assess-directory": "path",      # assess-directory <path> [--project-root ...]
     }
 
     # Map MCP argument names → CLI flag names (when they differ)
@@ -1966,7 +2724,6 @@ def build_cli_command(tool_name: str, arguments: dict) -> List[str]:
         "next_session_context": "next-session-context",  # MCP uses next_session_context, CLI uses next-session-context
         "artifacts_created": "artifacts",  # MCP uses artifacts_created, CLI uses artifacts (for handoff-create)
         "project_id": "project-id",  # MCP uses project_id, CLI uses project-id (for project commands)
-        "goal_id": "goal-id",  # MCP uses goal_id, CLI uses goal-id (for project finding/unknown/deadend)
         "subtask_id": "subtask-id",  # MCP uses subtask_id, CLI uses subtask-id (for project finding/unknown/deadend)
         "session_id": "session-id",  # MCP uses session_id, CLI uses session-id (for project finding/unknown/deadend)
         "doc_path": "doc-path",  # MCP uses doc_path, CLI uses doc-path (for refdoc-add)
@@ -1978,8 +2735,54 @@ def build_cli_command(tool_name: str, arguments: dict) -> List[str]:
         "issue_id": "issue-id",  # MCP uses issue_id, CLI uses issue-id
         "unknown_id": "unknown-id",  # MCP uses unknown_id, CLI uses unknown-id
         "resolved_by": "resolved-by",  # MCP uses resolved_by, CLI uses resolved-by
+        # Tier 1 additions
+        "run_postflight": "run-postflight",  # MCP uses run_postflight, CLI uses run-postflight
+        "merge_branch": "merge-branch",  # MCP uses merge_branch, CLI uses merge-branch
+        "delete_branch": "delete-branch",  # MCP uses delete_branch, CLI uses delete-branch
+        "create_handoff": "create-handoff",  # MCP uses create_handoff, CLI uses create-handoff
+        "source_type": "source-type",  # MCP uses source_type, CLI uses source-type
+        "depends_on": "depends-on",  # MCP uses depends_on, CLI uses depends-on
+        "global_search": "global",  # MCP uses global_search, CLI uses --global
+        # Entity linking (shared across logging tools)
+        "entity_type": "entity-type",  # MCP uses entity_type, CLI uses entity-type
+        "entity_id": "entity-id",  # MCP uses entity_id, CLI uses entity-id
+        # Tier 2: Investigation
+        "investigation_path": "investigation-path",
+        "preflight_vectors": "preflight-vectors",
+        "branch_id": "branch-id",
+        "postflight_vectors": "postflight-vectors",
+        "tokens_spent": "tokens-spent",
+        "time_spent": "time-spent",
+        "tag_losers": "tag-losers",
+        "aggregate_strategy": "aggregate-strategy",
+        # Tier 2: Assessment
+        "project_root": "project-root",
+        "include_init": "include-init",
+        # Tier 2: Agent
+        "max_agents": "max-agents",
+        "output_file": "output-file",
+        "input_file": "input-file",
+        "min_reputation": "min-reputation",
+        # Tier 2: Persona
+        "persona_id": "persona-id",
+        # Tier 2: Memory
+        "scope_breadth": "scope-breadth",
+        "scope_duration": "scope-duration",
+        "content_type": "content-type",
+        "min_priority": "min-priority",
+        "min_gain": "min-gain",
+        "include_eidetic": "include-eidetic",
+        "include_episodic": "include-episodic",
+        "prior_findings": "prior-findings",
+        "dead_ends": "dead-ends",
+        # Lesson
+        "lesson_id": "lesson-id",
+        "replay_id": "replay-id",
+        "steps_only": "steps-only",
+        "steps_completed": "steps-completed",
+        "ai_id": "ai-id",
     }
-    
+
     # Arguments to skip per command (not supported by CLI)
     skip_args = {
         "check-submit": ["confidence_to_proceed"],  # check-submit doesn't use confidence_to_proceed
@@ -1989,26 +2792,38 @@ def build_cli_command(tool_name: str, arguments: dict) -> List[str]:
     }
 
     cmd = [EMPIRICA_CLI] + tool_map.get(tool_name, [tool_name])
-    
+
     cli_command = tool_map.get(tool_name, [tool_name])[0]
-    
-    # Handle positional argument first if command requires it
+
+    # Handle positional argument(s) first if command requires them
     if cli_command in positional_args:
-        positional_key = positional_args[cli_command]
-        if positional_key in arguments:
-            cmd.append(str(arguments[positional_key]))
+        positional_config = positional_args[cli_command]
+        if isinstance(positional_config, list):
+            # Multiple positional args (e.g., assess-compare path_a path_b)
+            for pos_key in positional_config:
+                if pos_key in arguments:
+                    cmd.append(str(arguments[pos_key]))
+        else:
+            # Single positional arg
+            if positional_config in arguments:
+                cmd.append(str(arguments[positional_config]))
 
     # Map remaining arguments to CLI flags
     for key, value in arguments.items():
         if value is not None:
             # Skip positional arg (already handled)
-            if cli_command in positional_args and key == positional_args[cli_command]:
-                continue
-                
+            if cli_command in positional_args:
+                positional_config = positional_args[cli_command]
+                if isinstance(positional_config, list):
+                    if key in positional_config:
+                        continue
+                elif key == positional_config:
+                    continue
+
             # Skip arguments not supported by CLI
             if key == "session_type":
                 continue
-            
+
             # Skip command-specific unsupported arguments
             if cli_command in skip_args and key in skip_args[cli_command]:
                 continue
@@ -2028,17 +2843,52 @@ def build_cli_command(tool_name: str, arguments: dict) -> List[str]:
     # Commands that support --output json
     # Note: preflight/postflight with --prompt-only already return JSON
     json_supported = {
-        "preflight-submit", "check", "check-submit", "postflight-submit",
-        "goals-create", "goals-add-subtask", "goals-complete-subtask",
-        "goals-progress", "goals-list", "sessions-resume",
+        # CASCADE workflow
+        "preflight-submit", "check-submit", "postflight-submit",
+        # Session management
+        "session-create", "sessions-show", "sessions-resume",
+        "session-snapshot", "session-rollup",
+        # Goals
+        "goals-create", "goals-complete", "goals-list", "goals-progress",
+        "goals-add-subtask", "goals-complete-subtask", "goals-search",
+        "goals-add-dependency", "goals-ready", "goals-claim",
+        "goals-get-subtasks", "goals-discover", "goals-resume",
+        # Noetic artifacts
+        "finding-log", "unknown-log", "deadend-log", "assumption-log",
+        "decision-log", "mistake-log", "act-log", "source-add", "refdoc-add",
+        "unknown-list", "unknown-resolve", "mistake-query",
+        # Epistemics
+        "epistemics-list", "epistemics-show", "calibration-report",
+        # Project
+        "project-bootstrap", "project-search", "memory-compact",
+        # Handoffs & Checkpoints
         "handoff-create", "handoff-query",
-        "project-bootstrap", "finding-log", "unknown-log", "deadend-log", "refdoc-add",
-        "memory-compact",
-        "epistemics-list", "epistemics-show",
+        "checkpoint-create", "checkpoint-load",
         # Human copilot tools
-        "issue-list", "issue-handoff",
-        "workspace-overview", "efficiency-report", "skill-suggest",
-        "workspace-map", "unknown-resolve"
+        "issue-list", "issue-show", "issue-resolve", "issue-stats",
+        "issue-handoff", "workspace-overview", "workspace-map",
+        "efficiency-report",
+        # Identity (Phase 2)
+        "identity-create", "identity-list", "identity-export", "identity-verify",
+        # System
+        "monitor", "system-status",
+        # Tier 2: Lesson subsystem
+        "lesson-create", "lesson-load", "lesson-list", "lesson-search",
+        "lesson-recommend", "lesson-path", "lesson-replay-start",
+        "lesson-replay-end", "lesson-stats",
+        # Tier 2: Investigation subsystem
+        "investigate-log", "investigate-create-branch",
+        "investigate-checkpoint-branch", "investigate-merge-branches",
+        "investigate-multi",
+        # Tier 2: Assessment subsystem
+        "assess-state", "assess-component", "assess-compare", "assess-directory",
+        # Tier 2: Agent subsystem
+        "agent-spawn", "agent-report", "agent-aggregate", "agent-parallel",
+        "agent-export", "agent-import", "agent-discover",
+        # Tier 2: Persona subsystem
+        "persona-list", "persona-show", "persona-promote", "persona-find",
+        # Tier 2: Memory subsystem
+        "memory-prime", "memory-scope", "memory-value", "memory-report",
     }
 
     cli_command = tool_map.get(tool_name, [tool_name])[0]
@@ -2055,7 +2905,7 @@ def build_cli_command(tool_name: str, arguments: dict) -> List[str]:
 # Stateless Tool Handlers
 # ============================================================================
 
-def handle_introduction() -> List[types.TextContent]:
+def handle_introduction() -> list[types.TextContent]:
     """Return Empirica introduction (stateless)"""
 
     intro = """# Empirica Framework - Epistemic Self-Assessment for AI Agents
@@ -2076,7 +2926,7 @@ def handle_introduction() -> List[types.TextContent]:
 ## 13 Epistemic Vectors (0-1 scale)
 
 **Foundation (4):** engagement, know, do, context
-**Comprehension (4):** clarity, coherence, signal, density  
+**Comprehension (4):** clarity, coherence, signal, density
 **Execution (4):** state, change, completion, impact
 **Meta (1):** uncertainty (high >0.6 → must investigate)
 
@@ -2101,7 +2951,7 @@ def handle_introduction() -> List[types.TextContent]:
 
 It's better to:
 - Know what you don't know ✅
-- Investigate systematically ✅  
+- Investigate systematically ✅
 - Admit uncertainty ✅
 - Measure learning ✅
 
@@ -2116,7 +2966,7 @@ Than to:
 
     return [types.TextContent(type="text", text=intro)]
 
-def handle_guidance(arguments: dict) -> List[types.TextContent]:
+def handle_guidance(arguments: dict) -> list[types.TextContent]:
     """Return workflow guidance (stateless)"""
 
     phase = arguments.get("phase", "overview")
@@ -2191,7 +3041,7 @@ Mechanistic self-assessment: record current knowledge state after task completio
 **Critical:** Measure what's in context now. System handles calibration calculation.""",
 
         "cascade": "**CASCADE Workflow:** BOOTSTRAP → PREFLIGHT → [INVESTIGATE → CHECK]* → ACT → POSTFLIGHT",
-        
+
         "overview": """**CASCADE Workflow Overview**
 
 BOOTSTRAP → PREFLIGHT → [INVESTIGATE → CHECK]* → ACT → POSTFLIGHT
@@ -2218,7 +3068,7 @@ BOOTSTRAP → PREFLIGHT → [INVESTIGATE → CHECK]* → ACT → POSTFLIGHT
 
     return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
-def handle_cli_help() -> List[types.TextContent]:
+def handle_cli_help() -> list[types.TextContent]:
     """Return CLI help (stateless)"""
 
     help_text = """# Empirica CLI Commands

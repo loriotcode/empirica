@@ -1,7 +1,7 @@
 # Empirica CLI Commands - Unified Reference
 
 **Total Commands:** 138
-**Framework Version:** 1.6.3
+**Framework Version:** 1.6.4
 **Generated:** 2026-02-07
 **Status:** Production Ready
 
@@ -54,7 +54,6 @@ The CLI uses `get_active_empirica_session_id()` with this priority chain:
 ### 3. Goals & Tasks (16 commands)
 - **goals-create** - Create new goal with objective and scope
 - **goals-list** - List all goals for a session or project
-- **goals-list-all** - List all goals across all sessions
 - **goals-complete** - Mark a goal as completed
 - **goals-claim** - Claim a goal for work
 - **goals-add-subtask** - Add subtask to an existing goal
@@ -399,14 +398,6 @@ Part of: `pip install empirica-workspace`
 **Purpose:** Resume work on a paused goal
 **Usage:** `empirica goals-resume --goal-id <goal_id>`
 
-#### `goals-list-all`
-**Purpose:** List all goals across all sessions (project-wide view)
-**Usage:** `empirica goals-list-all [options]`
-**Options:**
-- `--status`: Filter by status (active, completed, all) - default: active
-- `--limit`: Maximum goals to show (default: 20)
-- `--output`: Output format (json, human)
-
 #### `goals-search`
 **Purpose:** Semantic search across goals and subtasks using Qdrant
 **Usage:** `empirica goals-search <query> [options]`
@@ -630,7 +621,7 @@ Part of: `pip install empirica-workspace`
 
 > **Transaction-First Pattern:** These commands auto-derive `--session-id` from the active transaction when running inside a CASCADE workflow (after PREFLIGHT). You only need to specify `--session-id` explicitly when logging outside a transaction.
 
-> **Entity Scoping (v1.6.3):** All artifact logging commands support cross-entity provenance via `--entity-type`, `--entity-id`, and `--via` flags. This allows artifacts to be scoped to organizations, contacts, engagements, or other non-project entities while preserving project-level storage.
+> **Entity Scoping (v1.6.4):** All artifact logging commands support cross-entity provenance via `--entity-type`, `--entity-id`, and `--via` flags. This allows artifacts to be scoped to organizations, contacts, engagements, or other non-project entities while preserving project-level storage.
 
 **Entity Scoping Options (available on all logging commands):**
 - `--entity-type`: Entity type (e.g., `organization`, `contact`, `engagement`, `project`)
@@ -1436,4 +1427,4 @@ empirica --verbose check --session-id xyz # CHECK with debugging
 
 **Generated from:** empirica --help output (2026-02-07)
 **Total Commands:** 138
-**Framework Version:** 1.6.3
+**Framework Version:** 1.6.4

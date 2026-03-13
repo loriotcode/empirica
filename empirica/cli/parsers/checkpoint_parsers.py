@@ -386,6 +386,43 @@ def add_checkpoint_parsers(subparsers):
     ecosystem_check_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     ecosystem_check_parser.add_argument('--verbose', action='store_true', help='Show detailed operation info')
 
+    # Engagement focus command — set active engagement for auto-linking
+    engagement_focus_parser = subparsers.add_parser(
+        'engagement-focus',
+        help='Set active engagement for current transaction (auto-links all artifacts)'
+    )
+    engagement_focus_parser.add_argument('engagement_id', nargs='?', help='Engagement UUID or name')
+    engagement_focus_parser.add_argument('--clear', action='store_true', help='Clear active engagement')
+    engagement_focus_parser.add_argument('--output', choices=['json', 'default'], default='json', help='Output format')
+
+    # Workspace search command — cross-project entity-navigable semantic search
+    workspace_search_parser = subparsers.add_parser(
+        'workspace-search',
+        help='Search across all projects by entity or semantic query'
+    )
+    workspace_search_parser.add_argument('--entity', help='Entity filter: TYPE/ID (e.g., contact/david, org/acme)')
+    workspace_search_parser.add_argument('--task', help='Semantic search query')
+    workspace_search_parser.add_argument('--project-id', help='Restrict to specific project')
+    workspace_search_parser.add_argument('--limit', type=int, default=20, help='Maximum results')
+    workspace_search_parser.add_argument('--output', choices=['json', 'human'], default='json', help='Output format')
+
+    # Git abstraction: save command — git add + commit with auto-message
+    save_parser = subparsers.add_parser(
+        'save',
+        help='Save current work (git add + commit with auto-generated message)'
+    )
+    save_parser.add_argument('--message', '-m', help='Custom commit message')
+    save_parser.add_argument('--output', choices=['json', 'default'], default='json', help='Output format')
+
+    # Git abstraction: history command — epistemic timeline from git log + notes
+    history_parser = subparsers.add_parser(
+        'history',
+        help='Show epistemic timeline from git log + notes'
+    )
+    history_parser.add_argument('--entity', help='Filter by entity: TYPE/ID')
+    history_parser.add_argument('--limit', type=int, default=20, help='Maximum entries')
+    history_parser.add_argument('--output', choices=['json', 'human'], default='human', help='Output format')
+
     # Project semantic search command (Qdrant-backed)
     project_search_parser = subparsers.add_parser(
         'project-search',
@@ -581,6 +618,25 @@ def add_checkpoint_parsers(subparsers):
     _add_entity_flags(source_add_parser)
     source_add_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     source_add_parser.add_argument('--verbose', action='store_true', help='Verbose output')
+
+    # Training data export
+    training_export_parser = subparsers.add_parser(
+        'training-export',
+        help='Export epistemic transaction data as JSONL for model fine-tuning'
+    )
+    training_export_parser.add_argument('--output-path', help='Output JSONL file path (default: stdout)')
+    training_export_parser.add_argument('--workspace', action='store_true',
+        help='Export from ALL project databases in workspace (not just current)')
+    training_export_parser.add_argument('--project-id', help='Filter by project (prefix match)')
+    training_export_parser.add_argument('--ai-id', help='Filter by AI ID (e.g., claude-code)')
+    training_export_parser.add_argument('--min-vectors', type=int, default=3,
+        help='Minimum vector count to include a transaction (default: 3)')
+    training_export_parser.add_argument('--no-artifacts', action='store_true',
+        help='Exclude noetic artifacts (findings, unknowns, dead-ends)')
+    training_export_parser.add_argument('--no-grounded', action='store_true',
+        help='Exclude grounded calibration data')
+    training_export_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
+    training_export_parser.add_argument('--verbose', action='store_true', help='Show detailed info')
 
     # NEW: Goal Management Commands (MCP v2 Integration)
     # Aliases: goals-X → goal-X (singular), short aliases (gc, gl, etc.)

@@ -88,6 +88,7 @@ def _create_entity_artifact_link(
 def _extract_entity_params(config_data, args):
     """Extract entity_type, entity_id, via from config or CLI args.
 
+    Falls back to active engagement if no entity explicitly specified.
     Returns (entity_type, entity_id, via) tuple.
     """
     if config_data:
@@ -98,7 +99,85 @@ def _extract_entity_params(config_data, args):
         entity_type = getattr(args, 'entity_type', None)
         entity_id = getattr(args, 'entity_id', None)
         via = getattr(args, 'via', None)
+
+    # Auto-inherit from active engagement if no entity explicitly specified
+    if not entity_type or entity_type == 'project':
+        try:
+            from empirica.utils.session_resolver import get_active_engagement
+            active_eng = get_active_engagement()
+            if active_eng:
+                entity_type = 'engagement'
+                entity_id = active_eng
+        except Exception:
+            pass
+
     return entity_type, entity_id, via
+
+
+def handle_engagement_focus_command(args):
+    """Handle engagement-focus command — set active engagement for auto-linking."""
+    try:
+        from empirica.utils.session_resolver import (
+            set_active_engagement, get_active_engagement, read_active_transaction_full,
+        )
+
+        if getattr(args, 'clear', False):
+            # Clear engagement by setting to None
+            tx_data = read_active_transaction_full()
+            if tx_data and tx_data.get('active_engagement'):
+                import os
+                import tempfile
+                from pathlib import Path
+
+                tx_data.pop('active_engagement', None)
+                tx_data['updated_at'] = __import__('time').time()
+
+                # Find the transaction file path (same logic as set_active_engagement)
+                from empirica.utils.session_resolver import (
+                    get_active_project_path, _get_instance_suffix,
+                )
+                suffix = _get_instance_suffix()
+                project_path = get_active_project_path()
+                if project_path:
+                    tx_path = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
+                else:
+                    tx_path = Path.home() / '.empirica' / f'active_transaction{suffix}.json'
+
+                tmp_fd, tmp_path = tempfile.mkstemp(dir=str(tx_path.parent))
+                try:
+                    with os.fdopen(tmp_fd, 'w') as tmp_f:
+                        json.dump(tx_data, tmp_f, indent=2)
+                    os.rename(tmp_path, str(tx_path))
+                except BaseException:
+                    try:
+                        os.unlink(tmp_path)
+                    except OSError:
+                        pass
+
+                print(json.dumps({"ok": True, "action": "cleared"}))
+            else:
+                print(json.dumps({"ok": True, "action": "no_engagement_set"}))
+            return
+
+        engagement_id = getattr(args, 'engagement_id', None)
+        if not engagement_id:
+            print(json.dumps({"ok": False, "error": "engagement_id required"}))
+            return
+
+        ok = set_active_engagement(engagement_id)
+        if ok:
+            print(json.dumps({
+                "ok": True,
+                "engagement_id": engagement_id,
+                "message": f"Engagement focused: {engagement_id}. All artifacts will auto-link.",
+            }))
+        else:
+            print(json.dumps({
+                "ok": False,
+                "error": "No active transaction. Run PREFLIGHT first.",
+            }))
+    except Exception as e:
+        print(json.dumps({"ok": False, "error": str(e)}))
 
 def handle_finding_log_command(args):
     """Handle finding-log command - AI-first with config file support"""

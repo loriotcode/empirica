@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.6.3-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.6.3)
+[![Version](https://img.shields.io/badge/version-1.6.4-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.6.4)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -33,6 +33,7 @@ AI coding agents today have no self-awareness about what they know:
 | **Prevents confident mistakes** | The CHECK gate requires `know >= 0.70` and `uncertainty <= 0.35` before allowing action |
 | **Shows confidence in real-time** | Live statusline in your terminal: `[empirica] ⚡94% │ 🎯3 │ POSTFLIGHT │ K:95% U:5%` |
 | **Calibrates against reality** | Dual-track verification compares AI self-assessment against objective evidence — tests, git metrics, goal completion |
+| **Tracks your codebase** | Temporal entity model auto-extracts functions, classes, and imports from every file edit — the AI knows what's alive and what's stale |
 | **Works through natural language** | You describe tasks normally. The AI operates the measurement system automatically |
 
 ---
@@ -100,13 +101,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.6.3-alpine
+docker pull nubaeon/empirica:1.6.4-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.6.3
+docker pull nubaeon/empirica:1.6.4
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.6.3 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.6.4 /bin/bash
 ```
 </details>
 
@@ -264,13 +265,12 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.6.3
+## What's New in 1.6.4
 
-- **Code Quality Evidence** — Grounded calibration includes ruff, radon, and pyright metrics as objective evidence
-- **docs-assess Ignore Patterns** — `[tool.empirica.docs-assess]` in pyproject.toml with fnmatch patterns
-- **API Reference Expansion** — 15+ class entries added, docs-assess coverage 71.8% to 84.0%
-- **Claude Code Symbiosis** — Architecture docs for MEMORY.md hot cache, task-goal bridge, session lifecycle hooks
-- **Security Updates** — flask >= 3.1.3, werkzeug >= 3.1.6, pillow >= 12.1.1
+- **Temporal Entity Model** — Codebase entities (functions, classes, APIs, imports) tracked with temporal validity. Auto-extracted from file edits, queried during CHECK, used as grounded calibration evidence. Adapted from [world-model-mcp](https://github.com/SaravananJaichandar/world-model-mcp) by Saravanan Jaichandar.
+- **PostToolUse Entity Extraction** — After every file edit, entities are automatically extracted and stored with first_seen/last_seen timestamps across 8 programming languages
+- **Codebase-Aware CHECK** — Sentinel gate now includes `codebase_context` with active entity count and convention constraints
+- **8th Grounded Evidence Source** — `codebase_model` joins pytest, git, goals, artifacts, issues, sentinel, and code_quality for calibration verification
 
 ---
 
@@ -301,6 +301,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.6.3
+**Version:** 1.6.4
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*

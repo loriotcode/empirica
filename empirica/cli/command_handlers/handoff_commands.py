@@ -57,18 +57,19 @@ def handle_handoff_create_command(args):
             # LEGACY MODE
             session_id = args.session_id
             task_summary = args.task_summary
+            next_session_context = getattr(args, 'next_session_context', None)
             planning_only = getattr(args, 'planning_only', False)
 
-            # Parse JSON arrays from strings
-            key_findings = json.loads(args.key_findings) if isinstance(args.key_findings, str) else args.key_findings
-            remaining_unknowns = json.loads(args.remaining_unknowns) if args.remaining_unknowns and isinstance(args.remaining_unknowns, str) else (args.remaining_unknowns or [])
+            # Parse JSON arrays from strings (use parse_json_safely to handle empty/malformed input)
+            key_findings = parse_json_safely(args.key_findings) if isinstance(args.key_findings, str) else (args.key_findings or [])
+            remaining_unknowns = parse_json_safely(args.remaining_unknowns) if args.remaining_unknowns and isinstance(args.remaining_unknowns, str) else (args.remaining_unknowns or [])
 
             # Auto-convert strings to single-item arrays for better UX
             if isinstance(key_findings, str):
                 key_findings = [key_findings]
             if isinstance(remaining_unknowns, str):
                 remaining_unknowns = [remaining_unknowns]
-            artifacts = json.loads(args.artifacts) if args.artifacts and isinstance(args.artifacts, str) else (args.artifacts or [])
+            artifacts = parse_json_safely(args.artifacts) if args.artifacts and isinstance(args.artifacts, str) else (args.artifacts or [])
 
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
@@ -88,8 +89,6 @@ def handle_handoff_create_command(args):
         if not next_session_context:
             print(json.dumps({"ok": False, "error": "Config must include 'next_session_context' field"}))
             sys.exit(1)
-
-            next_session_context = args.next_session_context
 
         # Determine handoff type based on available assessments
         db = SessionDatabase()

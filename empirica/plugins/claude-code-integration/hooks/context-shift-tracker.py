@@ -19,16 +19,15 @@ import sys
 import tempfile
 from pathlib import Path
 
+# Add lib folder to path for shared modules
+_lib_path = Path(__file__).parent.parent / 'lib'
+if str(_lib_path) not in sys.path:
+    sys.path.insert(0, str(_lib_path))
 
-def get_instance_id():
-    """Get instance identifier from TMUX_PANE or fallback."""
-    pane = os.environ.get('TMUX_PANE', '')
-    if pane:
-        return f"tmux{pane.replace('%', '')}"
-    return None
+from project_resolver import get_instance_id
 
 
-def _find_transaction_file(claude_session_id: str = None) -> 'Path | None':
+def _find_transaction_file(claude_session_id: 'str | None' = None) -> 'Path | None':
     """Find the active transaction file using the same priority as sentinel-gate."""
     instance_id = get_instance_id()
     suffix = f'_{instance_id}' if instance_id else ''

@@ -120,6 +120,27 @@ class GroundedCalibrationManager:
 
         return beliefs
 
+    def _get_disputed_vectors(self) -> Dict[str, Dict]:
+        """Get vectors with open disputes. Returns {vector: {expected, reported}}."""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                SELECT vector, expected_value, reported_value
+                FROM calibration_disputes
+                WHERE status = 'open'
+                ORDER BY created_at DESC
+            """)
+            disputed = {}
+            for row in cursor.fetchall():
+                if row[0] not in disputed:
+                    disputed[row[0]] = {
+                        'expected': row[1],
+                        'reported': row[2],
+                    }
+            return disputed
+        except Exception:
+            return {}
+
     def update_grounded_beliefs(
         self,
         session_id: str,
@@ -131,6 +152,9 @@ class GroundedCalibrationManager:
 
         For each grounded vector estimate, performs a Bayesian update using
         the objective evidence value as the observation.
+
+        Disputed vectors get 4x observation variance (less trusted evidence)
+        until the dispute is resolved.
 
         Returns dict of vector → update details.
         """
@@ -147,6 +171,7 @@ class GroundedCalibrationManager:
         ai_id = row[0]
 
         current_beliefs = self.get_grounded_beliefs(ai_id)
+        disputed_vectors = self._get_disputed_vectors()
         updates = {}
 
         for vector_name, estimate in assessment.grounded.items():
@@ -166,6 +191,15 @@ class GroundedCalibrationManager:
             # Scale observation variance by evidence confidence
             # High-confidence evidence gets lower variance (more trusted)
             obs_var = self.OBSERVATION_VARIANCE / max(estimate.confidence, 0.1)
+
+            # Disputed vectors: 4x observation variance (less weight on suspect evidence)
+            is_disputed = vector_name in disputed_vectors
+            if is_disputed:
+                obs_var *= 4.0
+                logger.debug(
+                    f"Vector '{vector_name}' has open dispute — "
+                    f"observation variance increased 4x to {obs_var:.4f}"
+                )
 
             # Bayesian update
             posterior_mean = (
@@ -542,6 +576,9 @@ def _run_single_phase_verification(
     goal_id: Optional[str] = None,
     check_timestamp: Optional[float] = None,
     evidence_profile: Optional[str] = None,
+    work_context: Optional[str] = None,
+    preflight_timestamp: Optional[float] = None,
+    per_vector_weights: Optional[Dict[str, float]] = None,
 ) -> Optional[Dict]:
     """Run grounded verification for a single phase (noetic, praxic, or combined)."""
     collector = PostTestCollector(
@@ -551,6 +588,8 @@ def _run_single_phase_verification(
         phase=phase,
         check_timestamp=check_timestamp,
         evidence_profile=evidence_profile,
+        work_context=work_context,
+        preflight_timestamp=preflight_timestamp,
     )
     bundle = collector.collect_all()
 
@@ -559,7 +598,10 @@ def _run_single_phase_verification(
         return None
 
     mapper = EvidenceMapper()
-    assessment = mapper.map_evidence(bundle, vectors, phase=phase)
+    assessment = mapper.map_evidence(
+        bundle, vectors, phase=phase, domain=domain or "default",
+        per_vector_weights=per_vector_weights,
+    )
 
     manager = GroundedCalibrationManager(db)
     updates = manager.update_grounded_beliefs(session_id, assessment, phase=phase)
@@ -647,6 +689,8 @@ def run_grounded_verification(
     phase_boundary: Optional[Dict] = None,
     evidence_profile: Optional[str] = None,
     phase_tool_counts: Optional[Dict[str, int]] = None,
+    work_context: Optional[str] = None,
+    per_vector_weights: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> Optional[Dict]:
     """
     Full grounded verification pipeline.
@@ -668,6 +712,7 @@ def run_grounded_verification(
 
         if phase_boundary and phase_boundary.get("has_check"):
             check_ts = phase_boundary.get("proceed_check_timestamp")
+            preflight_ts = phase_boundary.get("preflight_timestamp")
             noetic_only = phase_boundary.get("noetic_only", False)
 
             # Noetic vectors: delta from PREFLIGHT to CHECK
@@ -680,6 +725,10 @@ def run_grounded_verification(
                 if v is not None:
                     noetic_self[k] = v
 
+            # Extract phase-specific Tier 2 weights
+            noetic_weights = (per_vector_weights or {}).get('noetic')
+            praxic_weights = (per_vector_weights or {}).get('praxic')
+
             if noetic_self:
                 noetic_result = _run_single_phase_verification(
                     session_id, noetic_self, db,
@@ -688,6 +737,9 @@ def run_grounded_verification(
                     domain=domain, goal_id=goal_id,
                     check_timestamp=check_ts,
                     evidence_profile=evidence_profile,
+                    work_context=work_context,
+                    preflight_timestamp=preflight_ts,
+                    per_vector_weights=noetic_weights,
                 )
                 if noetic_result:
                     results["noetic"] = noetic_result
@@ -701,17 +753,24 @@ def run_grounded_verification(
                     domain=domain, goal_id=goal_id,
                     check_timestamp=check_ts,
                     evidence_profile=evidence_profile,
+                    work_context=work_context,
+                    preflight_timestamp=preflight_ts,
+                    per_vector_weights=praxic_weights,
                 )
                 if praxic_result:
                     results["praxic"] = praxic_result
         else:
             # No phase boundary — combined mode (backward-compatible)
+            # Use praxic weights as best default for combined mode
+            combined_weights = (per_vector_weights or {}).get('praxic')
             combined_result = _run_single_phase_verification(
                 session_id, postflight_vectors, db,
                 phase="combined",
                 project_id=project_id,
                 domain=domain, goal_id=goal_id,
                 evidence_profile=evidence_profile,
+                work_context=work_context,
+                per_vector_weights=combined_weights,
             )
             if combined_result:
                 results["combined"] = combined_result

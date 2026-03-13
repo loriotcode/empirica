@@ -122,6 +122,14 @@ def _ensure_workspace_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_entity_artifacts_entity
         ON entity_artifacts(entity_type, entity_id)
     """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_entity_artifacts_transaction
+        ON entity_artifacts(transaction_id)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_entity_artifacts_engagement
+        ON entity_artifacts(engagement_id)
+    """)
     conn.commit()
 
 
@@ -388,3 +396,42 @@ class WorkspaceDBRepository(BaseRepository):
             return link_id
         except sqlite3.IntegrityError:
             return None
+
+    def get_entity_artifacts_by_transaction(
+        self, transaction_id: str
+    ) -> List[Dict[str, Any]]:
+        """Get all entity-artifact links for a given transaction."""
+        cursor = self._execute(
+            "SELECT * FROM entity_artifacts WHERE transaction_id = ?",
+            (transaction_id,)
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_entity_artifacts_by_entity(
+        self,
+        entity_type: str,
+        entity_id: str,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Get all artifact links for a specific entity."""
+        cursor = self._execute(
+            """SELECT * FROM entity_artifacts
+               WHERE entity_type = ? AND entity_id = ?
+               ORDER BY created_at DESC LIMIT ?""",
+            (entity_type, entity_id, limit)
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_entity_artifacts_by_engagement(
+        self,
+        engagement_id: str,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Get all artifact links for a specific engagement."""
+        cursor = self._execute(
+            """SELECT * FROM entity_artifacts
+               WHERE engagement_id = ?
+               ORDER BY created_at DESC LIMIT ?""",
+            (engagement_id, limit)
+        )
+        return [dict(row) for row in cursor.fetchall()]
