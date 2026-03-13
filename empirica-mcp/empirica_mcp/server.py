@@ -3,7 +3,7 @@
 Empirica MCP Server - Epistemic Middleware for AI Agents
 
 Full-featured MCP server providing:
-- **55 tools** wrapping Empirica CLI commands
+- **67+ tools** wrapping Empirica CLI commands
 - **Epistemic middleware** for confidence-gated actions
 - **Sentinel integration** for CHECK gate decisions
 - **CASCADE workflow** (PREFLIGHT → CHECK → POSTFLIGHT)
@@ -21,7 +21,7 @@ CASCADE Philosophy:
 - Scope is vectorial (self-assessed): {"breadth": 0-1, "duration": 0-1, "coordination": 0-1}
 - Trust AI reasoning: Let agents assess epistemic state → scope vectors
 
-Version: 1.4.1
+Version: 1.6.3
 """
 
 import asyncio
@@ -1003,6 +1003,183 @@ async def list_tools() -> List[types.Tool]:
                 "required": ["file_path", "old_str", "new_str"]
             }
         ),
+
+        # ========== Tier 1 Tools (v1.6.3 additions) ==========
+
+        types.Tool(
+            name="goals_complete",
+            description="Complete a goal - mark it as done with an optional reason. Can trigger POSTFLIGHT and branch merge.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "goal_id": {"type": "string", "description": "Goal UUID to complete"},
+                    "reason": {"type": "string", "description": "Why the goal is complete"},
+                    "run_postflight": {"type": "boolean", "description": "Run POSTFLIGHT before completing"},
+                    "merge_branch": {"type": "boolean", "description": "Merge git branch to main after completing"},
+                    "delete_branch": {"type": "boolean", "description": "Delete branch after merge"},
+                    "create_handoff": {"type": "boolean", "description": "Create handoff report on completion"}
+                },
+                "required": ["goal_id"]
+            }
+        ),
+
+        types.Tool(
+            name="project_search",
+            description="Semantic search over project knowledge - finds findings, unknowns, decisions, lessons, and episodic narratives via Qdrant.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "string", "description": "Project UUID to search within"},
+                    "task": {"type": "string", "description": "Natural language search query"},
+                    "type": {"type": "string", "description": "Search scope: 'focused' (eidetic+episodic), 'all' (all 4 collections), 'docs', 'memory'", "enum": ["focused", "all", "docs", "memory"]},
+                    "limit": {"type": "integer", "description": "Max results to return (default: 10)"},
+                    "global_search": {"type": "boolean", "description": "Include cross-project global learnings"}
+                },
+                "required": ["task"]
+            }
+        ),
+
+        types.Tool(
+            name="source_add",
+            description="Add a reference source (URL, document, paper) to the current session for provenance tracking. Must specify --noetic or --praxic to indicate the phase.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID"},
+                    "title": {"type": "string", "description": "Source title or name"},
+                    "url": {"type": "string", "description": "URL of the source"},
+                    "path": {"type": "string", "description": "Local file path of the source"},
+                    "source_type": {"type": "string", "description": "Type: doc, spec, api, blog, paper, code, other"},
+                    "description": {"type": "string", "description": "Brief description of the source"},
+                    "noetic": {"type": "boolean", "description": "Source used during investigation phase"},
+                    "praxic": {"type": "boolean", "description": "Source used during implementation phase"},
+                    "confidence": {"type": "number", "description": "Confidence in source reliability 0.0-1.0"}
+                },
+                "required": ["title"]
+            }
+        ),
+
+        types.Tool(
+            name="unknown_list",
+            description="List all open unknowns for the current session or project - see what questions remain unanswered.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID to filter by"},
+                    "project_id": {"type": "string", "description": "Project UUID to filter by"},
+                    "resolved": {"type": "boolean", "description": "Show resolved unknowns instead of open"},
+                    "all": {"type": "boolean", "description": "Show both open and resolved"},
+                    "subject": {"type": "string", "description": "Filter by subject/workstream"},
+                    "limit": {"type": "integer", "description": "Max unknowns to show (default: 30)"}
+                },
+                "required": []
+            }
+        ),
+
+        types.Tool(
+            name="goals_search",
+            description="Search goals by keyword or filter - find goals across sessions and projects.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query text"},
+                    "status": {"type": "string", "description": "Filter by status: active, completed, stale, all"},
+                    "limit": {"type": "integer", "description": "Max results (default: 20)"}
+                },
+                "required": ["query"]
+            }
+        ),
+
+        types.Tool(
+            name="goals_add_dependency",
+            description="Add a dependency between goals - goal B depends on goal A being completed first.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "goal_id": {"type": "string", "description": "The dependent goal UUID (the one that must wait)"},
+                    "depends_on": {"type": "string", "description": "The prerequisite goal UUID (the one that must be done first)"}
+                },
+                "required": ["goal_id", "depends_on"]
+            }
+        ),
+
+        types.Tool(
+            name="issue_show",
+            description="Show detailed information about a specific auto-captured issue.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "issue_id": {"type": "string", "description": "Issue UUID to show"}
+                },
+                "required": ["issue_id"]
+            }
+        ),
+
+        types.Tool(
+            name="issue_resolve",
+            description="Resolve an auto-captured issue - mark it as fixed with evidence.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "issue_id": {"type": "string", "description": "Issue UUID to resolve"},
+                    "resolution": {"type": "string", "description": "How the issue was resolved"}
+                },
+                "required": ["issue_id", "resolution"]
+            }
+        ),
+
+        types.Tool(
+            name="issue_stats",
+            description="Get issue statistics - counts by category, severity, and resolution rate.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Optional session to scope stats"}
+                },
+                "required": []
+            }
+        ),
+
+        types.Tool(
+            name="session_rollup",
+            description="Create a summary rollup of a session - aggregates findings, unknowns, decisions, and goal progress for handoff or archival.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID to roll up"}
+                },
+                "required": ["session_id"]
+            }
+        ),
+
+        types.Tool(
+            name="act_log",
+            description="Log structured actions taken (what was done) - complements finding-log (what was learned). Actions is a JSON array.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID"},
+                    "actions": {"type": "string", "description": "JSON array of actions taken, e.g. '[\"wrote test\", \"fixed bug\"]'"},
+                    "artifacts": {"type": "string", "description": "JSON array of files modified/created"},
+                    "goal_id": {"type": "string", "description": "Optional goal UUID being worked on"}
+                },
+                "required": ["actions"]
+            }
+        ),
+
+        types.Tool(
+            name="calibration_report",
+            description="Get calibration report - shows vector deltas, grounded verification gaps, and bias corrections.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID"},
+                    "grounded": {"type": "boolean", "description": "Show grounded calibration (Track 2)"},
+                    "trajectory": {"type": "boolean", "description": "Show calibration trajectory over time"}
+                },
+                "required": []
+            }
+        ),
     ]
 
     return tools
@@ -1936,6 +2113,20 @@ def build_cli_command(tool_name: str, arguments: dict) -> List[str]:
         # skill_suggest: handled by handle_skill_suggest_direct (vector-aware)
         "workspace_map": ["workspace-map"],
         "unknown_resolve": ["unknown-resolve"],
+
+        # Tier 1 additions (v1.6.3)
+        "goals_complete": ["goals-complete"],
+        "project_search": ["project-search"],
+        "source_add": ["source-add"],
+        "unknown_list": ["unknown-list"],
+        "goals_search": ["goals-search"],
+        "goals_add_dependency": ["goals-add-dependency"],
+        "issue_show": ["issue-show"],
+        "issue_resolve": ["issue-resolve"],
+        "issue_stats": ["issue-stats"],
+        "session_rollup": ["session-rollup"],
+        "act_log": ["act-log"],
+        "calibration_report": ["calibration-report"],
     }
     
     # Commands that take positional arguments (not flags)
@@ -1978,6 +2169,14 @@ def build_cli_command(tool_name: str, arguments: dict) -> List[str]:
         "issue_id": "issue-id",  # MCP uses issue_id, CLI uses issue-id
         "unknown_id": "unknown-id",  # MCP uses unknown_id, CLI uses unknown-id
         "resolved_by": "resolved-by",  # MCP uses resolved_by, CLI uses resolved-by
+        # Tier 1 additions
+        "run_postflight": "run-postflight",  # MCP uses run_postflight, CLI uses run-postflight
+        "merge_branch": "merge-branch",  # MCP uses merge_branch, CLI uses merge-branch
+        "delete_branch": "delete-branch",  # MCP uses delete_branch, CLI uses delete-branch
+        "create_handoff": "create-handoff",  # MCP uses create_handoff, CLI uses create-handoff
+        "source_type": "source-type",  # MCP uses source_type, CLI uses source-type
+        "depends_on": "depends-on",  # MCP uses depends_on, CLI uses depends-on
+        "global_search": "global",  # MCP uses global_search, CLI uses --global
     }
     
     # Arguments to skip per command (not supported by CLI)
@@ -2038,7 +2237,11 @@ def build_cli_command(tool_name: str, arguments: dict) -> List[str]:
         # Human copilot tools
         "issue-list", "issue-handoff",
         "workspace-overview", "efficiency-report", "skill-suggest",
-        "workspace-map", "unknown-resolve"
+        "workspace-map", "unknown-resolve",
+        # Tier 1 additions
+        "goals-complete", "project-search", "source-add", "unknown-list",
+        "goals-search", "goals-add-dependency", "issue-show", "issue-resolve",
+        "issue-stats", "session-rollup", "act-log", "calibration-report",
     }
 
     cli_command = tool_map.get(tool_name, [tool_name])[0]
