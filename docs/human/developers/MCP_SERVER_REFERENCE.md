@@ -1,7 +1,7 @@
-# Empirica MCP Server Reference (v5.1)
+# Empirica MCP Server Reference (v6.0)
 
-**Last Updated:** 2026-02-18
-**Total Tools:** 58
+**Last Updated:** 2026-03-13
+**Total Tools:** 102
 **Architecture:** Thin wrappers around CLI commands
 
 ---
@@ -17,7 +17,7 @@ The Empirica MCP (Model Context Protocol) server exposes Empirica functionality 
 - **Command:** `empirica-mcp`
 - **Protocol:** MCP (Model Context Protocol)
 - **Transport:** stdio
-- **Tools:** 58 tools (stateless utilities + CLI wrappers)
+- **Tools:** 102 tools (stateless utilities + CLI wrappers)
 
 **For complete MCP ↔ CLI mapping:** See [`api/mcp_cli_mapping.md`](api/mcp_cli_mapping.md)
 
@@ -789,7 +789,7 @@ Query logged mistakes for learning.
 
 ## Tool Reference
 
-**Complete tool list (58 tools):**
+**Complete tool list (102 tools):**
 
 **For complete MCP ↔ CLI mapping and detailed reference:** See the tool descriptions below and the [CLI Commands Unified](CLI_COMMANDS_UNIFIED.md) reference.
 
@@ -810,80 +810,138 @@ Query logged mistakes for learning.
 10. `submit_postflight_assessment` - Submit POSTFLIGHT (triggers grounded verification)
 
 ### Noetic Artifacts (7)
-11. `finding_log` - Log a finding (what was learned)
-12. `unknown_log` - Log an unknown (what's unclear)
-13. `deadend_log` - Log a dead-end (approach that failed)
-14. `mistake_log` - Log a mistake (with prevention strategy)
-15. `assumption_log` - Log unverified assumption (with confidence + domain)
-16. `decision_log` - Log decision (with alternatives + reversibility)
+11. `finding_log` - Log a finding (what was learned) — supports entity linking
+12. `unknown_log` - Log an unknown (what's unclear) — supports entity linking
+13. `deadend_log` - Log a dead-end (approach that failed) — supports entity linking
+14. `mistake_log` - Log a mistake (with prevention strategy) — supports entity linking
+15. `assumption_log` - Log unverified assumption (with confidence + domain) — supports entity linking
+16. `decision_log` - Log decision (with alternatives + reversibility) — supports entity linking
 17. `unknown_resolve` - Resolve a logged unknown
 
-### Goals & Tasks (6)
+### Goals & Tasks (10)
 18. `create_goal` - Create structured goal with scope vectors
 19. `add_subtask` - Add subtask to goal
 20. `complete_subtask` - Complete subtask with evidence
 21. `get_goal_progress` - Get goal completion progress
 22. `get_goal_subtasks` - Get subtask details
 23. `list_goals` - List session goals
+24. `goals_complete` - Complete a goal with reason
+25. `goals_search` - Search goals by keyword
+26. `goals_add_dependency` - Add dependency between goals
+27. `goals_ready` - Get goals ready to work on (unblocked)
 
 ### Project Context (4)
-24. `project_bootstrap` - Load project breadcrumbs (findings, unknowns, dead-ends, goals)
-25. `session_snapshot` - Complete session snapshot with learning delta
-26. `goals_ready` - Get goals ready to work on (unblocked)
-27. `goals_claim` - Claim a goal and create epistemic branch
+28. `project_bootstrap` - Load project breadcrumbs (findings, unknowns, dead-ends, goals)
+29. `project_search` - Semantic search over project knowledge (Qdrant)
+30. `session_snapshot` - Complete session snapshot with learning delta
+31. `goals_claim` - Claim a goal and create epistemic branch
 
-### Investigation & Analysis (2)
-28. `investigate` - Run systematic investigation with epistemic tracking
-29. `blindspot_scan` - Scan for unknown unknowns via artifact pattern analysis
+### Investigation & Analysis (7)
+32. `investigate` - Run systematic investigation with epistemic tracking
+33. `investigate_log` - Batch-log investigation findings with evidence
+34. `investigate_create_branch` - Fork epistemic state for hypothesis exploration
+35. `investigate_checkpoint_branch` - Checkpoint investigation branch progress
+36. `investigate_merge_branches` - Merge multi-path investigation branches
+37. `investigate_multi` - Multi-persona investigation dispatch
+38. `blindspot_scan` - Scan for unknown unknowns via artifact pattern analysis
 
-### Epistemic Monitoring (3)
-30. `epistemics_list` - List all assessments (PREFLIGHT/CHECK/POSTFLIGHT) for session
-31. `epistemics_show` - Show detailed assessment, optionally by phase
-32. `get_calibration_report` - Calibration metrics (self-ref + grounded)
+### Assessment (4)
+39. `assess_state` - AI self-assessment of epistemic state (13 vectors)
+40. `assess_component` - Code component health analysis
+41. `assess_compare` - Compare two code components side-by-side
+42. `assess_directory` - Recursive directory health ranking
+
+### Agent Orchestration (7)
+43. `agent_spawn` - Spawn investigation agent with persona
+44. `agent_report` - Submit agent investigation report
+45. `agent_aggregate` - Merge findings from parallel agents
+46. `agent_parallel` - Auto-allocate investigation budget across domains
+47. `agent_export` - Export agent results for sharing
+48. `agent_import` - Import agent results into session
+49. `agent_discover` - Discover agents by domain expertise
+
+### Persona Management (4)
+50. `persona_list` - List available specialist personas
+51. `persona_show` - Show detailed persona information
+52. `persona_promote` - Promote emerged persona to primary
+53. `persona_find` - Match task to best persona
+
+### Lesson System (9)
+54. `lesson_create` - Create structured lesson from findings
+55. `lesson_load` - Load lesson by ID
+56. `lesson_list` - Browse lesson library
+57. `lesson_search` - Semantic lesson search
+58. `lesson_recommend` - Recommend lessons for knowledge gaps
+59. `lesson_path` - Generate prerequisite learning path
+60. `lesson_replay_start` - Start guided lesson replay
+61. `lesson_replay_end` - End lesson replay with outcome
+62. `lesson_stats` - Lesson statistics
+
+### Memory Management (5)
+63. `memory_compact` - Compact session for epistemic continuity
+64. `memory_prime` - Pre-load domain-specific context with budget allocation
+65. `memory_scope` - Query memory by zone (anchor/working/cache)
+66. `memory_value` - Value-of-information memory retrieval
+67. `memory_report` - Memory health report
+
+### Epistemic Monitoring (5)
+68. `epistemics_list` - List all assessments for session
+69. `epistemics_show` - Show detailed assessment by phase
+70. `calibration_report` - Calibration metrics (self-ref + grounded)
+71. `unknown_list` - List open unknowns
+72. `session_rollup` - Session summary rollup for handoff
+
 ### Human Copilot & Oversight (6)
-34. `monitor` - Real-time monitoring: stats, cost, request history, health
-35. `system_status` - Unified system status (/proc-style snapshot)
-36. `efficiency_report` - Productivity metrics: learning velocity, CASCADE completeness
-37. `issue_list` - List auto-captured issues (bugs, errors, TODOs)
-38. `issue_handoff` - Hand off issue to another AI or human
-39. `workspace_overview` - Multi-repo epistemic overview
+73. `monitor` - Real-time monitoring: stats, cost, request history, health
+74. `system_status` - Unified system status (/proc-style snapshot)
+75. `efficiency_report` - Productivity metrics: learning velocity, CASCADE completeness
+76. `issue_list` - List auto-captured issues (bugs, errors, TODOs)
+77. `issue_handoff` - Hand off issue to another AI or human
+78. `workspace_overview` - Multi-repo epistemic overview
+
+### Issue Tracking (3)
+79. `issue_show` - Show detailed issue information
+80. `issue_resolve` - Resolve an auto-captured issue
+81. `issue_stats` - Issue statistics by category/severity
 
 ### Workspace & Skills (2)
-40. `skill_suggest` - Vector-aware skill/tool recommendations
-41. `workspace_map` - Map workspace structure and cross-repo dependencies
-
-### Memory & Continuity (1)
-42. `memory_compact` - Compact session for epistemic continuity across context boundaries
+82. `skill_suggest` - Vector-aware skill/tool recommendations
+83. `workspace_map` - Map workspace structure and cross-repo dependencies
 
 ### Checkpoints & Handoffs (4)
-43. `create_git_checkpoint` - Create compressed checkpoint in git notes
-44. `load_git_checkpoint` - Load checkpoint from git notes
-45. `create_handoff_report` - Create epistemic handoff report (~90% token reduction)
-46. `query_handoff_reports` - Query handoff reports by AI ID/session
+84. `create_git_checkpoint` - Create compressed checkpoint in git notes
+85. `load_git_checkpoint` - Load checkpoint from git notes
+86. `create_handoff_report` - Create epistemic handoff report (~90% token reduction)
+87. `query_handoff_reports` - Query handoff reports by AI ID/session
 
 ### Multi-AI Coordination (2)
-47. `discover_goals` - Discover goals from other AIs via git notes
-48. `resume_goal` - Resume another AI's goal with epistemic handoff
+88. `discover_goals` - Discover goals from other AIs via git notes
+89. `resume_goal` - Resume another AI's goal with epistemic handoff
 
-### Mistakes Tracking (2)
-49. `log_mistake` - Log mistake with root cause vector and prevention
-50. `query_mistakes` - Query mistakes for patterns and learning
+### Logging & Tracking (3)
+90. `log_mistake` - Log mistake with root cause vector and prevention
+91. `query_mistakes` - Query mistakes for patterns and learning
+92. `act_log` - Log structured actions taken
 
 ### Identity & Security (4)
-51. `create_identity` - Create Ed25519 identity keypair
-52. `list_identities` - List all AI identities
-53. `export_public_key` - Export public key for sharing
-54. `verify_signature` - Verify signed session
+93. `create_identity` - Create Ed25519 identity keypair
+94. `list_identities` - List all AI identities
+95. `export_public_key` - Export public key for sharing
+96. `verify_signature` - Verify signed session
 
-### Reference Docs (1)
-55. `refdoc_add` - Add reference document to project knowledge base
+### Sources & References (2)
+97. `source_add` - Add reference source with phase tagging (noetic/praxic)
+98. `refdoc_add` - Add reference document to project knowledge base
 
 ### Vision (2)
-56. `vision_analyze` - Analyze image(s) and extract metadata
-57. `vision_log` - Log visual observation to session
+99. `vision_analyze` - Analyze image(s) and extract metadata
+100. `vision_log` - Log visual observation to session
 
 ### Metacognitive Edit (1)
-58. `edit_with_confidence` - Edit with epistemic confidence assessment (4.7x success rate)
+101. `edit_with_confidence` - Edit with epistemic confidence assessment (4.7x success rate)
+
+### Calibration (1)
+102. `get_calibration_report` - Session calibration metrics (legacy alias)
 
 ---
 
@@ -1388,7 +1446,7 @@ get_session_summary(session_id="latest:active:copilot")
 
 ---
 
-**Last Updated:** 2026-02-18
+**Last Updated:** 2026-03-13
 **MCP Server:** empirica-v2
-**Total Tools:** 58
+**Total Tools:** 102
 **Protocol:** MCP (stdio)

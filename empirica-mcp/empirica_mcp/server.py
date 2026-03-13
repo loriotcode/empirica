@@ -2406,6 +2406,7 @@ async def route_to_cli(tool_name: str, arguments: dict) -> List[types.TextConten
             cmd,
             capture_output=True,
             text=True,
+            stdin=subprocess.DEVNULL,  # Prevent CLI from reading MCP's stdin (fixes postflight hang)
             cwd=cwd  # Use project_path if specified, else current working directory
         )
     )

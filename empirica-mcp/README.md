@@ -102,7 +102,7 @@ After editing config, restart Claude Desktop completely.
 
 ## Available Tools
 
-The MCP server exposes 60+ Empirica CLI commands as MCP tools:
+The MCP server exposes 100+ Empirica CLI commands as MCP tools:
 
 **Session Management:**
 - `session_create` - Create new session
