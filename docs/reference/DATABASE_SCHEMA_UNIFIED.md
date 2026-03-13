@@ -686,7 +686,7 @@ projects (1) ──> (N) auto_captured_issues
 
 ### Codebase Model Tables (v1.6.4)
 
-*Temporal entity tracking adapted from [world-model-mcp](https://github.com/nicholascpark/world-model-mcp). Migration 033.*
+*Temporal entity tracking adapted from [world-model-mcp](https://github.com/SaravananJaichandar/world-model-mcp). Migration 033.*
 
 #### `codebase_entities`
 **11 columns** — Functions, classes, APIs, imports with temporal validity

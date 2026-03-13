@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.6.4] - 2026-03-13
 
 ### Added
-- **Temporal Entity Model** — Codebase entities (functions, classes, APIs, imports) tracked with temporal validity windows. Auto-extracted from file edits via PostToolUse hook, queried during CHECK for codebase-aware gating, and used as grounded calibration evidence. Inspired by and adapted from [world-model-mcp](https://github.com/nicholascpark/world-model-mcp) (MIT license) — thank you to Nicholas Park for the foundational work on structured codebase knowledge graphs.
+- **Temporal Entity Model** — Codebase entities (functions, classes, APIs, imports) tracked with temporal validity windows. Auto-extracted from file edits via PostToolUse hook, queried during CHECK for codebase-aware gating, and used as grounded calibration evidence. Inspired by and adapted from [world-model-mcp](https://github.com/SaravananJaichandar/world-model-mcp) (MIT license) — thank you to Saravanan Jaichandar for the foundational work on structured codebase knowledge graphs.
   - New tables: `codebase_entities`, `codebase_facts`, `codebase_relationships`, `codebase_constraints` (migration 033)
   - New module: `empirica/core/codebase_model/` (extractor.py, types.py)
   - New repository: `CodebaseModelRepository` with entity/fact/relationship/constraint CRUD

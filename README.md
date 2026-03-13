@@ -267,7 +267,7 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ## What's New in 1.6.4
 
-- **Temporal Entity Model** — Codebase entities (functions, classes, APIs, imports) tracked with temporal validity. Auto-extracted from file edits, queried during CHECK, used as grounded calibration evidence. Adapted from [world-model-mcp](https://github.com/nicholascpark/world-model-mcp) by Nicholas Park.
+- **Temporal Entity Model** — Codebase entities (functions, classes, APIs, imports) tracked with temporal validity. Auto-extracted from file edits, queried during CHECK, used as grounded calibration evidence. Adapted from [world-model-mcp](https://github.com/SaravananJaichandar/world-model-mcp) by Saravanan Jaichandar.
 - **PostToolUse Entity Extraction** — After every file edit, entities are automatically extracted and stored with first_seen/last_seen timestamps across 8 programming languages
 - **Codebase-Aware CHECK** — Sentinel gate now includes `codebase_context` with active entity count and convention constraints
 - **8th Grounded Evidence Source** — `codebase_model` joins pytest, git, goals, artifacts, issues, sentinel, and code_quality for calibration verification
