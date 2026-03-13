@@ -418,7 +418,7 @@ def handle_project_bootstrap_command(args):
                 if vectors:
                     safe_print(f"   State (POSTFLIGHT):")
                     safe_print(f"      Engagement: {vectors.get('engagement', 'N/A'):.2f}", end='')
-                    if 'engagement' in deltas:
+                    if 'engagement' in deltas and deltas['engagement'] is not None:
                         delta = deltas['engagement']
                         arrow = "↑" if delta > 0 else "↓" if delta < 0 else "→"
                         safe_print(f" {arrow} {delta:+.2f}", end='')
@@ -428,18 +428,18 @@ def handle_project_bootstrap_command(args):
                         f = vectors['foundation']
                         d = deltas.get('foundation', {})
                         safe_print(f"      Foundation: know={f.get('know', 'N/A'):.2f}", end='')
-                        if 'know' in d:
+                        if d.get('know') is not None:
                             safe_print(f" {d['know']:+.2f}", end='')
                         safe_print(f", do={f.get('do', 'N/A'):.2f}", end='')
-                        if 'do' in d:
+                        if d.get('do') is not None:
                             safe_print(f" {d['do']:+.2f}", end='')
                         safe_print(f", context={f.get('context', 'N/A'):.2f}", end='')
-                        if 'context' in d:
+                        if d.get('context') is not None:
                             safe_print(f" {d['context']:+.2f}", end='')
                         safe_print()
                     
                     safe_print(f"      Uncertainty: {vectors.get('uncertainty', 'N/A'):.2f}", end='')
-                    if 'uncertainty' in deltas:
+                    if 'uncertainty' in deltas and deltas['uncertainty'] is not None:
                         delta = deltas['uncertainty']
                         arrow = "↓" if delta < 0 else "↑" if delta > 0 else "→"  # Lower is better
                         safe_print(f" {arrow} {delta:+.2f}", end='')

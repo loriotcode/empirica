@@ -5,6 +5,25 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.4] - 2026-03-13
+
+### Added
+- **Temporal Entity Model** — Codebase entities (functions, classes, APIs, imports) tracked with temporal validity windows. Auto-extracted from file edits via PostToolUse hook, queried during CHECK for codebase-aware gating, and used as grounded calibration evidence. Inspired by and adapted from [world-model-mcp](https://github.com/nicholascpark/world-model-mcp) (MIT license) — thank you to Nicholas Park for the foundational work on structured codebase knowledge graphs.
+  - New tables: `codebase_entities`, `codebase_facts`, `codebase_relationships`, `codebase_constraints` (migration 033)
+  - New module: `empirica/core/codebase_model/` (extractor.py, types.py)
+  - New repository: `CodebaseModelRepository` with entity/fact/relationship/constraint CRUD
+  - Language-aware extraction: Python, TypeScript, JavaScript, Go, Rust, Java, Ruby, Shell
+  - PostToolUse hook: `entity-extractor.py` — automatic extraction after Edit/Write tool calls
+  - CHECK enrichment: `codebase_context` field with active entity count and constraints
+  - Grounded calibration: `codebase_model` evidence source (entities_discovered, facts_created, convention_constraints)
+
+### Fixed
+- **handoff-create variable scope bug** — `next_session_context` was unbound in legacy CLI mode
+- **handoff-create JSON parse error** — `json.loads()` on empty strings; now uses `parse_json_safely()`
+- **project-bootstrap NoneType comparison** — Delta values from missing vectors now guarded against None
+- **goals-discover test timeout** — Increased from 5s to 30s for repos with large goal sets (800+)
+- **test_complete_cascade_workflow** — Fixed assertions to match current PREFLIGHT response format
+
 ## [1.5.10] - 2026-03-06
 
 ### Added
@@ -320,5 +339,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-**Current Version:** 1.5.6
-**Previous Milestone:** 1.4.0 (Epistemic-First Model, January 2026)
+**Current Version:** 1.6.4
+**Previous Milestone:** 1.5.0 (Grounded Calibration, February 2026)
