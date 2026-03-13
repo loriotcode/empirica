@@ -577,6 +577,7 @@ def _run_single_phase_verification(
     check_timestamp: Optional[float] = None,
     evidence_profile: Optional[str] = None,
     work_context: Optional[str] = None,
+    preflight_timestamp: Optional[float] = None,
 ) -> Optional[Dict]:
     """Run grounded verification for a single phase (noetic, praxic, or combined)."""
     collector = PostTestCollector(
@@ -587,6 +588,7 @@ def _run_single_phase_verification(
         check_timestamp=check_timestamp,
         evidence_profile=evidence_profile,
         work_context=work_context,
+        preflight_timestamp=preflight_timestamp,
     )
     bundle = collector.collect_all()
 
@@ -705,6 +707,7 @@ def run_grounded_verification(
 
         if phase_boundary and phase_boundary.get("has_check"):
             check_ts = phase_boundary.get("proceed_check_timestamp")
+            preflight_ts = phase_boundary.get("preflight_timestamp")
             noetic_only = phase_boundary.get("noetic_only", False)
 
             # Noetic vectors: delta from PREFLIGHT to CHECK
@@ -726,6 +729,7 @@ def run_grounded_verification(
                     check_timestamp=check_ts,
                     evidence_profile=evidence_profile,
                     work_context=work_context,
+                    preflight_timestamp=preflight_ts,
                 )
                 if noetic_result:
                     results["noetic"] = noetic_result
@@ -740,6 +744,7 @@ def run_grounded_verification(
                     check_timestamp=check_ts,
                     evidence_profile=evidence_profile,
                     work_context=work_context,
+                    preflight_timestamp=preflight_ts,
                 )
                 if praxic_result:
                     results["praxic"] = praxic_result

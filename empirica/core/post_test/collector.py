@@ -126,11 +126,13 @@ class PostTestCollector:
                  db=None, phase: str = "combined",
                  check_timestamp: Optional[float] = None,
                  evidence_profile: Optional[str] = None,
-                 work_context: Optional[str] = None):
+                 work_context: Optional[str] = None,
+                 preflight_timestamp: Optional[float] = None):
         self.session_id = session_id
         self.project_id = project_id
         self.phase = phase  # "noetic", "praxic", or "combined"
         self.check_timestamp = check_timestamp  # CHECK boundary timestamp
+        self.preflight_timestamp = preflight_timestamp  # Transaction start
         self.evidence_profile = evidence_profile
         self.work_context = work_context  # greenfield|iteration|investigation|refactor
         self._db = db
@@ -1221,35 +1223,56 @@ class PostTestCollector:
 
         return items
 
-    def _collect_git_metrics(self) -> List[EvidenceItem]:
-        """Collect git-based metrics for this session's timeframe.
+    def _get_transaction_since(self) -> Optional[str]:
+        """Get the transaction start timestamp as a git --since argument.
 
-        Maturity-aware normalization:
-        - Greenfield (≤3 commits): any commit with file creation = high change/do.
-          A root commit creating N files is maximal change, not commit_count/5.0.
-        - Young (<10 commits): file creation weighted higher than commit count.
-        - Mature (10+): standard divisors (commit/5, files/10).
+        Priority: preflight_timestamp > check_timestamp (praxic) > session start.
+        Returns "@<unix_timestamp>" string or None.
+        """
+        # For praxic phase, scope from CHECK (when action started)
+        if self.phase == "praxic" and self.check_timestamp:
+            return "@" + str(int(self.check_timestamp))
+        # For combined/noetic, scope from PREFLIGHT (transaction start)
+        if self.preflight_timestamp:
+            return "@" + str(int(self.preflight_timestamp))
+        # Fallback: session start
+        db = self._get_db()
+        cursor = db.conn.cursor()
+        cursor.execute(
+            "SELECT start_time FROM sessions WHERE session_id = ?",
+            (self.session_id,),
+        )
+        row = cursor.fetchone()
+        if row:
+            try:
+                return "@" + str(int(float(str(row[0]))))
+            except (ValueError, TypeError):
+                pass
+        return None
+
+    def _collect_git_metrics(self) -> List[EvidenceItem]:
+        """Collect git-based metrics scoped to the current transaction.
+
+        Transaction-scoped: uses PREFLIGHT timestamp (or CHECK for praxic)
+        as the --since boundary, not a fixed HEAD~N window.
+
+        Modular change density: instead of files_changed / fixed_divisor,
+        computes files_touched / total_files_in_touched_directories.
+        This captures "how much did this transaction reshape the modules
+        it worked in?" rather than "what fraction of the whole codebase?".
         """
         items = []
         project_root = self._resolve_project_root()
         maturity = self._detect_project_maturity()
 
-        # Get session start time for git log filtering
-        db = self._get_db()
-        cursor = db.conn.cursor()
-        cursor.execute("""
-            SELECT start_time FROM sessions WHERE session_id = ?
-        """, (self.session_id,))
-        row = cursor.fetchone()
-
-        if not row:
+        since = self._get_transaction_since()
+        if not since:
             return items
 
         try:
-            # Count commits since session start
+            # Count commits since transaction start
             result = subprocess.run(
-                ["git", "log", "--oneline", "--since=@" + str(int(float(str(row[0])))),
-                 "--format=%H"],
+                ["git", "log", "--oneline", "--since=" + since, "--format=%H"],
                 capture_output=True, text=True, timeout=5,
                 cwd=project_root,
             )
@@ -1260,13 +1283,10 @@ class PostTestCollector:
                 if commit_count > 0:
                     # Maturity-aware normalization for commit count
                     if maturity["is_greenfield"]:
-                        # Greenfield: any commits = high do/change
                         do_score = min(1.0, commit_count / 2.0)
                     elif maturity["is_young"]:
-                        # Young: lower divisor
                         do_score = min(1.0, commit_count / 3.0)
                     else:
-                        # Mature: standard
                         do_score = min(1.0, commit_count / 5.0)
 
                     items.append(EvidenceItem(
@@ -1279,37 +1299,49 @@ class PostTestCollector:
                         supports_vectors=["do", "change"],
                     ))
 
-            # Count files changed (stat)
+            # Files changed since transaction start (transaction-scoped)
             result = subprocess.run(
-                ["git", "diff", "--stat", "--shortstat", "HEAD~3..HEAD"],
+                ["git", "log", "--name-only", "--format=",
+                 "--diff-filter=ACMR", "--since=" + since],
                 capture_output=True, text=True, timeout=5,
                 cwd=project_root,
             )
-            if result.returncode == 0 and result.stdout.strip():
-                # Parse "X files changed, Y insertions(+), Z deletions(-)"
-                stat_line = result.stdout.strip().split('\n')[-1]
-                import re
-                files_match = re.search(r'(\d+) files? changed', stat_line)
-                if files_match:
-                    files_changed = int(files_match.group(1))
+            if result.returncode == 0:
+                changed_files = {
+                    f.strip() for f in result.stdout.strip().split('\n')
+                    if f.strip()
+                }
+                # Also include staged/unstaged changes
+                for diff_args in [["--cached"], []]:
+                    staged = subprocess.run(
+                        ["git", "diff", "--name-only", "--diff-filter=ACMR"] + diff_args,
+                        capture_output=True, text=True, timeout=5,
+                        cwd=project_root,
+                    )
+                    if staged.returncode == 0:
+                        changed_files.update(
+                            f.strip() for f in staged.stdout.strip().split('\n')
+                            if f.strip()
+                        )
 
-                    # Maturity-aware normalization for files changed
-                    if maturity["is_greenfield"]:
-                        # Greenfield: 3+ files = 1.0 (creating a project)
-                        state_score = min(1.0, files_changed / 3.0)
-                    elif maturity["is_young"]:
-                        # Young: 5+ files = 1.0
-                        state_score = min(1.0, files_changed / 5.0)
-                    else:
-                        # Mature: standard
-                        state_score = min(1.0, files_changed / 10.0)
+                files_changed = len(changed_files)
+                if files_changed > 0:
+                    # Modular change density: files touched / total files in touched dirs
+                    change_density = self._compute_change_density(
+                        changed_files, project_root,
+                    )
 
                     items.append(EvidenceItem(
                         source="git",
                         metric_name="files_changed",
-                        value=state_score,
-                        raw_value={"files": files_changed,
-                                   "maturity": maturity["maturity"]},
+                        value=change_density["state_score"],
+                        raw_value={
+                            "files": files_changed,
+                            "module_files": change_density["module_files"],
+                            "density": change_density["density"],
+                            "modules": change_density["modules_touched"],
+                            "maturity": maturity["maturity"],
+                        },
                         quality=EvidenceQuality.OBJECTIVE,
                         supports_vectors=["state", "change"],
                     ))
@@ -1318,6 +1350,73 @@ class PostTestCollector:
             pass
 
         return items
+
+    def _compute_change_density(
+        self,
+        changed_files: set,
+        project_root: str,
+    ) -> Dict[str, Any]:
+        """Compute modular change density: files touched / files in touched dirs.
+
+        Instead of normalizing against the whole codebase (files/10), we measure
+        how much the touched modules were reshaped. Touching 12/30 files across
+        5 directories = 0.4 density, which better reflects variance of work than
+        12/total_project_files.
+
+        Returns dict with density, state_score, and metadata.
+        """
+        root = Path(project_root)
+
+        # Find unique parent directories of changed files
+        touched_dirs: set = set()
+        for f in changed_files:
+            parent = str(Path(f).parent)
+            if parent == '.':
+                parent = ''
+            touched_dirs.add(parent)
+
+        # Count total tracked files in those directories (non-recursive per dir)
+        module_files = 0
+        for d in touched_dirs:
+            dir_path = root / d if d else root
+            if dir_path.is_dir():
+                # Count files that git tracks in this directory (non-recursive)
+                try:
+                    result = subprocess.run(
+                        ["git", "ls-files", str(d) + "/" if d else "."],
+                        capture_output=True, text=True, timeout=5,
+                        cwd=project_root,
+                    )
+                    if result.returncode == 0:
+                        # Filter to direct children only (not recursive)
+                        dir_prefix = d + "/" if d else ""
+                        direct_files = [
+                            f for f in result.stdout.strip().split('\n')
+                            if f.strip() and f.count('/') == dir_prefix.count('/')
+                        ]
+                        module_files += len(direct_files)
+                except (subprocess.TimeoutExpired, FileNotFoundError):
+                    pass
+
+        # Fallback: if we couldn't count module files, use maturity-based divisor
+        if module_files == 0:
+            maturity = self._detect_project_maturity()
+            if maturity["is_greenfield"]:
+                divisor = 3.0
+            elif maturity["is_young"]:
+                divisor = 5.0
+            else:
+                divisor = 10.0
+            density = min(1.0, len(changed_files) / divisor)
+        else:
+            density = min(1.0, len(changed_files) / max(module_files, 1))
+
+        return {
+            "density": round(density, 4),
+            "state_score": density,
+            "module_files": module_files,
+            "modules_touched": len(touched_dirs),
+        }
 
     def _collect_code_quality_metrics(self) -> List[EvidenceItem]:
         """Collect code quality evidence from static analysis tools.
@@ -1495,12 +1594,15 @@ class PostTestCollector:
         return items
 
     def _get_session_changed_files(self) -> List[str]:
-        """Get files changed during this session via git.
+        """Get files changed during this transaction/session via git.
 
         Combines three sources:
-        1. Committed changes since session start (git log)
+        1. Committed changes since transaction start (git log --since)
         2. Staged but uncommitted changes (git diff --cached)
         3. Unstaged working tree changes (git diff)
+
+        Uses transaction timestamp (PREFLIGHT/CHECK) when available,
+        falls back to session start time.
 
         All git commands run with cwd=project_root so they query the correct repo.
         Returned paths are relative to project_root (as git outputs them).
@@ -1508,24 +1610,26 @@ class PostTestCollector:
         all_files: set = set()
         project_root = self._resolve_project_root()
 
-        db = self._get_db()
-        cursor = db.conn.cursor()
-        cursor.execute(
-            "SELECT start_time FROM sessions WHERE session_id = ?",
-            (self.session_id,),
-        )
-        row = cursor.fetchone()
+        # Prefer transaction-scoped timestamp
+        since = self._get_transaction_since()
+        if not since:
+            # Fallback to session start
+            db = self._get_db()
+            cursor = db.conn.cursor()
+            cursor.execute(
+                "SELECT start_time FROM sessions WHERE session_id = ?",
+                (self.session_id,),
+            )
+            row = cursor.fetchone()
+            if row:
+                try:
+                    since = "@" + str(int(float(str(row[0]))))
+                except (ValueError, TypeError):
+                    pass
 
         try:
-            # 1. Committed changes since session start
-            if row:
-                start_time = str(row[0])
-                # Handle both unix timestamps and ISO format
-                try:
-                    since = str(int(float(start_time)))
-                except ValueError:
-                    # ISO format — pass directly to git --since
-                    since = start_time
+            # 1. Committed changes since transaction/session start
+            if since:
                 result = subprocess.run(
                     ["git", "log", "--name-only", "--format=",
                      "--diff-filter=ACMR", "--since=" + since],
