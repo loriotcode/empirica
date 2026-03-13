@@ -195,23 +195,89 @@ def handle_training_export_command(args):
         return None
 
 
+def _get_reflexes_columns(conn):
+    """Check which columns exist in the reflexes table. Returns set of column names."""
+    try:
+        cursor = conn.execute("PRAGMA table_info(reflexes)")
+        return {row[1] for row in cursor.fetchall()}
+    except sqlite3.OperationalError:
+        return set()
+
+
 def _find_transaction_pairs(conn, project_filter=None, ai_filter=None):
-    """Find matched PREFLIGHT/POSTFLIGHT pairs from reflexes table."""
-    # Strategy: group by transaction_id or cascade_id, find pairs
-    query = """
+    """Find matched PREFLIGHT/POSTFLIGHT pairs from reflexes table.
+
+    Handles schema variations in older DBs:
+    - Missing transaction_id column → fall back to cascade_id or session_id matching
+    - Missing cascade_id column → fall back to session_id matching
+    - Missing reflexes table entirely → return empty list
+    """
+    columns = _get_reflexes_columns(conn)
+    if not columns:
+        logger.debug("No reflexes table found, skipping")
+        return []
+
+    has_transaction_id = 'transaction_id' in columns
+    has_cascade_id = 'cascade_id' in columns
+    has_project_id = 'project_id' in columns
+    has_reasoning = 'reasoning' in columns
+    has_reflex_data = 'reflex_data' in columns
+
+    # Check sessions table columns too
+    try:
+        sess_cols = {row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
+    except sqlite3.OperationalError:
+        sess_cols = set()
+    has_ai_id = 'ai_id' in sess_cols
+
+    # Build SELECT columns — use NULL fallback for missing columns
+    select_tx = "pf.transaction_id," if has_transaction_id else "NULL as transaction_id,"
+    select_cascade = "pf.cascade_id," if has_cascade_id else "NULL as cascade_id,"
+    select_project_id = "pf.project_id," if has_project_id else "NULL as project_id,"
+    select_pf_reflex = "pf.reflex_data as pf_reflex_data," if has_reflex_data else "NULL as pf_reflex_data,"
+    select_po_reflex = "po.reflex_data as po_reflex_data," if has_reflex_data else "NULL as po_reflex_data,"
+    select_po_reasoning = "po.reasoning as po_reasoning," if has_reasoning else "NULL as po_reasoning,"
+
+    # Build JOIN condition based on available columns
+    join_parts = []
+    if has_transaction_id:
+        join_parts.append("(pf.transaction_id IS NOT NULL AND pf.transaction_id = po.transaction_id)")
+    if has_cascade_id:
+        if has_transaction_id:
+            join_parts.append(
+                "(pf.transaction_id IS NULL AND pf.cascade_id IS NOT NULL AND pf.cascade_id = po.cascade_id)"
+            )
+        else:
+            join_parts.append("(pf.cascade_id IS NOT NULL AND pf.cascade_id = po.cascade_id)")
+
+    # Always include session_id fallback
+    if has_transaction_id and has_cascade_id:
+        join_parts.append(
+            "(pf.transaction_id IS NULL AND pf.cascade_id IS NULL AND pf.session_id = po.session_id)"
+        )
+    elif has_transaction_id:
+        join_parts.append("(pf.transaction_id IS NULL AND pf.session_id = po.session_id)")
+    elif has_cascade_id:
+        join_parts.append("(pf.cascade_id IS NULL AND pf.session_id = po.session_id)")
+    else:
+        join_parts.append("(pf.session_id = po.session_id)")
+
+    join_condition = " OR ".join(join_parts)
+
+    query = f"""
         SELECT
             pf.id as preflight_id,
             pf.session_id,
-            pf.transaction_id,
-            pf.cascade_id,
+            {select_tx}
+            {select_cascade}
             pf.timestamp as preflight_ts,
-            pf.project_id,
+            {select_project_id}
             pf.engagement as pf_engagement, pf.know as pf_know, pf.do as pf_do,
             pf.context as pf_context, pf.clarity as pf_clarity, pf.coherence as pf_coherence,
             pf.signal as pf_signal, pf.density as pf_density, pf.state as pf_state,
             pf.change as pf_change, pf.completion as pf_completion, pf.impact as pf_impact,
             pf.uncertainty as pf_uncertainty,
-            pf.reflex_data as pf_reflex_data,
+            {select_pf_reflex}
 
             po.id as postflight_id,
             po.timestamp as postflight_ts,
@@ -220,28 +286,24 @@ def _find_transaction_pairs(conn, project_filter=None, ai_filter=None):
             po.signal as po_signal, po.density as po_density, po.state as po_state,
             po.change as po_change, po.completion as po_completion, po.impact as po_impact,
             po.uncertainty as po_uncertainty,
-            po.reflex_data as po_reflex_data,
-            po.reasoning as po_reasoning,
+            {select_po_reflex}
+            {select_po_reasoning}
 
-            s.ai_id
+            {"s.ai_id" if has_ai_id else "NULL as ai_id"}
         FROM reflexes pf
-        JOIN reflexes po ON (
-            (pf.transaction_id IS NOT NULL AND pf.transaction_id = po.transaction_id)
-            OR (pf.transaction_id IS NULL AND pf.cascade_id IS NOT NULL AND pf.cascade_id = po.cascade_id)
-            OR (pf.transaction_id IS NULL AND pf.cascade_id IS NULL AND pf.session_id = po.session_id)
-        )
-        JOIN sessions s ON pf.session_id = s.session_id
+        JOIN reflexes po ON ({join_condition})
+        {"JOIN sessions s ON pf.session_id = s.session_id" if has_ai_id else "LEFT JOIN sessions s ON pf.session_id = s.session_id"}
         WHERE pf.phase = 'PREFLIGHT'
           AND po.phase = 'POSTFLIGHT'
           AND po.timestamp > pf.timestamp
     """
     params = []
 
-    if project_filter:
+    if project_filter and has_project_id:
         query += " AND pf.project_id LIKE ?"
         params.append(f"{project_filter}%")
 
-    if ai_filter:
+    if ai_filter and has_ai_id:
         query += " AND s.ai_id = ?"
         params.append(ai_filter)
 
@@ -251,7 +313,7 @@ def _find_transaction_pairs(conn, project_filter=None, ai_filter=None):
     try:
         rows = conn.execute(query, params).fetchall()
     except sqlite3.OperationalError as e:
-        logger.warning(f"Query failed (schema mismatch?): {e}")
+        logger.warning(f"Query failed: {e}")
         rows = []
 
     # Deduplicate: if a PREFLIGHT matches multiple POSTFLIGHTs, take the closest
