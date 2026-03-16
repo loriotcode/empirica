@@ -1,216 +1,171 @@
-# Empirica: Comprehensive System Architecture
+# Empirica System Architecture
 
-**Version:** 3.0 (Consolidated)
-**Date:** 2025-12-27
-**Purpose:** The single source of truth for Empirica's system architecture, providing a complete orientation for developers and AI agents.
+**Version:** 1.6.5
+**Updated:** 2026-03-16
 
 ---
 
 ## What is Empirica?
 
-**Empirica is a privacy-first, epistemic self-awareness framework that enables AI agents to function as a Cognitive Operating System.** It operates as **cognitive middleware** between the LLM and the interface, providing functional self-awareness, coordination, and continuous learning.
+Empirica is a **measurement-first epistemic framework** for AI agents. It provides:
 
-**Core Philosophy:**
-> "Measure and validate genuine epistemic state without interfering with reasoning. Transfer metacognitive knowledge, not raw conversations. User controls their data."
+- **13 epistemic vectors** measuring cognitive state (know, uncertainty, engagement, etc.)
+- **CASCADE workflow** — structured investigation before action
+- **Grounded calibration** — comparing self-assessment against objective evidence
+- **Sentinel gate** — blocks action until sufficient understanding
+- **Multi-layer memory** — eidetic (facts), episodic (narratives), prosodic (voice)
+- **Instance isolation** — multiple AI instances work without cross-talk
+- **Provider agnostic** — works with Claude, Gemini, Qwen, Copilot, Rovo
 
 ---
 
-## System Layers (Bottom-Up)
-
-This visual overview describes the complete architecture of the Empirica system from the user/agent layer down to the persistent storage and future Cognitive Vault.
+## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        USER / AI AGENT LAYER                            │
-│  (LLM Engine: Claude, GPT-4, Qwen, etc. - uses Empirica for epistemic  │
-│   self-awareness via MCP or Python API)                                │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    ↓
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    INTERFACE LAYER (How to use Empirica)                │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐    │
-│  │   MCP Tools      │  │   Empirica CLI   │  │  Python API      │    │
-│  │                  │  │                  │  │                  │    │
-│  │ • session_create │  │ • session-create │  │ from empirica... │    │
-│  │ • preflight      │  │ • preflight      │  │ db = Session...  │    │
-│  │ • check          │  │ • check          │  │ db.create_...    │    │
-│  │ • finding_log    │  │ • finding-log    │  │ db.log_finding() │    │
-│  │ • goals_create   │  │ • goals-create   │  │                  │    │
-│  └──────────────────┘  └──────────────────┘  └──────────────────┘    │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    ↓
-┌─────────────────────────────────────────────────────────────────────────┐
-│                CASCADE WORKFLOW (Epistemic Process)                     │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  PREFLIGHT → [CHECK]* → POSTFLIGHT → POST-TEST → Δ (Deltas)           │
-│     ↓            ↓           ↓           ↓           ↓                 │
-│  Assess      Decision    Measure    Grounded    Calculate              │
-│  baseline    gates       learning   Verification epistemic             │
-│  state       (0-N)       outcome    (evidence)   change                │
-│                                                                         │
-│  Each phase uses 13 EPISTEMIC VECTORS:                                 │
-│  ┌───────────────────────────────────────────────────────────────┐    │
-│  │ TIER 0: engagement (gate)                                     │    │
-│  │ TIER 1: know, do, context                                     │    │
-│  │ TIER 2: clarity, coherence, signal, density                   │    │
-│  │ TIER 3: state, change, completion, impact                     │    │
-│  │ META:   uncertainty (explicit tracking)                       │    │
-│  └───────────────────────────────────────────────────────────────┘    │
-│  See: [Epistemic Vectors Explained](../human/end-users/05_EPISTEMIC_VECTORS_EXPLAINED.md)
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    ↓
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    CORE PROCESSING LAYER                                │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐  │
-│  │ EPISTEMIC ASSESSMENT                                            │  │
-│  │ • Compute 13-vector state                                       │  │
-│  │ • Calculate confidence scores                                   │  │
-│  │ • Track uncertainty explicitly                                  │  │
-│  └─────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐  │
-│  │ DELTA COMPUTATION                                               │  │
-│  │ • PREFLIGHT vs POSTFLIGHT deltas                                │  │
-│  │ • Learning velocity (change per minute)                         │  │
-│  │ • Git correlation (epistemic state → code changes)              │  │
-│  └─────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐  │
-│  │ GOAL ORCHESTRATION                                              │  │
-│  │ • Break complex work into subtasks                              │  │
-│  │ • Track findings/unknowns/deadends per subtask                  │  │
-│  │ • Scope tracking (breadth/duration/coordination)                │  │
-│  └─────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐  │
-│  │ SENTINEL ORCHESTRATOR (Oversight Layer)                         │  │
-│  │ • Multi-persona coordination                                    │  │
-│  │ • Arbitration strategies                                        │  │
-│  │ • Compliance monitoring                                         │  │
-│  │ • SLM trained on Empirica deltas (future)                       │  │
-│  └─────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    ↓
-┌─────────────────────────────────────────────────────────────────────────┐
-│                   STORAGE LAYER (3-Layer Atomic Write)                  │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐    │
-│  │   SQLite DB      │  │   Git Notes      │  │   JSON Logs      │    │
-│  │                  │  │                  │  │                  │    │
-│  │ • sessions       │  │ • Compressed     │  │ • Full reflex    │    │
-│  │ • reflexes       │  │   checkpoints    │  │   logs           │    │
-│  │ • findings       │  │ • Immutable      │  │ • Human-readable │    │
-│  │ • unknowns       │  │   history        │  │ • Backup         │    │
-│  │ • deadends       │  │ • Distributed    │  │                  │    │
-│  │ • goals          │  │                  │  │                  │    │
-│  │ • subtasks       │  │                  │  │                  │    │
-│  └──────────────────┘  └──────────────────┘  └──────────────────┘    │
-│                                                                         │
-│  Atomic Write: SQLite → Git Notes → JSON (graceful degradation)        │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    ↓
-┌─────────────────────────────────────────────────────────────────────────┐
-│                      DATA PRODUCTS (What You Get)                       │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  • Epistemic Deltas (learning measurement)                              │
-│  • Git-Epistemic Correlation (commit → epistemic context)               │
-│  • Session Handoffs (continuity across sessions)                        │
-│  • Calibration Reports (predicted vs actual confidence)                 │
-│  • Project Breadcrumbs (findings/unknowns/deadends aggregated)          │
-│  • Delta Packages (training data for Sentinel SLM - future)             │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│  AI AGENT (Claude Code, Gemini CLI, Cursor, etc.)       │
+│  Uses Empirica via: MCP Server │ CLI │ Python API       │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+┌──────────────────────┴──────────────────────────────────┐
+│  CASCADE WORKFLOW                                        │
+│  PREFLIGHT → NOETIC → CHECK → PRAXIC → POSTFLIGHT      │
+│       │                  │                    │          │
+│   Baseline          Sentinel Gate        Learning       │
+│   Assessment        (proceed/investigate) Delta          │
+│                                                          │
+│  13 Vectors: know, do, context, clarity, coherence,     │
+│  signal, density, state, change, completion, impact,    │
+│  engagement, uncertainty                                 │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+┌──────────────────────┴──────────────────────────────────┐
+│  CORE SYSTEMS                                            │
+│                                                          │
+│  ┌──────────────┐ ┌──────────────┐ ┌────────────────┐  │
+│  │ Sentinel     │ │ Calibration  │ │ Goal           │  │
+│  │ Orchestrator │ │ Engine       │ │ Orchestration  │  │
+│  │ (gate+nudge) │ │ (dual-track) │ │ (subtasks)     │  │
+│  └──────────────┘ └──────────────┘ └────────────────┘  │
+│                                                          │
+│  ┌──────────────┐ ┌──────────────┐ ┌────────────────┐  │
+│  │ Instance     │ │ Subagent     │ │ Persona        │  │
+│  │ Isolation    │ │ Governance   │ │ Registry       │  │
+│  │ (multi-pane) │ │ (delegation) │ │ (13D vectors)  │  │
+│  └──────────────┘ └──────────────┘ └────────────────┘  │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+┌──────────────────────┴──────────────────────────────────┐
+│  STORAGE (5 layers)                                      │
+│                                                          │
+│  HOT:    In-memory (lesson graph, active state)          │
+│  WARM:   SQLite (sessions.db — structured data)          │
+│  SEARCH: Qdrant (14+ collection types, semantic search)  │
+│  COLD:   Git notes (compressed, distributed, immutable)  │
+│  LOGS:   JSON (human-readable audit trail)               │
+│                                                          │
+│  Memory types: eidetic (facts), episodic (narratives),   │
+│  calibration (Brier scores), intent (assumptions,        │
+│  decisions, edges), workspace (entity graph)              │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Key Concepts Explained
+## Architecture Documents
 
-### 1. Privacy-First Data Storage (Local, User-Controlled)
-Empirica is designed with privacy as a core principle. All data generated during a session is stored locally on the user's machine, with no cloud dependencies.
+### Core Workflow
 
-*   **SQLite Session DB (`.empirica/sessions/sessions.db`):** The primary source of truth for structured, queryable data like sessions, cascades, assessments, and epistemic vectors.
-*   **Reflex Logs (`.empirica_reflex_logs/`):** A human-readable, temporal audit trail of phase-specific reasoning chains in JSON format. This separation prevents recursive analysis.
-*   **JSON Exports (`.empirica/exports/`):** Portable, shareable, privacy-preserving summaries and epistemic snapshots.
-*   **Qdrant Vector DB (Optional, Local):** A self-hosted vector database for semantic search over documentation and learning experiences.
+| Document | Description |
+|----------|-------------|
+| [NOETIC_PRAXIC_FRAMEWORK.md](NOETIC_PRAXIC_FRAMEWORK.md) | Investigation vs action phases, CHECK gate |
+| [COMPLETION_TRACKING.md](COMPLETION_TRACKING.md) | Phase-aware completion semantics |
+| [ASSESSMENT_AND_SIGNALING.md](ASSESSMENT_AND_SIGNALING.md) | Vector assessment and signaling |
+| [AI_WORKFLOW_AUTOMATION.md](AI_WORKFLOW_AUTOMATION.md) | Automated workflow patterns |
 
-### 2. The CASCADE Workflow (Epistemic Process)
-The core process for ensuring epistemic rigor. CASCADE uses a measurement-first approach with two orthogonal axes: mandatory workflow phases and AI-chosen thinking phases.
+### Sentinel & Calibration
 
-**Workflow Phases (Mandatory):**
-*   **PREFLIGHT (Baseline Assessment):** The AI assesses its 13 epistemic vectors *before* starting work to establish a baseline. Opens a measurement window (transaction).
-*   **CHECK (Decision Gate):** The AI self-assesses readiness and the Sentinel decides `proceed` (transition to praxic action) or `investigate` (stay in noetic exploration). Multiple CHECKs can occur within one transaction.
-*   **POSTFLIGHT (Final Assessment):** The AI re-assesses its 13 vectors *after* work to measure the "epistemic delta" (learning). Closes the measurement window.
-*   **POST-TEST (Grounded Verification):** Automatic collection of objective evidence (test results, git metrics, goal completion) compared against POSTFLIGHT self-assessment.
+| Document | Description |
+|----------|-------------|
+| [SENTINEL_ARCHITECTURE.md](SENTINEL_ARCHITECTURE.md) | Gate controller, decision logic, earned autonomy |
+| [SENTINEL_CONSTITUTION.md](SENTINEL_CONSTITUTION.md) | Governance principles for measurement |
+| [PHASE_AWARE_CALIBRATION.md](PHASE_AWARE_CALIBRATION.md) | Dual-track calibration, evidence sources, Brier scores |
+| [SELF_MONITORING.md](SELF_MONITORING.md) | Self-monitoring patterns |
 
-**Thinking Phases (AI-Chosen):**
-*   **NOETIC (Investigation):** Explore, hypothesize, search, read, question. Completion = "Have I learned enough to proceed?"
-*   **PRAXIC (Action):** Execute, write, commit, deploy. Completion = "Have I implemented enough to ship?"
+### Storage & Memory
 
-The AI chooses noetic vs praxic. CHECK gates the transition between them.
+| Document | Description |
+|----------|-------------|
+| [STORAGE_ARCHITECTURE_COMPLETE.md](STORAGE_ARCHITECTURE_COMPLETE.md) | 5-layer storage system |
+| [CANONICAL_STORAGE.md](CANONICAL_STORAGE.md) | Canonical storage patterns |
+| [QDRANT_EPISTEMIC_INTEGRATION.md](QDRANT_EPISTEMIC_INTEGRATION.md) | 14+ Qdrant collection types |
+| [MULTI_PROJECT_STORAGE.md](MULTI_PROJECT_STORAGE.md) | Cross-project data management |
+| [EPISTEMIC_STATE_COMPLETE_CAPTURE.md](EPISTEMIC_STATE_COMPLETE_CAPTURE.md) | Full state capture |
+| [noetic-rag-architecture.md](noetic-rag-architecture.md) | RAG with epistemic awareness |
 
-### 3. Sessions vs Goals (Orthogonal Organization)
-Sessions and goals serve different organizational purposes and are **orthogonal**, not hierarchical:
+### Multi-Agent & Orchestration
 
-| Concept | Axis | Bounded By | Persists |
-|---------|------|------------|----------|
-| **Sessions** | TEMPORAL | Context windows | No - temporal intervals |
-| **Goals** | STRUCTURAL | Completion criteria | Yes - indefinitely |
+| Document | Description |
+|----------|-------------|
+| [EPISTEMIC_AGENT_ARCHITECTURE.md](EPISTEMIC_AGENT_ARCHITECTURE.md) | Multi-agent coordination |
+| [SUBAGENT_EPISTEMIC_ASSESSMENT.md](SUBAGENT_EPISTEMIC_ASSESSMENT.md) | Subagent persona decomposition and Brier scoring |
+| [HANDOFF_SYSTEM.md](HANDOFF_SYSTEM.md) | Agent-to-agent knowledge transfer |
+| [EPISTEMIC_BUS.md](EPISTEMIC_BUS.md) | Event bus for epistemic state |
 
-**Sessions = When things happened**
-- Created on `SessionStart` hook (fresh conversation or post-compact)
-- One Claude Code conversation = N Empirica sessions (one per context window)
-- Purpose: Audit trail, calibration checkpoints, epistemic snapshots
+### Instance Isolation
 
-**Goals = What the work is**
-- Persist across sessions indefinitely
-- Own subtasks and epistemic artifacts (findings, unknowns, dead-ends)
-- Purpose: Structural organization, progress tracking
+| Document | Description |
+|----------|-------------|
+| [instance_isolation/](instance_isolation/) | Full instance isolation architecture |
+| [instance_isolation/ARCHITECTURE.md](instance_isolation/ARCHITECTURE.md) | File taxonomy, resolution priority |
+| [instance_isolation/CLAUDE_CODE.md](instance_isolation/CLAUDE_CODE.md) | Claude Code specific patterns |
+| [instance_isolation/MCP_AND_CLI.md](instance_isolation/MCP_AND_CLI.md) | MCP and CLI integration |
+| [instance_isolation/KNOWN_ISSUES.md](instance_isolation/KNOWN_ISSUES.md) | Bug history (11.1-11.20) |
 
-**Dual Linkage:** Epistemic artifacts have BOTH `session_id` AND `goal_id`:
-- `session_id` → "When was this discovered?" (temporal provenance)
-- `goal_id` → "What work does this belong to?" (semantic organization)
+### Integration
 
-This is correct design. Don't collapse them into a hierarchy.
-
-### 4. Distributed Coordination via Git
-Empirica uses Git as a "cognitive substrate" for multi-agent coordination.
-*   **Branches:** Represent different reasoning paths or explorations.
-*   **Commits:** Act as epistemic snapshots of what the AI knew at a decision point.
-*   **Merges:** Represent the integration of knowledge from different reasoning paths.
-*   **Git Notes:** Store compressed, portable state for handoffs between sessions or agents, enabling massive token reduction (e.g., 97%).
-
-### 5. Privacy-Preserving Knowledge Transfer
-Instead of transferring full, sensitive conversation histories, Empirica uses **Epistemic Snapshots**.
-*   **Size:** ~500 tokens (95%+ compression).
-*   **Content:** Contains the 13 epistemic vectors, an abstracted context summary, semantic tags, and a reasoning brief.
-*   **Excludes:** Raw conversation text, sensitive data (keys, PII), full code snippets.
-This allows knowledge about confidence, uncertainty, and what was learned to be transferred without violating privacy.
-
-### 6. Sentinel Orchestrator & The Cognitive Vault (Future Vision)
-The long-term vision includes a **Cognitive Vault**—a secure, Git-native storage system—governed by a **Sentinel** (a small, open-weights language model).
-*   **Sentinel's Role:** The Sentinel will be trained on the "delta packages" (learning trajectories) produced by other AIs. It will monitor all AI activity, validate epistemic commits, manage handoffs, and enforce governance policies.
-*   **Self-Improving System:** This creates a feedback loop where the system gets smarter over time by learning from its own operational data.
+| Document | Description |
+|----------|-------------|
+| [claude-code-symbiosis.md](claude-code-symbiosis.md) | Claude Code hook integration |
+| [SYNC_ARCHITECTURE.md](SYNC_ARCHITECTURE.md) | Sync architecture |
+| [SUPPORTING_COMPONENTS.md](SUPPORTING_COMPONENTS.md) | Supporting subsystems |
+| [separation-of-concerns.md](separation-of-concerns.md) | What goes where |
 
 ---
 
-## Why This Architecture Matters
+## Key Concepts
 
-*   **Provider Agnostic:** Any LLM can be an "AI Ambassador." The epistemic layer is separate.
-*   **Git-Native:** Leverages a battle-tested distributed system for coordination and versioning.
-*   **Self-Improving:** The training data (delta packages) is a natural byproduct of real-world usage.
-*   **Secure & Private by Design:** Local-first storage and a security-focused `Bayesian Guardian` layer provide robust protection.
-*   **Scalable:** The architecture supports adding more AIs without fundamental changes, as Git handles coordination.
+### CASCADE Workflow
+```
+PREFLIGHT → [NOETIC: investigate] → CHECK → [PRAXIC: act] → POSTFLIGHT
+```
+- PREFLIGHT opens a measurement window (transaction)
+- CHECK gates the noetic→praxic transition
+- POSTFLIGHT closes the window and captures learning delta
+- POST-TEST automatically collects grounded evidence
 
-This architecture provides the necessary infrastructure for building truly robust, auditable, and trustworthy AI systems.
+### 13 Epistemic Vectors
+
+| Category | Vectors |
+|----------|---------|
+| Foundation | know, do, context |
+| Comprehension | clarity, coherence, signal, density |
+| Execution | state, change, completion, impact |
+| Meta | engagement, uncertainty |
+
+### Dual-Track Calibration
+- **Track 1 (self-referential):** PREFLIGHT→POSTFLIGHT delta = learning measurement
+- **Track 2 (grounded):** POSTFLIGHT vs objective evidence = calibration accuracy
+- 8 evidence sources: pytest, git, code quality, goals, artifacts, issues, sentinel, codebase model
+
+### Instance Isolation
+Multiple AI instances in tmux panes, X11 windows, or macOS terminals work
+without cross-talk. Instance-specific files track project→session→transaction bindings.
+
+---
+
+## Related Documentation
+
+- [docs/reference/](../reference/) — API reference, configuration, environment variables
+- [docs/guides/](../guides/) — Workflow guides (tmux, project switching)
+- [docs/human/](../human/) — End-user and developer documentation

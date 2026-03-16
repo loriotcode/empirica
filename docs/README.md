@@ -97,7 +97,7 @@ python scripts/doc_health_audit.py
 empirica docs-assess --summary-only
 ```
 
-**Current Status:** 80 active docs (excluding archive)
+**Current Status:** 90+ active docs across architecture, reference, guides, and human docs
 
 ---
 
