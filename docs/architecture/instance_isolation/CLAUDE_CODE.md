@@ -72,14 +72,9 @@ Claude Code provides structured JSON to hooks via stdin:
 | `permission_mode` | Claude permission level | Used by Sentinel for gate decisions |
 | `hook_event_name` | Hook event type | Conditional hook logic |
 
-**Critical constraints:**
-- The `cwd` field is unreliable because Claude Code can reset it (e.g., after
-  compaction). Hooks use `get_active_project_path()` for project resolution.
-- **stdin is a JSON pipe, NOT a TTY.** Never use `os.ttyname(sys.stdin.fileno())`
-  in hooks — it will always fail. Use `get_tty_key()` (PPID walking) or env vars
-  (`TMUX_PANE`, `WINDOWID`, `TERM_SESSION_ID`) for terminal identification.
-- `instance_projects` is always authoritative (checked first in all environments).
-  `active_work_{session_id}` is the fallback (see [ARCHITECTURE.md](./ARCHITECTURE.md) priority chain).
+**Critical:** The `cwd` field is unreliable because Claude Code can reset it (e.g., after
+compaction). Hooks use `get_active_project_path()` which reads `instance_projects` first
+(updated by both hooks and project-switch), falling back to `active_work` for non-TMUX.
 
 ---
 
