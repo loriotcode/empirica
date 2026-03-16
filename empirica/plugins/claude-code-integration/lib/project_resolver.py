@@ -179,11 +179,21 @@ def get_active_project_path(claude_session_id: str = None) -> Optional[str]:
             except Exception:
                 pass
 
-    # PRIORITY: instance_projects wins (updated by project-switch)
+    # Priority depends on whether instance_id is truly instance-unique:
+    # TMUX_PANE: unique per pane → instance_projects authoritative
+    # X11/TTY: shared across Claude instances → active_work wins when available
+    is_tmux = instance_id and instance_id.startswith("tmux_")
+
+    if is_tmux and instance_path:
+        return instance_path
+
+    if active_work_path:
+        return active_work_path
+
     if instance_path:
         return instance_path
 
-    # Fallback: active_work
+    # Fallback: active_work (legacy path)
     if active_work_path:
         return active_work_path
 
