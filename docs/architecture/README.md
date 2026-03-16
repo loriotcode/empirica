@@ -1,6 +1,6 @@
 # Empirica System Architecture
 
-**Version:** 1.6.5
+**Version:** 1.6.6
 **Updated:** 2026-03-16
 
 ---

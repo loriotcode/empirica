@@ -1,7 +1,7 @@
-# Empirica System Prompt - CLAUDE v1.6.5
+# Empirica System Prompt - CLAUDE v1.6.6
 
 **Model:** CLAUDE | **Generated:** 2026-03-13
-**Syncs with:** Empirica v1.6.5
+**Syncs with:** Empirica v1.6.6
 **Change:** Temporal entity model (codebase model), PostToolUse entity extraction, codebase-aware CHECK, 8th grounded evidence source
 **Status:** AUTHORITATIVE
 
@@ -467,7 +467,7 @@ Empirica is **cognitive infrastructure**, not just a CLI. In practice:
 
 ## CLAUDE-SPECIFIC
 
-# Claude Model Delta - v1.6.5
+# Claude Model Delta - v1.6.6
 
 **Applies to:** Claude (all versions)
 **Last Updated:** 2026-02-21

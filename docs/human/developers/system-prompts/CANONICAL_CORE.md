@@ -1,7 +1,7 @@
-# Empirica System Prompt - Canonical Core v1.6.5
+# Empirica System Prompt - Canonical Core v1.6.6
 
 **AI-Agnostic Core - All agents extend this**
-**Syncs with:** Empirica v1.6.5
+**Syncs with:** Empirica v1.6.6
 **Change:** Qdrant hardening, schema migration fix, instance isolation anchors
 **Status:** AUTHORITATIVE
 

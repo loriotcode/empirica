@@ -1364,7 +1364,7 @@ def handle_check_submit_command(args):
                 # (Note: In real flow, pre_check would run BEFORE check-submit)
                 # For now, document that this should be called by orchestration layer
                 
-                # Post-CHECK drift detection removed in v1.6.5 — superseded by
+                # Post-CHECK drift detection removed in v1.6.6 — superseded by
                 # grounded calibration pipeline (postflight → post-test → bayesian updates)
             except Exception as e:
                 # Hook failures are non-critical

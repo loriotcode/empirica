@@ -21,7 +21,7 @@ CASCADE Philosophy:
 - Scope is vectorial (self-assessed): {"breadth": 0-1, "duration": 0-1, "coordination": 0-1}
 - Trust AI reasoning: Let agents assess epistemic state → scope vectors
 
-Version: 1.6.5
+Version: 1.6.6
 """
 
 import asyncio
@@ -1036,7 +1036,7 @@ async def list_tools() -> list[types.Tool]:
             }
         ),
 
-        # ========== Tier 1 Tools (v1.6.5 additions) ==========
+        # ========== Tier 1 Tools (v1.6.6 additions) ==========
 
         types.Tool(
             name="goals_complete",
@@ -2631,7 +2631,7 @@ def build_cli_command(tool_name: str, arguments: dict) -> list[str]:
         "workspace_map": ["workspace-map"],
         "unknown_resolve": ["unknown-resolve"],
 
-        # Tier 1 additions (v1.6.5)
+        # Tier 1 additions (v1.6.6)
         "goals_complete": ["goals-complete"],
         "project_search": ["project-search"],
         "source_add": ["source-add"],

@@ -16,10 +16,10 @@ doesn't know `claude_session_id`. This is fine — `instance_projects` is read f
 
 ## File Taxonomy
 
-### 1. Instance Projects — PRIMARY
+### 1. Instance Projects (tmux) — PRIMARY IN TMUX
 
-**Location:** `~/.empirica/instance_projects/{instance_id}.json`
-**Key:** `instance_id` from `get_instance_id()` (e.g., `tmux_4`, `x11_77594627`, `term_pts_6`)
+**Location:** `~/.empirica/instance_projects/tmux_N.json`
+**Key:** `TMUX_PANE` environment variable (e.g., `%4` → `tmux_4`)
 **Written by:** Hooks (session-init, post-compact) AND `project-switch` CLI
 **Read by:** Everyone (hooks, CLI, statusline, Sentinel)
 
@@ -32,12 +32,17 @@ doesn't know `claude_session_id`. This is fine — `instance_projects` is read f
 }
 ```
 
-**Purpose:** Links instance → project. **Most current source** because it's the only
-file writable by both hooks AND the project-switch CLI. Works across all environments:
-tmux panes (`tmux_N`), X11 desktops (`x11_N`), macOS Terminal (`term_XXXX`), and
-TTY-based terminals (`term_pts_N`).
+**Purpose:** Links tmux pane → project. **Most current source in tmux** because it's
+the only file writable by both hooks AND the project-switch CLI, AND `TMUX_PANE` is
+truly unique per pane.
 
-### 2. Active Work Files (Claude Code) — FALLBACK
+**Non-tmux:** `instance_projects` files may also exist for `x11_N`, `term_N`, etc.
+but these IDs are shared across Claude instances in the same terminal emulator.
+They serve as **fallback for CLI commands** (which lack `claude_session_id`) but
+are NOT authoritative when hooks have `claude_session_id` available. See
+[Resolution Priority Chain](#resolution-priority-chain) below.
+
+### 2. Active Work Files (Claude Code) — PRIMARY IN NON-TMUX
 
 **Location:** `~/.empirica/active_work_{claude_session_id}.json`
 **Key:** Claude Code conversation UUID (from hook stdin)
@@ -54,9 +59,13 @@ TTY-based terminals (`term_pts_N`).
 }
 ```
 
-**Purpose:** Links Claude conversation → project. Fallback for non-TMUX environments
-where `instance_id` is unavailable. **Cannot be updated by project-switch** (CLI
-doesn't know claude_session_id), so may be stale after a project-switch.
+**Purpose:** Links Claude conversation → project. **Primary source in non-TMUX
+environments** because `claude_session_id` is truly unique per Claude Code session
+(unlike `WINDOWID` which is shared across instances in the same terminal).
+
+**Limitation:** Cannot be updated by `project-switch` CLI (CLI doesn't know
+`claude_session_id`), so may be stale after a project-switch until the next
+SessionStart hook fires. In tmux, `instance_projects` handles this gap.
 
 ### 3. TTY Sessions (CLI/MCP)
 
@@ -101,18 +110,37 @@ doesn't know claude_session_id), so may be stale after a project-switch.
 
 All components use `get_active_project_path()` — the single canonical function.
 
+### TMUX (truly instance-unique)
 ```
-Priority 0: instance_projects/{instance_id}.json  (tmux_N, x11_N, term_N)
+Priority 0: instance_projects/tmux_N.json        (TMUX_PANE → unique per pane)
     ↓
-Priority 1: active_work_{claude_session_id}.json   (fallback when instance_id unavailable)
+Priority 1: active_work_{claude_session_id}.json  (fallback)
     ↓
 ❌ NO CWD FALLBACK - return None, fail explicitly
 ```
 
-**Why instance_projects first:** It's the only file writable by BOTH hooks AND
-project-switch CLI. After `project-switch`, instance_projects reflects user intent
-immediately. `active_work` may be stale (only hooks can update it, and no hook
-fires between project-switch and the next tool use).
+### Non-TMUX (X11, macOS Terminal, TTY)
+```
+Priority 0: active_work_{claude_session_id}.json  (unique per Claude session)
+    ↓
+Priority 1: instance_projects/{instance_id}.json  (fallback for CLI without session_id)
+    ↓
+❌ NO CWD FALLBACK - return None, fail explicitly
+```
+
+**Why the split:** `TMUX_PANE` is unique per pane — each Claude Code instance gets
+its own ID. But `WINDOWID` (X11) and `TERM_SESSION_ID` (macOS) are shared across
+all processes in the same terminal emulator. Multiple Claude Code instances in the
+same window would overwrite each other's `instance_projects` file.
+
+`active_work_{claude_session_id}` is always unique per Claude Code conversation
+(the session_id comes from Claude Code via hook stdin). It's the safe default
+for non-tmux environments.
+
+**Why instance_projects first in tmux:** It's the only file writable by BOTH hooks
+AND project-switch CLI. After `project-switch`, instance_projects reflects user
+intent immediately. `active_work` may be stale (only hooks can update it, and no
+hook fires between project-switch and the next tool use).
 
 **Why no self-heal:** If the two files disagree after project-switch, that's
 expected and correct — instance_projects has the newer data. No file should
@@ -121,14 +149,16 @@ hook fires and writes both files consistently.
 
 **Instance ID sources:** `get_instance_id()` resolves from (in priority order):
 1. `EMPIRICA_INSTANCE_ID` env var (explicit override)
-2. `TMUX_PANE` → `tmux_N` (tmux panes)
-3. `TERM_SESSION_ID` → `term_XXXX` (macOS Terminal.app)
-4. `WINDOWID` → `x11_N` (X11 windows, Linux desktops)
+2. `TMUX_PANE` → `tmux_N` (tmux panes — **only truly instance-unique ID**)
+3. `TERM_SESSION_ID` → `term_XXXX` (macOS Terminal.app — shared per window)
+4. `WINDOWID` → `x11_N` (X11 windows — shared per terminal emulator)
 5. TTY device → `term_pts_N` (fallback, persists in same terminal)
 6. `None` (no isolation — legacy behavior)
 
-All formats use underscores for filesystem safety. The `active_work` fallback
-is only reached when instance_id is `None` (no TMUX, no WINDOWID, no TTY).
+All formats use underscores for filesystem safety. Instance IDs from sources
+3-5 are used for **transaction files** (per-project, no conflict) but NOT
+trusted as the primary key for `instance_projects` when `claude_session_id`
+is available.
 
 ---
 

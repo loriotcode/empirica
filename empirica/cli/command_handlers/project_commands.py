@@ -224,13 +224,12 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
         # TTY session is used for direct terminal context
         tty_key = get_tty_key()
 
-        # Use canonical get_instance_id() which handles tmux, x11, macOS Terminal
-        try:
-            from empirica.utils.session_resolver import get_instance_id as _get_instance_id
-            instance_id = _get_instance_id()
-        except ImportError:
-            tmux_pane = os.environ.get('TMUX_PANE')
-            instance_id = f"tmux_{tmux_pane.lstrip('%')}" if tmux_pane else None
+        # Only use TMUX_PANE for instance_projects — it's truly instance-unique.
+        # X11 WINDOWID and TTY are shared across multiple Claude instances in the
+        # same terminal, causing cross-session contamination (issue 11.20 follow-up).
+        # Non-tmux isolation uses active_work_{claude_session_id} (per-session).
+        tmux_pane = os.environ.get('TMUX_PANE')
+        instance_id = f"tmux_{tmux_pane.lstrip('%')}" if tmux_pane else None
 
         # When instance_id is absent (no TMUX, no WINDOWID), resolve from
         # claude_session_id by scanning instance_projects/ files.

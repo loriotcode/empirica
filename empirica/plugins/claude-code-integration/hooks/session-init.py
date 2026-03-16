@@ -184,12 +184,14 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
         instance_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         instance_file = instance_dir / f'{instance_id}.json'
 
-        # Get TTY key if available
+        # Get TTY key via PPID walking (NOT os.ttyname(stdin) — hooks receive
+        # stdin as JSON pipe from Claude Code, so ttyname always fails).
+        # Fix for regression from f9d607ed that reverted 07148f9b (#39).
         tty_key = None
         try:
-            tty_path = os.ttyname(sys.stdin.fileno())
-            tty_key = tty_path.replace('/', '-').lstrip('-')
-        except:
+            from empirica.utils.session_resolver import get_tty_key
+            tty_key = get_tty_key()
+        except Exception:
             pass
 
         instance_data = {
