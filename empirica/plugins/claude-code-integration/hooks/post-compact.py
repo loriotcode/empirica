@@ -132,6 +132,32 @@ def _write_active_work_for_new_conversation(
                 json.dump(instance_data, f, indent=2)
             os.chmod(instance_file, 0o600)
 
+        # Also write claude_session_id to TTY session file so project-switch can find it.
+        # Without this, project-switch (via Bash tool) can't discover claude_session_id
+        # and can't update active_work_{id}.json. See known issue 11.20.
+        if claude_session_id:
+            try:
+                from empirica.utils.session_resolver import get_tty_key
+                tty_key = get_tty_key()
+                if tty_key:
+                    tty_sessions_dir = Path.home() / '.empirica' / 'tty_sessions'
+                    tty_sessions_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+                    tty_session_file = tty_sessions_dir / f'{tty_key}.json'
+                    tty_data = {}
+                    if tty_session_file.exists():
+                        with open(tty_session_file, 'r') as f:
+                            tty_data = json.load(f)
+                    tty_data['claude_session_id'] = claude_session_id
+                    tty_data['empirica_session_id'] = empirica_session_id
+                    tty_data['project_path'] = project_path
+                    tty_data['tty_key'] = tty_key
+                    tty_data['timestamp'] = datetime.now().isoformat()
+                    with open(tty_session_file, 'w') as f:
+                        json.dump(tty_data, f, indent=2)
+                    os.chmod(tty_session_file, 0o600)
+            except Exception:
+                pass
+
         return True
     except Exception:
         return False
