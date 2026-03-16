@@ -1102,22 +1102,12 @@ def main():
         project_path = None
         is_local_project = False
 
-        # Priority 0: For non-tmux, active_work is authoritative when we have session_id
-        # (instance_projects uses WINDOWID which is shared across Claude instances)
-        # For tmux, instance_projects is authoritative (unique per pane)
-        _sl_inst_id = None
-        _is_tmux = False
+        # Priority 0: instance_projects (updated by BOTH hooks AND project-switch CLI)
         try:
             from empirica.utils.session_resolver import get_instance_id as _sl_get_inst
             import json as _json
             _sl_inst_id = _sl_get_inst()
-            _is_tmux = _sl_inst_id and _sl_inst_id.startswith("tmux_")
-        except Exception:
-            pass
-
-        # TMUX: instance_projects first (unique per pane, updated by project-switch)
-        if _is_tmux and _sl_inst_id:
-            try:
+            if _sl_inst_id:
                 _sl_inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{_sl_inst_id}.json'
                 if _sl_inst_file.exists():
                     with open(_sl_inst_file, 'r') as f:
@@ -1128,10 +1118,10 @@ def main():
                         if _sl_inst_db.exists():
                             project_path = _sl_inst_project
                             is_local_project = True
-            except Exception:
-                pass
+        except Exception:
+            pass
 
-        # Non-TMUX (or tmux fallback): active_work by session_id (per-session, no cross-talk)
+        # Priority 1: active_work file (fallback for non-TMUX environments)
         if not project_path and stdin_claude_session_id:
             try:
                 import json as _json
@@ -1144,22 +1134,6 @@ def main():
                         aw_db = Path(aw_project_path) / '.empirica' / 'sessions' / 'sessions.db'
                         if aw_db.exists():
                             project_path = aw_project_path
-                            is_local_project = True
-            except Exception:
-                pass
-
-        # Non-TMUX fallback: instance_projects (when no session_id available, e.g. CLI)
-        if not project_path and _sl_inst_id and not _is_tmux:
-            try:
-                _sl_inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{_sl_inst_id}.json'
-                if _sl_inst_file.exists():
-                    with open(_sl_inst_file, 'r') as f:
-                        _sl_inst_data = _json.load(f)
-                    _sl_inst_project = _sl_inst_data.get('project_path')
-                    if _sl_inst_project:
-                        _sl_inst_db = Path(_sl_inst_project) / '.empirica' / 'sessions' / 'sessions.db'
-                        if _sl_inst_db.exists():
-                            project_path = _sl_inst_project
                             is_local_project = True
             except Exception:
                 pass

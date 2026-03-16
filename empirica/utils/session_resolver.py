@@ -701,26 +701,18 @@ def get_active_project_path(claude_session_id: str = None) -> 'Optional[str]':
             except Exception:
                 pass
 
-    # Priority depends on whether instance_id is truly instance-unique:
-    # - TMUX_PANE: unique per pane → instance_projects is authoritative
-    # - X11 WINDOWID / TTY: shared across Claude instances in same terminal
-    #   → active_work_{claude_session_id} is authoritative when available
-    is_tmux = instance_id and instance_id.startswith("tmux_")
-
-    if is_tmux and instance_path:
-        # TMUX: instance_projects wins (updated by BOTH hooks AND project-switch CLI)
-        logger.debug(f"get_active_project_path: from instance_projects (tmux): {instance_path}")
+    # PRIORITY 0: instance_projects wins (updated by BOTH hooks AND project-switch CLI)
+    # active_work is only updated by hooks (which have claude_session_id).
+    # project-switch CLI updates instance_projects but CAN'T update active_work
+    # (doesn't know claude_session_id). So instance_projects is more current.
+    if instance_path:
+        logger.debug(f"get_active_project_path: from instance_projects: {instance_path}")
         return instance_path
 
+    # Fallback: active_work (for non-TMUX environments where instance_id is None)
     if active_work_path:
-        # Non-TMUX with claude_session_id: active_work wins (per-session, no cross-talk)
         logger.debug(f"get_active_project_path: from active_work: {active_work_path}")
         return active_work_path
-
-    if instance_path:
-        # Non-TMUX without claude_session_id (CLI commands): instance_projects as fallback
-        logger.debug(f"get_active_project_path: from instance_projects (fallback): {instance_path}")
-        return instance_path
 
     # NO CWD FALLBACK - fail explicitly
     logger.debug("get_active_project_path: could not resolve (no active_work or instance_projects)")

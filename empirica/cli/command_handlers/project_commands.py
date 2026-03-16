@@ -224,12 +224,13 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
         # TTY session is used for direct terminal context
         tty_key = get_tty_key()
 
-        # Only use TMUX_PANE for instance_projects — it's truly instance-unique.
-        # X11 WINDOWID and TTY are shared across multiple Claude instances in the
-        # same terminal, causing cross-session contamination (issue 11.20 follow-up).
-        # Non-tmux isolation uses active_work_{claude_session_id} (per-session).
-        tmux_pane = os.environ.get('TMUX_PANE')
-        instance_id = f"tmux_{tmux_pane.lstrip('%')}" if tmux_pane else None
+        # Use canonical get_instance_id() which handles tmux, x11, macOS Terminal
+        try:
+            from empirica.utils.session_resolver import get_instance_id as _get_instance_id
+            instance_id = _get_instance_id()
+        except ImportError:
+            tmux_pane = os.environ.get('TMUX_PANE')
+            instance_id = f"tmux_{tmux_pane.lstrip('%')}" if tmux_pane else None
 
         # When instance_id is absent (no TMUX, no WINDOWID), resolve from
         # claude_session_id by scanning instance_projects/ files.
@@ -1019,7 +1020,24 @@ def handle_project_switch_command(args):
             except Exception as e3:
                 logger.debug(f"Local projects table population failed (non-fatal): {e3}")
 
-        # 5. Update active_work.json for cross-project continuity
+        # 5. Rebind active session to new project in DB
+        # Without this, statusline shows old project name (reads sessions.project_id → projects.name)
+        if attached_session and project_id:
+            try:
+                from empirica.data.session_database import SessionDatabase
+                target_db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db' if project_path else None
+                if target_db_path and target_db_path.exists():
+                    target_db = SessionDatabase(db_path=str(target_db_path))
+                    target_db.conn.execute(
+                        "UPDATE sessions SET project_id = ? WHERE session_id = ?",
+                        (project_id, attached_session['session_id'])
+                    )
+                    target_db.conn.commit()
+                    target_db.close()
+            except Exception as e:
+                logger.debug(f"Session rebind failed (non-fatal): {e}")
+
+        # 6. Update active_work.json for cross-project continuity
         # This ensures pre-compact hook preserves project context even when Claude Code resets CWD
         # Include empirica_session_id so Sentinel and MCP tools can attach to the correct session
         if project_path:
