@@ -56,50 +56,62 @@ def get_ai_id() -> str:
     return os.getenv('EMPIRICA_AI_ID', 'claude-code').strip()
 
 
-def detect_extensions(project_name: Optional[str] = None) -> dict:
+def detect_extensions() -> dict:
     """
-    Detect active Empirica extensions via data files.
+    Detect active Empirica extensions (CRM, WORKSPACE).
 
-    External packages (e.g. empirica-workspace) write JSON files to
-    ~/.empirica/statusline_ext/ to contribute indicators. Core reads
-    them without knowing the extension internals.
-
-    Extension file format (JSON):
-        {
-            "indicator": "📋 Acme Demo",     # Pre-formatted display string
-            "color": "cyan",                  # Optional: cyan, green, yellow, gray
-            "data": { ... },                  # Structured data for JSON output
-            "updated_at": 1773669206.0        # Unix timestamp
-        }
-
-    Args:
-        project_name: Current project name (passed to extensions, unused by core)
+    Detection is based on database existence, not Python module imports.
+    This allows extensions to work even if not installed as packages.
 
     Returns:
-        Dict keyed by extension name (filename stem), each containing
-        the parsed JSON plus 'active': True.
+        {
+            'crm': {'active': bool, 'db_path': str, 'active_client': str|None},
+            'workspace': {'active': bool, 'db_path': str, 'project_count': int},
+        }
     """
-    import json as _json
-    import time as _time
+    import sqlite3
 
-    result: dict = {}
-    ext_dir = Path.home() / '.empirica' / 'statusline_ext'
-    if not ext_dir.exists():
-        return result
+    result: dict = {
+        'crm': {'active': False, 'db_path': None, 'active_client': None},
+        'workspace': {'active': False, 'db_path': None, 'project_count': 0},
+    }
 
-    max_age = 300  # 5 minutes — stale files are ignored
-
-    for ext_file in ext_dir.glob('*.json'):
+    # Check CRM
+    crm_db = Path.home() / '.empirica' / 'crm' / 'crm.db'
+    if crm_db.exists():
+        result['crm']['active'] = True
+        result['crm']['db_path'] = str(crm_db)
         try:
-            data = _json.loads(ext_file.read_text())
-            # Skip stale extension data
-            updated_at = data.get('updated_at', 0)
-            if _time.time() - updated_at > max_age:
-                continue
-            data['active'] = True
-            result[ext_file.stem] = data
+            conn = sqlite3.connect(str(crm_db))
+            cursor = conn.cursor()
+            # Try to get active client from recent engagement
+            cursor.execute("""
+                SELECT c.name FROM clients c
+                JOIN engagements e ON e.client_id = c.client_id
+                WHERE e.status = 'active'
+                ORDER BY e.started_at DESC LIMIT 1
+            """)
+            row = cursor.fetchone()
+            if row:
+                result['crm']['active_client'] = row[0]
+            conn.close()
         except Exception:
-            continue
+            pass
+
+    # Check WORKSPACE
+    workspace_db = Path.home() / '.empirica' / 'workspace' / 'workspace.db'
+    if workspace_db.exists():
+        result['workspace']['active'] = True
+        result['workspace']['db_path'] = str(workspace_db)
+        try:
+            conn = sqlite3.connect(str(workspace_db))
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM global_projects WHERE status = 'active'")
+            row = cursor.fetchone()
+            result['workspace']['project_count'] = row[0] if row else 0
+            conn.close()
+        except Exception:
+            pass
 
     return result
 
@@ -108,31 +120,27 @@ def format_extension_indicators(extensions: dict) -> str:
     """
     Format extension indicators for statusline.
 
-    Reads pre-formatted indicators from extension data files written by
-    external packages (e.g. empirica-workspace writes engagement context).
-
     Returns:
-        Concatenated indicator strings, or "" if no extensions active
+        String like "CRM:Acme WS:27" or "" if no extensions active
     """
-    COLOR_MAP = {
-        'cyan': Colors.CYAN,
-        'green': Colors.GREEN,
-        'yellow': Colors.YELLOW,
-        'gray': Colors.GRAY,
-        'blue': Colors.BLUE,
-        'red': Colors.RED,
-    }
-
     parts = []
-    for _name, ext in sorted(extensions.items()):
-        if not ext.get('active'):
-            continue
-        indicator = ext.get('indicator', '')
-        if not indicator:
-            continue
-        color = COLOR_MAP.get(ext.get('color', ''), '')
-        reset = Colors.RESET if color else ''
-        parts.append(f"{color}{indicator}{reset}")
+
+    if extensions.get('crm', {}).get('active'):
+        client = extensions['crm'].get('active_client')
+        if client:
+            # Truncate client name
+            if len(client) > 8:
+                client = client[:7] + '…'
+            parts.append(f"{Colors.CYAN}CRM:{client}{Colors.RESET}")
+        else:
+            parts.append(f"{Colors.GRAY}CRM{Colors.RESET}")
+
+    if extensions.get('workspace', {}).get('active'):
+        count = extensions['workspace'].get('project_count', 0)
+        if count > 0:
+            parts.append(f"{Colors.CYAN}WS:{count}{Colors.RESET}")
+        else:
+            parts.append(f"{Colors.GRAY}WS{Colors.RESET}")
 
     return ' '.join(parts)
 
@@ -1279,8 +1287,8 @@ def main():
 
         db.close()
 
-        # Detect extensions (active engagement, workspace)
-        extensions = detect_extensions(project_name=project_name)
+        # Detect extensions (CRM, WORKSPACE)
+        extensions = detect_extensions()
 
         # JSON output for dashboards
         if output_json:

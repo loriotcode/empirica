@@ -223,17 +223,13 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
         # instance_projects is used by Sentinel and statusline when running via Bash tool
         # TTY session is used for direct terminal context
         tty_key = get_tty_key()
+        tmux_pane = os.environ.get('TMUX_PANE')
+        instance_id = f"tmux_{tmux_pane.lstrip('%')}" if tmux_pane else None
 
-        # Use canonical get_instance_id() which handles tmux, x11, macOS Terminal
-        try:
-            from empirica.utils.session_resolver import get_instance_id as _get_instance_id
-            instance_id = _get_instance_id()
-        except ImportError:
-            tmux_pane = os.environ.get('TMUX_PANE')
-            instance_id = f"tmux_{tmux_pane.lstrip('%')}" if tmux_pane else None
-
-        # When instance_id is absent (no TMUX, no WINDOWID), resolve from
-        # claude_session_id by scanning instance_projects/ files.
+        # When TMUX_PANE is absent (Bash tool subprocess), resolve instance_id
+        # from claude_session_id by scanning instance_projects/ files.
+        # Hooks (which DO have TMUX_PANE) write claude_session_id to instance_projects
+        # at session start — this reverse-lookup finds the correct tmux pane.
         if not instance_id and claude_session_id:
             instance_dir = marker_dir / 'instance_projects'
             if instance_dir.exists():
@@ -1020,24 +1016,7 @@ def handle_project_switch_command(args):
             except Exception as e3:
                 logger.debug(f"Local projects table population failed (non-fatal): {e3}")
 
-        # 5. Rebind active session to new project in DB
-        # Without this, statusline shows old project name (reads sessions.project_id → projects.name)
-        if attached_session and project_id:
-            try:
-                from empirica.data.session_database import SessionDatabase
-                target_db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db' if project_path else None
-                if target_db_path and target_db_path.exists():
-                    target_db = SessionDatabase(db_path=str(target_db_path))
-                    target_db.conn.execute(
-                        "UPDATE sessions SET project_id = ? WHERE session_id = ?",
-                        (project_id, attached_session['session_id'])
-                    )
-                    target_db.conn.commit()
-                    target_db.close()
-            except Exception as e:
-                logger.debug(f"Session rebind failed (non-fatal): {e}")
-
-        # 6. Update active_work.json for cross-project continuity
+        # 5. Update active_work.json for cross-project continuity
         # This ensures pre-compact hook preserves project context even when Claude Code resets CWD
         # Include empirica_session_id so Sentinel and MCP tools can attach to the correct session
         if project_path:

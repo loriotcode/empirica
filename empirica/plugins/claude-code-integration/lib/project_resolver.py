@@ -58,16 +58,14 @@ def get_instance_id() -> Optional[str]:
         return f"tmux_{tmux_pane.lstrip('%')}"
 
     # Priority 3: macOS Terminal.app session
-    # Use underscore (not colon) to match file naming convention
     term_session = os.environ.get('TERM_SESSION_ID')
     if term_session:
-        return f"term_{term_session[:16]}"
+        return f"term:{term_session[:16]}"
 
     # Priority 4: X11 window ID
-    # Use underscore (not colon) to match file naming convention
     window_id = os.environ.get('WINDOWID')
     if window_id:
-        return f"x11_{window_id}"
+        return f"x11:{window_id}"
 
     return None
 
