@@ -61,7 +61,7 @@ python3 scripts/sync_system_prompts.py
 
 2. **model_deltas/** - Model-specific additions
    - `claude.md` - Semantic search triggers, epistemic continuity, self-improvement
-   - Add others as needed (qwen.md, gemini.md, etc.)
+   - `qwen.md`, `gemini.md`, `copilot.md`, `rovo.md` - Platform-specific deltas
 
 ### Generated (DO NOT EDIT DIRECTLY)
 
@@ -73,9 +73,7 @@ python3 scripts/sync_system_prompts.py
 
 ### Reference
 
-8. **CUSTOMIZATION_GUIDE.md** - When and how to customize
-9. **INSTALLATION.md** - Detailed installation instructions
-10. **QUICK_REFERENCE_WEB.md** - Web-friendly quick reference
+See [../../reference/](../../reference/) for API docs and configuration reference.
 
 ---
 

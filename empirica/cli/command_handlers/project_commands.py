@@ -223,13 +223,17 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
         # instance_projects is used by Sentinel and statusline when running via Bash tool
         # TTY session is used for direct terminal context
         tty_key = get_tty_key()
-        tmux_pane = os.environ.get('TMUX_PANE')
-        instance_id = f"tmux_{tmux_pane.lstrip('%')}" if tmux_pane else None
 
-        # When TMUX_PANE is absent (Bash tool subprocess), resolve instance_id
-        # from claude_session_id by scanning instance_projects/ files.
-        # Hooks (which DO have TMUX_PANE) write claude_session_id to instance_projects
-        # at session start — this reverse-lookup finds the correct tmux pane.
+        # Use canonical get_instance_id() which handles tmux, x11, macOS Terminal
+        try:
+            from empirica.utils.session_resolver import get_instance_id as _get_instance_id
+            instance_id = _get_instance_id()
+        except ImportError:
+            tmux_pane = os.environ.get('TMUX_PANE')
+            instance_id = f"tmux_{tmux_pane.lstrip('%')}" if tmux_pane else None
+
+        # When instance_id is absent (no TMUX, no WINDOWID), resolve from
+        # claude_session_id by scanning instance_projects/ files.
         if not instance_id and claude_session_id:
             instance_dir = marker_dir / 'instance_projects'
             if instance_dir.exists():

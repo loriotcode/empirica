@@ -167,8 +167,8 @@ def get_instance_id() -> Optional[str]
 **Priority order:**
 1. `EMPIRICA_INSTANCE_ID` env var (explicit override)
 2. `TMUX_PANE` → `tmux_0`, `tmux_1`, etc.
-3. `TERM_SESSION_ID` → `term:...` (macOS Terminal.app)
-4. `WINDOWID` → `x11:...` (X11 window)
+3. `TERM_SESSION_ID` → `term_...` (macOS Terminal.app)
+4. `WINDOWID` → `x11_...` (X11 window)
 5. `TTY device` → `term_pts-6` (persists across CLI calls in same terminal)
 6. `None` (legacy behavior)
 

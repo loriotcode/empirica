@@ -295,6 +295,33 @@ cross-DB creation). Always verify against the authoritative source (the database
 
 **Commit:** applied to `~/.claude/plugins/local/empirica-integration/hooks/post-compact.py`
 
+### 11.20 Non-TMUX Instance Isolation Broken (2026-03-16)
+
+**Symptom:** Sentinel always allows (fail-open) and project-switch doesn't update
+statusline in non-tmux environments (X11 desktops, macOS Terminal).
+
+**Root cause (2 bugs):**
+
+1. **Format mismatch:** `get_instance_id()` returned `x11:77594627` (colon) but
+   `_get_instance_suffix()` sanitized to `x11_77594627` (underscore) for filenames.
+   Transaction files were written with underscore but readers looked for colon.
+   Worked for tmux (no colon in `tmux_4`) but broke for x11/term.
+
+2. **project-switch tmux-only:** `_update_active_work()` hardcoded
+   `instance_id = f"tmux_{tmux_pane}"` instead of using canonical `get_instance_id()`.
+   Non-tmux environments never got `instance_projects` files written.
+
+**Fix (3 files):**
+1. `session_resolver.py`: Changed `get_instance_id()` to use underscores: `x11_N`, `term_N`
+2. `project_resolver.py` (plugin + source): Same underscore format in fallback implementation
+3. `project_commands.py`: `_update_active_work()` uses canonical `get_instance_id()`
+
+**Impact:** Instance isolation now works on X11 desktops (Linux), macOS Terminal,
+and any environment providing WINDOWID or TERM_SESSION_ID. Previously only tmux
+was fully supported.
+
+**Commit:** v1.6.5
+
 ---
 
 ## By Design (Not Bugs)

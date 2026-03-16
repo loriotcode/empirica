@@ -607,14 +607,18 @@ def get_instance_id() -> Optional[str]:
     term_session = os.environ.get('TERM_SESSION_ID')
     if term_session:
         # Truncate to reasonable length (full ID is very long)
-        instance_id = f"term:{term_session[:16]}"
+        # IMPORTANT: Use underscore (not colon) to match file naming convention
+        # Files are named: instance_projects/term_XXXX.json
+        instance_id = f"term_{term_session[:16]}"
         logger.debug(f"Using Terminal.app session as instance_id: {instance_id}")
         return instance_id
 
     # Priority 4: X11 window ID
     window_id = os.environ.get('WINDOWID')
     if window_id:
-        instance_id = f"x11:{window_id}"
+        # IMPORTANT: Use underscore (not colon) to match file naming convention
+        # Files are named: instance_projects/x11_NNNNN.json
+        instance_id = f"x11_{window_id}"
         logger.debug(f"Using X11 window ID as instance_id: {instance_id}")
         return instance_id
 

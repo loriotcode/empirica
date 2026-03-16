@@ -16,10 +16,10 @@ doesn't know `claude_session_id`. This is fine — `instance_projects` is read f
 
 ## File Taxonomy
 
-### 1. Instance Projects (tmux) — PRIMARY
+### 1. Instance Projects — PRIMARY
 
-**Location:** `~/.empirica/instance_projects/tmux_N.json`
-**Key:** `TMUX_PANE` environment variable (e.g., `%4` → `tmux_4`)
+**Location:** `~/.empirica/instance_projects/{instance_id}.json`
+**Key:** `instance_id` from `get_instance_id()` (e.g., `tmux_4`, `x11_77594627`, `term_pts_6`)
 **Written by:** Hooks (session-init, post-compact) AND `project-switch` CLI
 **Read by:** Everyone (hooks, CLI, statusline, Sentinel)
 
@@ -32,9 +32,10 @@ doesn't know `claude_session_id`. This is fine — `instance_projects` is read f
 }
 ```
 
-**Purpose:** Links tmux pane → project. **Most current source** because it's the only
-file writable by both hooks AND the project-switch CLI. In TMUX environments this is
-the authoritative source.
+**Purpose:** Links instance → project. **Most current source** because it's the only
+file writable by both hooks AND the project-switch CLI. Works across all environments:
+tmux panes (`tmux_N`), X11 desktops (`x11_N`), macOS Terminal (`term_XXXX`), and
+TTY-based terminals (`term_pts_N`).
 
 ### 2. Active Work Files (Claude Code) — FALLBACK
 
@@ -101,9 +102,9 @@ doesn't know claude_session_id), so may be stale after a project-switch.
 All components use `get_active_project_path()` — the single canonical function.
 
 ```
-Priority 0: instance_projects/tmux_N.json    (TMUX_PANE → instance_id)
+Priority 0: instance_projects/{instance_id}.json  (tmux_N, x11_N, term_N)
     ↓
-Priority 1: active_work_{claude_session_id}.json  (fallback for non-TMUX)
+Priority 1: active_work_{claude_session_id}.json   (fallback when instance_id unavailable)
     ↓
 ❌ NO CWD FALLBACK - return None, fail explicitly
 ```
@@ -118,10 +119,16 @@ expected and correct — instance_projects has the newer data. No file should
 overwrite another. The disagreement resolves naturally when the next SessionStart
 hook fires and writes both files consistently.
 
-**Non-TMUX environments:** `instance_id` is `None`, so instance_projects isn't
-found. Falls through to `active_work`, which hooks wrote at session start.
-project-switch in non-TMUX still works because it writes to `tty_sessions` and
-other CLI resolution paths.
+**Instance ID sources:** `get_instance_id()` resolves from (in priority order):
+1. `EMPIRICA_INSTANCE_ID` env var (explicit override)
+2. `TMUX_PANE` → `tmux_N` (tmux panes)
+3. `TERM_SESSION_ID` → `term_XXXX` (macOS Terminal.app)
+4. `WINDOWID` → `x11_N` (X11 windows, Linux desktops)
+5. TTY device → `term_pts_N` (fallback, persists in same terminal)
+6. `None` (no isolation — legacy behavior)
+
+All formats use underscores for filesystem safety. The `active_work` fallback
+is only reached when instance_id is `None` (no TMUX, no WINDOWID, no TTY).
 
 ---
 
@@ -196,7 +203,7 @@ project is used. `active_work` gets updated when the next SessionStart hook fire
 | Function | Location | Purpose |
 |----------|----------|---------|
 | `get_active_project_path()` | session_resolver.py | **CANONICAL** - project resolution |
-| `get_instance_id()` | session_resolver.py | Get instance ID (tmux_N, x11, term_pts-N, or None) |
+| `get_instance_id()` | session_resolver.py | Get instance ID (tmux_N, x11_N, term_N, or None) |
 | `get_tty_key()` | session_resolver.py | Get TTY device name |
 | `read_active_transaction()` | session_resolver.py | Read transaction file |
 | `write_tty_session()` | session_resolver.py | Write TTY session file |
