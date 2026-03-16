@@ -29,7 +29,7 @@ at the database level. CWD gets reset unpredictably. Which project am I working 
 ## Key Principles
 
 1. **Hooks write, everything else reads.** Hooks have full context (claude_session_id + TMUX_PANE). CLI, Sentinel, statusline are readers. Exception: `project-switch` writes to `instance_projects` as a signal.
-2. **instance_projects is the most current source** — writable by both hooks AND project-switch. `active_work` is fallback for non-TMUX only.
+2. **instance_projects is always authoritative** — writable by both hooks AND project-switch, checked first in all environments. `active_work` is the fallback when instance_projects is unavailable.
 3. **Never self-heal between files.** If they disagree after project-switch, that's expected. instance_projects has the newer data.
 4. **CWD is unreliable** — Claude Code resets it unpredictably.
 5. **Fail explicitly** — return None rather than silently using wrong project.

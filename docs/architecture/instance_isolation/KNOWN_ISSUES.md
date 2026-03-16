@@ -209,7 +209,7 @@ and not checked at all in `resolve_session_db_path()`. The live DB always won.
    ```
    get_session_db_path():
      0. EMPIRICA_SESSION_DB (explicit override)
-     1. Unified context (transaction → active_work → TTY → instance_projects)
+     1. Unified context (transaction → instance_projects → active_work → TTY)
      2. workspace.db lookup
      3. Git root based
 

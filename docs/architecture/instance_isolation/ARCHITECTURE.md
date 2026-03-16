@@ -110,37 +110,32 @@ SessionStart hook fires. In tmux, `instance_projects` handles this gap.
 
 All components use `get_active_project_path()` — the single canonical function.
 
-### TMUX (truly instance-unique)
+### All Environments (same priority chain everywhere)
 ```
-Priority 0: instance_projects/tmux_N.json        (TMUX_PANE → unique per pane)
+Priority 0: instance_projects/{instance_id}.json  (AUTHORITATIVE — hooks + project-switch)
     ↓
-Priority 1: active_work_{claude_session_id}.json  (fallback)
-    ↓
-❌ NO CWD FALLBACK - return None, fail explicitly
-```
-
-### Non-TMUX (X11, macOS Terminal, TTY)
-```
-Priority 0: active_work_{claude_session_id}.json  (unique per Claude session)
-    ↓
-Priority 1: instance_projects/{instance_id}.json  (fallback for CLI without session_id)
+Priority 1: active_work_{claude_session_id}.json  (fallback — hooks only)
     ↓
 ❌ NO CWD FALLBACK - return None, fail explicitly
 ```
 
-**Why the split:** `TMUX_PANE` is unique per pane — each Claude Code instance gets
-its own ID. But `WINDOWID` (X11) and `TERM_SESSION_ID` (macOS) are shared across
-all processes in the same terminal emulator. Multiple Claude Code instances in the
-same window would overwrite each other's `instance_projects` file.
-
-`active_work_{claude_session_id}` is always unique per Claude Code conversation
-(the session_id comes from Claude Code via hook stdin). It's the safe default
-for non-tmux environments.
-
-**Why instance_projects first in tmux:** It's the only file writable by BOTH hooks
+**Why instance_projects is always first:** It's the only file writable by BOTH hooks
 AND project-switch CLI. After `project-switch`, instance_projects reflects user
 intent immediately. `active_work` may be stale (only hooks can update it, and no
 hook fires between project-switch and the next tool use).
+
+**Instance ID sources by environment:**
+
+| Environment | Instance ID | Uniqueness |
+|-------------|------------|------------|
+| tmux | `tmux_{TMUX_PANE}` | Unique per pane |
+| X11 | `x11_{WINDOWID}` | Shared per terminal emulator |
+| macOS | `mac_{TERM_SESSION_ID}` | Shared per terminal emulator |
+| Fallback | PID-based | Unique per process |
+
+In non-tmux environments where `WINDOWID`/`TERM_SESSION_ID` may be shared across
+multiple Claude Code instances, `active_work_{claude_session_id}` provides the
+per-session fallback (the session_id comes from Claude Code via hook stdin).
 
 **Why no self-heal:** If the two files disagree after project-switch, that's
 expected and correct — instance_projects has the newer data. No file should

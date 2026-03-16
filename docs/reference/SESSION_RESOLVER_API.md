@@ -277,7 +277,7 @@ def get_active_project_path(claude_session_id: str = None) -> Optional[str]
 1. `instance_projects/{instance_id}.json` — **AUTHORITATIVE** (updated by project-switch)
 2. `active_work_{claude_session_id}.json` — fallback (may be stale)
 
-**Self-healing:** If both exist but disagree, instance_projects wins and active_work is updated.
+**No self-healing:** If both exist but disagree (e.g. after project-switch), instance_projects wins. The disagreement resolves naturally when the next hook fires and writes both files consistently.
 
 **Returns:** Absolute path to project, or `None` (fails explicitly rather than falling back to CWD).
 
