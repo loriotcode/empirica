@@ -653,6 +653,50 @@ brew install empirica
         success(f"All version strings updated to {self.version}")
         info("Homebrew formula SHA256 will be updated during full release.")
 
+    def ensure_main_branch(self):
+        """Merge develop → main and switch to main for release.
+
+        Release flow: develop (working) → main (release) → tag + publish.
+        This avoids homebrew SHA256 conflicts from releasing on develop
+        and merging to main afterward.
+        """
+        log("\n" + "="*60)
+        log("🔀 Preparing main branch for release")
+        log("="*60)
+
+        # Check current branch
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True, text=True, cwd=self.repo_root
+        )
+        current_branch = result.stdout.strip()
+
+        if current_branch == "main":
+            info("Already on main branch")
+            return
+
+        if current_branch != "develop":
+            error(f"Release must be run from 'develop' or 'main', currently on '{current_branch}'")
+
+        # Merge develop → main
+        info(f"Merging develop → main...")
+        self.run_command(["git", "checkout", "main"])
+        self.run_command(["git", "pull", "origin", "main"], check=False)
+        self.run_command(["git", "merge", "develop", "-m", f"Merge develop — Empirica {self.version} release"])
+        success("Merged develop → main")
+
+    def back_to_develop(self):
+        """Switch back to develop after release and merge any release commits."""
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True, text=True, cwd=self.repo_root
+        )
+        if result.stdout.strip() == "main":
+            info("Switching back to develop...")
+            self.run_command(["git", "checkout", "develop"])
+            self.run_command(["git", "merge", "main", "-m", f"Merge main — post-release {self.version}"])
+            self.run_command(["git", "push", "origin", "develop"], check=False)
+
     def run(self):
         """Execute full release process"""
         log("\n╔════════════════════════════════════════════════════════════╗")
@@ -665,6 +709,10 @@ brew install empirica
         try:
             # Read version from pyproject.toml (single source of truth)
             self.version = self.read_version()
+
+            # Merge develop → main (release happens on main)
+            if not self.dry_run:
+                self.ensure_main_branch()
 
             # Build packages
             self.build_package()
@@ -688,6 +736,10 @@ brew install empirica
             self.build_and_push_docker()
             self.create_github_release()
             self.update_homebrew_tap()
+
+            # Switch back to develop and merge release commits
+            if not self.dry_run:
+                self.back_to_develop()
 
             log("\n╔════════════════════════════════════════════════════════════╗")
             log("║  ✅ Release Complete!                                      ║")
