@@ -58,105 +58,48 @@ def get_ai_id() -> str:
 
 def detect_extensions(project_name: Optional[str] = None) -> dict:
     """
-    Detect active Empirica extensions and active engagement context.
+    Detect active Empirica extensions via data files.
 
-    For workspace projects, queries the entity knowledge graph for the
-    active engagement being worked on. Non-workspace projects (e.g.
-    empirica core) get no extension indicators.
+    External packages (e.g. empirica-workspace) write JSON files to
+    ~/.empirica/statusline_ext/ to contribute indicators. Core reads
+    them without knowing the extension internals.
+
+    Extension file format (JSON):
+        {
+            "indicator": "📋 Acme Demo",     # Pre-formatted display string
+            "color": "cyan",                  # Optional: cyan, green, yellow, gray
+            "data": { ... },                  # Structured data for JSON output
+            "updated_at": 1773669206.0        # Unix timestamp
+        }
 
     Args:
-        project_name: Current project name (used to find linked engagements)
+        project_name: Current project name (passed to extensions, unused by core)
 
     Returns:
-        {
-            'engagement': {'active': bool, 'title': str|None, 'type': str|None,
-                           'contact': str|None},
-            'workspace': {'active': bool, 'project_count': int},
-        }
+        Dict keyed by extension name (filename stem), each containing
+        the parsed JSON plus 'active': True.
     """
-    import sqlite3
+    import json as _json
+    import time as _time
 
-    result: dict = {
-        'engagement': {'active': False, 'title': None, 'type': None, 'contact': None},
-        'workspace': {'active': False, 'project_count': 0},
-    }
-
-    workspace_db = Path.home() / '.empirica' / 'workspace' / 'workspace.db'
-    if not workspace_db.exists():
+    result: dict = {}
+    ext_dir = Path.home() / '.empirica' / 'statusline_ext'
+    if not ext_dir.exists():
         return result
 
-    try:
-        conn = sqlite3.connect(str(workspace_db))
-        cursor = conn.cursor()
+    max_age = 300  # 5 minutes — stale files are ignored
 
-        # Check workspace project count
-        cursor.execute("SELECT COUNT(*) FROM global_projects WHERE status = 'active'")
-        row = cursor.fetchone()
-        count = row[0] if row else 0
-        if count > 0:
-            result['workspace']['active'] = True
-            result['workspace']['project_count'] = count
-
-        # Check if engagements table exists
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='engagements'")
-        if not cursor.fetchone():
-            conn.close()
-            return result
-
-        # Query active engagement linked to current project
-        # Try engagement_projects junction first, fall back to legacy project_id
-        engagement_row = None
-        if project_name:
-            # Check contacts table existence for JOIN
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='contacts'")
-            has_contacts = bool(cursor.fetchone())
-
-            if has_contacts:
-                try:
-                    cursor.execute("""
-                        SELECT e.title, e.engagement_type, c.display_name
-                        FROM engagements e
-                        LEFT JOIN engagement_projects ep ON e.engagement_id = ep.engagement_id
-                        LEFT JOIN contacts c ON e.contact_id = c.contact_id
-                        WHERE e.status = 'active'
-                        AND (ep.project_id = ? OR e.project_id = ?)
-                        ORDER BY e.started_at DESC LIMIT 1
-                    """, (project_name, project_name))
-                    engagement_row = cursor.fetchone()
-                except Exception:
-                    pass
-
-            # Fall back: any active engagement (no project filter)
-            if not engagement_row:
-                try:
-                    if has_contacts:
-                        cursor.execute("""
-                            SELECT e.title, e.engagement_type, c.display_name
-                            FROM engagements e
-                            LEFT JOIN contacts c ON e.contact_id = c.contact_id
-                            WHERE e.status = 'active'
-                            ORDER BY e.started_at DESC LIMIT 1
-                        """)
-                    else:
-                        cursor.execute("""
-                            SELECT e.title, e.engagement_type, NULL
-                            FROM engagements e
-                            WHERE e.status = 'active'
-                            ORDER BY e.started_at DESC LIMIT 1
-                        """)
-                    engagement_row = cursor.fetchone()
-                except Exception:
-                    pass
-
-        if engagement_row:
-            result['engagement']['active'] = True
-            result['engagement']['title'] = engagement_row[0]
-            result['engagement']['type'] = engagement_row[1]
-            result['engagement']['contact'] = engagement_row[2]
-
-        conn.close()
-    except Exception:
-        pass
+    for ext_file in ext_dir.glob('*.json'):
+        try:
+            data = _json.loads(ext_file.read_text())
+            # Skip stale extension data
+            updated_at = data.get('updated_at', 0)
+            if _time.time() - updated_at > max_age:
+                continue
+            data['active'] = True
+            result[ext_file.stem] = data
+        except Exception:
+            continue
 
     return result
 
@@ -165,41 +108,33 @@ def format_extension_indicators(extensions: dict) -> str:
     """
     Format extension indicators for statusline.
 
-    Shows the active engagement being worked on (from entity knowledge graph).
-    Falls back to workspace project count if no engagement is active.
+    Reads pre-formatted indicators from extension data files written by
+    external packages (e.g. empirica-workspace writes engagement context).
 
     Returns:
-        String like "📋 Acme Demo" or "WS:3" or "" if no extensions active
+        Concatenated indicator strings, or "" if no extensions active
     """
-    # Active engagement takes priority
-    eng = extensions.get('engagement', {})
-    if eng.get('active'):
-        title = eng.get('title', '')
-        contact = eng.get('contact')
+    COLOR_MAP = {
+        'cyan': Colors.CYAN,
+        'green': Colors.GREEN,
+        'yellow': Colors.YELLOW,
+        'gray': Colors.GRAY,
+        'blue': Colors.BLUE,
+        'red': Colors.RED,
+    }
 
-        # Build display: prefer "Contact: Title" if both available, else just title
-        if contact and title:
-            display = f"{contact}: {title}"
-        elif title:
-            display = title
-        elif contact:
-            display = contact
-        else:
-            return ''
+    parts = []
+    for _name, ext in sorted(extensions.items()):
+        if not ext.get('active'):
+            continue
+        indicator = ext.get('indicator', '')
+        if not indicator:
+            continue
+        color = COLOR_MAP.get(ext.get('color', ''), '')
+        reset = Colors.RESET if color else ''
+        parts.append(f"{color}{indicator}{reset}")
 
-        # Truncate for statusline
-        if len(display) > 20:
-            display = display[:19] + '…'
-
-        return f"{Colors.CYAN}\U0001F4CB {display}{Colors.RESET}"
-
-    # Fall back to workspace project count (no active engagement)
-    if extensions.get('workspace', {}).get('active'):
-        count = extensions['workspace'].get('project_count', 0)
-        if count > 0:
-            return f"{Colors.GRAY}WS:{count}{Colors.RESET}"
-
-    return ''
+    return ' '.join(parts)
 
 
 def get_open_counts(db: SessionDatabase, session_id: str, project_id: Optional[str] = None) -> dict:
@@ -1083,12 +1018,6 @@ def build_statusline_data(
             'decision': gate_decision,
         },
         'extensions': extensions or {},
-        'engagement': {
-            'active': (extensions or {}).get('engagement', {}).get('active', False),
-            'title': (extensions or {}).get('engagement', {}).get('title'),
-            'type': (extensions or {}).get('engagement', {}).get('type'),
-            'contact': (extensions or {}).get('engagement', {}).get('contact'),
-        },
         'timestamp': time.time(),
     }
 
