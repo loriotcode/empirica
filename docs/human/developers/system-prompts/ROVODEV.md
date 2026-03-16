@@ -1,7 +1,7 @@
-# Empirica System Prompt - ROVO v1.6.4
+# Empirica System Prompt - ROVO v1.6.5
 
 **Model:** ROVO | **Generated:** 2026-02-25
-**Syncs with:** Empirica v1.6.4
+**Syncs with:** Empirica v1.6.5
 **Change:** Qdrant hardening, schema migration fix, instance isolation anchors
 **Status:** AUTHORITATIVE
 
@@ -467,7 +467,7 @@ Empirica is **cognitive infrastructure**, not just a CLI. In practice:
 
 ## ROVO-SPECIFIC
 
-# Rovo Model Delta - v1.6.4
+# Rovo Model Delta - v1.6.5
 
 **Applies to:** Atlassian Rovo
 **Last Updated:** 2026-02-21

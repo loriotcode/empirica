@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.6.4-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.6.4)
+[![Version](https://img.shields.io/badge/version-1.6.5-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.6.5)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -101,13 +101,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.6.4-alpine
+docker pull nubaeon/empirica:1.6.5-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.6.4
+docker pull nubaeon/empirica:1.6.5
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.6.4 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.6.5 /bin/bash
 ```
 </details>
 
@@ -265,7 +265,7 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.6.4
+## What's New in 1.6.5
 
 - **Temporal Entity Model** — Codebase entities (functions, classes, APIs, imports) tracked with temporal validity. Auto-extracted from file edits, queried during CHECK, used as grounded calibration evidence. Adapted from [world-model-mcp](https://github.com/SaravananJaichandar/world-model-mcp) by Saravanan Jaichandar.
 - **PostToolUse Entity Extraction** — After every file edit, entities are automatically extracted and stored with first_seen/last_seen timestamps across 8 programming languages
@@ -301,6 +301,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.6.4
+**Version:** 1.6.5
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*

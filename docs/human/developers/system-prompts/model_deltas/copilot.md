@@ -1,4 +1,4 @@
-# GitHub Copilot Model Delta - v1.6.4
+# GitHub Copilot Model Delta - v1.6.5
 
 **Applies to:** GitHub Copilot
 **Last Updated:** 2026-02-21
