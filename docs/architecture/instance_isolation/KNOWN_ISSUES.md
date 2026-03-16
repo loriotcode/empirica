@@ -295,30 +295,40 @@ cross-DB creation). Always verify against the authoritative source (the database
 
 **Commit:** applied to `~/.claude/plugins/local/empirica-integration/hooks/post-compact.py`
 
-### 11.20 Non-TMUX Instance Isolation Broken (2026-03-16)
+### 11.20 Non-TMUX Instance Isolation (2026-03-16)
 
-**Symptom:** Sentinel always allows (fail-open) and project-switch doesn't update
-statusline in non-tmux environments (X11 desktops, macOS Terminal).
+**Symptom (original):** Sentinel always allows (fail-open) in non-tmux environments.
+Transaction files used underscore (`x11_N`) but readers used colon (`x11:N`).
 
-**Root cause (2 bugs):**
+**Symptom (after first fix attempt):** project-switch in one Claude Code session
+overwrites the other session's project binding. Statusline shows wrong project.
 
-1. **Format mismatch:** `get_instance_id()` returned `x11:77594627` (colon) but
-   `_get_instance_suffix()` sanitized to `x11_77594627` (underscore) for filenames.
-   Transaction files were written with underscore but readers looked for colon.
-   Worked for tmux (no colon in `tmux_4`) but broke for x11/term.
+**Root cause:** `WINDOWID` (X11) is shared across all Claude Code instances in
+the same terminal emulator. Using it for `instance_projects` caused cross-session
+contamination. The original design (non-tmux → fall through to `active_work`) was
+correct — `active_work_{claude_session_id}` is the only truly per-session file.
 
-2. **project-switch tmux-only:** `_update_active_work()` hardcoded
-   `instance_id = f"tmux_{tmux_pane}"` instead of using canonical `get_instance_id()`.
-   Non-tmux environments never got `instance_projects` files written.
+**Fix (3 iterations):**
 
-**Fix (3 files):**
-1. `session_resolver.py`: Changed `get_instance_id()` to use underscores: `x11_N`, `term_N`
-2. `project_resolver.py` (plugin + source): Same underscore format in fallback implementation
-3. `project_commands.py`: `_update_active_work()` uses canonical `get_instance_id()`
+1. **Underscore format** (kept): `get_instance_id()` returns `x11_N` and `term_N`
+   (underscores, not colons) matching `_get_instance_suffix()`. Fixes transaction
+   file lookup. Transaction files are per-project-directory so no cross-session issue.
 
-**Impact:** Instance isolation now works on X11 desktops (Linux), macOS Terminal,
-and any environment providing WINDOWID or TERM_SESSION_ID. Previously only tmux
-was fully supported.
+2. **Priority chain** (final fix): `get_active_project_path()` now uses different
+   priorities for tmux vs non-tmux:
+   - **tmux:** `instance_projects` > `active_work` (tmux_N is truly unique)
+   - **non-tmux + session_id:** `active_work` > `instance_projects` (per-session)
+   - **non-tmux, no session_id:** `instance_projects` as fallback (CLI commands)
+
+3. **project-switch** reverted to tmux-only for `instance_projects` writes.
+   Non-tmux project-switch updates `active_work` and `tty_sessions` only.
+
+Same fix applied to: `session_resolver.py`, `project_resolver.py` (plugin + source),
+`project_commands.py`, `statusline_empirica.py`.
+
+**Key lesson:** `WINDOWID` and `TERM_SESSION_ID` are valid for transaction files
+(per-project, no conflict) but NOT valid as instance isolators for `instance_projects`
+(multiple Claude sessions share the same ID).
 
 **Commit:** v1.6.5
 
