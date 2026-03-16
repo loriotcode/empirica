@@ -326,11 +326,23 @@ correct — `active_work_{claude_session_id}` is the only truly per-session file
 Same fix applied to: `session_resolver.py`, `project_resolver.py` (plugin + source),
 `project_commands.py`, `statusline_empirica.py`.
 
-**Key lesson:** `WINDOWID` and `TERM_SESSION_ID` are valid for transaction files
-(per-project, no conflict) but NOT valid as instance isolators for `instance_projects`
-(multiple Claude sessions share the same ID).
+4. **session-init tty_key regression**: `session-init.py` used `os.ttyname(sys.stdin.fileno())`
+   to get TTY key, but hooks receive stdin as JSON pipe from Claude Code — `ttyname`
+   always fails → `tty_key=None` → `claude_session_id` never propagates to TTY session
+   file → `project-switch` can't find `claude_session_id` → can't update
+   `active_work_{id}.json`. This was a regression from `f9d607ed` that reverted
+   Philipp's fix in `07148f9b` (#39). Fixed by using `get_tty_key()` (PPID walking)
+   instead of `os.ttyname(stdin)`.
 
-**Commit:** v1.6.5
+**Key lessons:**
+- `WINDOWID` and `TERM_SESSION_ID` are valid for transaction files
+  (per-project, no conflict) but NOT valid as instance isolators for `instance_projects`
+  (multiple Claude sessions share the same ID).
+- Hooks receive stdin as a JSON pipe, not a TTY — never use `os.ttyname(stdin)`.
+  Use `get_tty_key()` (PPID walking) or env vars (`TMUX_PANE`, `WINDOWID`).
+- Before rewriting hook functions, check `git log -p` for intentionally removed code.
+
+**Commit:** v1.6.5+
 
 ---
 
