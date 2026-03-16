@@ -162,7 +162,7 @@ still see an open transaction.
 **Root cause:** POSTFLIGHT handler used a custom project resolution chain
 (TTY→active_work→CWD) instead of canonical `get_active_project_path()`.
 
-The failure path (historical — auto-POSTFLIGHT removed in 1.6.5):
+The failure path (historical — auto-POSTFLIGHT removed in 1.6.6):
 1. CHECK called `_auto_postflight()` → spawned `empirica postflight-submit -` subprocess
 2. Subprocess inherits `TMUX_PANE` (instance_id resolves correctly)
 3. TTY session has `claude_session_id=None` (by design — CLI can't access it)
@@ -342,7 +342,7 @@ Same fix applied to: `session_resolver.py`, `project_resolver.py` (plugin + sour
   Use `get_tty_key()` (PPID walking) or env vars (`TMUX_PANE`, `WINDOWID`).
 - Before rewriting hook functions, check `git log -p` for intentionally removed code.
 
-**Commit:** v1.6.5+
+**Commit:** v1.6.6+
 
 ---
 

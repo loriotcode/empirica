@@ -1,4 +1,4 @@
-# Gemini Model Delta - v1.6.5
+# Gemini Model Delta - v1.6.6
 
 **Applies to:** Gemini (all versions)
 **Last Updated:** 2026-02-21

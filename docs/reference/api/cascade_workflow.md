@@ -1,6 +1,6 @@
 # CASCADE Workflow API Reference
 
-**Version:** 1.6.5
+**Version:** 1.6.6
 **Purpose:** Epistemic measurement phases for AI self-assessment and grounded calibration
 
 ---
