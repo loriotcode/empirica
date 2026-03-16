@@ -162,7 +162,7 @@ still see an open transaction.
 **Root cause:** POSTFLIGHT handler used a custom project resolution chain
 (TTY→active_work→CWD) instead of canonical `get_active_project_path()`.
 
-The failure path (historical — auto-POSTFLIGHT removed in 1.6.6):
+The failure path (historical — auto-POSTFLIGHT removed in 1.6.4):
 1. CHECK called `_auto_postflight()` → spawned `empirica postflight-submit -` subprocess
 2. Subprocess inherits `TMUX_PANE` (instance_id resolves correctly)
 3. TTY session has `claude_session_id=None` (by design — CLI can't access it)
@@ -294,55 +294,6 @@ File-based state can reference sessions that no longer exist (cleanup, DB restor
 cross-DB creation). Always verify against the authoritative source (the database).
 
 **Commit:** applied to `~/.claude/plugins/local/empirica-integration/hooks/post-compact.py`
-
-### 11.20 Non-TMUX Instance Isolation (2026-03-16)
-
-**Symptom (original):** Sentinel always allows (fail-open) in non-tmux environments.
-Transaction files used underscore (`x11_N`) but readers used colon (`x11:N`).
-
-**Symptom (after first fix attempt):** project-switch in one Claude Code session
-overwrites the other session's project binding. Statusline shows wrong project.
-
-**Root cause:** `WINDOWID` (X11) is shared across all Claude Code instances in
-the same terminal emulator. Using it for `instance_projects` caused cross-session
-contamination. The original design (non-tmux → fall through to `active_work`) was
-correct — `active_work_{claude_session_id}` is the only truly per-session file.
-
-**Fix (3 iterations):**
-
-1. **Underscore format** (kept): `get_instance_id()` returns `x11_N` and `term_N`
-   (underscores, not colons) matching `_get_instance_suffix()`. Fixes transaction
-   file lookup. Transaction files are per-project-directory so no cross-session issue.
-
-2. **Priority chain** (final fix): `get_active_project_path()` now uses different
-   priorities for tmux vs non-tmux:
-   - **tmux:** `instance_projects` > `active_work` (tmux_N is truly unique)
-   - **non-tmux + session_id:** `active_work` > `instance_projects` (per-session)
-   - **non-tmux, no session_id:** `instance_projects` as fallback (CLI commands)
-
-3. **project-switch** reverted to tmux-only for `instance_projects` writes.
-   Non-tmux project-switch updates `active_work` and `tty_sessions` only.
-
-Same fix applied to: `session_resolver.py`, `project_resolver.py` (plugin + source),
-`project_commands.py`, `statusline_empirica.py`.
-
-4. **session-init tty_key regression**: `session-init.py` used `os.ttyname(sys.stdin.fileno())`
-   to get TTY key, but hooks receive stdin as JSON pipe from Claude Code — `ttyname`
-   always fails → `tty_key=None` → `claude_session_id` never propagates to TTY session
-   file → `project-switch` can't find `claude_session_id` → can't update
-   `active_work_{id}.json`. This was a regression from `f9d607ed` that reverted
-   Philipp's fix in `07148f9b` (#39). Fixed by using `get_tty_key()` (PPID walking)
-   instead of `os.ttyname(stdin)`.
-
-**Key lessons:**
-- `WINDOWID` and `TERM_SESSION_ID` are valid for transaction files
-  (per-project, no conflict) but NOT valid as instance isolators for `instance_projects`
-  (multiple Claude sessions share the same ID).
-- Hooks receive stdin as a JSON pipe, not a TTY — never use `os.ttyname(stdin)`.
-  Use `get_tty_key()` (PPID walking) or env vars (`TMUX_PANE`, `WINDOWID`).
-- Before rewriting hook functions, check `git log -p` for intentionally removed code.
-
-**Commit:** v1.6.6+
 
 ---
 

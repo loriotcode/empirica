@@ -223,16 +223,13 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
         # instance_projects is used by Sentinel and statusline when running via Bash tool
         # TTY session is used for direct terminal context
         tty_key = get_tty_key()
-
-        # Only use TMUX_PANE for instance_projects — it's truly instance-unique.
-        # X11 WINDOWID and TTY are shared across multiple Claude instances in the
-        # same terminal, causing cross-session contamination (issue 11.20 follow-up).
-        # Non-tmux isolation uses active_work_{claude_session_id} (per-session).
         tmux_pane = os.environ.get('TMUX_PANE')
         instance_id = f"tmux_{tmux_pane.lstrip('%')}" if tmux_pane else None
 
-        # When instance_id is absent (no TMUX, no WINDOWID), resolve from
-        # claude_session_id by scanning instance_projects/ files.
+        # When TMUX_PANE is absent (Bash tool subprocess), resolve instance_id
+        # from claude_session_id by scanning instance_projects/ files.
+        # Hooks (which DO have TMUX_PANE) write claude_session_id to instance_projects
+        # at session start — this reverse-lookup finds the correct tmux pane.
         if not instance_id and claude_session_id:
             instance_dir = marker_dir / 'instance_projects'
             if instance_dir.exists():

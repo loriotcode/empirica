@@ -5,15 +5,23 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.7] - 2026-03-16
+
+### Changed
+- **Statusline extension protocol** - Replaced hardcoded CRM/workspace SQL queries with generic file-based extension system. External packages write JSON to `~/.empirica/statusline_ext/*.json`, core reads and displays. Keeps workspace-specific logic (engagements, EKG) in empirica-workspace
+
+### Fixed
+- **Instance isolation docs** - Corrected priority chain documentation across 5 files. Post-1.6.4 doc edits incorrectly described different priorities for tmux vs non-tmux. The code uses the same chain everywhere: `instance_projects` first (authoritative), `active_work` fallback. Removed non-existent "self-healing" claim from SESSION_RESOLVER_API.md
+
 ## [1.6.6] - 2026-03-16
 
 ### Fixed
-- **Non-tmux multi-session isolation** - `instance_projects` is authoritative only for tmux (unique per pane). Non-tmux uses `active_work_{claude_session_id}` as primary (unique per Claude session). Fixes cross-session contamination when running 2+ Claude Code instances in same terminal
+- **Non-tmux multi-session isolation** - `instance_projects` is authoritative in all environments. `active_work_{claude_session_id}` is the per-session fallback. Fixes cross-session contamination when running 2+ Claude Code instances in same terminal
 - **session-init ttyname regression** - Replaced dead `os.ttyname(stdin)` with `get_tty_key()` (PPID walking) in session-init hook. Hooks receive stdin as JSON pipe so ttyname always fails, preventing `claude_session_id` propagation to TTY session files. Regression from `f9d607ed` that reverted fix `07148f9b` (#39)
-- **Statusline project resolution** - Applied same tmux-vs-non-tmux priority chain to statusline script
+- **Statusline project resolution** - Unified project resolution priority: `instance_projects` first in all environments
 
 ### Changed
-- **Instance isolation docs** - Documented stdin pipe constraint, tmux vs non-tmux priority chains, and full 4-iteration fix history for known issue 11.20
+- **Instance isolation docs** - Documented stdin pipe constraint, priority chain, and full 4-iteration fix history for known issue 11.20
 
 ## [1.6.5] - 2026-03-16
 

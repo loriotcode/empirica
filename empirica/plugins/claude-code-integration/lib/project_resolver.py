@@ -58,16 +58,14 @@ def get_instance_id() -> Optional[str]:
         return f"tmux_{tmux_pane.lstrip('%')}"
 
     # Priority 3: macOS Terminal.app session
-    # Use underscore (not colon) to match file naming convention
     term_session = os.environ.get('TERM_SESSION_ID')
     if term_session:
-        return f"term_{term_session[:16]}"
+        return f"term:{term_session[:16]}"
 
     # Priority 4: X11 window ID
-    # Use underscore (not colon) to match file naming convention
     window_id = os.environ.get('WINDOWID')
     if window_id:
-        return f"x11_{window_id}"
+        return f"x11:{window_id}"
 
     return None
 
@@ -179,21 +177,11 @@ def get_active_project_path(claude_session_id: str = None) -> Optional[str]:
             except Exception:
                 pass
 
-    # Priority depends on whether instance_id is truly instance-unique:
-    # TMUX_PANE: unique per pane → instance_projects authoritative
-    # X11/TTY: shared across Claude instances → active_work wins when available
-    is_tmux = instance_id and instance_id.startswith("tmux_")
-
-    if is_tmux and instance_path:
-        return instance_path
-
-    if active_work_path:
-        return active_work_path
-
+    # PRIORITY: instance_projects wins (updated by project-switch)
     if instance_path:
         return instance_path
 
-    # Fallback: active_work (legacy path)
+    # Fallback: active_work
     if active_work_path:
         return active_work_path
 

@@ -332,6 +332,7 @@ def handle_project_bootstrap_command(args):
             result = {
                 "ok": True,
                 "project_id": project_id,
+                "project_name": breadcrumbs.get('project', {}).get('name'),
                 "breadcrumbs": breadcrumbs
             }
             if workflow_suggestions:
