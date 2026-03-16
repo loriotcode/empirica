@@ -56,62 +56,107 @@ def get_ai_id() -> str:
     return os.getenv('EMPIRICA_AI_ID', 'claude-code').strip()
 
 
-def detect_extensions() -> dict:
+def detect_extensions(project_name: Optional[str] = None) -> dict:
     """
-    Detect active Empirica extensions (CRM, WORKSPACE).
+    Detect active Empirica extensions and active engagement context.
 
-    Detection is based on database existence, not Python module imports.
-    This allows extensions to work even if not installed as packages.
+    For workspace projects, queries the entity knowledge graph for the
+    active engagement being worked on. Non-workspace projects (e.g.
+    empirica core) get no extension indicators.
+
+    Args:
+        project_name: Current project name (used to find linked engagements)
 
     Returns:
         {
-            'crm': {'active': bool, 'db_path': str, 'active_client': str|None},
-            'workspace': {'active': bool, 'db_path': str, 'project_count': int},
+            'engagement': {'active': bool, 'title': str|None, 'type': str|None,
+                           'contact': str|None},
+            'workspace': {'active': bool, 'project_count': int},
         }
     """
     import sqlite3
 
     result: dict = {
-        'crm': {'active': False, 'db_path': None, 'active_client': None},
-        'workspace': {'active': False, 'db_path': None, 'project_count': 0},
+        'engagement': {'active': False, 'title': None, 'type': None, 'contact': None},
+        'workspace': {'active': False, 'project_count': 0},
     }
 
-    # Check CRM
-    crm_db = Path.home() / '.empirica' / 'crm' / 'crm.db'
-    if crm_db.exists():
-        result['crm']['active'] = True
-        result['crm']['db_path'] = str(crm_db)
-        try:
-            conn = sqlite3.connect(str(crm_db))
-            cursor = conn.cursor()
-            # Try to get active client from recent engagement
-            cursor.execute("""
-                SELECT c.name FROM clients c
-                JOIN engagements e ON e.client_id = c.client_id
-                WHERE e.status = 'active'
-                ORDER BY e.started_at DESC LIMIT 1
-            """)
-            row = cursor.fetchone()
-            if row:
-                result['crm']['active_client'] = row[0]
-            conn.close()
-        except Exception:
-            pass
-
-    # Check WORKSPACE
     workspace_db = Path.home() / '.empirica' / 'workspace' / 'workspace.db'
-    if workspace_db.exists():
-        result['workspace']['active'] = True
-        result['workspace']['db_path'] = str(workspace_db)
-        try:
-            conn = sqlite3.connect(str(workspace_db))
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM global_projects WHERE status = 'active'")
-            row = cursor.fetchone()
-            result['workspace']['project_count'] = row[0] if row else 0
+    if not workspace_db.exists():
+        return result
+
+    try:
+        conn = sqlite3.connect(str(workspace_db))
+        cursor = conn.cursor()
+
+        # Check workspace project count
+        cursor.execute("SELECT COUNT(*) FROM global_projects WHERE status = 'active'")
+        row = cursor.fetchone()
+        count = row[0] if row else 0
+        if count > 0:
+            result['workspace']['active'] = True
+            result['workspace']['project_count'] = count
+
+        # Check if engagements table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='engagements'")
+        if not cursor.fetchone():
             conn.close()
-        except Exception:
-            pass
+            return result
+
+        # Query active engagement linked to current project
+        # Try engagement_projects junction first, fall back to legacy project_id
+        engagement_row = None
+        if project_name:
+            # Check contacts table existence for JOIN
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='contacts'")
+            has_contacts = bool(cursor.fetchone())
+
+            if has_contacts:
+                try:
+                    cursor.execute("""
+                        SELECT e.title, e.engagement_type, c.display_name
+                        FROM engagements e
+                        LEFT JOIN engagement_projects ep ON e.engagement_id = ep.engagement_id
+                        LEFT JOIN contacts c ON e.contact_id = c.contact_id
+                        WHERE e.status = 'active'
+                        AND (ep.project_id = ? OR e.project_id = ?)
+                        ORDER BY e.started_at DESC LIMIT 1
+                    """, (project_name, project_name))
+                    engagement_row = cursor.fetchone()
+                except Exception:
+                    pass
+
+            # Fall back: any active engagement (no project filter)
+            if not engagement_row:
+                try:
+                    if has_contacts:
+                        cursor.execute("""
+                            SELECT e.title, e.engagement_type, c.display_name
+                            FROM engagements e
+                            LEFT JOIN contacts c ON e.contact_id = c.contact_id
+                            WHERE e.status = 'active'
+                            ORDER BY e.started_at DESC LIMIT 1
+                        """)
+                    else:
+                        cursor.execute("""
+                            SELECT e.title, e.engagement_type, NULL
+                            FROM engagements e
+                            WHERE e.status = 'active'
+                            ORDER BY e.started_at DESC LIMIT 1
+                        """)
+                    engagement_row = cursor.fetchone()
+                except Exception:
+                    pass
+
+        if engagement_row:
+            result['engagement']['active'] = True
+            result['engagement']['title'] = engagement_row[0]
+            result['engagement']['type'] = engagement_row[1]
+            result['engagement']['contact'] = engagement_row[2]
+
+        conn.close()
+    except Exception:
+        pass
 
     return result
 
@@ -120,29 +165,41 @@ def format_extension_indicators(extensions: dict) -> str:
     """
     Format extension indicators for statusline.
 
+    Shows the active engagement being worked on (from entity knowledge graph).
+    Falls back to workspace project count if no engagement is active.
+
     Returns:
-        String like "CRM:Acme WS:27" or "" if no extensions active
+        String like "📋 Acme Demo" or "WS:3" or "" if no extensions active
     """
-    parts = []
+    # Active engagement takes priority
+    eng = extensions.get('engagement', {})
+    if eng.get('active'):
+        title = eng.get('title', '')
+        contact = eng.get('contact')
 
-    if extensions.get('crm', {}).get('active'):
-        client = extensions['crm'].get('active_client')
-        if client:
-            # Truncate client name
-            if len(client) > 8:
-                client = client[:7] + '…'
-            parts.append(f"{Colors.CYAN}CRM:{client}{Colors.RESET}")
+        # Build display: prefer "Contact: Title" if both available, else just title
+        if contact and title:
+            display = f"{contact}: {title}"
+        elif title:
+            display = title
+        elif contact:
+            display = contact
         else:
-            parts.append(f"{Colors.GRAY}CRM{Colors.RESET}")
+            return ''
 
+        # Truncate for statusline
+        if len(display) > 20:
+            display = display[:19] + '…'
+
+        return f"{Colors.CYAN}\U0001F4CB {display}{Colors.RESET}"
+
+    # Fall back to workspace project count (no active engagement)
     if extensions.get('workspace', {}).get('active'):
         count = extensions['workspace'].get('project_count', 0)
         if count > 0:
-            parts.append(f"{Colors.CYAN}WS:{count}{Colors.RESET}")
-        else:
-            parts.append(f"{Colors.GRAY}WS{Colors.RESET}")
+            return f"{Colors.GRAY}WS:{count}{Colors.RESET}"
 
-    return ' '.join(parts)
+    return ''
 
 
 def get_open_counts(db: SessionDatabase, session_id: str, project_id: Optional[str] = None) -> dict:
@@ -1026,6 +1083,12 @@ def build_statusline_data(
             'decision': gate_decision,
         },
         'extensions': extensions or {},
+        'engagement': {
+            'active': (extensions or {}).get('engagement', {}).get('active', False),
+            'title': (extensions or {}).get('engagement', {}).get('title'),
+            'type': (extensions or {}).get('engagement', {}).get('type'),
+            'contact': (extensions or {}).get('engagement', {}).get('contact'),
+        },
         'timestamp': time.time(),
     }
 
@@ -1110,12 +1173,22 @@ def main():
         project_path = None
         is_local_project = False
 
-        # Priority 0: instance_projects (updated by BOTH hooks AND project-switch CLI)
+        # Priority 0: For non-tmux, active_work is authoritative when we have session_id
+        # (instance_projects uses WINDOWID which is shared across Claude instances)
+        # For tmux, instance_projects is authoritative (unique per pane)
+        _sl_inst_id = None
+        _is_tmux = False
         try:
             from empirica.utils.session_resolver import get_instance_id as _sl_get_inst
             import json as _json
             _sl_inst_id = _sl_get_inst()
-            if _sl_inst_id:
+            _is_tmux = _sl_inst_id and _sl_inst_id.startswith("tmux_")
+        except Exception:
+            pass
+
+        # TMUX: instance_projects first (unique per pane, updated by project-switch)
+        if _is_tmux and _sl_inst_id:
+            try:
                 _sl_inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{_sl_inst_id}.json'
                 if _sl_inst_file.exists():
                     with open(_sl_inst_file, 'r') as f:
@@ -1126,10 +1199,10 @@ def main():
                         if _sl_inst_db.exists():
                             project_path = _sl_inst_project
                             is_local_project = True
-        except Exception:
-            pass
+            except Exception:
+                pass
 
-        # Priority 1: active_work file (fallback for non-TMUX environments)
+        # Non-TMUX (or tmux fallback): active_work by session_id (per-session, no cross-talk)
         if not project_path and stdin_claude_session_id:
             try:
                 import json as _json
@@ -1142,6 +1215,22 @@ def main():
                         aw_db = Path(aw_project_path) / '.empirica' / 'sessions' / 'sessions.db'
                         if aw_db.exists():
                             project_path = aw_project_path
+                            is_local_project = True
+            except Exception:
+                pass
+
+        # Non-TMUX fallback: instance_projects (when no session_id available, e.g. CLI)
+        if not project_path and _sl_inst_id and not _is_tmux:
+            try:
+                _sl_inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{_sl_inst_id}.json'
+                if _sl_inst_file.exists():
+                    with open(_sl_inst_file, 'r') as f:
+                        _sl_inst_data = _json.load(f)
+                    _sl_inst_project = _sl_inst_data.get('project_path')
+                    if _sl_inst_project:
+                        _sl_inst_db = Path(_sl_inst_project) / '.empirica' / 'sessions' / 'sessions.db'
+                        if _sl_inst_db.exists():
+                            project_path = _sl_inst_project
                             is_local_project = True
             except Exception:
                 pass
@@ -1287,8 +1376,8 @@ def main():
 
         db.close()
 
-        # Detect extensions (CRM, WORKSPACE)
-        extensions = detect_extensions()
+        # Detect extensions (active engagement, workspace)
+        extensions = detect_extensions(project_name=project_name)
 
         # JSON output for dashboards
         if output_json:
