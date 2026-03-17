@@ -384,8 +384,8 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
     """
     import tempfile
 
-    instance_id = get_instance_id()
-    suffix = f'_{instance_id}' if instance_id else ''
+    from empirica.utils.session_resolver import _get_instance_suffix as _gis_engagement
+    suffix = _gis_engagement()
 
     # Find the transaction file via active_work → project_path → .empirica/
     tx_path = None
@@ -965,8 +965,8 @@ def main():
     current_transaction_id = None
     tx_session_id = None
     if empirica_root:
-        instance_id = get_instance_id()
-        suffix = f'_{instance_id}' if instance_id else ''
+        from empirica.utils.session_resolver import _get_instance_suffix
+        suffix = _get_instance_suffix()
         tx_file = empirica_root / f'active_transaction{suffix}.json'
         if tx_file.exists():
             try:
@@ -1025,6 +1025,15 @@ def main():
             pass
 
     if not session_id:
+        # Priority 2+: TTY session, generic active_work.json, project fallback
+        # Uses canonical resolver which has the full fallback chain
+        try:
+            from empirica.utils.session_resolver import get_active_empirica_session_id
+            session_id = get_active_empirica_session_id(claude_session_id)
+        except Exception:
+            pass
+
+    if not session_id:
         respond("allow", f"WARNING: No session found. Run: empirica session-create --ai-id claude-code && empirica preflight-submit -{env_annotation}")
         sys.exit(0)
 
@@ -1070,8 +1079,8 @@ def main():
         pre_tx_nudge = ""
         counter_file = None
         try:
-            instance_id = get_instance_id()
-            suffix = f"_{instance_id}" if instance_id else ""
+            from empirica.utils.session_resolver import _get_instance_suffix as _gis_pre_tx
+            suffix = _gis_pre_tx()
             counter_file = Path.home() / '.empirica' / f'pre_tx_calls{suffix}.json'
             count = 0
             if counter_file.exists():
@@ -1118,8 +1127,8 @@ def main():
         # Read tool_call_count from transaction file (already loaded above)
         _gl_count = 0
         if empirica_root:
-            _gl_instance_id = get_instance_id()
-            _gl_suffix = f'_{_gl_instance_id}' if _gl_instance_id else ''
+            from empirica.utils.session_resolver import _get_instance_suffix as _gis_gl
+            _gl_suffix = _gis_gl()
             _gl_tx_file = empirica_root / f'active_transaction{_gl_suffix}.json'
             if _gl_tx_file.exists():
                 with open(_gl_tx_file, 'r') as _gl_f:

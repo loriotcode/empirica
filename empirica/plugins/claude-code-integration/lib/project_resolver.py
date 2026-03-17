@@ -256,6 +256,29 @@ def get_active_session_id(claude_session_id: str = None) -> Optional[str]:
             except Exception:
                 pass
 
+    # Priority 4: TTY session (written by session-create, project-switch)
+    try:
+        from empirica.utils.session_resolver import get_tty_session
+        tty_session = get_tty_session()
+        if tty_session:
+            session_id = tty_session.get('empirica_session_id')
+            if session_id:
+                return session_id
+    except Exception:
+        pass
+
+    # Priority 5: Generic active_work.json (written by project-switch, session-init)
+    generic_work = Path.home() / '.empirica' / 'active_work.json'
+    if generic_work.exists():
+        try:
+            with open(generic_work, 'r') as f:
+                data = json.load(f)
+                session_id = data.get('empirica_session_id')
+                if session_id:
+                    return session_id
+        except Exception:
+            pass
+
     return None
 
 

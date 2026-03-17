@@ -1076,8 +1076,10 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
 
     Priority chain:
     1. Active transaction (TRANSACTION-FIRST - transaction survives compaction)
-    2. active_work file (from project-switch/PREFLIGHT)
+    2. active_work_{claude_session_id}.json (session-init writes this)
     3. instance_projects file (TMUX-based fallback)
+    4. TTY session (written by session-create, project-switch)
+    5. Generic active_work.json (written by project-switch, session-init)
 
     Each resolved session_id is validated against the sessions table.
     If stale (post-compaction mismatch), falls back to finding the latest
@@ -1147,6 +1149,38 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
                             logger.warning(f"get_active_empirica_session_id: stale session in instance_projects: {session_id[:8]}...")
             except Exception:
                 pass
+
+    # Priority 4: TTY session (written by session-create, project-switch)
+    tty_session = get_tty_session()
+    if tty_session:
+        session_id = tty_session.get('empirica_session_id')
+        if session_id:
+            if not project_path_for_fallback:
+                project_path_for_fallback = tty_session.get('project_path')
+            if _validate_session_in_db(session_id):
+                logger.debug(f"get_active_empirica_session_id: from tty_session: {session_id[:8]}...")
+                return session_id
+            else:
+                logger.warning(f"get_active_empirica_session_id: stale session in tty_session: {session_id[:8]}...")
+
+    # Priority 5: Generic active_work.json (written by project-switch, session-init)
+    from pathlib import Path
+    generic_work = Path.home() / '.empirica' / 'active_work.json'
+    if generic_work.exists():
+        try:
+            with open(generic_work, 'r') as f:
+                data = json.load(f)
+                session_id = data.get('empirica_session_id')
+                if not project_path_for_fallback:
+                    project_path_for_fallback = data.get('project_path')
+                if session_id:
+                    if _validate_session_in_db(session_id):
+                        logger.debug(f"get_active_empirica_session_id: from active_work.json: {session_id[:8]}...")
+                        return session_id
+                    else:
+                        logger.warning(f"get_active_empirica_session_id: stale session in active_work.json: {session_id[:8]}...")
+        except Exception:
+            pass
 
     # Fallback: all sources returned stale session_ids — try to find valid session for project
     if project_path_for_fallback:
