@@ -879,22 +879,25 @@ def main():
 
     # Rule 3a: SUBAGENT EXEMPTION - subagents don't need their own CASCADE
     # The parent's CHECK already authorized the spawn. Subagents have a different
-    # Claude session_id than the parent (who owns the active_work file).
+    # Claude session_id than the parent (who owns the active_session file).
+    #
+    # Detection: Check if an active_session file exists for this instance.
+    # session-create writes active_session_{instance_suffix} for parent sessions.
+    # Subagents (spawned via Agent tool) never call session-create, so they
+    # won't have this file. This is more reliable than checking active_work_*
+    # which may be missing if session-init failed (bug: all sessions looked
+    # like subagents when session-init failed).
     claude_session_id_early = hook_input.get('session_id')
     if claude_session_id_early:
         try:
-            # Check if this session_id matches ANY active_work file
-            _aw_dir = Path.home() / '.empirica'
-            _is_known_session = False
-            for aw_file in _aw_dir.glob('active_work_*.json'):
-                _aw_sid = aw_file.stem.replace('active_work_', '')
-                if _aw_sid == claude_session_id_early:
-                    _is_known_session = True
-                    break
-            if not _is_known_session:
-                # No active_work file for this session_id — it's a subagent
-                respond("allow", f"Subagent exemption: {tool_name} (no active_work for session)")
+            from empirica.utils.session_resolver import _get_instance_suffix
+            _as_suffix = _get_instance_suffix()
+            _as_file = Path.home() / '.empirica' / f'active_session{_as_suffix}'
+            if not _as_file.exists():
+                # No active_session file for this instance — likely a subagent
+                respond("allow", f"Subagent exemption: {tool_name} (no active_session for instance)")
                 sys.exit(0)
+            # active_session exists → this is a parent session, continue with normal gating
         except Exception:
             pass  # Detection failure → continue with normal sentinel logic
 
