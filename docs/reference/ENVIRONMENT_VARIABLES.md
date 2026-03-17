@@ -95,6 +95,30 @@ Controls PREFLIGHT enrichment (grounded gaps, calibration warnings), CHECK enric
 
 ---
 
+## Claude Code Context Window
+
+| Variable | Purpose | Default | Values |
+|----------|---------|---------|--------|
+| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | Context % threshold for auto-compaction | ~85% | `1`-`100` |
+| `CLAUDE_CODE_DISABLE_1M_CONTEXT` | Disable 1M window, stay on 200K | `0` | `0`, `1` |
+
+**Recommended for Empirica:** Set `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=20` to compact at ~200K
+of the 1M window. This aligns with Empirica's epistemic transaction boundaries — compact
+triggers near POSTFLIGHT, preserving the measurement cycle. The 200K boundary was the
+original design target for CASCADE workflow.
+
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+export CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=20
+```
+
+Without this, the 1M window delays compaction until very late, causing:
+- Epistemic state drift (vectors become meaningless without POSTFLIGHT checkpoints)
+- Degraded recall quality in later context
+- Harder recovery when compact finally triggers
+
+---
+
 ## Automation & Workflow
 
 | Variable | Purpose | Default | Required |

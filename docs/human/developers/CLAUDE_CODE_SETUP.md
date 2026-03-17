@@ -451,7 +451,28 @@ which empirica-mcp
 
 ---
 
-## Step 6: Verify Setup
+## Step 6: Set Context Window (Recommended)
+
+Empirica's CASCADE workflow is designed for ~200K context boundaries. With the
+1M context window, compaction triggers too late — causing epistemic state drift
+and degraded measurement quality.
+
+```bash
+# Add to ~/.bashrc or ~/.zshrc:
+export CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=20
+```
+
+This compacts at ~200K of the 1M window, aligning with epistemic transaction
+boundaries (POSTFLIGHT → compact → clean state for next transaction).
+
+**Alternative:** Disable 1M entirely and stay on 200K:
+```bash
+export CLAUDE_CODE_DISABLE_1M_CONTEXT=1
+```
+
+---
+
+## Step 7: Verify Setup
 
 ```bash
 # Test CLI
