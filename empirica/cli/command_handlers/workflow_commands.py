@@ -2018,14 +2018,12 @@ def handle_postflight_submit_command(args):
             postflight_work_context = None
             try:
                 import time
-                from empirica.utils.session_resolver import write_active_transaction, get_active_project_path
-                from empirica.core.statusline_cache import get_instance_id
+                from empirica.utils.session_resolver import write_active_transaction, get_active_project_path, _get_instance_suffix
                 from pathlib import Path
                 import json as _json
 
                 # Read current transaction with instance suffix (multi-instance isolation)
-                instance_id = get_instance_id()
-                suffix = f"_{instance_id}" if instance_id else ""
+                suffix = _get_instance_suffix()
 
                 # Use canonical project resolution (NO CWD FALLBACK)
                 # Priority 0: instance_projects (TMUX_PANE) — authoritative

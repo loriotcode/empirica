@@ -21,7 +21,7 @@ from pathlib import Path
 from datetime import datetime
 # Import shared utilities from plugin lib
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from project_resolver import get_instance_id, find_project_root  # noqa: E402
+from project_resolver import get_instance_id, _get_instance_suffix, find_project_root  # noqa: E402
 
 
 # Patterns that indicate a message is system-injected, not human input
@@ -224,7 +224,8 @@ def main():
     # active_work/instance_projects get stale between pre and post compact.
     try:
         instance_id = get_instance_id()
-        handoff_file = Path.home() / '.empirica' / f'compact_handoff_{instance_id}.json'
+        handoff_suffix = _get_instance_suffix()
+        handoff_file = Path.home() / '.empirica' / f'compact_handoff{handoff_suffix}.json'
         handoff_data = {
             'project_path': str(project_root),
             'claude_session_id': claude_session_id,
@@ -342,20 +343,15 @@ def main():
     # =========================================================================
     # STEP 0.8: Capture active transaction state (for continuity across compact)
     # =========================================================================
-    # Transaction files are instance-aware: active_transaction_{instance_id}.json
-    # Instance ID comes from TMUX_PANE (e.g., "%4" → "tmux_4")
+    # Transaction files are instance-aware: active_transaction_{suffix}.json
+    # Suffix comes from _get_instance_suffix() which sanitizes ':' → '_'
     active_transaction = None
     try:
-        # Get instance_id from TMUX_PANE
-        tmux_pane = os.environ.get('TMUX_PANE', '')
-        if tmux_pane:
-            instance_id = f"tmux_{tmux_pane.lstrip('%')}"
-        else:
-            # Fallback: try to find any transaction file in the project
-            instance_id = None
+        from project_resolver import _get_instance_suffix
+        suffix = _get_instance_suffix()
 
-        if instance_id:
-            tx_path = project_root / '.empirica' / f'active_transaction_{instance_id}.json'
+        if suffix:
+            tx_path = project_root / '.empirica' / f'active_transaction{suffix}.json'
             if tx_path.exists():
                 with open(tx_path, 'r') as f:
                     active_transaction = json.load(f)

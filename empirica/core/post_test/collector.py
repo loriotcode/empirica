@@ -1215,10 +1215,9 @@ class PostTestCollector:
         The Sentinel's _try_increment_tool_count appends file_path for
         every Edit/Write tool call to the transaction file.
         """
-        from empirica.utils.session_resolver import get_instance_id
+        from empirica.utils.session_resolver import _get_instance_suffix
 
-        instance_id = get_instance_id()
-        suffix = f'_{instance_id}' if instance_id else ''
+        suffix = _get_instance_suffix()
 
         # Try project .empirica/ first, then global
         search_paths = []

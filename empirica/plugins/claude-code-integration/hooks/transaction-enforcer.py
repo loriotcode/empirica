@@ -31,7 +31,7 @@ from typing import Optional
 
 # Import shared utilities from plugin lib
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from project_resolver import get_instance_id  # noqa: E402
+from project_resolver import get_instance_id, _get_instance_suffix  # noqa: E402
 
 
 # Thresholds (can be tuned via env vars)
@@ -54,7 +54,8 @@ def _find_transaction_file(instance_id: str) -> Optional[Path]:
                 data = json.load(f)
             project_path = data.get('project_path')
             if project_path:
-                tx_file = Path(project_path) / '.empirica' / f'active_transaction_{instance_id}.json'
+                suffix = _get_instance_suffix()
+                tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
                 if tx_file.exists():
                     return tx_file
         except Exception:
@@ -67,7 +68,8 @@ def _find_transaction_file(instance_id: str) -> Optional[Path]:
                 data = json.load(f)
             project_path = data.get('project_path')
             if project_path:
-                tx_file = Path(project_path) / '.empirica' / f'active_transaction_{instance_id}.json'
+                suffix = _get_instance_suffix()
+                tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
                 if tx_file.exists():
                     return tx_file
         except Exception:

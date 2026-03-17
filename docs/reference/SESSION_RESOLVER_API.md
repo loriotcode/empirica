@@ -467,12 +467,23 @@ def get_session_empirica_root(session_id: str) -> Optional[Path]
 ### `_get_instance_suffix()`
 
 Get instance-specific filename suffix for file-based tracking.
+Sanitizes special characters (`:`→`_`, `%` removed) for cross-platform filename safety.
 
 ```python
 def _get_instance_suffix() -> str
 ```
 
-Returns `"_tmux_0"` for instance `tmux_0`, or `""` if no instance.
+**Sanitization:** `instance_id.replace(":", "_").replace("%", "")`
+
+| Instance ID | Suffix |
+|-------------|--------|
+| `tmux_0` | `_tmux_0` |
+| `x11:78940210` | `_x11_78940210` |
+| `term:ABC123` | `_term_ABC123` |
+| `None` | `""` |
+
+**Used by:** `active_transaction`, `active_session`, `compact_handoff` file names.
+Also mirrored in `plugins/.../lib/project_resolver.py` for hooks that can't import empirica.
 
 ---
 

@@ -22,7 +22,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from project_resolver import get_instance_id
+from project_resolver import get_instance_id, _get_instance_suffix
 
 LOG_DIR = Path.home() / '.empirica' / 'logs'
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -36,6 +36,7 @@ logger.setLevel(logging.DEBUG)
 def _find_open_transaction(instance_id: str) -> dict | None:
     """Find open transaction for current instance."""
     # Check instance_projects for current project
+    suffix = _get_instance_suffix()
     instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
     if instance_file.exists():
         try:
@@ -43,7 +44,7 @@ def _find_open_transaction(instance_id: str) -> dict | None:
                 data = json.load(f)
             project_path = data.get('project_path')
             if project_path:
-                tx_file = Path(project_path) / '.empirica' / f'active_transaction_{instance_id}.json'
+                tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
                 if tx_file.exists():
                     with open(tx_file) as f:
                         tx_data = json.load(f)
@@ -59,7 +60,7 @@ def _find_open_transaction(instance_id: str) -> dict | None:
                 data = json.load(f)
             project_path = data.get('project_path')
             if project_path:
-                tx_file = Path(project_path) / '.empirica' / f'active_transaction_{instance_id}.json'
+                tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
                 if tx_file.exists():
                     with open(tx_file) as f:
                         tx_data = json.load(f)

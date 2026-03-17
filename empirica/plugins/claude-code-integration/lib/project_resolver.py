@@ -70,6 +70,20 @@ def get_instance_id() -> Optional[str]:
     return None
 
 
+def _get_instance_suffix() -> str:
+    """Get sanitized instance suffix for file names.
+
+    Mirrors empirica.utils.session_resolver._get_instance_suffix().
+    Replaces ':' and '%' which are invalid in filenames on some systems.
+    e.g. 'x11:78940210' -> '_x11_78940210', 'tmux_0' -> '_tmux_0'
+    """
+    instance_id = get_instance_id()
+    if instance_id:
+        safe = instance_id.replace(":", "_").replace("%", "")
+        return f"_{safe}"
+    return ""
+
+
 def detect_environment() -> dict:
     """
     Detect execution environment for Sentinel context awareness.
@@ -215,8 +229,7 @@ def get_active_session_id(claude_session_id: str = None) -> Optional[str]:
 
     # Priority 1: Active transaction
     if project_path:
-        instance_id = get_instance_id()
-        suffix = f"_{instance_id}" if instance_id else ""
+        suffix = _get_instance_suffix()
         tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
         if tx_file.exists():
             try:
@@ -334,7 +347,7 @@ def _scan_workspace_for_project(instance_id: Optional[str]) -> Optional[Path]:
     except Exception:
         return None
 
-    suffix = f"_{instance_id}" if instance_id else ""
+    suffix = _get_instance_suffix()
     best_match = None
     best_mtime = 0
 
@@ -390,11 +403,11 @@ def find_project_root(
         Path to project root, or None if cannot be resolved.
     """
     instance_id = get_instance_id()
-    suffix = f"_{instance_id}" if instance_id else ""
+    suffix = _get_instance_suffix()
 
     # Priority 1: Compact handoff (post-compact only)
     if check_compact_handoff and instance_id:
-        handoff_file = Path.home() / '.empirica' / f'compact_handoff_{instance_id}.json'
+        handoff_file = Path.home() / '.empirica' / f'compact_handoff{suffix}.json'
         data = _read_json_file(handoff_file)
         if data:
             project_path = data.get('project_path')

@@ -1909,11 +1909,9 @@ def handle_calibration_dispute_command(args):
         # Read work_context from active transaction if available
         work_context = None
         try:
-            from empirica.utils.session_resolver import get_active_project_path
-            from empirica.core.statusline_cache import get_instance_id
+            from empirica.utils.session_resolver import get_active_project_path, _get_instance_suffix
             from pathlib import Path
-            instance_id = get_instance_id()
-            suffix = f"_{instance_id}" if instance_id else ""
+            suffix = _get_instance_suffix()
             project_path = get_active_project_path()
             if project_path:
                 tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'

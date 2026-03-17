@@ -832,7 +832,8 @@ def handle_project_switch_command(args):
             if not current_empirica_root:
                 current_empirica_root = get_empirica_root()
             if current_empirica_root:
-                suffix = f"_{instance_id}" if instance_id else ""
+                from empirica.utils.session_resolver import _get_instance_suffix
+                suffix = _get_instance_suffix()
                 tx_path = current_empirica_root / f'active_transaction{suffix}.json'
                 if tx_path.exists():
                     import json as _json

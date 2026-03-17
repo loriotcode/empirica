@@ -24,13 +24,13 @@ _lib_path = Path(__file__).parent.parent / 'lib'
 if str(_lib_path) not in sys.path:
     sys.path.insert(0, str(_lib_path))
 
-from project_resolver import get_instance_id
+from project_resolver import get_instance_id, _get_instance_suffix
 
 
 def _find_transaction_file(claude_session_id: 'str | None' = None) -> 'Path | None':
     """Find the active transaction file using the same priority as sentinel-gate."""
     instance_id = get_instance_id()
-    suffix = f'_{instance_id}' if instance_id else ''
+    suffix = _get_instance_suffix()
 
     # Try 1: active_work file for project_path
     if claude_session_id:

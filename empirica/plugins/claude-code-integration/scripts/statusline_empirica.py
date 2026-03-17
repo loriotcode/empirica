@@ -1242,14 +1242,13 @@ def main():
 
         # TRANSACTION AWARENESS: Read instance-specific active_transaction file
         # IMPORTANT: Uses instance suffix for multi-instance isolation (tmux panes)
-        # The file is named active_transaction_{instance_id}.json, not active_transaction.json
+        # The file is named active_transaction_{suffix}.json where suffix is sanitized (: → _)
         transaction_session_id = None
         transaction_id = None
         try:
-            from empirica.core.statusline_cache import get_instance_id as _get_instance_id
-            instance_id = _get_instance_id()
-            # Build instance-aware filename
-            suffix = f"_{instance_id}" if instance_id else ""
+            from empirica.utils.session_resolver import _get_instance_suffix
+            # Build instance-aware filename (sanitized for non-tmux like x11:N → x11_N)
+            suffix = _get_instance_suffix()
             if project_path:
                 tx_path = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
             else:

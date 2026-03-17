@@ -20,7 +20,7 @@ from pathlib import Path
 from datetime import datetime
 # Import shared utilities from plugin lib
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from project_resolver import get_instance_id, find_project_root  # noqa: E402
+from project_resolver import get_instance_id, _get_instance_suffix, find_project_root  # noqa: E402
 
 # Import epistemic summarizer for confidence-weighted context
 try:
@@ -50,7 +50,7 @@ def _write_active_transaction_for_new_conversation(
         return False
 
     try:
-        suffix = f'_{instance_id}' if instance_id else ''
+        suffix = _get_instance_suffix()
 
         if project_path:
             tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
@@ -357,7 +357,8 @@ def main():
     # Clean up compact handoff — consumed, no longer needed
     try:
         if instance_id:
-            handoff_file = Path.home() / '.empirica' / f'compact_handoff_{instance_id}.json'
+            handoff_suffix = _get_instance_suffix()
+            handoff_file = Path.home() / '.empirica' / f'compact_handoff{handoff_suffix}.json'
             if handoff_file.exists():
                 handoff_file.unlink()
     except Exception:
