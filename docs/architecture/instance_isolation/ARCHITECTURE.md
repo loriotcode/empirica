@@ -10,9 +10,12 @@ Hooks have full context (`claude_session_id` from stdin + `instance_id` from env
 CLI commands, Sentinel, statusline, and MCP are **readers** — they resolve project
 context from files that hooks wrote.
 
-The exceptions are **`project-switch`** and **`session-create`**, which write to
-`instance_projects` and `tty_sessions`. Neither can write `active_work` because they
-don't know `claude_session_id`. This is fine — `instance_projects` is read first.
+The sole exception is **`project-switch`**, which writes to `instance_projects` and
+`tty_sessions` as a **signal** to hooks. It cannot write `active_work` because it
+doesn't know `claude_session_id`. This is fine — `instance_projects` is read first.
+
+`session-create` also updates `instance_projects` with the new `empirica_session_id`
+so that statusline and Sentinel can find the session without waiting for a hook to fire.
 
 ## File Taxonomy
 
@@ -167,16 +170,19 @@ it — only hooks do. This is a fundamental platform limitation.
 |-----------|--------|-------|------------------------|
 | **Hooks** (session-init, post-compact) | `active_work`, `instance_projects`, `tty_sessions` | All | Yes (stdin) |
 | **CLI** (project-switch) | `instance_projects`, `tty_sessions` | All | **No** |
-| **CLI** (session-create) | `instance_projects`, `tty_sessions` | All | **No** |
+| **CLI** (session-create) | `instance_projects`†, `tty_sessions` | All | **No** |
 | **PREFLIGHT** | `active_transaction` | All | No |
 | **Statusline** | Nothing | All | No |
 | **Sentinel** | Nothing | All | Yes (stdin) |
+
+†`session-create` only updates `empirica_session_id` in the existing file — it does
+not set `project_path` or `claude_session_id` (those are set by hooks and project-switch).
 
 **The asymmetry that matters:** Hooks have `claude_session_id` (from stdin).
 CLI commands do not. This means:
 
 - `active_work_{claude_session_id}.json` → **only hooks can write** (need the key)
-- `instance_projects/{instance_id}.json` → **hooks, project-switch, AND session-create can write** (keyed by `get_instance_id()`)
+- `instance_projects/{instance_id}.json` → **hooks AND project-switch set project context** (keyed by `get_instance_id()`); session-create updates session_id only
 - `tty_sessions/pts-N.json` → **hooks AND CLI can write** (keyed by TTY device)
 
 **Therefore instance_projects is the most complete source** — it's updated by every
@@ -211,14 +217,22 @@ SessionStart Hook ──────┐                  Sentinel Hook
               │ active_work      │         MCP Server
               │ tty_sessions     │           │ Same priority chain
               └──────────────────┘
-                      ▲ ▲
-project-switch CLI ───┘ └─── session-create CLI
-  Has: instance_id, TTY       Has: instance_id, TTY
-  Missing: claude_session_id  Missing: claude_session_id
-  Writes:                     Writes:
-  • instance_projects         • instance_projects ← updates session_id
-  • tty_sessions              • tty_sessions
-  • CANNOT write active_work  • CANNOT write active_work
+                        ▲
+project-switch CLI ─────┤
+  Has: instance_id, TTY │
+  Missing: claude_session_id
+  Writes:               │
+  • instance_projects   │  ← signals project change
+  • tty_sessions        │
+  • CANNOT write active_work (no key)
+                        │
+session-create CLI ─────┘
+  Has: instance_id, TTY
+  Missing: claude_session_id
+  Updates:
+  • instance_projects   ← updates empirica_session_id only
+  • tty_sessions
+  • CANNOT write active_work (no key)
 ```
 
 **After project-switch:** `instance_projects` has the new project, `active_work` has
