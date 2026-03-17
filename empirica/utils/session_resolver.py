@@ -658,6 +658,7 @@ def get_active_project_path(claude_session_id: str = None) -> 'Optional[str]':
     Priority chain (NO CWD FALLBACK):
     0. instance_projects/{instance_id}.json - AUTHORITATIVE (updated by hooks AND project-switch CLI)
     1. active_work_{claude_session_id}.json - fallback (only hooks can update, not CLI)
+    2. active_work.json - generic fallback (written by project-switch and session-init)
 
     Rationale: instance_projects is updated by BOTH hooks (session-init, post-compact)
     AND the project-switch CLI command. active_work is ONLY updated by hooks (which
@@ -714,13 +715,28 @@ def get_active_project_path(claude_session_id: str = None) -> 'Optional[str]':
         logger.debug(f"get_active_project_path: from instance_projects: {instance_path}")
         return instance_path
 
-    # Fallback: active_work (for non-TMUX environments where instance_id is None)
+    # Fallback: active_work_{claude_session_id} (for non-TMUX environments where instance_id is None)
     if active_work_path:
-        logger.debug(f"get_active_project_path: from active_work: {active_work_path}")
+        logger.debug(f"get_active_project_path: from active_work_{claude_session_id}: {active_work_path}")
         return active_work_path
 
+    # Priority 2: Generic active_work.json (written by project-switch and session-init)
+    # This handles non-tmux environments where instance_projects doesn't exist
+    # and claude_session_id isn't available (CLI commands without hook context).
+    generic_work_file = Path.home() / '.empirica' / 'active_work.json'
+    if generic_work_file.exists():
+        try:
+            with open(generic_work_file, 'r') as f:
+                data = json.load(f)
+                generic_path = data.get('project_path')
+            if generic_path:
+                logger.debug(f"get_active_project_path: from active_work.json: {generic_path}")
+                return generic_path
+        except Exception:
+            pass
+
     # NO CWD FALLBACK - fail explicitly
-    logger.debug("get_active_project_path: could not resolve (no active_work or instance_projects)")
+    logger.debug("get_active_project_path: could not resolve (no instance_projects, active_work, or active_work.json)")
     return None
 
 

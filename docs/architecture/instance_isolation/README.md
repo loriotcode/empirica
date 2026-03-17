@@ -22,14 +22,15 @@ at the database level. CWD gets reset unpredictably. Which project am I working 
 | Integration | Primary Key | File |
 |-------------|-------------|------|
 | Claude Code (hooks) | `claude_session_id` | `~/.empirica/active_work_{id}.json` |
-| All environments | `get_instance_id()` | `~/.empirica/instance_projects/{instance_id}.json` |
+| Claude Code (tmux) | `TMUX_PANE` | `~/.empirica/instance_projects/tmux_N.json` |
+| All (generic fallback) | None | `~/.empirica/active_work.json` |
 | MCP / Other CLI | TTY device | `~/.empirica/tty_sessions/pts-N.json` |
 | All | Transaction | `{project}/.empirica/active_transaction_{instance}.json` |
 
 ## Key Principles
 
-1. **Hooks write, everything else reads.** Hooks have full context (claude_session_id + instance_id). CLI, Sentinel, statusline are readers. Exception: `project-switch` writes to `instance_projects` as a signal; `session-create` updates the session_id field.
-2. **instance_projects is always authoritative** — writable by hooks and project-switch, checked first in all environments. `active_work` is the fallback when `instance_id` is unavailable.
+1. **Hooks write, everything else reads.** Hooks have full context (claude_session_id + TMUX_PANE). CLI, Sentinel, statusline are readers. Exception: `project-switch` writes to `instance_projects` and `active_work.json` as signals.
+2. **instance_projects is always authoritative** — writable by both hooks AND project-switch, checked first in all environments. `active_work.json` (generic) is the fallback for non-tmux environments.
 3. **Never self-heal between files.** If they disagree after project-switch, that's expected. instance_projects has the newer data.
 4. **CWD is unreliable** — Claude Code resets it unpredictably.
 5. **Fail explicitly** — return None rather than silently using wrong project.

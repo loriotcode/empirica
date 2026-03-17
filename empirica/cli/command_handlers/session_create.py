@@ -390,14 +390,14 @@ def handle_session_create_command(args):
 
                     return None
 
-                # Priority 0a: Check instance_projects (keyed by canonical instance_id)
-                # This is written by project-init, project-switch, and session-create
-                from empirica.utils.session_resolver import get_instance_id as _sc_get_instance_id
-                _sc_instance_id = _sc_get_instance_id()
-                if _sc_instance_id and not early_project_id:
+                # Priority 0a: Check instance_projects (TMUX-keyed, works via Bash tool)
+                # This is written by project-init and project-switch
+                tmux_pane = os.environ.get('TMUX_PANE')
+                if tmux_pane and not early_project_id:
+                    instance_id = f"tmux_{tmux_pane.lstrip('%')}"
                     instance_file = os.path.join(
                         os.path.expanduser('~'), '.empirica',
-                        'instance_projects', f'{_sc_instance_id}.json'
+                        'instance_projects', f'{instance_id}.json'
                     )
                     if os.path.exists(instance_file):
                         with open(instance_file, 'r') as f:
@@ -582,28 +582,6 @@ def handle_session_create_command(args):
             # If no existing_project, skip TTY write rather than pollute with wrong CWD
         except Exception:
             pass  # Non-critical - isolation is best-effort
-
-        # Update instance_projects with the new empirica_session_id
-        # Statusline reads instance_projects first (Priority 0) to find the active session.
-        # Without this update, it finds the old session_id (from project-switch) which may be ended.
-        if instance_id and resolved_project_path:
-            try:
-                instance_dir = Path.home() / '.empirica' / 'instance_projects'
-                instance_dir.mkdir(parents=True, exist_ok=True)
-                instance_file = instance_dir / f'{instance_id}.json'
-                # Read existing data to preserve fields (claude_session_id, tty_key, etc.)
-                existing_inst_data = {}
-                if instance_file.exists():
-                    with open(instance_file, 'r') as f:
-                        existing_inst_data = _json.load(f)
-                existing_inst_data['empirica_session_id'] = session_id
-                existing_inst_data['project_path'] = resolved_project_path
-                import time as _time
-                existing_inst_data['timestamp'] = _time.strftime('%Y-%m-%dT%H:%M:%S%z')
-                with open(instance_file, 'w') as f:
-                    _json.dump(existing_inst_data, f, indent=2)
-            except Exception:
-                pass  # Non-critical
 
         # NOTE: PREFLIGHT must be user-submitted with genuine vectors
         # Do NOT auto-generate - breaks continuity and learning metrics
