@@ -267,14 +267,26 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
                 except Exception:
                     pass
 
-        # Warn if claude_session_id is still null - instance isolation works but active_work
-        # cross-referencing will be limited. Hooks (session-init, post-compact) are responsible
-        # for establishing the claude_session_id linkage.
+        # Reverse-lookup: if we have empirica_session_id but not claude_session_id,
+        # scan active_work_*.json files for one matching our empirica_session_id.
+        # session-init wrote this file with both IDs — we can discover claude_session_id
+        # from existing state without needing it passed as a flag.
+        if not claude_session_id and empirica_session_id:
+            for aw_file in marker_dir.glob('active_work_*.json'):
+                try:
+                    with open(aw_file, 'r') as f:
+                        aw_data = json.load(f)
+                    if aw_data.get('empirica_session_id') == empirica_session_id:
+                        claude_session_id = aw_file.stem.replace('active_work_', '')
+                        logger.debug(f"Resolved claude_session_id={claude_session_id[:12]} from active_work reverse-lookup")
+                        break
+                except Exception:
+                    continue
+
         if not claude_session_id and instance_id:
-            logger.warning(
-                f"claude_session_id unknown for {instance_id}. Instance isolation works via "
-                f"instance_id, but active_work cross-referencing limited. This is normal if "
-                f"called via Bash before any hook established the linkage."
+            logger.debug(
+                f"claude_session_id unknown for {instance_id}. "
+                f"Will update generic active_work.json only."
             )
 
         # Write instance_projects FIRST - works via Bash tool where tty fails
