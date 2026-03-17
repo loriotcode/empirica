@@ -345,7 +345,7 @@ adapts to YOUR actual working patterns, not arbitrary limits.
 Subagents (spawned via Task tool) operate under bounded autonomy:
 
 **CASCADE Exemption:** Subagents bypass the parent's Sentinel gates.
-Detection: if a session has no `active_work_{session_id}.json` file, it's a subagent.
+Detection: if no `active_session_{instance_suffix}` file exists for the instance, it's a subagent.
 Rationale: the parent's CHECK already authorized the spawn — double-gating is redundant.
 
 **Delegated Work Counting:** When a subagent completes (SubagentStop hook):

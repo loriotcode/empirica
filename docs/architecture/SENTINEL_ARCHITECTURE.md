@@ -410,7 +410,7 @@ Nudges are informational — the agent decides when to POSTFLIGHT based on work 
 
 ## Subagent CASCADE Exemption
 
-Subagents bypass Sentinel gating. Detection: no `active_work_{session_id}.json` exists for the subagent's Claude session ID. Rationale: the parent's CHECK already authorized the spawn; double-gating is redundant.
+Subagents bypass Sentinel gating. Detection: no `active_session_{instance_suffix}` file exists for the instance (subagents never call `session-create`). Rationale: the parent's CHECK already authorized the spawn; double-gating is redundant.
 
 Subagent tool calls are counted post-hoc via SubagentStop and added to the parent's `delegated_tool_calls`.
 

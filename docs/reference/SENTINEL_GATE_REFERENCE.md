@@ -26,7 +26,7 @@ Tool Call Arrives
 │
 │  ── Everything below is PRAXIC ──
 │
-├─ Rule 3a: No active_work file for session? ──────── → ALLOW (subagent exemption)
+├─ Rule 3a: No active_session file for instance? ──────── → ALLOW (subagent exemption)
 ├─ Empirica paused (sentinel_paused file)? ────────── → ALLOW (off-record)
 ├─ Sentinel disabled (file flag or env var)? ──────── → ALLOW (disabled)
 │
@@ -231,7 +231,7 @@ When no transaction is open, the Sentinel counts tool calls in a separate counte
 
 ## Subagent Exemption
 
-Subagents (spawned via `Task` tool) bypass the Sentinel gate. Detection: if no `active_work_{session_id}.json` exists for the calling session, it's a subagent.
+Subagents (spawned via `Task` tool) bypass the Sentinel gate. Detection: if no `active_session_{instance_suffix}` file exists for the instance, it's a subagent (subagents never call `session-create`).
 
 Rationale: The parent's CHECK already authorized the spawn. Double-gating is redundant (see CASCADE Exemption in CANONICAL_CORE.md).
 

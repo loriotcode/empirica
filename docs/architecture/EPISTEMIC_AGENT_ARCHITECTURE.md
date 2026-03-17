@@ -277,7 +277,7 @@ reputation = reputation_seed + (Σ import_successes / Σ imports) × 0.5
 | Item | Status | Implementation |
 |------|--------|----------------|
 | Autonomy calibration loop | ✅ Done | Sentinel tracks `tool_call_count` per transaction, PREFLIGHT calculates `avg_turns` from history, nudges at 1x/1.5x/2x thresholds. See [SENTINEL_ARCHITECTURE.md](./SENTINEL_ARCHITECTURE.md#autonomy-calibration-loop). |
-| Subagent CASCADE exemption | ✅ Done | Subagents (no `active_work` file) bypass Sentinel gates. Parent CHECK authorizes spawn. See [SENTINEL_ARCHITECTURE.md](./SENTINEL_ARCHITECTURE.md#subagent-cascade-exemption). |
+| Subagent CASCADE exemption | ✅ Done | Subagents (no `active_session` file) bypass Sentinel gates. Parent CHECK authorizes spawn. See [SENTINEL_ARCHITECTURE.md](./SENTINEL_ARCHITECTURE.md#subagent-cascade-exemption). |
 | Subagent governance | ✅ Done | Delegated work counting (SubagentStop transcript parsing), pre-spawn budget check (SubagentStart), `maxTurns: 25` default ceiling on all agents. |
 | Stale transaction detection | ✅ Done | Status-only purge (`status != "open"`). No time-based eviction — overnight sessions survive. |
 | Automatic branch pruning | ❌ Not started | Sentinel prunes low-merge-score branches |
