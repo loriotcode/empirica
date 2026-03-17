@@ -192,9 +192,13 @@ EOF
 
 If outside tmux or pane detection fails:
 ```bash
-# Manually set instance ID
+# Manually set instance ID (per-terminal only, NOT in .bashrc/.profile)
 export EMPIRICA_INSTANCE_ID=manual_1
 ```
+
+> **Warning:** Do NOT set `EMPIRICA_INSTANCE_ID` globally (e.g., in `.bashrc` or `.profile`).
+> It overrides `TMUX_PANE`, so all panes would share the same instance — breaking pane isolation.
+> Only set it per-terminal in non-tmux environments where auto-detection fails.
 
 ---
 

@@ -589,8 +589,17 @@ def get_instance_id() -> Optional[str]:
     import os
 
     # Priority 1: Explicit override (EMPIRICA or CLAUDE)
+    # WARNING: This overrides TMUX_PANE. Only use in non-tmux environments (CI, containers).
+    # Setting this globally (e.g. in .bashrc) while using tmux will collapse all panes
+    # to one instance, breaking pane isolation.
     explicit_id = os.environ.get('EMPIRICA_INSTANCE_ID') or os.environ.get('CLAUDE_INSTANCE_ID')
     if explicit_id:
+        tmux_pane = os.environ.get('TMUX_PANE')
+        if tmux_pane:
+            logger.warning(
+                f"EMPIRICA_INSTANCE_ID='{explicit_id}' overrides TMUX_PANE='{tmux_pane}'. "
+                f"This breaks per-pane isolation. Unset EMPIRICA_INSTANCE_ID if using tmux."
+            )
         logger.debug(f"Using explicit instance_id: {explicit_id}")
         return explicit_id
 
