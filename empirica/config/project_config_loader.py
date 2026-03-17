@@ -20,6 +20,8 @@ class ProjectConfig:
     VALID_TYPES = [
         'software', 'content', 'research', 'data', 'design',
         'operations', 'strategic', 'engagement', 'legal',
+        # Legacy types (backward compat with v1.x project.yaml files)
+        'product', 'application', 'feature', 'documentation', 'infrastructure',
     ]
 
     VALID_CLASSIFICATIONS = ['open', 'internal', 'restricted']

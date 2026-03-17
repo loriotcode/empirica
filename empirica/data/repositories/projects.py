@@ -56,9 +56,9 @@ class ProjectRepository(BaseRepository):
 
         # Validate project_type
         if project_type and project_type not in self.PROJECT_TYPES:
-            logger.warning(f"Unknown project_type '{project_type}', defaulting to 'product'")
-            project_type = 'product'
-        project_type = project_type or 'product'
+            logger.warning(f"Unknown project_type '{project_type}', defaulting to 'software'")
+            project_type = 'software'
+        project_type = project_type or 'software'
 
         project_data = {
             "name": name,
