@@ -78,7 +78,16 @@ compaction). Hooks use `get_active_project_path()` which reads `instance_project
 
 ---
 
-## Multi-Pane tmux Setup
+## Running Multiple Instances
+
+### Recommended: tmux or separate windows
+
+For multi-project work, use **tmux panes** or **separate terminal windows**.
+Avoid running multiple Claude Code instances in **tabs of the same terminal**
+— tabs share the same `WINDOWID` which causes cross-session contamination.
+See [ARCHITECTURE.md](./ARCHITECTURE.md#multi-instance-without-tmux) for details.
+
+### tmux Setup
 
 If you run multiple Claude Code instances in tmux panes:
 

@@ -459,11 +459,11 @@ and degraded measurement quality.
 
 ```bash
 # Add to ~/.bashrc or ~/.zshrc:
-export CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=20
+export CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=30
 ```
 
-This compacts at ~200K of the 1M window, aligning with epistemic transaction
-boundaries (POSTFLIGHT → compact → clean state for next transaction).
+This compacts at ~300K of the 1M window, giving room for deep investigation
+while keeping epistemic transaction boundaries manageable.
 
 **Alternative:** Disable 1M entirely and stay on 200K:
 ```bash

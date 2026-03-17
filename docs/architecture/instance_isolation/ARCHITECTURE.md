@@ -125,6 +125,44 @@ other CLI resolution paths.
 
 ---
 
+## Multi-Instance Without tmux
+
+The isolation mechanism depends on each Claude Code instance getting a unique
+`instance_id`. How this works varies by terminal setup:
+
+| Setup | Isolation | Why |
+|-------|-----------|-----|
+| **tmux panes** | ✅ Full | Each pane has unique `TMUX_PANE` → unique `instance_projects/tmux_N.json` |
+| **Separate terminal windows** | ✅ Full | Each window has unique `WINDOWID` → unique `instance_projects/x11_N.json` |
+| **Tabs in same terminal** | ⚠️ Shared | Tabs share the same `WINDOWID` → same `instance_projects` file → last writer wins |
+| **Single terminal** | ✅ N/A | Only one instance, no conflict |
+
+### Tabs in Same Terminal (Known Limitation)
+
+Multiple Claude Code instances running in **tabs of the same terminal emulator**
+(e.g., GNOME Terminal tabs, iTerm2 tabs) share the same X11 `WINDOWID`. This
+means `project-switch` in one tab overwrites the `instance_projects` file for
+all tabs in that window. The `active_work.json` (generic, no session suffix)
+is also shared.
+
+**Symptoms:**
+- Statusline shows wrong project after switching in another tab
+- Sentinel may gate based on wrong project's transaction state
+- `project-bootstrap` loads context from wrong project
+
+**Workarounds:**
+1. **Use separate terminal windows** (not tabs) — each gets its own `WINDOWID`
+2. **Use tmux** — each pane gets its own `TMUX_PANE`, purpose-built for this
+3. **Single project per terminal window** — avoid `project-switch` across tabs
+
+**Why not fix this?** Tabs in the same terminal share the same X11 window ID at
+the OS level. There is no environment variable or file descriptor that uniquely
+identifies a tab. The `claude_session_id` (from Claude Code's stdin) IS unique
+per instance, but CLI commands (including `project-switch`) don't have access to
+it — only hooks do. This is a fundamental platform limitation.
+
+---
+
 ## Ownership Model
 
 | Component | Writes | Reads | Has claude_session_id? |

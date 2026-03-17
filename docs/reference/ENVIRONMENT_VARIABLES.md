@@ -102,15 +102,19 @@ Controls PREFLIGHT enrichment (grounded gaps, calibration warnings), CHECK enric
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | Context % threshold for auto-compaction | ~85% | `1`-`100` |
 | `CLAUDE_CODE_DISABLE_1M_CONTEXT` | Disable 1M window, stay on 200K | `0` | `0`, `1` |
 
-**Recommended for Empirica:** Set `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=20` to compact at ~200K
-of the 1M window. This aligns with Empirica's epistemic transaction boundaries — compact
-triggers near POSTFLIGHT, preserving the measurement cycle. The 200K boundary was the
-original design target for CASCADE workflow.
+**Recommended for Empirica:** Set `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=30` to compact at ~300K
+of the 1M window. This gives enough room for deep investigation while keeping epistemic
+transactions bounded. The 200K boundary was the original design target — 300K provides
+headroom for research-heavy sessions while still forcing measurement checkpoints.
 
 ```bash
 # Add to ~/.bashrc or ~/.zshrc
-export CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=20
+export CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=30
 ```
+
+**Tuning:** Monitor calibration accuracy across sessions. If grounded calibration degrades
+past 300K, reduce to 20% (200K). If transactions consistently close well before compact,
+you can increase. The Empirica calibration-report tracks this automatically.
 
 Without this, the 1M window delays compaction until very late, causing:
 - Epistemic state drift (vectors become meaningless without POSTFLIGHT checkpoints)
