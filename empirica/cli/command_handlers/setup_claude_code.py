@@ -337,14 +337,14 @@ def handle_setup_claude_code_command(args):
         if not _hook_exists(settings['hooks']['SessionStart'], 'post-compact.py'):
             settings['hooks']['SessionStart'].extend([
                 {
-                    "matcher": "compact|resume",
+                    "matcher": "compact",
                     "hooks": [
                         {"type": "command", "command": postcompact_script, "timeout": 30},
                         {"type": "command", "command": ewm_script, "timeout": 10, "allowFailure": True}
                     ]
                 },
                 {
-                    "matcher": "startup",
+                    "matcher": "startup|resume",
                     "hooks": [
                         {"type": "command", "command": sessioninit_script, "timeout": 30},
                         {"type": "command", "command": ewm_script, "timeout": 10, "allowFailure": True}
