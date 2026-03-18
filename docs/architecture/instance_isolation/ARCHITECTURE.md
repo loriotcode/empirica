@@ -6,269 +6,180 @@ Core concepts and file taxonomy for multi-instance isolation.
 
 > **Hooks write. Everything else reads.**
 
-Hooks have full context (`claude_session_id` from stdin + `TMUX_PANE` from env).
+Hooks have full context (`claude_session_id` from stdin + env vars like `TMUX_PANE`, `WINDOWID`).
 CLI commands, Sentinel, statusline, and MCP are **readers** — they resolve project
 context from files that hooks wrote.
 
-The sole exception is **`project-switch`**, which writes to `instance_projects`,
-`active_work.json`, and `tty_sessions` as a **signal** to hooks. It cannot write
-`active_work_{claude_session_id}.json` because it doesn't know `claude_session_id`.
-This is fine — `instance_projects` is read first, with `active_work.json` as fallback.
+**Exception:** `project-switch` writes to `instance_projects`, `active_work.json`,
+`active_session`, and `tty_sessions` as **signals**. It discovers `claude_session_id`
+via reverse-lookup of `active_work_*.json` files.
+
+## Unified API
+
+All resolution goes through **`InstanceResolver`** (v1.6.9+):
+
+```python
+from empirica.utils.session_resolver import InstanceResolver
+r = InstanceResolver()
+r.project_path()       # → "/home/user/my-project" or None
+r.session_id()         # → "2bc1da78-..." or None
+r.instance_id()        # → "x11:77639996" or None
+r.instance_suffix()    # → "_x11_77639996" (sanitized for filenames)
+r.transaction_read()   # → {"transaction_id": ..., "status": "open"} or None
+```
+
+Hook-side mirror in `project_resolver.py` delegates to canonical with fallback:
+```python
+from project_resolver import InstanceResolver  # hooks can use this too
+```
+
+All existing module-level functions (`get_active_project_path()`, etc.) remain as
+backward-compatible aliases.
 
 ## File Taxonomy
 
-### 1. Instance Projects (tmux) — PRIMARY
+### 1. Instance Projects — PRIMARY
 
-**Location:** `~/.empirica/instance_projects/tmux_N.json`
-**Key:** `TMUX_PANE` environment variable (e.g., `%4` → `tmux_4`)
+**Location:** `~/.empirica/instance_projects/{instance_id}.json`
+**Key:** `instance_id` from env (`tmux_4`, `x11:77639996`, `term:ABC`)
 **Written by:** Hooks (session-init, post-compact) AND `project-switch` CLI
-**Read by:** Everyone (hooks, CLI, statusline, Sentinel)
 
 ```json
 {
   "project_path": "/home/user/my-project",
-  "claude_session_id": "fad66571-1bde-4ee1-aa0d-e9d3dfd8e833",
-  "empirica_session_id": "2bc1da78-2a28-4745-b75b-f021d563d819",
-  "timestamp": "2026-02-13T01:00:00"
+  "claude_session_id": "fad66571-...",
+  "empirica_session_id": "2bc1da78-...",
+  "timestamp": "2026-03-18T12:00:00"
 }
 ```
 
-**Purpose:** Links tmux pane → project. **Most current source** because it's the only
-file writable by both hooks AND the project-switch CLI. In TMUX environments this is
-the authoritative source.
-
-### 2. Active Work Files (Claude Code) — FALLBACK
+### 2. Active Work Files — FALLBACK
 
 **Location:** `~/.empirica/active_work_{claude_session_id}.json`
 **Key:** Claude Code conversation UUID (from hook stdin)
-**Written by:** Hooks ONLY (session-init, post-compact)
+**Written by:** Hooks (session-init, post-compact); project-switch via reverse-lookup
 
 ```json
 {
   "project_path": "/home/user/my-project",
-  "folder_name": "my-project",
-  "claude_session_id": "fad66571-1bde-4ee1-aa0d-e9d3dfd8e833",
-  "empirica_session_id": "2bc1da78-2a28-4745-b75b-f021d563d819",
-  "source": "post-compact",
-  "timestamp": "2026-02-13T01:00:00"
+  "claude_session_id": "fad66571-...",
+  "empirica_session_id": "2bc1da78-...",
+  "source": "session-init",
+  "timestamp_epoch": 1773832425.76
 }
 ```
 
-**Purpose:** Links Claude conversation → project. Fallback for non-TMUX environments
-where `instance_id` is unavailable. **Cannot be updated by project-switch** (CLI
-doesn't know claude_session_id), so may be stale after a project-switch.
+### 3. Active Work (Generic) — LAST RESORT
 
-### 3. TTY Sessions (CLI/MCP)
+**Location:** `~/.empirica/active_work.json`
+**Written by:** project-switch, session-init
+**Staleness:** Rejected if >4 hours old (prevents stale fallback after reboot)
 
-**Location:** `~/.empirica/tty_sessions/pts-N.json`
-**Key:** TTY device name (from `tty` command)
-**Written by:** CLI commands (session-create, project-switch)
+### 4. Active Session Files — STATUSLINE
 
-```json
-{
-  "claude_session_id": null,
-  "empirica_session_id": "2bc1da78-2a28-4745-b75b-f021d563d819",
-  "project_path": "/home/user/my-project",
-  "tty_key": "pts-6",
-  "timestamp": "2026-02-06T16:18:42",
-  "pid": 1900034
-}
-```
+**Location:** `~/.empirica/active_session_{suffix}` (sanitized suffix)
+**Written by:** session-create, project-switch
+**Read by:** Statusline (to find correct project DB)
 
-**Purpose:** Links terminal → project. Primary isolation for non-Claude-Code users (MCP, direct CLI).
+### 5. Transaction Files — PER-PROJECT
 
-### 4. Transaction Files (Per-Project)
+**Location:** `{project}/.empirica/active_transaction_{suffix}.json`
+**Key:** Sanitized instance suffix (`_x11_77639996`, `_tmux_0`)
+**Written by:** PREFLIGHT (opens), POSTFLIGHT (closes)
 
-**Location:** `{project}/.empirica/active_transaction_{instance_id}.json`
-**Key:** `instance_id` (e.g., `tmux_4`, `term_pts_6`, `default`)
-**Written by:** PREFLIGHT command
-
-```json
-{
-  "transaction_id": "e04ad48e-3c2b-48ef-96be-5ebcf86746c6",
-  "session_id": "2bc1da78-2a28-4745-b75b-f021d563d819",
-  "preflight_timestamp": 1770391133.159,
-  "status": "open",
-  "project_path": "/home/user/my-project"
-}
-```
-
-**Purpose:** Tracks open epistemic transaction. Survives memory compaction.
+**Suffix sanitization:** `:` → `_`, `%` removed. e.g. `x11:77639996` → `_x11_77639996`.
+All readers and writers use `_get_instance_suffix()` for consistency.
 
 ---
 
 ## Resolution Priority Chain
 
-All components use `get_active_project_path()` — the single canonical function.
-
 ```
-Priority 0: instance_projects/tmux_N.json    (TMUX_PANE → instance_id)
-    ↓
-Priority 1: active_work_{claude_session_id}.json  (fallback, requires claude_session_id)
-    ↓
-Priority 2: active_work.json                      (generic fallback, written by project-switch)
-    ↓
-❌ NO CWD FALLBACK - return None, fail explicitly
+Project Path (get_active_project_path):
+  P0: instance_projects/{instance_id}.json   (tmux, x11, tty)
+  P1: active_work_{claude_session_id}.json   (requires claude_session_id)
+  P2: active_work.json                       (staleness check: >4h rejected)
+  ❌ NO CWD FALLBACK — return None
+
+Session ID (get_active_empirica_session_id):
+  P1: active_transaction file                (survives compaction)
+  P2: active_work_{claude_session_id}.json
+  P3: instance_projects/{instance_id}.json
+  P4: tty_sessions/{tty_key}.json
+  P5: active_work.json
+  P6: DB fallback (latest session for project)
+
+Instance ID (get_instance_id):
+  1: EMPIRICA_INSTANCE_ID env var
+  2: TMUX_PANE (e.g. %4 → tmux_4)
+  3: TERM_SESSION_ID (macOS Terminal)
+  4: WINDOWID (X11, e.g. → x11:77639996)
+  5: TTY device (e.g. → term_pts_6)
+  6: None
 ```
-
-**Why instance_projects first:** It's the only file writable by BOTH hooks AND
-project-switch CLI. After `project-switch`, instance_projects reflects user intent
-immediately. `active_work` may be stale (only hooks can update it, and no hook
-fires between project-switch and the next tool use).
-
-**Why no self-heal:** If the two files disagree after project-switch, that's
-expected and correct — instance_projects has the newer data. No file should
-overwrite another. The disagreement resolves naturally when the next SessionStart
-hook fires and writes both files consistently.
-
-**Non-TMUX environments:** `instance_id` may be non-None (e.g. `x11:N`) but
-instance_projects won't exist (only tmux writes it). Falls through Priority 1
-(requires claude_session_id from hooks) to Priority 2: generic `active_work.json`
-which project-switch always writes. This ensures CLI commands work in X11/TTY
-environments without changing the tmux-centric writer model.
 
 ---
 
-## Multi-Instance Without tmux
+## SessionStart Hook Routing
 
-The isolation mechanism depends on each Claude Code instance getting a unique
-`instance_id`. How this works varies by terminal setup:
+```
+SessionStart event type:
+  "startup"  → session-init.py (creates new session + anchor files)
+  "resume"   → session-init.py (detects existing session, updates anchors for new terminal)
+  "compact"  → post-compact.py (context recovery after memory compaction)
+```
 
-| Setup | Isolation | Why |
-|-------|-----------|-----|
-| **tmux panes** | ✅ Full | Each pane has unique `TMUX_PANE` → unique `instance_projects/tmux_N.json` |
-| **Separate terminal windows** | ✅ Full | Each window has unique `WINDOWID` → unique `instance_projects/x11_N.json` |
-| **Tabs in same terminal** | ⚠️ Shared | Tabs share the same `WINDOWID` → same `instance_projects` file → last writer wins |
-| **Single terminal** | ✅ N/A | Only one instance, no conflict |
-
-### Tabs in Same Terminal (Known Limitation)
-
-Multiple Claude Code instances running in **tabs of the same terminal emulator**
-(e.g., GNOME Terminal tabs, iTerm2 tabs) share the same X11 `WINDOWID`. This
-means `project-switch` in one tab overwrites the `instance_projects` file for
-all tabs in that window. The `active_work.json` (generic, no session suffix)
-is also shared.
-
-**Symptoms:**
-- Statusline shows wrong project after switching in another tab
-- Sentinel may gate based on wrong project's transaction state
-- `project-bootstrap` loads context from wrong project
-
-**Workarounds:**
-1. **Use separate terminal windows** (not tabs) — each gets its own `WINDOWID`
-2. **Use tmux** — each pane gets its own `TMUX_PANE`, purpose-built for this
-3. **Single project per terminal window** — avoid `project-switch` across tabs
-
-**Why not fix this?** Tabs in the same terminal share the same X11 window ID at
-the OS level. There is no environment variable or file descriptor that uniquely
-identifies a tab. The `claude_session_id` (from Claude Code's stdin) IS unique
-per instance, but CLI commands (including `project-switch`) don't have access to
-it — only hooks do. This is a fundamental platform limitation.
+On **resume** (continued conversation in new terminal), session-init:
+1. Detects existing session via active_work, active_session, or DB scan
+2. Updates anchor files (instance_projects, active_work) for the new WINDOWID
+3. Does NOT create a duplicate session
 
 ---
 
 ## Ownership Model
 
-| Component | Writes | Reads | Has claude_session_id? |
-|-----------|--------|-------|------------------------|
-| **Hooks** (session-init, post-compact) | `active_work`, `instance_projects`, `tty_sessions` | All | Yes (stdin) |
-| **CLI** (project-switch) | `instance_projects`, `tty_sessions` | All | **No** |
-| **CLI** (session-create) | `tty_sessions` | All | **No** |
-| **PREFLIGHT** | `active_transaction` | All | No |
-| **Statusline** | Nothing | All | No |
-| **Sentinel** | Nothing | All | Yes (stdin) |
-
-**The asymmetry that matters:** Hooks have `claude_session_id` (from stdin).
-CLI commands do not. This means:
-
-- `active_work_{claude_session_id}.json` → **only hooks can write** (need the key)
-- `instance_projects/tmux_N.json` → **hooks AND project-switch can write** (keyed by TMUX_PANE)
-- `active_work.json` → **project-switch AND session-init can write** (generic, no key needed)
-- `tty_sessions/pts-N.json` → **hooks AND CLI can write** (keyed by TTY device)
-
-**Therefore instance_projects is the most complete source** — it's updated by every
-writer in the system. active_work can go stale after project-switch because the CLI
-can't update it.
-
-**NEVER self-heal between files.** If `active_work` and `instance_projects` disagree,
-instance_projects is more current (it was updated by project-switch). Overwriting
-instance_projects from active_work reverses the user's project-switch — this was
-bug #11.14.
+| Component | Writes | Has claude_session_id? |
+|-----------|--------|------------------------|
+| **Hooks** (session-init, post-compact) | active_work, instance_projects, active_session, tty_sessions | Yes (stdin) |
+| **CLI** (project-switch) | instance_projects, active_session, active_work.json, active_work_{uuid} (via reverse-lookup) | Via reverse-lookup |
+| **CLI** (session-create) | active_session, tty_sessions | No |
+| **PREFLIGHT/POSTFLIGHT** | active_transaction | No |
+| **Statusline** | Nothing | No |
+| **Sentinel** | Nothing | Yes (stdin) |
 
 ---
 
-## Data Flow Diagram
+## Multi-Instance Environments
 
-```
-WRITERS                                    READERS
-───────                                    ───────
+| Setup | Isolation | Key |
+|-------|-----------|-----|
+| **tmux panes** | Full | `TMUX_PANE` → unique instance_projects |
+| **Separate terminal windows** | Full | `WINDOWID` → unique instance_projects |
+| **Tabs in same terminal** | Shared | Same `WINDOWID` → last writer wins |
+| **Single terminal** | N/A | Only one instance |
 
-SessionStart Hook ──────┐                  Sentinel Hook
-  Has: claude_session_id│                    │ Reads instance_projects (P0)
-  Has: TMUX_PANE        │                    │ Falls back to active_work (P1, P2)
-  Writes:               │                    │ Resolves → project_path
-  • active_work         │                    │
-  • instance_projects   │                  Statusline
-  • tty_sessions        │                    │ Same priority chain
-                        ▼                    │
-              ┌──────────────────┐         CLI Commands
-              │ Isolation Files  │           │ Same priority chain
-              │                  │◄──────────┤
-              │ instance_projects│           │
-              │ active_work      │         MCP Server
-              │ tty_sessions     │           │ Same priority chain
-              └──────────────────┘
-                        ▲
-project-switch CLI ─────┘
-  Has: TMUX_PANE, TTY
-  Missing: claude_session_id
-  Writes:
-  • instance_projects  ← signals project change (tmux only)
-  • active_work.json   ← generic fallback (always written)
-  • tty_sessions       ← signals project change
-  • CANNOT write active_work_{id} (no key)
-```
-
-**After project-switch:** In tmux, `instance_projects` has the new project. In all
-environments, `active_work.json` has the new project. `active_work_{session_id}` has
-the old project (stale until next hook). `instance_projects` is read first, so the correct
-project is used. `active_work` gets updated when the next SessionStart hook fires.
+**Tabs limitation:** Multiple Claude Code instances in tabs of the same terminal
+share the same `WINDOWID`. Use separate windows or tmux for full isolation.
 
 ---
 
-## Key Functions
+## Key Functions (all in `session_resolver.py`)
 
-| Function | Location | Purpose |
-|----------|----------|---------|
-| `get_active_project_path()` | session_resolver.py | **CANONICAL** - project resolution |
-| `get_instance_id()` | session_resolver.py | Get instance ID (tmux_N, x11, term_pts-N, or None) |
-| `get_tty_key()` | session_resolver.py | Get TTY device name |
-| `read_active_transaction()` | session_resolver.py | Read transaction file |
-| `write_tty_session()` | session_resolver.py | Write TTY session file |
-
----
-
-## Design Decisions
-
-### No File-Based Statusline Caching
-
-**Decision (2026-02-06):** Removed file-based statusline caching.
-
-**Rationale:**
-- Statusline only refreshes on PREFLIGHT/CHECK/POSTFLIGHT (not every second)
-- DB queries are fast (local SQLite)
-- Cache caused stale data bugs when projects changed
-- Single source of truth (DB) is simpler and more reliable
-
-**What remains:**
-- TTY session files (not cache — actual session linkage)
-- Transaction files (not cache — transaction state)
-- Instance project files (not cache — pane-to-project mapping)
+| Function | Purpose |
+|----------|---------|
+| `InstanceResolver` | **Unified class API** — groups all below |
+| `get_active_project_path()` | Project resolution (canonical) |
+| `get_active_empirica_session_id()` | Session resolution (canonical) |
+| `get_instance_id()` | Instance identity |
+| `_get_instance_suffix()` | Sanitized filename suffix |
+| `write_active_transaction()` | Transaction file write (atomic) |
+| `read_active_transaction_full()` | Transaction file read |
 
 ---
 
 ## Related Documentation
 
-- [CLAUDE_CODE.md](./CLAUDE_CODE.md) - Claude Code specific patterns (includes compaction flow)
+- [CLAUDE_CODE.md](./CLAUDE_CODE.md) - Claude Code specific patterns
 - [MCP_AND_CLI.md](./MCP_AND_CLI.md) - MCP/CLI integration patterns
 - [KNOWN_ISSUES.md](./KNOWN_ISSUES.md) - Bug history and debugging
+- [SESSION_RESOLVER_API.md](../../reference/SESSION_RESOLVER_API.md) - Full API reference
