@@ -204,13 +204,7 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
             json.dump(instance_data, f, indent=2)
         os.chmod(instance_file, 0o600)
 
-        # Write session-specific active_work file (with claude_session_id suffix if available)
-        if claude_session_id:
-            active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
-        else:
-            # Fallback: write to generic active_work.json so statusline can find it
-            active_work_file = Path.home() / '.empirica' / 'active_work.json'
-
+        # Write session-specific active_work file (with claude_session_id suffix)
         folder_name = Path(project_path).name
         active_work_data = {
             'project_path': project_path,
@@ -218,11 +212,23 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
             'claude_session_id': claude_session_id,
             'empirica_session_id': empirica_session_id,
             'source': 'session-init',
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'timestamp_epoch': datetime.now().timestamp()
         }
-        with open(active_work_file, 'w') as f:
-            json.dump(active_work_data, f, indent=2)
-        os.chmod(active_work_file, 0o600)
+
+        if claude_session_id:
+            active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
+            with open(active_work_file, 'w') as f:
+                json.dump(active_work_data, f, indent=2)
+            os.chmod(active_work_file, 0o600)
+
+        # Generic active_work.json only in headless mode (no terminal identity)
+        # In interactive mode, instance_projects + active_work_{uuid} handle everything
+        if not instance_id and not claude_session_id:
+            generic_file = Path.home() / '.empirica' / 'active_work.json'
+            with open(generic_file, 'w') as f:
+                json.dump(active_work_data, f, indent=2)
+            os.chmod(generic_file, 0o600)
 
         # Also write claude_session_id to TTY session file if available.
         # CLI commands (session-create) write TTY session but WITHOUT claude_session_id

@@ -148,6 +148,45 @@ class InstanceResolver:
         """Remove orphaned instance_projects files."""
         return cleanup_stale_instance_projects()
 
+    # --- Mode Detection ---
+
+    @staticmethod
+    def is_headless() -> bool:
+        """Check if running in headless/containerized mode.
+
+        Headless = no terminal identity available. In this mode:
+        - active_work.json is the primary project resolution file
+        - instance_projects is not used (no instance to key on)
+        - Statusline is not needed
+        """
+        return is_headless()
+
+
+# =============================================================================
+# Headless Mode Detection
+# =============================================================================
+
+def is_headless() -> bool:
+    """Detect headless/containerized mode.
+
+    Returns True when no terminal identity exists (no TMUX_PANE, WINDOWID,
+    TTY, etc.). Can be forced via EMPIRICA_HEADLESS=true env var.
+
+    In headless mode:
+    - active_work.json is primary (no instance_projects)
+    - Statusline is disabled
+    - Single-instance assumption (no multi-pane isolation)
+    """
+    # Explicit override
+    explicit = os.environ.get('EMPIRICA_HEADLESS', '').lower()
+    if explicit in ('true', '1', 'yes'):
+        return True
+    if explicit in ('false', '0', 'no'):
+        return False
+
+    # Auto-detect: headless if get_instance_id() returns None
+    return get_instance_id() is None
+
 
 # =============================================================================
 # TTY-based Session Isolation (Multi-Instance Support)
@@ -839,27 +878,28 @@ def get_active_project_path(claude_session_id: str = None) -> 'Optional[str]':
         logger.debug(f"get_active_project_path: from active_work_{claude_session_id}: {active_work_path}")
         return active_work_path
 
-    # Priority 2: Generic active_work.json (written by project-switch and session-init)
-    # This handles non-tmux environments where instance_projects doesn't exist
-    # and claude_session_id isn't available (CLI commands without hook context).
-    #
-    # No time-based staleness check — time is not a valid signal for whether the
-    # file is correct. The real protection is session-init firing on 'resume' events
-    # (v1.6.9) which updates anchor files for the new terminal.
-    generic_work_file = Path.home() / '.empirica' / 'active_work.json'
-    if generic_work_file.exists():
-        try:
-            with open(generic_work_file, 'r') as f:
-                data = json.load(f)
-                generic_path = data.get('project_path')
-            if generic_path:
-                logger.debug(f"get_active_project_path: from active_work.json: {generic_path}")
-                return generic_path
-        except Exception:
-            pass
+    # Priority 2: Generic active_work.json — HEADLESS MODE ONLY
+    # In interactive mode (terminal exists), instance_projects + active_work_{uuid}
+    # handle everything. The generic file would only cause pollution by returning
+    # a stale project from a different terminal/session.
+    # In headless mode (containers, CI), there's no terminal identity — the generic
+    # file IS the primary source.
+    if is_headless():
+        generic_work_file = Path.home() / '.empirica' / 'active_work.json'
+        if generic_work_file.exists():
+            try:
+                with open(generic_work_file, 'r') as f:
+                    data = json.load(f)
+                    generic_path = data.get('project_path')
+                if generic_path:
+                    logger.debug(f"get_active_project_path: from active_work.json (headless): {generic_path}")
+                    return generic_path
+            except Exception:
+                pass
 
     # NO CWD FALLBACK - fail explicitly
-    logger.debug("get_active_project_path: could not resolve (no instance_projects, active_work, or active_work.json)")
+    logger.debug("get_active_project_path: could not resolve (no instance_projects, no active_work_{id}%s)" %
+                 (", headless=no active_work.json" if is_headless() else ""))
     return None
 
 
@@ -1286,24 +1326,27 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
             else:
                 logger.warning(f"get_active_empirica_session_id: stale session in tty_session: {session_id[:8]}...")
 
-    # Priority 5: Generic active_work.json (written by project-switch, session-init)
+    # Priority 5: Generic active_work.json — HEADLESS MODE ONLY
+    # In interactive mode, P1-P4 cover all cases. The generic file would return
+    # stale data from a different terminal/session.
     from pathlib import Path
-    generic_work = Path.home() / '.empirica' / 'active_work.json'
-    if generic_work.exists():
-        try:
-            with open(generic_work, 'r') as f:
-                data = json.load(f)
-                session_id = data.get('empirica_session_id')
-                if not project_path_for_fallback:
-                    project_path_for_fallback = data.get('project_path')
-                if session_id:
-                    if _validate_session_in_db(session_id):
-                        logger.debug(f"get_active_empirica_session_id: from active_work.json: {session_id[:8]}...")
-                        return session_id
-                    else:
-                        logger.warning(f"get_active_empirica_session_id: stale session in active_work.json: {session_id[:8]}...")
-        except Exception:
-            pass
+    if is_headless():
+        generic_work = Path.home() / '.empirica' / 'active_work.json'
+        if generic_work.exists():
+            try:
+                with open(generic_work, 'r') as f:
+                    data = json.load(f)
+                    session_id = data.get('empirica_session_id')
+                    if not project_path_for_fallback:
+                        project_path_for_fallback = data.get('project_path')
+                    if session_id:
+                        if _validate_session_in_db(session_id):
+                            logger.debug(f"get_active_empirica_session_id: from active_work.json (headless): {session_id[:8]}...")
+                            return session_id
+                        else:
+                            logger.warning(f"get_active_empirica_session_id: stale session in active_work.json: {session_id[:8]}...")
+            except Exception:
+                pass
 
     # Fallback: all sources returned stale session_ids — try to find valid session for project
     if project_path_for_fallback:

@@ -1068,6 +1068,14 @@ def main():
         output_tmux = '--tmux' in sys.argv or os.getenv('EMPIRICA_STATUS_TMUX', '').lower() == 'true'
         ai_id = get_ai_id()
 
+        # HEADLESS CHECK: No statusline in headless/containerized mode
+        try:
+            from empirica.utils.session_resolver import is_headless
+            if is_headless():
+                return  # Silent exit — no statusline output
+        except ImportError:
+            pass
+
         # OFF-RECORD CHECK: If Empirica is paused, show collapsed statusline
         pause_file = Path.home() / '.empirica' / 'sentinel_paused'
         if pause_file.exists():

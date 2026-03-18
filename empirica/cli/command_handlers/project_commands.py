@@ -369,14 +369,20 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
                 json.dump(active_work, f, indent=2)
             logger.debug(f"Updated session-specific active_work: {folder_name}")
 
-        # Also write canonical file as fallback
-        # Pre-compact hook reads this when session-specific doesn't exist
-        marker_path = marker_dir / 'active_work.json'
+        # Write generic active_work.json in headless mode only.
+        # In interactive mode, instance_projects + active_work_{uuid} handle everything.
+        # The generic file would just pollute resolution with stale cross-terminal data.
+        try:
+            from empirica.utils.session_resolver import is_headless
+            _headless = is_headless()
+        except ImportError:
+            _headless = True  # Conservative: write if can't detect
 
-        with open(marker_path, 'w') as f:
-            json.dump(active_work, f, indent=2)
-
-        logger.debug(f"Updated active_work.json: {folder_name} -> {project_path}")
+        if _headless:
+            marker_path = marker_dir / 'active_work.json'
+            with open(marker_path, 'w') as f:
+                json.dump(active_work, f, indent=2)
+            logger.debug(f"Updated active_work.json (headless): {folder_name} -> {project_path}")
         return True
 
     except Exception as e:
