@@ -330,6 +330,27 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
                 json.dump(tty_data, f, indent=2)
             logger.debug(f"Updated TTY session project_path: {folder_name}")
 
+        # Update active_session file (used by statusline for session+project lookup)
+        # session-create writes this initially but project-switch must update it
+        # when the project changes, otherwise statusline reads from wrong project DB.
+        try:
+            from empirica.utils.session_resolver import _get_instance_suffix
+            as_suffix = _get_instance_suffix()
+            if as_suffix:
+                as_file = marker_dir / f'active_session{as_suffix}'
+                as_data = {
+                    'session_id': empirica_session_id,
+                    'project_path': project_path,
+                    'ai_id': 'claude-code',
+                }
+                with open(as_file, 'w') as f:
+                    json.dump(as_data, f)
+                import os as _os
+                _os.chmod(as_file, 0o600)
+                logger.debug(f"Updated active_session{as_suffix}: {folder_name}")
+        except Exception as e:
+            logger.debug(f"Could not update active_session: {e}")
+
         active_work = {
             'project_path': project_path,
             'folder_name': folder_name,

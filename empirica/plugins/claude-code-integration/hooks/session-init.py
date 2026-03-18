@@ -262,8 +262,77 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
         return False
 
 
+def _detect_existing_session(claude_session_id: str, project_root: Path) -> dict:
+    """Check if an Empirica session already exists for this conversation.
+
+    On 'resume' (continued conversation in new terminal), the session exists
+    in the DB but the anchor files (active_work_{uuid}, instance_projects)
+    are stale because the WINDOWID changed. We detect this to avoid creating
+    a duplicate session.
+
+    Returns dict with session_id if found, empty dict if not.
+    """
+    if not claude_session_id:
+        return {}
+
+    # Check active_work_{uuid} file first (fastest)
+    active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
+    if active_work_file.exists():
+        try:
+            with open(active_work_file, 'r') as f:
+                data = json.load(f)
+            session_id = data.get('empirica_session_id')
+            if session_id:
+                return {'session_id': session_id, 'source': 'active_work'}
+        except Exception:
+            pass
+
+    # Check active_session file (written by session-create)
+    try:
+        from project_resolver import _get_instance_suffix
+        suffix = _get_instance_suffix()
+    except ImportError:
+        suffix = ''
+
+    # Scan ALL active_session files — the old WINDOWID's file may still exist
+    for as_file in Path.home().glob('.empirica/active_session_*'):
+        try:
+            with open(as_file, 'r') as f:
+                data = json.load(f)
+            # Match by project_path — same project means same logical session
+            if data.get('project_path') == str(project_root):
+                session_id = data.get('session_id')
+                if session_id:
+                    return {'session_id': session_id, 'source': 'active_session'}
+        except Exception:
+            continue
+
+    # Check DB directly via CLI
+    try:
+        result = subprocess.run(
+            ['empirica', 'session-list', '--output', 'json', '--limit', '5'],
+            capture_output=True, text=True, timeout=10,
+            cwd=str(project_root)
+        )
+        if result.returncode == 0:
+            sessions = json.loads(result.stdout)
+            session_list = sessions.get('sessions', [])
+            for s in session_list:
+                if s.get('status') == 'active':
+                    return {'session_id': s.get('session_id'), 'source': 'db_active'}
+    except Exception:
+        pass
+
+    return {}
+
+
 def main():
-    """Main session init logic."""
+    """Main session init logic.
+
+    Handles both 'startup' (fresh conversation) and 'resume' (continued
+    conversation in new terminal). On resume, detects existing session and
+    updates anchor files without creating a duplicate.
+    """
     hook_input = {}
     try:
         hook_input = json.loads(sys.stdin.read())
@@ -272,6 +341,10 @@ def main():
 
     # Extract claude_session_id from hook input (critical for instance isolation)
     claude_session_id = hook_input.get('session_id')
+
+    # Detect if this is a resume (continued conversation)
+    event_type = hook_input.get('type', 'startup')
+    is_resume = event_type == 'resume'
 
     # Find project root (uses instance-aware resolution to survive CWD resets)
     # session-init needs CWD and git root fallbacks for first-time projects
@@ -291,6 +364,60 @@ def main():
 
     # Archive stale plans (whose goals are complete)
     archived_plans = archive_stale_plans()
+
+    # RESUME PATH: Detect existing session and update anchor files only
+    if is_resume:
+        existing = _detect_existing_session(claude_session_id, project_root)
+        if existing.get('session_id'):
+            session_id = existing['session_id']
+            # Update anchor files for the new WINDOWID/terminal
+            _write_instance_projects(str(project_root), claude_session_id, session_id)
+
+            # Run bootstrap to load context
+            bootstrap_output = None
+            try:
+                bootstrap_cmd = subprocess.run(
+                    ['empirica', 'project-bootstrap', '--session-id', session_id, '--output', 'json'],
+                    capture_output=True, text=True, timeout=30,
+                    cwd=str(project_root)
+                )
+                if bootstrap_cmd.returncode == 0:
+                    bootstrap_output = json.loads(bootstrap_cmd.stdout)
+            except Exception:
+                pass
+
+            output = {
+                "ok": True,
+                "session_id": session_id,
+                "resumed": True,
+                "bootstrap_complete": bootstrap_output is not None,
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": f"""
+## Session Resumed
+
+**Session ID:** `{session_id}` (existing, from {existing.get('source', 'unknown')})
+**Project:** {project_root}
+
+Anchor files updated for new terminal. Existing session and transaction state preserved.
+
+**Note:** If you need a fresh session, run `empirica session-create --ai-id {ai_id}`.
+"""
+                }
+            }
+
+            print(f"""
+🔄 Empirica: Session Resumed
+
+✅ Session: {session_id} (anchored to new terminal)
+✅ Project: {project_root.name}
+""", file=sys.stderr)
+
+            print(json.dumps(output))
+            sys.exit(0)
+
+        # No existing session found during resume — fall through to create new one
+        print(f"⚠️  Resume: no existing session found for {project_root.name}, creating new one", file=sys.stderr)
 
     # Create session and bootstrap
     result = create_session_and_bootstrap(ai_id)
