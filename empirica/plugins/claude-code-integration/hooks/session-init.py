@@ -363,8 +363,11 @@ def main():
     stale_removed = 0
     try:
         sys.path.insert(0, str(Path.home() / 'empirical-ai' / 'empirica'))
-        from empirica.utils.session_resolver import cleanup_stale_instance_projects
+        from empirica.utils.session_resolver import cleanup_stale_instance_projects, cleanup_stale_active_work_files
         stale_removed = cleanup_stale_instance_projects()
+        # DB-based cleanup: remove active_work, instance_projects (non-tmux), and
+        # active_session files for ended sessions (no open transaction referencing them)
+        stale_removed += cleanup_stale_active_work_files(current_claude_session_id=claude_session_id)
     except Exception:
         pass  # Cleanup failure is non-fatal
 
