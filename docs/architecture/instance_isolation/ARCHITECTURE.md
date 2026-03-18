@@ -73,7 +73,7 @@ backward-compatible aliases.
 
 **Location:** `~/.empirica/active_work.json`
 **Written by:** project-switch, session-init
-**Staleness:** Rejected if >4 hours old (prevents stale fallback after reboot)
+**Note:** No time-based staleness check — session-init on `resume` is the protection
 
 ### 4. Active Session Files — STATUSLINE
 
@@ -98,7 +98,7 @@ All readers and writers use `_get_instance_suffix()` for consistency.
 Project Path (get_active_project_path):
   P0: instance_projects/{instance_id}.json   (tmux, x11, tty)
   P1: active_work_{claude_session_id}.json   (requires claude_session_id)
-  P2: active_work.json                       (staleness check: >4h rejected)
+  P2: active_work.json                       (generic fallback, no time rejection)
   ❌ NO CWD FALLBACK — return None
 
 Session ID (get_active_empirica_session_id):

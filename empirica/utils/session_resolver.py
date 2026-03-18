@@ -843,35 +843,18 @@ def get_active_project_path(claude_session_id: str = None) -> 'Optional[str]':
     # This handles non-tmux environments where instance_projects doesn't exist
     # and claude_session_id isn't available (CLI commands without hook context).
     #
-    # STALENESS CHECK: active_work.json can go stale after reboot or terminal switch.
-    # Reject if older than 4 hours to prevent silent fallback to wrong project.
-    import time
-    STALENESS_THRESHOLD = 14400  # 4 hours in seconds
+    # No time-based staleness check — time is not a valid signal for whether the
+    # file is correct. The real protection is session-init firing on 'resume' events
+    # (v1.6.9) which updates anchor files for the new terminal.
     generic_work_file = Path.home() / '.empirica' / 'active_work.json'
     if generic_work_file.exists():
         try:
             with open(generic_work_file, 'r') as f:
                 data = json.load(f)
                 generic_path = data.get('project_path')
-                timestamp_epoch = data.get('timestamp_epoch')
             if generic_path:
-                # Check staleness if timestamp available
-                if timestamp_epoch:
-                    age = time.time() - timestamp_epoch
-                    if age > STALENESS_THRESHOLD:
-                        source = data.get('source', 'unknown')
-                        logger.warning(
-                            f"get_active_project_path: active_work.json is stale "
-                            f"({age/3600:.1f}h old, source={source}, points to {generic_path}). "
-                            f"Ignoring. Run 'empirica project-switch' to update."
-                        )
-                    else:
-                        logger.debug(f"get_active_project_path: from active_work.json: {generic_path} (age: {age:.0f}s)")
-                        return generic_path
-                else:
-                    # No timestamp — accept but warn
-                    logger.debug(f"get_active_project_path: from active_work.json (no timestamp): {generic_path}")
-                    return generic_path
+                logger.debug(f"get_active_project_path: from active_work.json: {generic_path}")
+                return generic_path
         except Exception:
             pass
 

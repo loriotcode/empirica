@@ -26,13 +26,13 @@ r.session_id()        # Resolves active Empirica session
 r.instance_suffix()   # Sanitized suffix for file naming
 ```
 
-**Resolution priority:** `instance_projects` (P0) → `active_work_{uuid}` (P1) → `active_work.json` (P2, with 4h staleness check) → None (fail explicitly).
+**Resolution priority:** `instance_projects` (P0) → `active_work_{uuid}` (P1) → `active_work.json` (P2) → None (fail explicitly).
 
 ## Key Principles
 
 1. **Hooks write, everything else reads.** Exception: `project-switch` writes signals.
 2. **`instance_projects` is authoritative** — writable by both hooks and CLI.
-3. **Staleness detection** — `active_work.json` rejected if >4 hours old.
+3. **Session-init on resume** — anchor files updated for new terminals automatically.
 4. **`session-init` fires on both `startup` and `resume`** — handles new terminals for continued conversations.
 5. **Suffix sanitization** — `:` → `_`, `%` removed. All file operations use `_get_instance_suffix()`.
 6. **Fail explicitly** — return None rather than silently using wrong project.
