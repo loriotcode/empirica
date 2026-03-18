@@ -16,7 +16,7 @@ via reverse-lookup of `active_work_*.json` files.
 
 ## Unified API
 
-All resolution goes through **`InstanceResolver`** (v1.6.9+):
+All resolution goes through **`InstanceResolver`** (v1.6.10+):
 
 ```python
 from empirica.utils.session_resolver import InstanceResolver

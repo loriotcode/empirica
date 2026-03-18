@@ -16,7 +16,7 @@ This folder documents how Empirica keeps them isolated.
 
 **Problem:** Multiple AI instances share `ai_id=claude-code`. CWD gets reset unpredictably. Which project am I working on?
 
-**Solution:** File-based isolation + `InstanceResolver` class (v1.6.9+):
+**Solution:** File-based isolation + `InstanceResolver` class (v1.6.10+):
 
 ```python
 from empirica.utils.session_resolver import InstanceResolver
