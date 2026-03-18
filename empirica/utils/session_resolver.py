@@ -31,6 +31,125 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
+# InstanceResolver — Unified API for project/session/transaction resolution
+#
+# This class groups all resolution functions into a single importable API.
+# Hooks, CLI commands, sentinel, and statusline should all use this class.
+#
+# For backward compatibility, all methods are also available as module-level
+# functions (the originals). The class delegates to them — no logic is
+# duplicated.
+#
+# Usage:
+#     from empirica.utils.session_resolver import InstanceResolver
+#     resolver = InstanceResolver()
+#     project_path = resolver.project_path()
+#     session_id = resolver.session_id(claude_session_id="...")
+#     suffix = resolver.instance_suffix()
+# =============================================================================
+
+class InstanceResolver:
+    """Unified context resolution for all Empirica components.
+
+    Groups instance, project, session, and transaction resolution into a
+    single class. Every method delegates to the canonical module-level
+    function — this class is organizational, not a reimplementation.
+
+    Designed to be the single import for hooks and CLI:
+        from empirica.utils.session_resolver import InstanceResolver
+    """
+
+    # --- Instance Identity ---
+
+    @staticmethod
+    def instance_id() -> 'Optional[str]':
+        """Get current instance ID (TMUX_PANE, WINDOWID, TTY, etc.)."""
+        return get_instance_id()
+
+    @staticmethod
+    def instance_suffix() -> str:
+        """Get sanitized filename suffix for this instance.
+        e.g. '_tmux_0', '_x11_78940210', or '' if no instance.
+        """
+        return _get_instance_suffix()
+
+    # --- Project Resolution ---
+
+    @staticmethod
+    def project_path(claude_session_id: str = None) -> 'Optional[str]':
+        """Resolve the active project path.
+
+        Priority: instance_projects > active_work_{uuid} > active_work.json
+        Returns None (not CWD) if unresolvable.
+        """
+        return get_active_project_path(claude_session_id)
+
+    # --- Session Resolution ---
+
+    @staticmethod
+    def session_id(claude_session_id: str = None) -> 'Optional[str]':
+        """Resolve the active Empirica session ID.
+
+        Priority: transaction > active_work_{uuid} > instance_projects >
+                  tty_session > active_work.json > DB fallback
+        """
+        return get_active_empirica_session_id(claude_session_id)
+
+    # --- Transaction Lifecycle ---
+
+    @staticmethod
+    def transaction_read(claude_session_id: str = None) -> 'Optional[dict]':
+        """Read the full active transaction state from filesystem."""
+        return read_active_transaction_full(claude_session_id)
+
+    @staticmethod
+    def transaction_write(
+        transaction_id: str,
+        session_id: str = None,
+        preflight_timestamp: float = None,
+        status: str = "open",
+        project_path: str = None
+    ) -> None:
+        """Write (create or update) the active transaction file."""
+        write_active_transaction(
+            transaction_id=transaction_id,
+            session_id=session_id,
+            preflight_timestamp=preflight_timestamp,
+            status=status,
+            project_path=project_path,
+        )
+
+    @staticmethod
+    def transaction_clear(claude_session_id: str = None) -> None:
+        """Delete the active transaction file."""
+        clear_active_transaction(claude_session_id)
+
+    @staticmethod
+    def transaction_increment(claude_session_id: str = None) -> 'Optional[dict]':
+        """Increment the tool call counter in the active transaction."""
+        return increment_transaction_tool_count(claude_session_id)
+
+    # --- TTY Session ---
+
+    @staticmethod
+    def tty_key() -> 'Optional[str]':
+        """Get the TTY device key for this terminal."""
+        return get_tty_key()
+
+    @staticmethod
+    def tty_session(warn_if_stale: bool = True) -> 'Optional[dict]':
+        """Read the TTY session file for this terminal."""
+        return get_tty_session(warn_if_stale=warn_if_stale)
+
+    # --- Cleanup ---
+
+    @staticmethod
+    def cleanup_stale_instances() -> int:
+        """Remove orphaned instance_projects files."""
+        return cleanup_stale_instance_projects()
+
+
+# =============================================================================
 # TTY-based Session Isolation (Multi-Instance Support)
 # =============================================================================
 

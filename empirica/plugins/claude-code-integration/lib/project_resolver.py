@@ -9,12 +9,26 @@ IMPORTANT: This module uses ONLY stdlib imports. Hooks run before the
 empirica package is guaranteed available. The empirica imports inside
 functions are optional (try/except ImportError).
 
+Preferred usage (when empirica is available):
+    from project_resolver import InstanceResolver
+    resolver = InstanceResolver()
+    project_path = resolver.project_path()
+
+Fallback usage (always available):
+    from project_resolver import get_instance_id, _get_instance_suffix
+    instance_id = get_instance_id()
+
 Functions:
     get_instance_id() - Instance identifier for multi-instance isolation
+    _get_instance_suffix() - Sanitized filename suffix
     get_active_project_path(claude_session_id) - Active project path
     get_active_session_id(claude_session_id) - Active Empirica session ID
     find_project_root(claude_session_id, **) - Comprehensive project resolution
     has_valid_db(project_path) - Check if project has valid sessions.db
+
+Class:
+    InstanceResolver - Delegates to empirica.utils.session_resolver.InstanceResolver
+                       with local fallback methods
 """
 
 import json
@@ -23,6 +37,71 @@ import sqlite3
 import subprocess
 from pathlib import Path
 from typing import Optional
+
+
+# =============================================================================
+# InstanceResolver — Hook-side facade that delegates to canonical
+# =============================================================================
+
+class InstanceResolver:
+    """Hook-compatible resolver that delegates to the canonical InstanceResolver.
+
+    Tries to import from empirica.utils.session_resolver first.
+    Falls back to local functions if empirica is not importable.
+
+    Usage in hooks:
+        from project_resolver import InstanceResolver
+        resolver = InstanceResolver()
+        project = resolver.project_path(claude_session_id)
+    """
+
+    def __init__(self):
+        self._canonical = None
+        try:
+            from empirica.utils.session_resolver import InstanceResolver as _Canonical
+            self._canonical = _Canonical()
+        except ImportError:
+            pass
+
+    def instance_id(self) -> Optional[str]:
+        if self._canonical:
+            return self._canonical.instance_id()
+        return get_instance_id()
+
+    def instance_suffix(self) -> str:
+        if self._canonical:
+            return self._canonical.instance_suffix()
+        return _get_instance_suffix()
+
+    def project_path(self, claude_session_id: str = None) -> Optional[str]:
+        if self._canonical:
+            return self._canonical.project_path(claude_session_id)
+        return get_active_project_path(claude_session_id)
+
+    def session_id(self, claude_session_id: str = None) -> Optional[str]:
+        if self._canonical:
+            return self._canonical.session_id(claude_session_id)
+        return get_active_session_id(claude_session_id)
+
+    def transaction_read(self, claude_session_id: str = None) -> Optional[dict]:
+        if self._canonical:
+            return self._canonical.transaction_read(claude_session_id)
+        # No local fallback for transaction read — hooks should use canonical
+        return None
+
+    def transaction_write(self, **kwargs) -> None:
+        if self._canonical:
+            self._canonical.transaction_write(**kwargs)
+
+    def tty_key(self) -> Optional[str]:
+        if self._canonical:
+            return self._canonical.tty_key()
+        return None
+
+    def tty_session(self, warn_if_stale: bool = True) -> Optional[dict]:
+        if self._canonical:
+            return self._canonical.tty_session(warn_if_stale=warn_if_stale)
+        return None
 
 
 def get_instance_id() -> Optional[str]:
