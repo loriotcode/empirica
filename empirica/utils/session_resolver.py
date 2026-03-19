@@ -315,9 +315,9 @@ def write_tty_session(
     CRITICAL: Returns False if no TTY available - does not use PPID fallback
     to avoid cross-instance bleed risk.
 
-    Also writes an instance mapping file keyed by TMUX_PANE (if available).
-    This enables hook context lookups where `tty` command fails but TMUX_PANE
-    is available.
+    Also writes an instance mapping file keyed by instance_id (if available).
+    This enables hook context lookups where `tty` command fails but instance_id
+    is available (via TMUX_PANE, WINDOWID, etc.).
 
     Args:
         claude_session_id: Claude Code conversation UUID (optional for CLI)
@@ -326,13 +326,13 @@ def write_tty_session(
 
     Returns:
         True if at least one session file was written (TTY or instance_projects),
-        False if neither TTY nor TMUX_PANE is available.
+        False if neither TTY nor instance_id is available.
     """
     from datetime import datetime
 
     tty_key = get_tty_key()
-    tmux_pane = os.environ.get('TMUX_PANE')
-    instance_id = f"tmux_{tmux_pane.lstrip('%')}" if tmux_pane else None
+    # Use canonical get_instance_id() which supports tmux, X11, macOS Terminal, TTY
+    instance_id = get_instance_id()
 
     wrote_something = False
 
@@ -377,7 +377,7 @@ def write_tty_session(
             wrote_something = True
 
         if not wrote_something:
-            logger.debug("No TTY or TMUX_PANE available - cannot write session files")
+            logger.debug("No TTY or instance_id available - cannot write session files")
             return False
 
         return True
@@ -861,7 +861,7 @@ def get_active_project_path(claude_session_id: str = None) -> 'Optional[str]':
             except Exception:
                 pass
 
-    # Read instance_projects (TMUX_PANE-based) - AUTHORITATIVE source
+    # Read instance_projects (instance_id-based) - AUTHORITATIVE source
     instance_id = get_instance_id()
     if instance_id:
         instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'

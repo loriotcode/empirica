@@ -189,17 +189,13 @@ EPISTEMIC_KEYWORDS = [
 def get_active_session_vectors():
     """Get current session's epistemic vectors from DB. Fast path."""
     try:
-        # Find active session ID
-        instance_id = os.environ.get('EMPIRICA_INSTANCE_ID')
-        if not instance_id:
-            tmux = os.environ.get('TMUX_PANE')
-            if tmux:
-                instance_id = f"tmux:{tmux}"
-
-        suffix = ""
-        if instance_id:
-            safe = instance_id.replace(":", "_").replace("%", "")
-            suffix = f"_{safe}"
+        # Find active session ID using canonical instance resolution
+        _lib_path = Path(__file__).parent.parent / 'lib'
+        if str(_lib_path) not in sys.path:
+            sys.path.insert(0, str(_lib_path))
+        from project_resolver import get_instance_id, _get_instance_suffix
+        instance_id = get_instance_id()
+        suffix = _get_instance_suffix()
 
         session_id = None
         for base in [Path.cwd() / '.empirica', Path.home() / '.empirica']:
