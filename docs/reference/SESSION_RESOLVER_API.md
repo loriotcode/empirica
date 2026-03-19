@@ -87,11 +87,11 @@ def write_tty_session(
 ) -> bool
 ```
 
-**Returns:** `True` if successfully written, `False` if no TTY or TMUX_PANE available.
+**Returns:** `True` if successfully written, `False` if no TTY or instance_id available.
 
 **Writes to:**
 - `~/.empirica/tty_sessions/{tty_key}.json`
-- `~/.empirica/instance_projects/{instance_id}.json` (if TMUX_PANE available)
+- `~/.empirica/instance_projects/{instance_id}.json` (if instance_id available via `get_instance_id()`)
 
 **Called from:**
 - Claude Code hooks (have `claude_session_id`)

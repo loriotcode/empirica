@@ -14,6 +14,11 @@ context from files that hooks wrote.
 `active_session`, and `tty_sessions` as **signals**. It discovers `claude_session_id`
 via reverse-lookup of `active_work_*.json` files.
 
+**Critical invariant:** All components resolve `instance_id` via the canonical
+`get_instance_id()` function (or `InstanceResolver.instance_id()`). Never construct
+instance IDs directly from env vars — this caused 11.20 where CLI commands only
+checked `TMUX_PANE`, breaking X11 and other non-tmux environments.
+
 ## Unified API
 
 All resolution goes through **`InstanceResolver`** (v1.6.10+):

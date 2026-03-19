@@ -295,26 +295,66 @@ cross-DB creation). Always verify against the authoritative source (the database
 
 **Commit:** applied to `~/.claude/plugins/local/empirica-integration/hooks/post-compact.py`
 
+### 11.20 CLI Commands Use tmux-Only Instance ID (2026-03-19)
+
+**Symptom:** CHECK records stored with `transaction_id=NULL`. Sentinel blocks all praxic
+actions with "No valid CHECK found" despite CHECK returning `proceed`.
+
+**Root cause:** `project-switch`, `session-create`, `transaction-adopt`, and
+`write_tty_session()` constructed instance_id exclusively from `TMUX_PANE`. In X11,
+macOS Terminal, or TTY-only environments, instance_id was `None`, so no
+`instance_projects/{id}.json` was written. This broke the resolution chain:
+`get_active_project_path()` → `read_active_transaction()` → CHECK `transaction_id`.
+
+**Why it surfaced now:** Isolation hardening (v1.6.5–1.6.10) removed CWD fallbacks
+and tightened resolution to be instance-aware. Correct in principle, but exposed
+the latent tmux-only assumption in CLI commands.
+
+**Fix:** All CLI commands now use canonical `get_instance_id()` which supports
+tmux, X11 (`WINDOWID`), macOS Terminal (`TERM_SESSION_ID`), and TTY.
+`tool-router.py` hook also fixed (had wrong format `tmux:{pane}` and no X11 support).
+
+**Commit:** `dd4f823d`, `4c2b8266`
+
+### 11.21 Subagent Detection Broken by Inherited Env Vars (2026-03-19)
+
+**Symptom:** Explore/research subagents get full Sentinel gating (blocked by "No valid
+CHECK found") instead of being exempted. Causes unbounded tool calls as subagents
+struggle with noetic firewall they shouldn't face.
+
+**Root cause:** Subagent exemption checked `active_session_{instance_suffix}`. But
+subprocesses inherit env vars (`WINDOWID`, `TMUX_PANE`) from the parent, so
+`_get_instance_suffix()` returns the same value for both parent and subagent.
+The subagent finds the parent's `active_session` file and is treated as the parent.
+
+**Fix:** Check `active_work_{claude_session_id}.json` instead. Subagents get a
+different `claude_session_id` from Claude Code, so they won't have a matching file.
+If `active_session` also exists (confirming parent was set up properly), the subagent
+is exempted. If neither file exists, falls through to normal gating (fail-safe for
+broken session-init).
+
+**Commit:** `c74705c0`
+
 ---
 
 ## By Design (Not Bugs)
 
-### Orphaned Transaction After tmux Restart (2026-02-12)
+### Orphaned Transaction After Terminal Restart
 
-**Scenario:** tmux dies, new session has different pane IDs, old transaction can't be found.
+**Scenario:** Terminal closes, new session has different instance IDs, old transaction can't be found.
 
 **Why NOT auto-recovered:**
 - Different Claude sessions shouldn't inherit each other's transactions
 - Auto-pickup could cause wrong-context pollution
-- tmux failure is rare and requires human intervention anyway
+- Terminal failure is rare and requires human intervention anyway
 
 **Recovery:**
 ```bash
-# Option 1: Adopt the transaction
-empirica transaction-adopt --from tmux_4
+# Option 1: Adopt the transaction (works for any instance type)
+empirica transaction-adopt --from <old_instance_id>
 
 # Option 2: Abandon it
-rm {project}/.empirica/active_transaction_tmux_4.json
+rm {project}/.empirica/active_transaction_<old_suffix>.json
 
 # Option 3: Close it properly
 empirica postflight-submit --session-id <old_session_id> ...
@@ -341,8 +381,8 @@ empirica postflight-submit --session-id <old_session_id> ...
 
 ### Wrong Instance's Transaction
 
-**Symptom:** Pane A sees pane B's transaction
-**Fix:** Instance suffix on transaction files (`active_transaction_tmux_4.json`)
+**Symptom:** Instance A sees instance B's transaction
+**Fix:** Instance suffix on transaction files (`active_transaction_{suffix}.json`)
 
 ### Sentinel Blocks `cd && empirica check-submit`
 
@@ -353,15 +393,19 @@ empirica postflight-submit --session-id <old_session_id> ...
 
 ## Debugging Checklist
 
-1. **Check instance_id format:** Should be `tmux_N` everywhere
-2. **Check file exists:** `ls ~/.empirica/instance_projects/tmux_*.json`
+1. **Check instance_id:** `python3 -c "from empirica.utils.session_resolver import get_instance_id; print(get_instance_id())"`
+   - tmux: `tmux_N` | X11: `x11:NNNNN` | macOS: `term:XXXX` | TTY: `term_pts_N`
+2. **Check instance_projects file exists:** `ls ~/.empirica/instance_projects/`
 3. **Check session matches:** Compare session_id in instance_projects vs active_transaction
 4. **Check project_path:** Is it pointing to the right project?
 5. **Check transaction status:** Is it `"open"` or closed?
+6. **Check active_work exists (for subagent detection):** `ls ~/.empirica/active_work_*.json`
 
 ```bash
 # Quick diagnostic
-echo "=== Instance Projects ===" && cat ~/.empirica/instance_projects/tmux_*.json 2>/dev/null
+echo "=== Instance ID ===" && python3 -c "from empirica.utils.session_resolver import get_instance_id, _get_instance_suffix; print(f'id={get_instance_id()} suffix={_get_instance_suffix()}')"
+echo "=== Instance Projects ===" && cat ~/.empirica/instance_projects/*.json 2>/dev/null
 echo "=== Active Transaction ===" && cat .empirica/active_transaction_*.json 2>/dev/null
 echo "=== TTY Session ===" && cat ~/.empirica/tty_sessions/$(tty | tr '/' '-' | sed 's/^-//').json 2>/dev/null
+echo "=== Active Work ===" && ls -la ~/.empirica/active_work_*.json 2>/dev/null
 ```
