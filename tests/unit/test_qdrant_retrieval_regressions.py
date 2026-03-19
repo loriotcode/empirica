@@ -1,0 +1,133 @@
+from pathlib import Path
+from unittest.mock import patch
+
+from empirica.cli.command_handlers.project_embed import (
+    _build_embedding_text,
+    _compact_text,
+    _has_indexed_python_files,
+    _resolve_doc_path,
+)
+from empirica.core.qdrant.embeddings import EmbeddingsProvider
+from empirica.core.qdrant.memory import upsert_docs
+
+
+class DummyDistance:
+    COSINE = "cosine"
+
+
+class DummyVectorParams:
+    def __init__(self, size, distance):
+        self.size = size
+        self.distance = distance
+
+
+class DummyPointStruct:
+    def __init__(self, id, vector, payload):
+        self.id = id
+        self.vector = vector
+        self.payload = payload
+
+
+def test_resolve_doc_path_prefers_project_root_for_file_oriented_indexes(tmp_path):
+    project_root = tmp_path
+    root_file = project_root / "web" / "README.md"
+    root_file.parent.mkdir(parents=True)
+    root_file.write_text("root readme", encoding="utf-8")
+
+    docs_file = project_root / "docs" / "web" / "README.md"
+    docs_file.parent.mkdir(parents=True)
+    docs_file.write_text("docs mirror", encoding="utf-8")
+
+    resolved = _resolve_doc_path(str(project_root), "web/README.md")
+
+    assert Path(resolved) == root_file
+
+
+def test_build_embedding_text_uses_metadata_and_compact_excerpt():
+    text = "line " * 200
+    meta = {
+        "tags": ["playwright", "auth"],
+        "concepts": ["setup"],
+        "questions": ["What files handle auth setup?"],
+        "use_cases": ["test login"],
+        "description": "Authentication entrypoint for Playwright E2E setup",
+        "doc_type": "test-config",
+    }
+
+    built = _build_embedding_text("web/tests/e2e/auth-setup.ts", meta, text)
+
+    assert "File: web/tests/e2e/auth-setup.ts" in built
+    assert "Tags: playwright, auth" in built
+    assert "Doc type: test-config" in built
+    assert "Excerpt:" in built
+    assert len(_compact_text(text, max_chars=240)) <= 244
+
+
+def test_has_indexed_python_files_only_when_python_entries_exist():
+    assert not _has_indexed_python_files({"web/README.md": {}, "web/src/index.ts": {}})
+    assert _has_indexed_python_files({"docs/guide.md": {}, "scripts/tool.py": {}})
+
+
+def test_upsert_docs_creates_collection_before_upsert():
+    client = type("DummyClient", (), {})()
+    client.created = None
+    client.upsert_calls = []
+    client.collection_exists = lambda name: False
+
+    def create_collection(name, vectors_config):
+        client.created = (name, vectors_config)
+
+    def upsert(collection_name, points):
+        client.upsert_calls.append((collection_name, points))
+
+    client.create_collection = create_collection
+    client.upsert = upsert
+
+    with patch("empirica.core.qdrant.memory._check_qdrant_available", return_value=True), \
+         patch("empirica.core.qdrant.memory._get_qdrant_imports", return_value=(None, DummyDistance, DummyVectorParams, DummyPointStruct)), \
+         patch("empirica.core.qdrant.memory._get_qdrant_client", return_value=client), \
+         patch("empirica.core.qdrant.memory._get_vector_size", return_value=384), \
+         patch("empirica.core.qdrant.memory._get_embedding_safe", return_value=[0.1, 0.2, 0.3]), \
+         patch("empirica.core.qdrant.memory._docs_collection", return_value="project_test_docs"):
+        count = upsert_docs("project-id", [{"id": 1, "text": "hello", "metadata": {"doc_path": "a.md"}}])
+
+    assert count == 1
+    assert client.created is not None
+    assert client.created[0] == "project_test_docs"
+    assert client.created[1].size == 384
+    assert client.created[1].distance == DummyDistance.COSINE
+    assert len(client.upsert_calls) == 1
+
+
+def test_embed_ollama_retries_with_smaller_prompts_before_fallback():
+    provider = EmbeddingsProvider.__new__(EmbeddingsProvider)
+    provider.ollama_url = "http://localhost:11434"
+    provider.model = "all-minilm"
+    provider._vector_size = 384
+    provider._embed_local_hash = lambda text: [9.0]
+
+    prompts = []
+
+    class DummyResponse:
+        def __init__(self, embedding):
+            self._embedding = embedding
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"embedding": self._embedding}
+
+    def fake_post(url, json, timeout):
+        prompts.append(json["prompt"])
+        if len(prompts) == 1:
+            return DummyResponse([])
+        return DummyResponse([0.1] * 384)
+
+    with patch("requests.post", side_effect=fake_post), \
+         patch("time.sleep", return_value=None):
+        result = provider._embed_ollama("token " * 500)
+
+    assert len(prompts) == 2
+    assert len(prompts[1]) <= len(prompts[0])
+    assert result == [0.1] * 384

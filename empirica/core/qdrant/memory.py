@@ -91,11 +91,19 @@ def upsert_docs(project_id: str, docs: List[Dict]) -> int:
         return 0
 
     try:
-        _, _, _, PointStruct = _get_qdrant_imports()
+        _, Distance, VectorParams, PointStruct = _get_qdrant_imports()
         client = _get_qdrant_client()
         if client is None:
             return 0
         coll = _docs_collection(project_id)
+
+        if not client.collection_exists(coll):
+            vector_size = _get_vector_size()
+            client.create_collection(
+                coll,
+                vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+            )
+
         points = []
         for d in docs:
             vector = _get_embedding_safe(d.get("text", ""))
