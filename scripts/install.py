@@ -26,7 +26,7 @@ from typing import Optional
 # Configuration
 # =============================================================================
 
-EMPIRICA_VERSION = "1.6.10"
+EMPIRICA_VERSION = "1.6.11"
 MIN_PYTHON_VERSION = (3, 10)
 
 # Recommended embeddings model (1024-dim, MTEB 64.3, best quality/size ratio)

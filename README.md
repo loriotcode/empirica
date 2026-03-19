@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.6.10-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.6.10)
+[![Version](https://img.shields.io/badge/version-1.6.11-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.6.11)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -101,13 +101,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.6.10-alpine
+docker pull nubaeon/empirica:1.6.11-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.6.10
+docker pull nubaeon/empirica:1.6.11
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.6.10 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.6.11 /bin/bash
 ```
 </details>
 
@@ -265,7 +265,7 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.6.10
+## What's New in 1.6.11
 
 - **Instance Isolation Hardened** — `InstanceResolver` unified API replaces scattered resolution logic. 13 suffix-mismatch bugs fixed across 12 files. Session-init fires on `resume` events (new terminal, same conversation). DB-based cleanup removes orphaned state files using session `end_time`
 - **Headless/Interactive Mode** — Auto-detects containerized environments (`is_headless()`). Interactive sessions use per-instance isolation only — no more `active_work.json` pollution across terminals. Statusline silently exits in headless mode
@@ -307,6 +307,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.6.10
+**Version:** 1.6.11
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*
