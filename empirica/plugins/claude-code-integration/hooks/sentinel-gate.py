@@ -151,9 +151,28 @@ SAFE_PIPE_TARGETS = (
 # This is intentional and NOT controlled by EMPIRICA_CALIBRATION_FEEDBACK.
 # The flag gates calibration FEEDBACK in workflow output (PREFLIGHT/CHECK enrichment),
 # not gating logic. The Sentinel always uses raw vectors regardless of the flag.
+# Static fallbacks — used when dynamic thresholds unavailable
 KNOW_THRESHOLD = 0.70
 UNCERTAINTY_THRESHOLD = 0.35
 MAX_CHECK_AGE_MINUTES = 30
+
+
+def _get_dynamic_thresholds(db) -> tuple:
+    """Read Brier-based dynamic thresholds. Returns (know_threshold, unc_threshold).
+
+    Falls back to static constants if dynamic computation fails or has insufficient data.
+    Only the noetic phase thresholds are used for the sentinel gate (investigation → action).
+    """
+    try:
+        from empirica.core.post_test.dynamic_thresholds import compute_dynamic_thresholds
+        dt_result = compute_dynamic_thresholds(ai_id="claude-code", db=db)
+        if dt_result.get("source") == "dynamic":
+            noetic = dt_result.get("noetic", {})
+            if noetic.get("brier_score") is not None:
+                return (noetic["ready_know_threshold"], noetic["ready_uncertainty_threshold"])
+    except Exception:
+        pass
+    return (KNOW_THRESHOLD, UNCERTAINTY_THRESHOLD)
 
 # Transition commands - allowed after POSTFLIGHT to enable new cycle
 # These are the commands needed to properly switch projects or start new sessions
@@ -1284,9 +1303,11 @@ def main():
                 sys.exit(0)
 
     # AUTO-PROCEED: If PREFLIGHT passes readiness gate, skip CHECK requirement
-    if raw_know >= KNOW_THRESHOLD and raw_unc <= UNCERTAINTY_THRESHOLD:
+    # Uses Brier-based dynamic thresholds when available (miscalibration raises the bar)
+    _dyn_know, _dyn_unc = _get_dynamic_thresholds(db)
+    if raw_know >= _dyn_know and raw_unc <= _dyn_unc:
         db.close()
-        respond("allow", f"PREFLIGHT confidence sufficient - proceeding{env_annotation}")
+        respond("allow", f"PREFLIGHT confidence sufficient - proceeding (threshold: K>={_dyn_know:.0%} U<={_dyn_unc:.0%}){env_annotation}")
         sys.exit(0)
 
     # PREFLIGHT confidence too low - require explicit CHECK
@@ -1390,11 +1411,12 @@ def main():
     raw_check_know = know or 0
     raw_check_unc = uncertainty or 1
 
-    if raw_check_know >= KNOW_THRESHOLD and raw_check_unc <= UNCERTAINTY_THRESHOLD:
-        respond("allow", f"CHECK passed - proceeding{env_annotation}")
+    # Uses same Brier-based dynamic thresholds as PREFLIGHT auto-proceed
+    if raw_check_know >= _dyn_know and raw_check_unc <= _dyn_unc:
+        respond("allow", f"CHECK passed - proceeding (threshold: K>={_dyn_know:.0%} U<={_dyn_unc:.0%}){env_annotation}")
         sys.exit(0)
     else:
-        respond("deny", f"CHECK confidence insufficient. Continue investigation, then re-submit CHECK.{env_annotation}")
+        respond("deny", f"CHECK confidence insufficient (need K>={_dyn_know:.0%} U<={_dyn_unc:.0%}). Continue investigation, then re-submit CHECK.{env_annotation}")
         sys.exit(0)
 
 

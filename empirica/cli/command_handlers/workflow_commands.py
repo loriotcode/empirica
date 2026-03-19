@@ -1190,7 +1190,9 @@ def handle_check_submit_command(args):
         corrected_know = know + _corrections.get('know', 0.0)
         corrected_uncertainty = uncertainty + _corrections.get('uncertainty', 0.0)
 
-        # Dynamic thresholds from calibration history (earned autonomy)
+        # Dynamic thresholds from Brier score calibration
+        # Miscalibration RAISES thresholds (compensates for unreliable self-assessment)
+        # Good calibration keeps thresholds at domain baseline (numbers are trusted)
         ready_know_threshold = 0.70  # Static default
         ready_uncertainty_threshold = 0.35  # Static default
         dynamic_thresholds_info = None
@@ -1203,20 +1205,25 @@ def handle_check_submit_command(args):
             if dt_result.get("source") == "dynamic":
                 # Use noetic thresholds for CHECK gate (investigation → action boundary)
                 noetic = dt_result.get("noetic", {})
-                if noetic.get("calibration_accuracy") is not None:
+                if noetic.get("brier_score") is not None:
                     ready_know_threshold = noetic["ready_know_threshold"]
                     ready_uncertainty_threshold = noetic["ready_uncertainty_threshold"]
                     dynamic_thresholds_info = {
                         "source": "dynamic",
                         "know_threshold": ready_know_threshold,
                         "uncertainty_threshold": ready_uncertainty_threshold,
-                        "calibration_accuracy": noetic["calibration_accuracy"],
+                        "brier_score": noetic["brier_score"],
+                        "brier_reliability": noetic["brier_reliability"],
+                        "brier_resolution": noetic["brier_resolution"],
+                        "threshold_inflation": noetic["threshold_inflation"],
                         "transactions_analyzed": noetic["transactions_analyzed"],
                     }
                     logger.info(
                         f"Dynamic thresholds: know>={ready_know_threshold:.3f}, "
                         f"uncertainty<={ready_uncertainty_threshold:.3f} "
-                        f"(accuracy={noetic['calibration_accuracy']:.3f}, "
+                        f"(brier={noetic['brier_score']:.3f}, "
+                        f"reliability={noetic['brier_reliability']:.3f}, "
+                        f"inflation={noetic['threshold_inflation']:.3f}, "
                         f"n={noetic['transactions_analyzed']})"
                     )
         except Exception as e:
@@ -1493,7 +1500,9 @@ def handle_check_submit_command(args):
                 "metacog": {
                     "computed_decision": computed_decision,
                     "gate_passed": computed_decision == "proceed",
-                    "calibration_accuracy": dynamic_thresholds_info.get("calibration_accuracy") if dynamic_thresholds_info else None,
+                    "brier_score": dynamic_thresholds_info.get("brier_score") if dynamic_thresholds_info else None,
+                    "brier_reliability": dynamic_thresholds_info.get("brier_reliability") if dynamic_thresholds_info else None,
+                    "threshold_inflation": dynamic_thresholds_info.get("threshold_inflation") if dynamic_thresholds_info else None,
                     "diminishing_returns": diminishing_returns.get("detected", False),
                 },
                 "sentinel": {
