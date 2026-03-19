@@ -200,13 +200,13 @@ def _display_turtle_health():
     try:
         from empirica.data.session_database import SessionDatabase
         from empirica.data.flow_state_calculator import calculate_flow_score, classify_flow_state, identify_flow_blockers
-        from empirica.utils.session_resolver import get_latest_session_id
+        from empirica.utils.session_resolver import InstanceResolver as R
 
         db = SessionDatabase()
 
         # Get current session
         try:
-            session_id = get_latest_session_id(ai_id='claude-code', active_only=True)
+            session_id = R.latest_session_id(ai_id='claude-code', active_only=True)
         except ValueError:
             session_id = None
 
@@ -1945,8 +1945,8 @@ def handle_system_status_command(args):
         # Auto-detect session if not provided
         if not session_id:
             try:
-                from empirica.utils.session_resolver import get_latest_session_id
-                session_id = get_latest_session_id(ai_id='claude-code', active_only=True)
+                from empirica.utils.session_resolver import InstanceResolver as R
+                session_id = R.latest_session_id(ai_id='claude-code', active_only=True)
             except Exception:
                 pass
 
@@ -1991,7 +1991,7 @@ def handle_calibration_dispute_command(args):
 
     try:
         from empirica.data.session_database import SessionDatabase
-        from empirica.utils.session_resolver import get_active_empirica_session_id
+        from empirica.utils.session_resolver import InstanceResolver as R
 
         vector = args.vector
         reported = args.reported
@@ -2012,7 +2012,7 @@ def handle_calibration_dispute_command(args):
         # Resolve session
         session_id = getattr(args, 'session_id', None)
         if not session_id:
-            session_id = get_active_empirica_session_id()
+            session_id = R.session_id()
         if not session_id:
             result = {"ok": False, "error": "No active session. Use --session-id or start a session first."}
             print(json.dumps(result))
@@ -2021,10 +2021,10 @@ def handle_calibration_dispute_command(args):
         # Read work_context from active transaction if available
         work_context = None
         try:
-            from empirica.utils.session_resolver import get_active_project_path, _get_instance_suffix
+            from empirica.utils.session_resolver import InstanceResolver as R
             from pathlib import Path
-            suffix = _get_instance_suffix()
-            project_path = get_active_project_path()
+            suffix = R.instance_suffix()
+            project_path = R.project_path()
             if project_path:
                 tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
                 if tx_file.exists():

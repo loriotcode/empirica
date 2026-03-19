@@ -143,7 +143,7 @@ def handle_sessions_show_command(args):
     """Show detailed session information including epistemic vectors"""
     try:
         from empirica.data.session_database import SessionDatabase
-        from empirica.utils.session_resolver import resolve_session_id
+        from empirica.utils.session_resolver import InstanceResolver as R
         import json
 
         # Support both positional and named argument for session ID
@@ -159,7 +159,7 @@ def handle_sessions_show_command(args):
 
         # Resolve session alias to UUID
         try:
-            session_id = resolve_session_id(session_id_arg)
+            session_id = R.resolve_session(session_id_arg)
         except ValueError as e:
             if getattr(args, 'output', None) == 'json':
                 print(json.dumps({"ok": False, "error": str(e)}))
@@ -305,11 +305,11 @@ def handle_sessions_show_command(args):
 def handle_session_snapshot_command(args):
     """Handle session-snapshot command - show where you left off"""
     from empirica.data.session_database import SessionDatabase
-    from empirica.utils.session_resolver import resolve_session_id
+    from empirica.utils.session_resolver import InstanceResolver as R
     import json
-    
+
     # Resolve session ID (supports aliases)
-    session_id = resolve_session_id(args.session_id)
+    session_id = R.resolve_session(args.session_id)
     
     db = SessionDatabase()
     snapshot = db.get_session_snapshot(session_id)
@@ -383,7 +383,7 @@ def handle_sessions_export_command(args):
     """Export session data to JSON file"""
     try:
         from empirica.data.session_database import SessionDatabase
-        from empirica.utils.session_resolver import resolve_session_id
+        from empirica.utils.session_resolver import InstanceResolver as R
 
         # Support both positional and named argument for session ID
         session_id_arg = args.session_id or getattr(args, 'session_id_named', None)
@@ -395,7 +395,7 @@ def handle_sessions_export_command(args):
 
         # Resolve session alias to UUID
         try:
-            session_id = resolve_session_id(session_id_arg)
+            session_id = R.resolve_session(session_id_arg)
         except ValueError as e:
             print(f"\n❌ {str(e)}")
             print(f"💡 Provided: {session_id_arg}")
@@ -476,7 +476,7 @@ def handle_memory_compact_command(args):
     try:
         import sys
         from empirica.data.session_database import SessionDatabase
-        from empirica.utils.session_resolver import resolve_session_id
+        from empirica.utils.session_resolver import InstanceResolver as R
 
         # Read JSON config from stdin or file
         if hasattr(args, 'config') and args.config:
@@ -511,7 +511,7 @@ def handle_memory_compact_command(args):
 
         # Resolve session alias to UUID
         try:
-            session_id = resolve_session_id(session_id_arg)
+            session_id = R.resolve_session(session_id_arg)
         except ValueError as e:
             print(json.dumps({
                 "ok": False,
@@ -753,8 +753,8 @@ def handle_transaction_adopt_command(args):
     # Auto-detect current instance if --to not specified
     if not to_instance:
         # Use canonical get_instance_id() which supports tmux, X11, macOS Terminal, TTY
-        from empirica.utils.session_resolver import get_instance_id as _canonical_get_instance_id
-        to_instance = _canonical_get_instance_id() or "default"
+        from empirica.utils.session_resolver import InstanceResolver as R
+        to_instance = R.instance_id() or "default"
         result["to_instance"] = to_instance
         result["actions"].append(f"Auto-detected current instance: {to_instance}")
 

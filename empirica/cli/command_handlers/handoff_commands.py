@@ -73,8 +73,8 @@ def handle_handoff_create_command(args):
 
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
-            from empirica.utils.session_resolver import get_active_empirica_session_id
-            session_id = get_active_empirica_session_id()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            session_id = R.session_id()
 
         # Validate required fields
         if not session_id:

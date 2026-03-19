@@ -130,8 +130,8 @@ def get_instance_id() -> str:
     with a PID-based fallback for environments where no isolation signal exists.
     """
     try:
-        from empirica.utils.session_resolver import get_instance_id as _resolver_get_instance_id
-        result = _resolver_get_instance_id()
+        from empirica.utils.session_resolver import InstanceResolver as R
+        result = R.instance_id()
         if result:
             return result
     except ImportError:

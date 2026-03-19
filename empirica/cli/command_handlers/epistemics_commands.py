@@ -102,8 +102,8 @@ def handle_epistemics_stats_command(args):
 
         # UNIFIED: Auto-derive session_id if not provided
         if not session_id:
-            from empirica.utils.session_resolver import get_active_empirica_session_id
-            session_id = get_active_empirica_session_id()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            session_id = R.session_id()
 
         if not session_id:
             print(json.dumps({
@@ -112,7 +112,7 @@ def handle_epistemics_stats_command(args):
                 "hint": "Either run PREFLIGHT first, or provide --session-id explicitly"
             }))
             sys.exit(1)
-        
+
         # Get reflexes from database
         db = SessionDatabase()
         cursor = db.conn.cursor()
@@ -230,8 +230,8 @@ def handle_epistemics_list_command(args):
 
         # UNIFIED: Auto-derive session_id if not provided
         if not session_id:
-            from empirica.utils.session_resolver import get_active_empirica_session_id
-            session_id = get_active_empirica_session_id()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            session_id = R.session_id()
 
         if not session_id:
             print(json.dumps({
@@ -240,7 +240,7 @@ def handle_epistemics_list_command(args):
                 "hint": "Either run PREFLIGHT first, or provide --session-id explicitly"
             }))
             sys.exit(1)
-        
+
         # Get trajectories directly from database
         db = SessionDatabase()
         cursor = db.conn.cursor()

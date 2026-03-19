@@ -30,8 +30,8 @@ def _get_project_id(args):
 
     # Try unified context resolver first
     try:
-        from empirica.utils.session_resolver import get_active_context
-        context = get_active_context()
+        from empirica.utils.session_resolver import InstanceResolver as R
+        context = R.context()
         project_path = context.get('project_path')
         if project_path:
             project_file = Path(project_path) / ".empirica" / "project.json"

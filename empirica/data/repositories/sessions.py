@@ -133,8 +133,8 @@ class SessionRepository(BaseRepository):
         """
         # Auto-detect instance_id if not provided
         if instance_id is None:
-            from empirica.utils.session_resolver import get_instance_id
-            instance_id = get_instance_id()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            instance_id = R.instance_id()
 
         session_id = str(uuid.uuid4())
         cursor = self._execute("""

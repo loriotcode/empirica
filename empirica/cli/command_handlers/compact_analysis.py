@@ -42,8 +42,8 @@ def get_db_path() -> Path:
 def get_ref_docs_path() -> Path:
     """Get the ref-docs directory for pre-compact snapshots via unified context resolver."""
     try:
-        from empirica.utils.session_resolver import get_active_context
-        context = get_active_context()
+        from empirica.utils.session_resolver import InstanceResolver as R
+        context = R.context()
         project_path = context.get('project_path')
         if project_path:
             ref_docs = Path(project_path) / '.empirica' / 'ref-docs'

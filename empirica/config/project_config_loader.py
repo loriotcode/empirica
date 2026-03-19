@@ -192,8 +192,8 @@ def load_project_config(project_root: Optional[Path] = None) -> Optional[Project
         # Override project_id with authoritative value from sessions.db
         # This prevents UUID mismatch when yaml and workspace.db diverge
         try:
-            from empirica.utils.session_resolver import _get_project_id_from_local_db
-            db_project_id = _get_project_id_from_local_db(project_root)
+            from empirica.utils.session_resolver import InstanceResolver as R
+            db_project_id = R.project_id_from_db(project_root)
             if db_project_id:
                 config_data['project_id'] = db_project_id
         except Exception:

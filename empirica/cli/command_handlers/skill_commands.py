@@ -26,8 +26,8 @@ def handle_skill_suggest_command(args):
     """Handle skill-suggest command to find relevant skills for a task."""
     try:
         import yaml  # type: ignore
-        from empirica.utils.session_resolver import get_active_project_path
-        context_project = get_active_project_path()
+        from empirica.utils.session_resolver import InstanceResolver as R
+        context_project = R.project_path()
         root = context_project if context_project else os.getcwd()
         task = getattr(args, 'task', '')
 
@@ -77,7 +77,7 @@ def handle_skill_fetch_command(args):
         import yaml  # type: ignore
         import zipfile, io
         from empirica.core.skills.parser import parse_markdown_to_skill
-        from empirica.utils.session_resolver import get_active_project_path
+        from empirica.utils.session_resolver import InstanceResolver as R
 
         name = args.name
         url = getattr(args, 'url', None)
@@ -85,7 +85,7 @@ def handle_skill_fetch_command(args):
         tags = [t.strip() for t in (getattr(args, 'tags', '') or '').split(',') if t.strip()]
 
         # Capture project context for nested function
-        context_project = get_active_project_path()
+        context_project = R.project_path()
         base_path = context_project if context_project else os.getcwd()
 
         def _save_skill(skill_obj: dict) -> dict:

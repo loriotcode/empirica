@@ -80,8 +80,8 @@ def handle_agent_spawn_command(args) -> dict:
     # Read active transaction for epistemic continuity
     transaction_id = None
     try:
-        from empirica.utils.session_resolver import read_active_transaction
-        transaction_id = read_active_transaction()
+        from empirica.utils.session_resolver import InstanceResolver as R
+        transaction_id = R.transaction_id()
     except Exception:
         pass  # Transaction linkage is optional
 

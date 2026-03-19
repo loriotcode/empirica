@@ -175,8 +175,8 @@ def _get_workspace_root() -> str:
     import os
     # Priority 0: Check active project context (respects project-switch)
     try:
-        from empirica.utils.session_resolver import get_active_project_path
-        context_project = get_active_project_path()
+        from empirica.utils.session_resolver import InstanceResolver as R
+        context_project = R.project_path()
         if context_project:
             return context_project
     except Exception:

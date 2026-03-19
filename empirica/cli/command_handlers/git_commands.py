@@ -20,7 +20,7 @@ def handle_save_command(args):
     """Handle save command — git add + commit with auto-generated message."""
     try:
         from empirica.config.path_resolver import get_git_root
-        from empirica.utils.session_resolver import read_active_transaction_full
+        from empirica.utils.session_resolver import InstanceResolver as R
 
         git_root = get_git_root()
         if not git_root:
@@ -51,7 +51,7 @@ def handle_save_command(args):
         # Generate commit message
         message = getattr(args, 'message', None)
         if not message:
-            tx = read_active_transaction_full()
+            tx = R.transaction_read()
             if tx:
                 tx_id = tx.get('transaction_id', '')[:8]
                 eng = tx.get('active_engagement', '')

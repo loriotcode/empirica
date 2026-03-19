@@ -218,8 +218,8 @@ def handle_goals_create_command(args):
 
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
-            from empirica.utils.session_resolver import get_active_empirica_session_id
-            session_id = get_active_empirica_session_id()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            session_id = R.session_id()
 
         # Validate required fields
         if not session_id or not objective:
@@ -298,8 +298,8 @@ def handle_goals_create_command(args):
         # Auto-derive active transaction_id for epistemic linkage
         transaction_id = None
         try:
-            from empirica.utils.session_resolver import read_active_transaction
-            transaction_id = read_active_transaction()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            transaction_id = R.transaction_id()
         except Exception:
             pass
 
@@ -973,8 +973,8 @@ def handle_goals_list_command(args):
             # Priority 2: From unified context resolver (transaction → active_work)
             if not project_id:
                 try:
-                    from empirica.utils.session_resolver import get_active_context
-                    context = get_active_context()
+                    from empirica.utils.session_resolver import InstanceResolver as R
+                    context = R.context()
                     ctx_session = context.get('empirica_session_id')
                     if ctx_session:
                         cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (ctx_session,))

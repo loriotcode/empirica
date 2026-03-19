@@ -269,8 +269,8 @@ class EpistemicDocsAgent:
         """Auto-detect project root by walking up to find markers."""
         # Priority 0: Use active context from instance isolation
         try:
-            from empirica.utils.session_resolver import get_active_project_path
-            context_project = get_active_project_path()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            context_project = R.project_path()
             if context_project:
                 return Path(context_project)
         except Exception:
@@ -1081,8 +1081,8 @@ class EpistemicDocsAgent:
         """Detect project ID from sessions.db (authoritative) or .empirica config (fallback)."""
         try:
             # Primary: sessions.db is authoritative
-            from empirica.utils.session_resolver import _get_project_id_from_local_db
-            db_project_id = _get_project_id_from_local_db(self.root)
+            from empirica.utils.session_resolver import InstanceResolver as R
+            db_project_id = R.project_id_from_db(self.root)
             if db_project_id:
                 return db_project_id
 
@@ -1409,8 +1409,8 @@ def _generate_summary(result: dict, categories: list, project_root: Path = None)
     # Count total docs - use provided root or resolve from active context
     if project_root is None:
         try:
-            from empirica.utils.session_resolver import get_active_project_path
-            context_project = get_active_project_path()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            context_project = R.project_path()
             project_root = Path(context_project) if context_project else Path.cwd()
         except Exception:
             project_root = Path.cwd()

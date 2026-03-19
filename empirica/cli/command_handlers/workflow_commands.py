@@ -15,7 +15,7 @@ import logging
 from ..cli_utils import handle_cli_error, parse_json_safely
 from ..validation import PreflightInput, CheckInput, PostflightInput, safe_validate
 from empirica.core.canonical.empirica_git.sentinel_hooks import SentinelHooks, SentinelDecision, auto_enable_sentinel
-from empirica.utils.session_resolver import resolve_session_id
+from empirica.utils.session_resolver import InstanceResolver as R
 from empirica.config.path_resolver import resolve_session_db_path
 
 # Auto-enable Sentinel with default evaluator on module load
@@ -223,8 +223,8 @@ def handle_preflight_submit_command(args):
             # Auto-resolve session_id from active session if not provided
             if not config_data.get('session_id'):
                 try:
-                    from empirica.utils.session_resolver import get_active_empirica_session_id
-                    auto_sid = get_active_empirica_session_id()
+                    from empirica.utils.session_resolver import InstanceResolver as R
+                    auto_sid = R.session_id()
                     if auto_sid:
                         config_data['session_id'] = auto_sid
                         logger.debug(f"PREFLIGHT: Auto-derived session_id: {auto_sid[:8]}...")
@@ -279,7 +279,7 @@ def handle_preflight_submit_command(args):
 
         # Resolve partial session IDs to full UUIDs
         try:
-            session_id = resolve_session_id(session_id)
+            session_id = R.resolve_session(session_id)
         except ValueError as e:
             print(json.dumps({
                 "ok": False,
@@ -296,8 +296,8 @@ def handle_preflight_submit_command(args):
         # Auto-closing would poison vector states (fabricated POSTFLIGHT vectors)
         unclosed_transaction_warning = None
         try:
-            from empirica.utils.session_resolver import read_active_transaction_full
-            existing_tx = read_active_transaction_full()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            existing_tx = R.transaction_read()
             if existing_tx and existing_tx.get('status') == 'open':
                 existing_tx_id = existing_tx.get('transaction_id', 'unknown')
                 existing_tx_time = existing_tx.get('preflight_timestamp', 0)
@@ -339,23 +339,20 @@ def handle_preflight_submit_command(args):
                 import os
                 import json as _json
                 from pathlib import Path
-                from empirica.utils.session_resolver import (
-                    write_active_transaction, get_active_context, update_active_context
-                )
+                from empirica.utils.session_resolver import InstanceResolver as R, update_active_context
 
                 # Get context from unified resolver (respects project-switch, instance isolation)
-                context = get_active_context()
+                context = R.context()
                 claude_session_id = context.get('claude_session_id')
                 # NO CWD FALLBACK - CWD is unreliable with Claude Code
                 # Use get_active_project_path() which checks instance_projects properly
-                from empirica.utils.session_resolver import get_active_project_path
-                resolved_project_path = context.get('project_path') or get_active_project_path(claude_session_id)
+                resolved_project_path = context.get('project_path') or R.project_path(claude_session_id)
                 if not resolved_project_path:
                     logger.warning("Cannot determine project_path for transaction file - no context found")
 
                 # Write transaction file (only if we have a valid project path)
                 if resolved_project_path:
-                    write_active_transaction(
+                    R.transaction_write(
                         transaction_id=transaction_id,
                         session_id=session_id,
                         preflight_timestamp=time.time(),
@@ -366,8 +363,7 @@ def handle_preflight_submit_command(args):
                     # Inject work_context and work_type into transaction file if provided
                     if work_context or work_type:
                         try:
-                            from empirica.utils.session_resolver import read_active_transaction_full, _get_instance_suffix
-                            suffix = _get_instance_suffix()
+                            suffix = R.instance_suffix()
                             tx_file = Path(resolved_project_path) / '.empirica' / f'active_transaction{suffix}.json'
                             if tx_file.exists():
                                 with open(tx_file, 'r') as f:
@@ -393,9 +389,6 @@ def handle_preflight_submit_command(args):
                     # AUTONOMY CALIBRATION: Calculate avg_turns from past transactions
                     # and inject into the new transaction for Sentinel nudge thresholds
                     try:
-                        from empirica.utils.session_resolver import (
-                            read_active_transaction_full, _get_instance_suffix
-                        )
                         from empirica.data.session_database import SessionDatabase
 
                         avg_db = SessionDatabase()
@@ -418,10 +411,10 @@ def handle_preflight_submit_command(args):
                             avg_turns = 0  # No history yet — nudge disabled until first complete cycle
 
                         # Update the transaction file with avg_turns
-                        tx_data = read_active_transaction_full()
+                        tx_data = R.transaction_read()
                         if tx_data:
                             tx_data['avg_turns'] = avg_turns
-                            suffix = _get_instance_suffix()
+                            suffix = R.instance_suffix()
                             from pathlib import Path as _Path
                             tx_path = _Path(resolved_project_path) / '.empirica' / f'active_transaction{suffix}.json'
                             if tx_path.exists():
@@ -917,10 +910,10 @@ def handle_check_command(args):
         # Read active transaction_id (generated by PREFLIGHT)
         check_transaction_id = None
         try:
-            from empirica.utils.session_resolver import read_active_transaction
-            check_transaction_id = read_active_transaction()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            check_transaction_id = R.transaction_id()
             if check_transaction_id is None:
-                logger.warning("read_active_transaction() returned None — CHECK will be stored without transaction_id. "
+                logger.warning("R.transaction_id() returned None — CHECK will be stored without transaction_id. "
                                "This may cause Sentinel to not find this CHECK. Check instance_projects/ state.")
         except Exception as e:
             logger.warning(f"Failed to read active transaction: {e}")
@@ -1053,14 +1046,14 @@ def handle_check_submit_command(args):
         # Auto-resolve session_id from active transaction if not provided
         if not session_id:
             try:
-                from empirica.utils.session_resolver import get_active_empirica_session_id
-                session_id = get_active_empirica_session_id()
+                from empirica.utils.session_resolver import InstanceResolver as R
+                session_id = R.session_id()
             except Exception:
                 pass
 
         # Resolve partial session IDs to full UUIDs
         try:
-            session_id = resolve_session_id(session_id)
+            session_id = R.resolve_session(session_id)
         except ValueError as e:
             print(json.dumps({
                 "ok": False,
@@ -1335,10 +1328,10 @@ def handle_check_submit_command(args):
             # Read active transaction_id (generated by PREFLIGHT)
             check_transaction_id2 = None
             try:
-                from empirica.utils.session_resolver import read_active_transaction
-                check_transaction_id2 = read_active_transaction()
+                from empirica.utils.session_resolver import InstanceResolver as R
+                check_transaction_id2 = R.transaction_id()
                 if check_transaction_id2 is None:
-                    logger.warning("read_active_transaction() returned None — CHECK will be stored without transaction_id. "
+                    logger.warning("R.transaction_id() returned None — CHECK will be stored without transaction_id. "
                                    "This may cause Sentinel to not find this CHECK. Check instance_projects/ state.")
             except Exception as e:
                 logger.warning(f"Failed to read active transaction: {e}")
@@ -1815,8 +1808,8 @@ def handle_postflight_submit_command(args):
             # (matches check-submit behavior — postflight closes an existing tx)
             if not session_id:
                 try:
-                    from empirica.utils.session_resolver import get_active_empirica_session_id
-                    session_id = get_active_empirica_session_id()
+                    from empirica.utils.session_resolver import InstanceResolver as R
+                    session_id = R.session_id()
                     if session_id:
                         logger.debug(f"POSTFLIGHT: Auto-derived session_id: {session_id[:8]}...")
                 except Exception:
@@ -1843,8 +1836,8 @@ def handle_postflight_submit_command(args):
             # Auto-resolve session_id from active transaction if not provided
             if not session_id:
                 try:
-                    from empirica.utils.session_resolver import get_active_empirica_session_id
-                    session_id = get_active_empirica_session_id()
+                    from empirica.utils.session_resolver import InstanceResolver as R
+                    session_id = R.session_id()
                 except Exception:
                     pass
 
@@ -1861,8 +1854,8 @@ def handle_postflight_submit_command(args):
         # The transaction file stores the session_id from PREFLIGHT time, which is the
         # correct session even if the conversation summary has a stale session_id
         try:
-            from empirica.utils.session_resolver import read_active_transaction_full
-            tx_data = read_active_transaction_full()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            tx_data = R.transaction_read()
             if tx_data and tx_data.get('session_id'):
                 tx_session_id = tx_data['session_id']
                 if tx_session_id != session_id:
@@ -1877,7 +1870,7 @@ def handle_postflight_submit_command(args):
 
         # Resolve partial session IDs to full UUIDs
         try:
-            session_id = resolve_session_id(session_id)
+            session_id = R.resolve_session(session_id)
         except ValueError as e:
             print(json.dumps({
                 "ok": False,
@@ -2030,17 +2023,17 @@ def handle_postflight_submit_command(args):
             postflight_work_context = None
             try:
                 import time
-                from empirica.utils.session_resolver import write_active_transaction, get_active_project_path, _get_instance_suffix
+                from empirica.utils.session_resolver import InstanceResolver as R
                 from pathlib import Path
                 import json as _json
 
                 # Read current transaction with instance suffix (multi-instance isolation)
-                suffix = _get_instance_suffix()
+                suffix = R.instance_suffix()
 
                 # Use canonical project resolution (NO CWD FALLBACK)
                 # Priority 0: instance_projects (TMUX_PANE) — authoritative
                 # Priority 1: active_work (claude_session_id) — fallback
-                resolved_project_path = get_active_project_path()
+                resolved_project_path = R.project_path()
 
                 if resolved_project_path:
                     tx_file = Path(resolved_project_path) / '.empirica' / f'active_transaction{suffix}.json'
@@ -2070,7 +2063,7 @@ def handle_postflight_submit_command(args):
                     # Work type for evidence weight profiling
                     postflight_work_type = tx_data.get('work_type')
                     # Update to closed status - preserve project_path from transaction
-                    write_active_transaction(
+                    R.transaction_write(
                         transaction_id=postflight_transaction_id,
                         session_id=tx_data.get('session_id'),
                         preflight_timestamp=tx_data.get('preflight_timestamp'),
@@ -2086,8 +2079,8 @@ def handle_postflight_submit_command(args):
             postflight_entity_context = []
             try:
                 from empirica.data.repositories.workspace_db import WorkspaceDBRepository
-                from empirica.utils.session_resolver import read_active_transaction_full as _pf_read_tx
-                _pf_tx = _pf_read_tx()
+                from empirica.utils.session_resolver import InstanceResolver as R
+                _pf_tx = R.transaction_read()
                 if _pf_tx and _pf_tx.get('transaction_id'):
                     with WorkspaceDBRepository.open() as _pf_ws:
                         _pf_links = _pf_ws.get_entity_artifacts_by_transaction(_pf_tx['transaction_id'])
@@ -2492,9 +2485,9 @@ def handle_postflight_submit_command(args):
             workspace_indexed = 0
             try:
                 from empirica.core.qdrant.connection import _check_qdrant_available as _ws_qdrant_check
-                from empirica.utils.session_resolver import read_active_transaction_full as _ws_read_tx
+                from empirica.utils.session_resolver import InstanceResolver as R
 
-                _ws_tx = _ws_read_tx()
+                _ws_tx = R.transaction_read()
                 _ws_transaction_id = _ws_tx.get('transaction_id') if _ws_tx else None
 
                 if _ws_qdrant_check() and session and session.get('project_id') and _ws_transaction_id:

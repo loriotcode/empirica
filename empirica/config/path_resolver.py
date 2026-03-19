@@ -225,8 +225,8 @@ def get_session_db_path() -> Path:
     # 1. Use unified context resolver (canonical source of truth)
     # This respects: transaction file (survives compaction) → active_work → TTY → instance_projects
     try:
-        from empirica.utils.session_resolver import get_active_context
-        context = get_active_context()
+        from empirica.utils.session_resolver import InstanceResolver as R
+        context = R.context()
         project_path = context.get('project_path')
         if project_path:
             db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
@@ -327,8 +327,8 @@ def resolve_session_db_path(session_id: str) -> Optional[Path]:
 
     # Priority 2: Try TTY session's project_path
     try:
-        from empirica.utils.session_resolver import get_tty_session
-        tty_session = get_tty_session(warn_if_stale=False)
+        from empirica.utils.session_resolver import InstanceResolver as R
+        tty_session = R.tty_session(warn_if_stale=False)
         if tty_session:
             tty_project_path = tty_session.get('project_path')
             if tty_project_path:

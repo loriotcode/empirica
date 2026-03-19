@@ -306,8 +306,8 @@ def print_project_context(quiet: bool = False, verbose: bool = False) -> Optiona
         # This ensures we show the correct project after project-switch even if CWD differs
         git_root = None
         try:
-            from empirica.utils.session_resolver import get_active_context
-            context = get_active_context()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            context = R.context()
             project_path = context.get('project_path')
             if project_path:
                 git_root = Path(project_path)

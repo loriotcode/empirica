@@ -333,7 +333,7 @@ def handle_session_create_command(args):
             # Method 0: Check resolver context files (highest priority)
             # Priority: instance_projects (TMUX) > active_work (Claude session) > canonical active_work
             try:
-                from empirica.utils.session_resolver import get_tty_session
+                from empirica.utils.session_resolver import InstanceResolver as R
                 import json as _json
                 import sqlite3 as _sqlite3
 
@@ -372,8 +372,7 @@ def handle_session_create_command(args):
                     if context_data.get('project_path'):
                         project_path = context_data['project_path']
                         # Primary: sessions.db is authoritative
-                        from empirica.utils.session_resolver import _get_project_id_from_local_db
-                        db_project_id = _get_project_id_from_local_db(project_path)
+                        db_project_id = R.project_id_from_db(project_path)
                         if db_project_id:
                             return db_project_id
                         # Fallback: project.yaml for fresh projects
@@ -393,8 +392,7 @@ def handle_session_create_command(args):
                 # Priority 0a: Check instance_projects (instance-keyed, works via Bash tool)
                 # This is written by project-init and project-switch
                 # Uses canonical get_instance_id() which supports tmux, X11, macOS Terminal, TTY
-                from empirica.utils.session_resolver import get_instance_id as _canonical_get_instance_id
-                _sc_instance_id = _canonical_get_instance_id()
+                _sc_instance_id = R.instance_id()
                 if _sc_instance_id and not early_project_id:
                     instance_file = os.path.join(
                         os.path.expanduser('~'), '.empirica',
@@ -407,7 +405,7 @@ def handle_session_create_command(args):
 
                 # Priority 0b: Try TTY-specific active_work (multi-instance isolation)
                 if not early_project_id:
-                    tty_session = get_tty_session(warn_if_stale=False)
+                    tty_session = R.tty_session(warn_if_stale=False)
                     if tty_session:
                         claude_session_id = tty_session.get('claude_session_id')
                         if claude_session_id:
@@ -434,12 +432,12 @@ def handle_session_create_command(args):
             # Use active context project_path - NO CWD FALLBACK (CWD is unreliable)
             if not early_project_id:
                 try:
-                    from empirica.utils.session_resolver import get_active_project_path, _get_project_id_from_local_db
-                    context_project = get_active_project_path()
+                    from empirica.utils.session_resolver import InstanceResolver as R
+                    context_project = R.project_path()
                     if not context_project:
                         raise ValueError("No active project context - skip Method 1")
                     # Primary: sessions.db is authoritative
-                    early_project_id = _get_project_id_from_local_db(context_project)
+                    early_project_id = R.project_id_from_db(context_project)
                     # Fallback: project.yaml for fresh projects
                     if not early_project_id:
                         import yaml
@@ -495,8 +493,8 @@ def handle_session_create_command(args):
 
         # AUTO-CLOSE PREVIOUS SESSIONS before creating new one
         # Get current instance_id for multi-pane isolation
-        from empirica.utils.session_resolver import get_instance_id
-        current_instance_id = get_instance_id()
+        from empirica.utils.session_resolver import InstanceResolver as R
+        current_instance_id = R.instance_id()
 
         db = SessionDatabase()
         close_result = auto_close_previous_sessions(db, ai_id, early_project_id, current_instance_id, output_format)
@@ -526,9 +524,9 @@ def handle_session_create_command(args):
         # Update active_session file for statusline (instance-specific)
         # Uses instance_id (e.g., tmux:%0) to prevent cross-pane bleeding
         from pathlib import Path
-        from empirica.utils.session_resolver import get_instance_id
+        from empirica.utils.session_resolver import InstanceResolver as R
 
-        instance_id = get_instance_id()
+        instance_id = R.instance_id()
         instance_suffix = ""
         if instance_id:
             # Sanitize instance_id for filename (replace special chars)
@@ -545,8 +543,7 @@ def handle_session_create_command(args):
         # the correct DB even when cwd changes (prevents user confusion about data loss)
         import tempfile
         import json as _json
-        from empirica.utils.session_resolver import get_active_project_path
-        resolved_project_path = get_active_project_path()
+        resolved_project_path = R.project_path()
         if not resolved_project_path:
             # NO CWD FALLBACK - CWD is unreliable (may be launch dir, not project dir)
             # Fail explicitly so the issue is visible
@@ -572,11 +569,11 @@ def handle_session_create_command(args):
         # This enables CLI commands to find the active session via TTY context
         # IMPORTANT: Preserve project-switch context - NO CWD FALLBACK
         try:
-            from empirica.utils.session_resolver import write_tty_session, get_active_project_path
+            from empirica.utils.session_resolver import InstanceResolver as R
             # Check existing context first (may have been set by project-switch)
-            existing_project = get_active_project_path()
+            existing_project = R.project_path()
             if existing_project:
-                write_tty_session(
+                R.tty_write(
                     empirica_session_id=session_id,
                     project_path=existing_project
                 )

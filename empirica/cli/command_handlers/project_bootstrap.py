@@ -50,12 +50,11 @@ def handle_project_bootstrap_command(args):
             # Method 1: Use unified context resolver (respects project-switch, active_work)
             # This is the AUTHORITATIVE source - handles multi-instance isolation
             try:
-                from empirica.utils.session_resolver import get_active_project_path
-                active_project = get_active_project_path()
+                from empirica.utils.session_resolver import InstanceResolver as R
+                active_project = R.project_path()
                 if active_project:
                     # Load project_id from sessions.db (authoritative) or project.yaml (fallback)
-                    from empirica.utils.session_resolver import _get_project_id_from_local_db
-                    project_id = _get_project_id_from_local_db(active_project)
+                    project_id = R.project_id_from_db(active_project)
 
                     # Fallback: project.yaml for fresh projects without sessions
                     if not project_id:
@@ -157,10 +156,10 @@ def handle_project_bootstrap_command(args):
         if trigger == 'post_compact':
             from empirica.config.mco_loader import get_mco_config
             from pathlib import Path
-            from empirica.utils.session_resolver import get_active_project_path
+            from empirica.utils.session_resolver import InstanceResolver as R
 
             # Find latest pre_summary snapshot - use active context, not CWD
-            context_project = get_active_project_path()
+            context_project = R.project_path()
             project_base = Path(context_project) if context_project else Path.cwd()
             ref_docs_dir = project_base / ".empirica" / "ref-docs"
             if ref_docs_dir.exists():
@@ -297,8 +296,8 @@ def handle_project_bootstrap_command(args):
         try:
             import yaml
             import os
-            from empirica.utils.session_resolver import get_active_project_path
-            context_project = get_active_project_path()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            context_project = R.project_path()
             base_path = context_project if context_project else os.getcwd()
             skills_dir = os.path.join(base_path, 'project_skills')
             if os.path.exists(skills_dir):
@@ -925,8 +924,8 @@ def handle_project_bootstrap_command(args):
                 # Resolve project root from active context
                 ws_project_root = None
                 try:
-                    from empirica.utils.session_resolver import get_active_project_path
-                    ws_project_root = get_active_project_path()
+                    from empirica.utils.session_resolver import InstanceResolver as R
+                    ws_project_root = R.project_path()
                 except Exception:
                     pass
                 if not ws_project_root:

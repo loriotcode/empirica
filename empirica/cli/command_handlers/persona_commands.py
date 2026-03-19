@@ -137,8 +137,8 @@ def handle_persona_promote_command(args):
             return 1
 
         # Find MCO personas.yaml - use active context, not CWD
-        from empirica.utils.session_resolver import get_active_project_path
-        context_project = get_active_project_path()
+        from empirica.utils.session_resolver import InstanceResolver as R
+        context_project = R.project_path()
         project_base = Path(context_project) if context_project else Path.cwd()
         mco_path = project_base / ".empirica" / "mco" / "personas.yaml"
         if not mco_path.parent.exists():

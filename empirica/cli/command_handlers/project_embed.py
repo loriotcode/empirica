@@ -37,10 +37,10 @@ def handle_project_embed_command(args):
         )
         import hashlib
         from empirica.data.session_database import SessionDatabase
-        from empirica.utils.session_resolver import get_active_project_path
+        from empirica.utils.session_resolver import InstanceResolver as R
 
         project_id = args.project_id
-        context_project = get_active_project_path()
+        context_project = R.project_path()
         root = context_project if context_project else os.getcwd()
         sync_global = getattr(args, 'global_sync', False)
 
@@ -52,8 +52,7 @@ def handle_project_embed_command(args):
         # Use trajectory_path from workspace.db, not CWD
         db_path = None
         try:
-            from empirica.utils.session_resolver import _resolve_via_workspace_db
-            project_info = _resolve_via_workspace_db(project_id)
+            project_info = R.resolve_workspace_project(project_id)
             if project_info and project_info.get('project_path'):
                 project_root = project_info['project_path']
                 candidate = os.path.join(project_root, '.empirica', 'sessions', 'sessions.db')

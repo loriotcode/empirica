@@ -207,7 +207,7 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
         True if successfully written, False otherwise
     """
     import time
-    from empirica.utils.session_resolver import get_tty_session, get_tty_key
+    from empirica.utils.session_resolver import InstanceResolver as R
 
     try:
         marker_dir = Path.home() / '.empirica'
@@ -215,19 +215,18 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
 
         # Try to get Claude session ID - prefer explicit parameter over TTY session
         # claude_session_id parameter is set when called from project-switch with --claude-session-id
-        tty_session = get_tty_session()
+        tty_session = R.tty_session()
         if not claude_session_id:
             claude_session_id = tty_session.get('claude_session_id') if tty_session else None
 
         # CRITICAL: Update instance_projects and TTY session with new project_path
         # instance_projects is used by Sentinel and statusline when running via Bash tool
         # TTY session is used for direct terminal context
-        tty_key = get_tty_key()
+        tty_key = R.tty_key()
 
         # Use canonical get_instance_id() which supports tmux, X11, macOS Terminal, TTY
         # Previously only checked TMUX_PANE, breaking X11 and other non-tmux environments
-        from empirica.utils.session_resolver import get_instance_id as _canonical_get_instance_id
-        instance_id = _canonical_get_instance_id()
+        instance_id = R.instance_id()
 
         # When instance_id is absent (Bash tool subprocess may lack env vars),
         # resolve from claude_session_id by scanning instance_projects/ files.
@@ -337,8 +336,7 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
         # session-create writes this initially but project-switch must update it
         # when the project changes, otherwise statusline reads from wrong project DB.
         try:
-            from empirica.utils.session_resolver import _get_instance_suffix
-            as_suffix = _get_instance_suffix()
+            as_suffix = R.instance_suffix()
             if as_suffix:
                 as_file = marker_dir / f'active_session{as_suffix}'
                 as_data = {
@@ -376,8 +374,7 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
         # In interactive mode, instance_projects + active_work_{uuid} handle everything.
         # The generic file would just pollute resolution with stale cross-terminal data.
         try:
-            from empirica.utils.session_resolver import is_headless
-            _headless = is_headless()
+            _headless = R.is_headless()
         except ImportError:
             _headless = True  # Conservative: write if can't detect
 
@@ -835,7 +832,7 @@ def handle_project_switch_command(args):
         # Transactions are project-scoped, so switching projects should close the current one
         postflight_result = None
         try:
-            from empirica.utils.session_resolver import read_active_transaction
+            from empirica.utils.session_resolver import InstanceResolver as R
             from empirica.config.path_resolver import get_empirica_root
             from empirica.core.statusline_cache import get_instance_id
 
@@ -862,8 +859,7 @@ def handle_project_switch_command(args):
             if not current_empirica_root:
                 current_empirica_root = get_empirica_root()
             if current_empirica_root:
-                from empirica.utils.session_resolver import _get_instance_suffix
-                suffix = _get_instance_suffix()
+                suffix = R.instance_suffix()
                 tx_path = current_empirica_root / f'active_transaction{suffix}.json'
                 if tx_path.exists():
                     import json as _json

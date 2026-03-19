@@ -213,8 +213,8 @@ class PostTestCollector:
         # Priority 1: Resolve from project_id via workspace.db
         if self.project_id:
             try:
-                from empirica.utils.session_resolver import _resolve_via_workspace_db
-                project_info = _resolve_via_workspace_db(self.project_id)
+                from empirica.utils.session_resolver import InstanceResolver as R
+                project_info = R.resolve_workspace_project(self.project_id)
                 if project_info and (project_info.get("project_path") or project_info.get("trajectory_path")):
                     path = project_info.get("project_path") or project_info["trajectory_path"]
                     if Path(path).is_dir():
@@ -225,8 +225,8 @@ class PostTestCollector:
 
         # Priority 2: Active project path from instance/active_work files
         try:
-            from empirica.utils.session_resolver import get_active_project_path
-            active_path = get_active_project_path()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            active_path = R.project_path()
             if active_path and Path(active_path).is_dir():
                 self._project_root = active_path
                 return self._project_root
@@ -1215,9 +1215,9 @@ class PostTestCollector:
         The Sentinel's _try_increment_tool_count appends file_path for
         every Edit/Write tool call to the transaction file.
         """
-        from empirica.utils.session_resolver import _get_instance_suffix
+        from empirica.utils.session_resolver import InstanceResolver as R
 
-        suffix = _get_instance_suffix()
+        suffix = R.instance_suffix()
 
         # Try project .empirica/ first, then global
         search_paths = []

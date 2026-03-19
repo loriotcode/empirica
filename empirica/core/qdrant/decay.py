@@ -202,10 +202,10 @@ def auto_sync_session_to_global(
     try:
         # Get session findings from SQLite
         from empirica.data.session_database import SessionDatabase
-        from empirica.utils.session_resolver import get_active_project_path
+        from empirica.utils.session_resolver import InstanceResolver as R
         from pathlib import Path
 
-        project_path = get_active_project_path()
+        project_path = R.project_path()
         if not project_path:
             return 0
 

@@ -33,8 +33,8 @@ def handle_mistake_log_command(args):
 
         # UNIFIED: Auto-derive session_id if not provided
         if not session_id:
-            from empirica.utils.session_resolver import get_active_empirica_session_id
-            session_id = get_active_empirica_session_id()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            session_id = R.session_id()
 
         # Validate required fields
         if not session_id:
@@ -57,8 +57,8 @@ def handle_mistake_log_command(args):
         # Auto-derive active transaction_id
         transaction_id = None
         try:
-            from empirica.utils.session_resolver import read_active_transaction
-            transaction_id = read_active_transaction()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            transaction_id = R.transaction_id()
         except Exception:
             pass
 
