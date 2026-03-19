@@ -1,7 +1,7 @@
 # Session Resolver API Reference
 
 **Module:** `empirica.utils.session_resolver`
-**Version:** 1.6.6
+**Version:** 1.6.10+
 **Purpose:** Session ID resolution, multi-instance isolation, and context management
 
 ---
@@ -10,10 +10,47 @@
 
 The session resolver module provides core infrastructure for:
 
-1. **TTY-based Session Isolation** — Multi-instance support for parallel Claude instances
+1. **Multi-Instance Isolation** — Support for parallel Claude instances (tmux, X11, macOS Terminal, TTY)
 2. **Session ID Resolution** — Magic aliases (`latest`, `latest:active`, etc.)
 3. **Unified Context Resolver** — Canonical functions for project/session lookup
 4. **Project Identifier Resolution** — Normalize UUID/path/folder-name inputs
+
+## InstanceResolver (Primary API)
+
+All callers should use `InstanceResolver` as the single entry point. All methods
+are `@staticmethod` — no instantiation needed:
+
+```python
+from empirica.utils.session_resolver import InstanceResolver as R
+```
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `R.instance_id()` | `str \| None` | Current instance ID (tmux, X11, macOS Terminal, TTY) |
+| `R.instance_suffix()` | `str` | Sanitized suffix for filenames (e.g. `_x11_77663748`) |
+| `R.project_path(csid)` | `str \| None` | Active project path (P0: instance_projects, P1: active_work) |
+| `R.session_id(csid)` | `str \| None` | Active Empirica session ID |
+| `R.resolve_session(sid, ai_id)` | `str` | Resolve partial ID / alias to full UUID |
+| `R.latest_session_id(ai_id, active_only)` | `str \| None` | Most recent session |
+| `R.context(csid)` | `dict` | Full active context (project, session, instance) |
+| `R.engagement(csid)` | `str \| None` | Active engagement ID |
+| `R.transaction_id(csid)` | `str \| None` | Active transaction ID |
+| `R.transaction_read(csid)` | `dict \| None` | Full transaction state |
+| `R.transaction_write(...)` | `None` | Write/update transaction file |
+| `R.transaction_clear(csid)` | `None` | Delete transaction file |
+| `R.transaction_increment(csid)` | `dict \| None` | Increment tool call counter |
+| `R.tty_key()` | `str \| None` | TTY device key |
+| `R.tty_session(warn)` | `dict \| None` | TTY session data |
+| `R.tty_write(csid, esid, path)` | `bool` | Write TTY + instance_projects files |
+| `R.project_id_from_db(path)` | `str \| None` | Get project_id from sessions.db |
+| `R.resolve_workspace_project(id)` | `dict \| None` | Resolve via workspace.db |
+| `R.cleanup_stale_instances()` | `int` | Remove orphaned instance_projects |
+| `R.cleanup_stale_files(csid)` | `int` | Remove stale active_work files |
+| `R.is_headless()` | `bool` | Check headless/container mode |
+
+`csid` = `claude_session_id` (optional, from hook stdin).
+
+The module-level functions below remain as backward-compatible aliases.
 
 ---
 

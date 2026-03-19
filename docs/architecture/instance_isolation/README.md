@@ -19,11 +19,10 @@ This folder documents how Empirica keeps them isolated.
 **Solution:** File-based isolation + `InstanceResolver` class (v1.6.10+):
 
 ```python
-from empirica.utils.session_resolver import InstanceResolver
-r = InstanceResolver()
-r.project_path()      # Resolves active project
-r.session_id()        # Resolves active Empirica session
-r.instance_suffix()   # Sanitized suffix for file naming
+from empirica.utils.session_resolver import InstanceResolver as R
+R.project_path()      # Resolves active project
+R.session_id()        # Resolves active Empirica session
+R.instance_suffix()   # Sanitized suffix for file naming
 ```
 
 **Resolution priority:** `instance_projects` (P0) → `active_work_{uuid}` (P1) → `active_work.json` (P2) → None (fail explicitly).

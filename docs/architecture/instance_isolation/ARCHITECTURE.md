@@ -21,25 +21,30 @@ checked `TMUX_PANE`, breaking X11 and other non-tmux environments.
 
 ## Unified API
 
-All resolution goes through **`InstanceResolver`** (v1.6.10+):
+All resolution goes through **`InstanceResolver`** (v1.6.10+). All methods are
+`@staticmethod` — no instantiation needed:
 
 ```python
-from empirica.utils.session_resolver import InstanceResolver
-r = InstanceResolver()
-r.project_path()       # → "/home/user/my-project" or None
-r.session_id()         # → "2bc1da78-..." or None
-r.instance_id()        # → "x11:77639996" or None
-r.instance_suffix()    # → "_x11_77639996" (sanitized for filenames)
-r.transaction_read()   # → {"transaction_id": ..., "status": "open"} or None
+from empirica.utils.session_resolver import InstanceResolver as R
+
+R.project_path()       # → "/home/user/my-project" or None
+R.session_id()         # → "2bc1da78-..." or None
+R.instance_id()        # → "x11:77639996" or None
+R.instance_suffix()    # → "_x11_77639996" (sanitized for filenames)
+R.transaction_read()   # → {"transaction_id": ..., "status": "open"} or None
+R.transaction_id()     # → "abc123..." or None (shorthand)
+R.context()            # → {"project_path": ..., "session_id": ..., ...}
+R.tty_session()        # → {"claude_session_id": ..., ...} or None
+R.is_headless()        # → True/False
 ```
 
 Hook-side mirror in `project_resolver.py` delegates to canonical with fallback:
 ```python
-from project_resolver import InstanceResolver  # hooks can use this too
+from project_resolver import InstanceResolver as R  # hooks can use this too
 ```
 
-All existing module-level functions (`get_active_project_path()`, etc.) remain as
-backward-compatible aliases.
+Module-level functions (`get_active_project_path()`, etc.) remain as
+backward-compatible aliases but all callers have been migrated to `InstanceResolver`.
 
 ## File Taxonomy
 
