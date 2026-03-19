@@ -102,6 +102,19 @@ profiles:
       preflight_engagement_min: 0.60            # Engagement threshold for starting work
       postflight_calibration_enabled: true     # Enable learning delta calculations
 
+    # Brier-based calibration gating (dynamic thresholds)
+    # Miscalibration RAISES thresholds above baselines. Good calibration = baselines trusted.
+    calibration:
+      # Safety ceilings — worst miscalibration can't make gates impossible
+      safety_ceiling_know: 0.90              # Never require > 90% know
+      safety_ceiling_uncertainty: 0.15       # Never require < 15% uncertainty
+      # Maximum inflation from Brier reliability component
+      max_inflation: 0.20                    # At worst, gates tighten by 20% beyond baseline
+      # Minimum trajectory points before enabling dynamic thresholds
+      min_transactions: 5
+      # Lookback window for Brier computation
+      lookback: 20
+
   # ---------------------------------------------------------------------------
   # EXPLORATORY PROFILE (Research, Prototyping, Learning)
   # ---------------------------------------------------------------------------
@@ -159,6 +172,13 @@ profiles:
       aggregate_reasoning_patterns: true
       preflight_engagement_min: 0.50
       postflight_calibration_enabled: true     # Track learning aggressively
+
+    calibration:
+      safety_ceiling_know: 0.85              # Exploratory: slightly lower ceiling
+      safety_ceiling_uncertainty: 0.20       # More tolerance for uncertainty
+      max_inflation: 0.15                    # Less aggressive tightening
+      min_transactions: 5
+      lookback: 20
 
   # ---------------------------------------------------------------------------
   # RIGOROUS PROFILE (Production, Critical Systems)
@@ -218,6 +238,13 @@ profiles:
       preflight_engagement_min: 0.70
       postflight_calibration_enabled: true     # Strict calibration tracking
 
+    calibration:
+      safety_ceiling_know: 0.95              # Rigorous: highest ceiling
+      safety_ceiling_uncertainty: 0.10       # Very low uncertainty tolerance
+      max_inflation: 0.25                    # Aggressive tightening for miscalibration
+      min_transactions: 3                    # Fewer points needed (strict from start)
+      lookback: 30                           # Longer history window
+
   # ---------------------------------------------------------------------------
   # RAPID PROFILE (Fast Iteration, Prototyping)
   # ---------------------------------------------------------------------------
@@ -275,6 +302,13 @@ profiles:
       aggregate_reasoning_patterns: false     # Skip aggregation for speed
       preflight_engagement_min: 0.50
       postflight_calibration_enabled: false    # Skip calibration for speed
+
+    calibration:
+      safety_ceiling_know: 0.85              # Rapid: moderate ceiling
+      safety_ceiling_uncertainty: 0.25       # High tolerance
+      max_inflation: 0.10                    # Minimal tightening (speed over safety)
+      min_transactions: 10                   # More data needed before adjusting
+      lookback: 10                           # Short history (recent matters more)
 
   # ---------------------------------------------------------------------------
   # EXPERT PROFILE (High-Capability AI)
@@ -334,6 +368,13 @@ profiles:
       preflight_engagement_min: 0.65
       postflight_calibration_enabled: true     # Track performance
 
+    calibration:
+      safety_ceiling_know: 0.90
+      safety_ceiling_uncertainty: 0.15
+      max_inflation: 0.20
+      min_transactions: 5
+      lookback: 20
+
   # ---------------------------------------------------------------------------
   # NOVICE PROFILE (Learning AI, Low Experience)
   # ---------------------------------------------------------------------------
@@ -391,6 +432,13 @@ profiles:
       aggregate_reasoning_patterns: true       # Analyze patterns for learning
       preflight_engagement_min: 0.55
       postflight_calibration_enabled: true     # Aggressive learning tracking
+
+    calibration:
+      safety_ceiling_know: 0.90
+      safety_ceiling_uncertainty: 0.15
+      max_inflation: 0.25                    # Aggressive tightening for novices
+      min_transactions: 3                    # Start correcting early
+      lookback: 15
 
 # =============================================================================
 # NOTES FOR SENTINEL ORCHESTRATOR

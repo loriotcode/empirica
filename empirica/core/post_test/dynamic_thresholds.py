@@ -35,21 +35,72 @@ from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-# Domain baselines — the bar when calibration is good (trusted)
-# These are the MINIMUM thresholds. Miscalibration only raises them.
-DOMAIN_BASELINES = {
+# Hardcoded fallbacks — used only when MCO config unavailable
+_FALLBACK_BASELINES = {
     "ready_know_threshold": 0.70,
     "ready_uncertainty_threshold": 0.35,
 }
-
-# Safety ceilings — worst miscalibration can't make gates impossible
-SAFETY_CEILINGS = {
-    "ready_know_threshold": 0.90,       # Never require > 90% know
-    "ready_uncertainty_threshold": 0.15,  # Never require < 15% uncertainty
+_FALLBACK_CEILINGS = {
+    "ready_know_threshold": 0.90,
+    "ready_uncertainty_threshold": 0.15,
 }
+_FALLBACK_MAX_INFLATION = 0.20
+_FALLBACK_MIN_TRANSACTIONS = 5
+_FALLBACK_LOOKBACK = 20
 
-# Maximum inflation from miscalibration (prevents runaway tightening)
-MAX_INFLATION = 0.20  # At worst, gates tighten by 20% beyond baseline
+
+def _load_calibration_config() -> Dict:
+    """Load calibration gating config from MCO cascade_styles.yaml via ThresholdLoader.
+
+    Returns dict with keys: baselines, ceilings, max_inflation, min_transactions, lookback.
+    Falls back to hardcoded values if MCO config unavailable.
+    """
+    try:
+        from empirica.config.threshold_loader import ThresholdLoader
+        loader = ThresholdLoader.get_instance()
+        return {
+            "baselines": {
+                "ready_know_threshold": loader.get(
+                    'cascade.ready_know_threshold',
+                    _FALLBACK_BASELINES["ready_know_threshold"],
+                ),
+                "ready_uncertainty_threshold": loader.get(
+                    'cascade.ready_uncertainty_threshold',
+                    _FALLBACK_BASELINES["ready_uncertainty_threshold"],
+                ),
+            },
+            "ceilings": {
+                "ready_know_threshold": loader.get(
+                    'calibration.safety_ceiling_know',
+                    _FALLBACK_CEILINGS["ready_know_threshold"],
+                ),
+                "ready_uncertainty_threshold": loader.get(
+                    'calibration.safety_ceiling_uncertainty',
+                    _FALLBACK_CEILINGS["ready_uncertainty_threshold"],
+                ),
+            },
+            "max_inflation": loader.get(
+                'calibration.max_inflation',
+                _FALLBACK_MAX_INFLATION,
+            ),
+            "min_transactions": loader.get(
+                'calibration.min_transactions',
+                _FALLBACK_MIN_TRANSACTIONS,
+            ),
+            "lookback": loader.get(
+                'calibration.lookback',
+                _FALLBACK_LOOKBACK,
+            ),
+        }
+    except Exception:
+        logger.debug("MCO config unavailable, using fallback calibration values")
+        return {
+            "baselines": _FALLBACK_BASELINES,
+            "ceilings": _FALLBACK_CEILINGS,
+            "max_inflation": _FALLBACK_MAX_INFLATION,
+            "min_transactions": _FALLBACK_MIN_TRANSACTIONS,
+            "lookback": _FALLBACK_LOOKBACK,
+        }
 
 
 @dataclass
@@ -141,22 +192,25 @@ def compute_dynamic_thresholds(
     ai_id: str,
     db,
     base_thresholds: Optional[Dict] = None,
-    min_transactions: int = 5,
-    lookback: int = 20,
+    min_transactions: Optional[int] = None,
+    lookback: Optional[int] = None,
 ) -> Dict:
     """Compute phase-aware dynamic thresholds using Brier score reliability.
 
     Threshold model:
     - reliability near 0 → well calibrated → thresholds stay at domain baseline
     - reliability > 0 → miscalibrated → thresholds inflated proportionally
-    - inflation = min(reliability * scale_factor, MAX_INFLATION)
+    - inflation = min(reliability * scale_factor, max_inflation)
+
+    All config values (baselines, ceilings, max_inflation, min_transactions, lookback)
+    are read from MCO cascade_styles.yaml via ThresholdLoader. Explicit args override config.
 
     Args:
         ai_id: AI identifier (e.g., "claude-code")
         db: Database connection
-        base_thresholds: Override domain baselines (default: 0.70 know, 0.35 uncertainty)
-        min_transactions: Minimum trajectory points before enabling dynamic thresholds
-        lookback: Number of recent trajectory points to analyze
+        base_thresholds: Override domain baselines (default: from MCO config)
+        min_transactions: Override minimum trajectory points (default: from MCO config)
+        lookback: Override lookback window (default: from MCO config)
 
     Returns:
         {
@@ -175,9 +229,16 @@ def compute_dynamic_thresholds(
             "reason": str,
         }
     """
-    base = base_thresholds or DOMAIN_BASELINES.copy()
+    # Load all config from MCO (falls back to hardcoded if unavailable)
+    config = _load_calibration_config()
+
+    base = base_thresholds or config["baselines"]
     know_base = base.get("ready_know_threshold", 0.70)
     unc_base = base.get("ready_uncertainty_threshold", 0.35)
+    min_txns = min_transactions if min_transactions is not None else config["min_transactions"]
+    lb = lookback if lookback is not None else config["lookback"]
+    max_infl = config["max_inflation"]
+    ceilings = config["ceilings"]
 
     static_phase = {
         "ready_know_threshold": know_base,
@@ -208,11 +269,11 @@ def compute_dynamic_thresholds(
                 WHERE ai_id = ? AND phase = ? AND grounded IS NOT NULL
                 ORDER BY timestamp DESC
                 LIMIT ?
-            """, (ai_id, phase, lookback))
+            """, (ai_id, phase, lb))
 
             rows = cursor.fetchall()
 
-            if len(rows) < min_transactions:
+            if len(rows) < min_txns:
                 result[phase] = {**static_phase, "transactions_analyzed": len(rows)}
                 continue
 
@@ -224,18 +285,18 @@ def compute_dynamic_thresholds(
 
             # Threshold inflation driven by RELIABILITY component only
             # reliability = 0 → no inflation (well calibrated)
-            # reliability > 0 → inflate proportionally, capped at MAX_INFLATION
+            # reliability > 0 → inflate proportionally, capped at max_inflation
             # Scale factor: reliability is typically 0.0-0.25 range,
-            # we want MAX_INFLATION at high reliability (~0.15+)
-            inflation = min(decomp.reliability * (MAX_INFLATION / 0.15), MAX_INFLATION)
+            # we want max_inflation at high reliability (~0.15+)
+            inflation = min(decomp.reliability * (max_infl / 0.15), max_infl)
 
             # Apply inflation: raise know threshold, lower uncertainty tolerance
             know_adjusted = know_base + inflation
             unc_adjusted = unc_base - inflation
 
-            # Clamp to safety ceilings
-            know_adjusted = min(SAFETY_CEILINGS["ready_know_threshold"], know_adjusted)
-            unc_adjusted = max(SAFETY_CEILINGS["ready_uncertainty_threshold"], unc_adjusted)
+            # Clamp to safety ceilings (from MCO config)
+            know_adjusted = min(ceilings["ready_know_threshold"], know_adjusted)
+            unc_adjusted = max(ceilings["ready_uncertainty_threshold"], unc_adjusted)
 
             result[phase] = {
                 "ready_know_threshold": round(know_adjusted, 3),

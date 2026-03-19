@@ -498,25 +498,24 @@ def handle_preflight_submit_command(args):
 
             # CALIBRATION FEEDBACK FLAG: EMPIRICA_CALIBRATION_FEEDBACK (default: true)
             #
-            # Controls all calibration enrichment across the workflow:
+            # ANTI-GAMING POLICY: Specific calibration data (vector gaps, directions,
+            # suggested ranges) is NEVER returned to the AI. It provides an "answer key"
+            # for gaming CHECK gates. Full calibration data is user-facing only
+            # (calibration-report, statusline). The Sentinel uses it internally for
+            # Brier-based threshold inflation (dynamic_thresholds.py).
             #
-            #   PREFLIGHT:
-            #     - previous_transaction_feedback: grounded gaps from last transaction
-            #     - calibration_warnings: Qdrant search for similar past task patterns
+            # What IS returned to AI (non-exploitable):
+            #   PREFLIGHT: overall calibration_score + grounded_coverage (no specifics)
+            #   CHECK: dead-end matches, mistake risk, assumptions (no calibration bias)
+            #   POSTFLIGHT: grounded_verification ALWAYS runs (data collection)
             #
-            #   CHECK:
-            #     - calibration_bias: systematic bias detection from past sessions
+            # What is NOT returned to AI (exploitable):
+            #   - Specific vector gaps and directions (overestimates/underestimates)
+            #   - Suggested vector ranges (grounded_mean, suggest_low, suggest_high)
+            #   - Calibration bias warnings with per-vector magnitudes
             #
-            #   POSTFLIGHT:
-            #     - grounded_verification: ALWAYS runs (data collection, not feedback)
-            #     - Qdrant embedding of verification results: ALWAYS runs
-            #
-            # When set to 'false', all calibration FEEDBACK to the AI is suppressed.
-            # Data collection (POSTFLIGHT grounded verification) still runs so that
-            # calibration data accumulates for when feedback is re-enabled.
-            #
-            # The Sentinel gate is NOT affected by this flag — it uses RAW vectors
-            # for gating decisions, which is by design (see sentinel-gate.py).
+            # The Sentinel gate uses Brier-based dynamic thresholds from calibration
+            # history — the AI cannot see these thresholds either.
             #
             # Learning trajectory (Bayesian PREFLIGHT->POSTFLIGHT deltas) is also
             # independent of this flag — it's informational, not corrective.
@@ -524,14 +523,16 @@ def handle_preflight_submit_command(args):
                 'EMPIRICA_CALIBRATION_FEEDBACK', 'true'
             ).lower() == 'true'
 
+            # ANTI-GAMING: Previous transaction feedback is limited to non-exploitable metadata.
+            # Specific gaps, suggested ranges, and overestimate/underestimate details are NOT
+            # returned to the AI — they would provide an "answer key" for bypassing CHECK gates.
+            # Full calibration data is available to the USER via calibration-report and statusline.
             previous_transaction_feedback = None
             try:
                 if calibration_feedback_enabled and ai_id and ai_id != 'unknown' and project_id:
                     cursor = db.conn.cursor()
                     cursor.execute("""
-                        SELECT gv.calibration_gaps, gv.overall_calibration_score,
-                               gv.grounded_coverage, gv.created_at,
-                               gv.self_assessed_vectors
+                        SELECT gv.overall_calibration_score, gv.grounded_coverage
                         FROM grounded_verifications gv
                         JOIN sessions s ON gv.session_id = s.session_id
                         WHERE gv.ai_id = ? AND s.project_id = ?
@@ -539,68 +540,33 @@ def handle_preflight_submit_command(args):
                         LIMIT 1
                     """, (ai_id, project_id))
                     prev = cursor.fetchone()
-                    if prev and prev[0]:
-                        gaps = json.loads(prev[0])
-                        # Only surface significant gaps (|gap| > 0.1)
-                        significant = {v: round(g, 3) for v, g in gaps.items() if abs(g) > 0.1}
-                        if significant:
-                            overestimates = {v: g for v, g in significant.items() if g > 0}
-                            underestimates = {v: g for v, g in significant.items() if g < 0}
+                    if prev:
+                        previous_transaction_feedback = {
+                            "calibration_score": round(prev[0], 3) if prev[0] else None,
+                            "grounded_coverage": round(prev[1], 3) if prev[1] else None,
+                            "note": "Overall calibration from previous transaction. Specific gaps and ranges are user-facing only (calibration-report, statusline)."
+                        }
+                        # Context-shift data is non-gaming (explains WHY calibration drifted)
+                        try:
+                            cursor.execute("""
+                                SELECT meta FROM reflexes
+                                WHERE session_id = ? AND phase = 'POSTFLIGHT'
+                                ORDER BY timestamp DESC LIMIT 1
+                            """, (session_id,))
+                            pf_row = cursor.fetchone()
+                            if pf_row and pf_row[0]:
+                                pf_meta = json.loads(pf_row[0]) if isinstance(pf_row[0], str) else pf_row[0]
+                                cs = pf_meta.get('context_shifts')
+                                if cs and cs.get('unsolicited_prompts', 0) > 0:
+                                    previous_transaction_feedback["context_shifts"] = cs
+                                    previous_transaction_feedback["context_shift_note"] = (
+                                        f"{cs['unsolicited_prompts']} unsolicited context shift(s) detected in previous transaction. "
+                                        "Calibration divergence may be partially attributable to human-initiated redirection, not epistemic drift."
+                                    )
+                        except Exception:
+                            pass
 
-                            # Build actionable suggested ranges from grounded posterior means
-                            suggested_ranges = {}
-                            try:
-                                from empirica.core.post_test.grounded_calibration import GroundedCalibrationManager
-                                gcm = GroundedCalibrationManager(db)
-                                beliefs = gcm.get_grounded_beliefs(ai_id)
-                                for vector in significant:
-                                    # Strip phase prefix if present (e.g., "praxic:know" → "know")
-                                    base_vector = vector.split(":")[-1] if ":" in vector else vector
-                                    belief = beliefs.get(base_vector)
-                                    if belief and belief.evidence_count >= 3:
-                                        # Suggest range: posterior mean ± 1 stddev, clamped to [0, 1]
-                                        import math
-                                        stddev = math.sqrt(belief.variance)
-                                        low = max(0.0, round(belief.mean - stddev, 2))
-                                        high = min(1.0, round(belief.mean + stddev, 2))
-                                        suggested_ranges[vector] = {
-                                            "grounded_mean": round(belief.mean, 2),
-                                            "suggest_low": low,
-                                            "suggest_high": high,
-                                        }
-                            except Exception:
-                                pass  # Non-fatal — still show gaps without suggestions
-
-                            previous_transaction_feedback = {
-                                "calibration_score": round(prev[1], 3) if prev[1] else None,
-                                "grounded_coverage": round(prev[2], 3) if prev[2] else None,
-                                "significant_gaps": significant,
-                                "overestimates": {v: f"+{g}" for v, g in overestimates.items()},
-                                "underestimates": {v: str(g) for v, g in underestimates.items()},
-                                "suggested_ranges": suggested_ranges if suggested_ranges else None,
-                                "note": "Grounded gaps from your previous transaction. Use suggested_ranges to calibrate your next self-assessment."
-                            }
-                            # Check previous POSTFLIGHT for context-shift data
-                            try:
-                                cursor.execute("""
-                                    SELECT meta FROM reflexes
-                                    WHERE session_id = ? AND phase = 'POSTFLIGHT'
-                                    ORDER BY timestamp DESC LIMIT 1
-                                """, (session_id,))
-                                pf_row = cursor.fetchone()
-                                if pf_row and pf_row[0]:
-                                    pf_meta = json.loads(pf_row[0]) if isinstance(pf_row[0], str) else pf_row[0]
-                                    cs = pf_meta.get('context_shifts')
-                                    if cs and cs.get('unsolicited_prompts', 0) > 0:
-                                        previous_transaction_feedback["context_shifts"] = cs
-                                        previous_transaction_feedback["context_shift_note"] = (
-                                            f"{cs['unsolicited_prompts']} unsolicited context shift(s) detected in previous transaction. "
-                                            "Calibration divergence may be partially attributable to human-initiated redirection, not epistemic drift."
-                                        )
-                            except Exception:
-                                pass
-
-                            logger.debug(f"Previous transaction feedback: {len(significant)} significant gaps, {len(suggested_ranges)} suggested ranges")
+                        logger.debug(f"Previous transaction feedback: score={prev[0]}, coverage={prev[1]}")
             except Exception as e:
                 logger.debug(f"Previous transaction feedback lookup failed (non-fatal): {e}")
 
@@ -922,8 +888,11 @@ def handle_check_command(args):
         try:
             from empirica.utils.session_resolver import read_active_transaction
             check_transaction_id = read_active_transaction()
-        except Exception:
-            pass
+            if check_transaction_id is None:
+                logger.warning("read_active_transaction() returned None — CHECK will be stored without transaction_id. "
+                               "This may cause Sentinel to not find this CHECK. Check instance_projects/ state.")
+        except Exception as e:
+            logger.warning(f"Failed to read active transaction: {e}")
 
         # 6. Create checkpoint with new assessment
         checkpoint_id = git_logger.add_checkpoint(
@@ -1337,8 +1306,11 @@ def handle_check_submit_command(args):
             try:
                 from empirica.utils.session_resolver import read_active_transaction
                 check_transaction_id2 = read_active_transaction()
-            except Exception:
-                pass
+                if check_transaction_id2 is None:
+                    logger.warning("read_active_transaction() returned None — CHECK will be stored without transaction_id. "
+                                   "This may cause Sentinel to not find this CHECK. Check instance_projects/ state.")
+            except Exception as e:
+                logger.warning(f"Failed to read active transaction: {e}")
 
             # Add checkpoint - this writes to ALL 3 storage layers
             checkpoint_id = logger_instance.add_checkpoint(

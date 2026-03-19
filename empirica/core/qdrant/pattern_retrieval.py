@@ -4,9 +4,10 @@ Pattern Retrieval for Cognitive Workflow Hooks
 Provides pattern retrieval for PREFLIGHT (proactive loading) and CHECK (reactive validation).
 Integrates with Qdrant memory collections for lessons, dead_ends, and findings.
 
-Calibration-related retrieval (calibration_warnings in PREFLIGHT, calibration_bias in CHECK)
-is gated by the `include_calibration` parameter, which is controlled by the
-EMPIRICA_CALIBRATION_FEEDBACK env var (default: true) in the caller (workflow_commands.py).
+ANTI-GAMING: Calibration-specific feedback (calibration_warnings in PREFLIGHT, calibration_bias
+in CHECK) has been removed from AI-facing output. Specific vector gaps and directions gave the
+AI an "answer key" for gaming CHECK gates. Calibration data is now user-facing only
+(calibration-report, statusline). The Sentinel uses it internally for threshold inflation.
 
 Defaults:
 - similarity_threshold: 0.7
@@ -461,21 +462,16 @@ def retrieve_task_patterns(
         for f in findings_raw
     ]
 
-    # Search for calibration warnings (grounded verification gaps from similar tasks).
-    # Gated by include_calibration flag, which is controlled by the
-    # EMPIRICA_CALIBRATION_FEEDBACK env var (default: true) in the caller.
-    # When disabled, this Qdrant search is skipped entirely — no calibration
-    # context is injected into PREFLIGHT output.
-    calibration_warnings = []
-    if include_calibration:
-        calibration_warnings = _search_calibration_for_task(project_id, task_context, limits["findings"])
+    # ANTI-GAMING: Calibration warnings (specific overestimate/underestimate patterns from
+    # similar past tasks) are no longer surfaced to the AI. They provide an "answer key"
+    # for gaming self-assessment vectors. Calibration data is available to the USER via
+    # calibration-report and statusline. The Sentinel uses it for threshold inflation.
 
     # Build result
     result = {
         "lessons": lessons,
         "dead_ends": dead_ends,
         "relevant_findings": relevant_findings,
-        "calibration_warnings": calibration_warnings if calibration_warnings else None,
         "time_gap": time_gap_info,
     }
 
@@ -726,14 +722,11 @@ def check_against_patterns(
                 "Proceeding without understanding current state increases mistake probability."
             )
 
-    # Check calibration history for systematic bias across similar past sessions.
-    # Gated by include_calibration flag, which is controlled by the
-    # EMPIRICA_CALIBRATION_FEEDBACK env var (default: true) in the caller.
-    # When disabled, no calibration bias warnings are added to CHECK output.
-    if include_calibration:
-        calibration_bias = _check_calibration_bias(project_id, current_approach, vectors)
-        if calibration_bias:
-            warnings["calibration_bias"] = calibration_bias
+    # ANTI-GAMING: Calibration bias details (specific vectors, directions, magnitudes)
+    # are no longer surfaced to the AI. They provide an "answer key" for gaming CHECK.
+    # Calibration bias data is available to the USER via calibration-report and statusline.
+    # The Sentinel uses this data internally for threshold inflation (dynamic_thresholds.py)
+    # but does not expose specifics to the AI.
 
     # Noetic RAG: Related findings as additional context
     if include_findings and current_approach:
@@ -821,7 +814,6 @@ def check_against_patterns(
     warnings["has_warnings"] = (
         bool(warnings["dead_end_matches"])
         or bool(warnings["mistake_risk"])
-        or bool(warnings.get("calibration_bias"))
         or bool(warnings.get("unverified_assumptions"))
     )
 
