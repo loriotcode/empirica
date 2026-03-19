@@ -390,14 +390,15 @@ def handle_session_create_command(args):
 
                     return None
 
-                # Priority 0a: Check instance_projects (TMUX-keyed, works via Bash tool)
+                # Priority 0a: Check instance_projects (instance-keyed, works via Bash tool)
                 # This is written by project-init and project-switch
-                tmux_pane = os.environ.get('TMUX_PANE')
-                if tmux_pane and not early_project_id:
-                    instance_id = f"tmux_{tmux_pane.lstrip('%')}"
+                # Uses canonical get_instance_id() which supports tmux, X11, macOS Terminal, TTY
+                from empirica.utils.session_resolver import get_instance_id as _canonical_get_instance_id
+                _sc_instance_id = _canonical_get_instance_id()
+                if _sc_instance_id and not early_project_id:
                     instance_file = os.path.join(
                         os.path.expanduser('~'), '.empirica',
-                        'instance_projects', f'{instance_id}.json'
+                        'instance_projects', f'{_sc_instance_id}.json'
                     )
                     if os.path.exists(instance_file):
                         with open(instance_file, 'r') as f:

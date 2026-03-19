@@ -752,18 +752,9 @@ def handle_transaction_adopt_command(args):
 
     # Auto-detect current instance if --to not specified
     if not to_instance:
-        tmux_pane = os.environ.get('TMUX_PANE')
-        if tmux_pane:
-            to_instance = f"tmux_{tmux_pane.lstrip('%')}"
-        else:
-            # Try TTY fallback
-            try:
-                import sys
-                tty_path = os.ttyname(sys.stdin.fileno())
-                safe = tty_path.replace('/', '_').lstrip('_').replace('dev_', '')
-                to_instance = f"term_{safe}"
-            except Exception:
-                to_instance = "default"
+        # Use canonical get_instance_id() which supports tmux, X11, macOS Terminal, TTY
+        from empirica.utils.session_resolver import get_instance_id as _canonical_get_instance_id
+        to_instance = _canonical_get_instance_id() or "default"
         result["to_instance"] = to_instance
         result["actions"].append(f"Auto-detected current instance: {to_instance}")
 

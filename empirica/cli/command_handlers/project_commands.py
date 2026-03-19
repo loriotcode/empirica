@@ -223,30 +223,33 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
         # instance_projects is used by Sentinel and statusline when running via Bash tool
         # TTY session is used for direct terminal context
         tty_key = get_tty_key()
-        tmux_pane = os.environ.get('TMUX_PANE')
-        instance_id = f"tmux_{tmux_pane.lstrip('%')}" if tmux_pane else None
 
-        # When TMUX_PANE is absent (Bash tool subprocess), resolve instance_id
-        # from claude_session_id by scanning instance_projects/ files.
-        # Hooks (which DO have TMUX_PANE) write claude_session_id to instance_projects
-        # at session start — this reverse-lookup finds the correct tmux pane.
+        # Use canonical get_instance_id() which supports tmux, X11, macOS Terminal, TTY
+        # Previously only checked TMUX_PANE, breaking X11 and other non-tmux environments
+        from empirica.utils.session_resolver import get_instance_id as _canonical_get_instance_id
+        instance_id = _canonical_get_instance_id()
+
+        # When instance_id is absent (Bash tool subprocess may lack env vars),
+        # resolve from claude_session_id by scanning instance_projects/ files.
+        # Hooks write claude_session_id to instance_projects at session start —
+        # this reverse-lookup finds the correct instance.
         if not instance_id and claude_session_id:
             instance_dir = marker_dir / 'instance_projects'
             if instance_dir.exists():
-                for ip_file in instance_dir.glob('tmux_*.json'):
+                for ip_file in instance_dir.glob('*.json'):
                     try:
                         with open(ip_file, 'r') as f:
                             ip_data = json.load(f)
                         if ip_data.get('claude_session_id') == claude_session_id:
-                            instance_id = ip_file.stem  # e.g. "tmux_14"
+                            instance_id = ip_file.stem  # e.g. "tmux_14", "x11_77663748"
                             logger.debug(f"Resolved instance_id={instance_id} from claude_session_id match in {ip_file.name}")
                             break
                     except Exception:
                         continue
 
         # Fallback 3: Read instance_id from TTY session file.
-        # The TTY session stores instance_id from a prior hook that had TMUX_PANE.
-        # This handles the case where Bash tool has no TMUX_PANE AND claude_session_id
+        # The TTY session stores instance_id from a prior hook that had env vars.
+        # This handles the case where Bash tool has no env AND claude_session_id
         # is null (e.g., session-create doesn't write claude_session_id to TTY file).
         if not instance_id and tty_session:
             instance_id = tty_session.get('instance_id')
