@@ -1,6 +1,6 @@
 # CLI Command Aliases
 
-**Generated:** 2026-02-08
+**Generated:** 2026-02-08 | **Updated:** 2026-03-19
 **Purpose:** Quick shortcuts for common Empirica commands
 
 ---
@@ -73,17 +73,26 @@ Aliases reduce typing for frequently used commands. They're especially useful fo
 ## Usage Examples
 
 ```bash
-# Instead of:
-empirica preflight-submit --session-id abc123 ...
-
-# Use:
-empirica pre --session-id abc123 ...
+# CASCADE shortcuts:
+empirica pre ...           # Instead of preflight-submit
+empirica post ...          # Instead of postflight-submit
 
 # Quick goal creation:
-empirica gc --session-id abc123 --objective "Fix bug"
+empirica gc --objective "Fix bug"
 
-# Quick finding log:
-empirica fl --session-id abc123 --finding "Found root cause"
+# Quick breadcrumbs:
+empirica fl --finding "Found root cause" --impact 0.7
+empirica ul --unknown "Need to investigate X"
+empirica de --approach "Tried Y" --why-failed "Z"
+
+# Project search (semantic, searches Qdrant — requires --project-id):
+empirica project-search --project-id <UUID> --task "isolation bugs"              # Focused: eidetic + episodic
+empirica project-search --project-id <UUID> --task "auth middleware" --type all  # Full: all 4 collections
+empirica project-search --project-id <UUID> --task "deployment" --global         # Include cross-project learnings
+
+# Project embed (sync artifacts to Qdrant — requires --project-id):
+empirica project-embed --project-id <UUID> --output json           # Embed project artifacts
+empirica project-embed --project-id <UUID> --global --output json  # Also sync high-impact to global
 ```
 
 ---
