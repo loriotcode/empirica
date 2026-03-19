@@ -21,6 +21,7 @@ Providers:
 from __future__ import annotations
 import os
 import logging
+import time
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
@@ -278,52 +279,75 @@ class EmbeddingsProvider:
 
         raise RuntimeError(f"Unsupported provider '{self.provider}'.")
 
+    def _prepare_ollama_prompt(self, text: str, max_chars: int) -> str:
+        """Normalize and bound prompt size before sending to Ollama."""
+        normalized = " ".join((text or "").replace("\x00", " ").split())
+        if len(normalized) <= max_chars:
+            return normalized
+        return normalized[:max_chars].rsplit(" ", 1)[0] + " ..."
+
     def _embed_ollama(self, text: str) -> List[float]:
         """Embed using local Ollama server."""
         import requests
 
         url = f"{self.ollama_url}/api/embeddings"
-        payload = {
-            "model": self.model,
-            "prompt": text
-        }
+        prompt_sizes = [1200, 900, 700]
 
-        try:
-            resp = requests.post(url, json=payload, timeout=60)
-            resp.raise_for_status()
-            data = resp.json()
-            embedding = data.get("embedding", [])
+        for attempt, max_chars in enumerate(prompt_sizes, start=1):
+            payload = {
+                "model": self.model,
+                "prompt": self._prepare_ollama_prompt(text, max_chars=max_chars),
+            }
 
-            if not embedding:
-                logger.warning(f"Ollama returned empty embedding for model {self.model}")
-                return self._embed_local_hash(text)  # Fallback
+            try:
+                resp = requests.post(url, json=payload, timeout=60)
+                resp.raise_for_status()
+                data = resp.json()
+                embedding = data.get("embedding", [])
 
-            # Validate and cache actual vector size from model response
-            actual_size = len(embedding)
-            if self._vector_size is not None and actual_size != self._vector_size:
-                logger.error(
-                    f"DIMENSION MISMATCH: Ollama model '{self.model}' returned {actual_size}d vectors "
-                    f"but Empirica expected {self._vector_size}d. This will cause Qdrant upsert failures. "
-                    f"Check that you pulled the correct model tag — e.g., 'qwen3-embedding' (1024d) "
-                    f"vs 'qwen3-embedding:8b' (4096d). Run 'empirica rebuild --qdrant' after fixing."
-                )
-                raise ValueError(
-                    f"Embedding dimension mismatch: model '{self.model}' returned {actual_size}d, "
-                    f"expected {self._vector_size}d. Pull the correct model tag or update "
-                    f"EMPIRICA_EMBEDDINGS_MODEL to match your Ollama model."
-                )
-            if self._vector_size is None:
-                self._vector_size = actual_size
-                logger.info(f"Ollama {self.model} vector size: {self._vector_size}")
+                if not embedding:
+                    if attempt < len(prompt_sizes):
+                        logger.warning(
+                            f"Ollama returned empty embedding for model {self.model} "
+                            f"(attempt {attempt}/{len(prompt_sizes)})"
+                        )
+                        time.sleep(0.4 * attempt)
+                        continue
+                    logger.warning(f"Ollama returned empty embedding for model {self.model}")
+                    return self._embed_local_hash(text)
 
-            return embedding
+                # Validate and cache actual vector size from model response
+                actual_size = len(embedding)
+                if self._vector_size is not None and actual_size != self._vector_size:
+                    logger.error(
+                        f"DIMENSION MISMATCH: Ollama model '{self.model}' returned {actual_size}d vectors "
+                        f"but Empirica expected {self._vector_size}d. This will cause Qdrant upsert failures. "
+                        f"Check that you pulled the correct model tag — e.g., 'qwen3-embedding' (1024d) "
+                        f"vs 'qwen3-embedding:8b' (4096d). Run 'empirica rebuild --qdrant' after fixing."
+                    )
+                    raise ValueError(
+                        f"Embedding dimension mismatch: model '{self.model}' returned {actual_size}d, "
+                        f"expected {self._vector_size}d. Pull the correct model tag or update "
+                        f"EMPIRICA_EMBEDDINGS_MODEL to match your Ollama model."
+                    )
+                if self._vector_size is None:
+                    self._vector_size = actual_size
+                    logger.info(f"Ollama {self.model} vector size: {self._vector_size}")
 
-        except requests.exceptions.ConnectionError:
-            logger.warning(f"Cannot connect to Ollama at {self.ollama_url} - falling back to local hash")
-            return self._embed_local_hash(text)
-        except Exception as e:
-            logger.warning(f"Ollama embedding failed: {e} - falling back to local hash")
-            return self._embed_local_hash(text)
+                return embedding
+
+            except requests.exceptions.ConnectionError:
+                logger.warning(f"Cannot connect to Ollama at {self.ollama_url} - falling back to local hash")
+                return self._embed_local_hash(text)
+            except Exception as e:
+                if attempt < len(prompt_sizes):
+                    logger.warning(
+                        f"Ollama embedding attempt {attempt}/{len(prompt_sizes)} failed: {e}"
+                    )
+                    time.sleep(0.4 * attempt)
+                    continue
+                logger.warning(f"Ollama embedding failed: {e} - falling back to local hash")
+                return self._embed_local_hash(text)
 
     def _embed_jina(self, text: str) -> List[float]:
         """Embed using Jina AI API (jina-embeddings-v3, etc.)."""

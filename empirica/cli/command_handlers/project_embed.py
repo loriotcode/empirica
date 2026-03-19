@@ -27,6 +27,71 @@ def _read_file(path: str) -> str:
         return ""
 
 
+def _compact_text(text: str, max_chars: int = 900) -> str:
+    normalized = " ".join((text or "").replace("\x00", " ").split())
+    if len(normalized) <= max_chars:
+        return normalized
+    return normalized[:max_chars].rsplit(" ", 1)[0] + " ..."
+
+
+def _resolve_doc_path(root: str, relpath: str) -> str:
+    """Resolve semantic index entries against the project root first."""
+    if os.path.isabs(relpath):
+        return relpath
+
+    candidates = [os.path.join(root, relpath)]
+
+    if relpath.startswith('docs/'):
+        candidates.append(os.path.join(root, relpath.split('docs/', 1)[-1]))
+    else:
+        candidates.append(os.path.join(root, 'docs', relpath))
+
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+
+    return candidates[0]
+
+
+def _build_embedding_text(relpath: str, meta: Dict, text: str) -> str:
+    """Build compact embedding text from semantic-index metadata plus an excerpt."""
+    parts = [f"File: {relpath}"]
+
+    tags = meta.get("tags") or []
+    if tags:
+        parts.append(f"Tags: {', '.join(tags)}")
+
+    concepts = meta.get("concepts") or []
+    if concepts:
+        parts.append(f"Concepts: {', '.join(concepts)}")
+
+    questions = meta.get("questions") or []
+    if questions:
+        parts.append(f"Questions: {' | '.join(questions)}")
+
+    use_cases = meta.get("use_cases") or []
+    if use_cases:
+        parts.append(f"Use cases: {', '.join(use_cases)}")
+
+    description = meta.get("description")
+    if description:
+        parts.append(f"Description: {_compact_text(description, max_chars=240)}")
+
+    doc_type = meta.get("doc_type")
+    if doc_type:
+        parts.append(f"Doc type: {doc_type}")
+
+    excerpt = _compact_text(text, max_chars=240)
+    if excerpt:
+        parts.append(f"Excerpt: {excerpt}")
+
+    return "\n".join(parts)
+
+
+def _has_indexed_python_files(docs_cfg: Dict) -> bool:
+    return any(str(path).endswith(".py") for path in docs_cfg.keys())
+
+
 def handle_project_embed_command(args):
     """Handle project-embed command to sync docs and memory to Qdrant."""
     try:
@@ -71,8 +136,9 @@ def handle_project_embed_command(args):
         docs_to_upsert: List[Dict] = []
         did = 1
         for relpath, meta in docs_cfg.items():
-            doc_path = os.path.join(root, 'docs', relpath.split('docs/')[-1]) if not relpath.startswith('docs/') else os.path.join(root, relpath)
-            text = _read_file(doc_path)
+            doc_path = _resolve_doc_path(root, relpath)
+            file_text = _read_file(doc_path)
+            text = _build_embedding_text(relpath, meta, file_text)
             docs_to_upsert.append({
                 'id': did,
                 'text': text,
@@ -92,26 +158,28 @@ def handle_project_embed_command(args):
             refdocs = db.get_project_reference_docs(project_id)
             for rdoc in refdocs:
                 doc_path = rdoc.get('doc_path', '')
-                text = _read_file(doc_path) if doc_path else ''
-                if not text:
+                file_text = _read_file(doc_path) if doc_path else ''
+                if not file_text:
                     # Use description as text if file not readable
-                    text = rdoc.get('description', '') or f"Reference: {doc_path}"
+                    file_text = rdoc.get('description', '') or f"Reference: {doc_path}"
 
                 # Extract keywords from description and doc_type for matching
                 description = rdoc.get('description', '') or ''
                 doc_type = rdoc.get('doc_type', '') or ''
                 keywords = [w.lower() for w in (description + ' ' + doc_type).split() if len(w) > 3]
+                meta = {
+                    'doc_path': doc_path,
+                    'doc_type': doc_type,
+                    'description': description,
+                    'tags': keywords,
+                    'source': 'refdoc',
+                }
+                text = _build_embedding_text(doc_path, meta, file_text)
 
                 docs_to_upsert.append({
                     'id': did,
                     'text': text,
-                    'metadata': {
-                        'doc_path': doc_path,
-                        'doc_type': doc_type,
-                        'description': description,
-                        'tags': keywords,  # Use extracted keywords as tags
-                        'source': 'refdoc',  # Mark source for filtering
-                    }
+                    'metadata': meta
                 })
                 did += 1
             logger.debug(f"Added {len(refdocs)} reference docs to embedding queue")
@@ -287,7 +355,7 @@ def handle_project_embed_command(args):
             from empirica.core.qdrant.code_embeddings import embed_project_code
             from pathlib import Path
             code_root = Path(root)
-            if code_root.is_dir():
+            if _has_indexed_python_files(docs_cfg) and code_root.is_dir():
                 code_result = embed_project_code(project_id, code_root)
                 code_embedded = code_result.get('modules_embedded', 0)
         except Exception as e:
