@@ -156,6 +156,67 @@ class InstanceResolver:
         """
         return cleanup_stale_active_work_files(current_claude_session_id)
 
+    # --- Context ---
+
+    @staticmethod
+    def context() -> dict:
+        """Get the full active context (project_path, session_id, instance_id, etc.)."""
+        return get_active_context()
+
+    @staticmethod
+    def engagement() -> 'Optional[str]':
+        """Get the active engagement ID."""
+        return get_active_engagement()
+
+    # --- Session (additional) ---
+
+    @staticmethod
+    def resolve_session(session_id: str) -> str:
+        """Resolve a partial session ID to full UUID."""
+        return resolve_session_id(session_id)
+
+    @staticmethod
+    def latest_session_id(project_path: str = None) -> 'Optional[str]':
+        """Get the most recent session ID, optionally scoped to a project."""
+        return get_latest_session_id(project_path)
+
+    # --- Transaction (additional) ---
+
+    @staticmethod
+    def transaction_id(claude_session_id: str = None) -> 'Optional[str]':
+        """Read just the active transaction ID (shorthand for transaction_read)."""
+        return read_active_transaction(claude_session_id)
+
+    # --- TTY (additional) ---
+
+    @staticmethod
+    def tty_write(
+        claude_session_id: str = None,
+        empirica_session_id: str = None,
+        project_path: str = None
+    ) -> bool:
+        """Write session mapping to TTY + instance_projects files."""
+        return write_tty_session(
+            claude_session_id=claude_session_id,
+            empirica_session_id=empirica_session_id,
+            project_path=project_path,
+        )
+
+    # --- Cleanup ---
+
+    @staticmethod
+    def cleanup_stale_instances() -> int:
+        """Remove orphaned instance_projects files (tmux only)."""
+        return cleanup_stale_instance_projects()
+
+    @staticmethod
+    def cleanup_stale_files(current_claude_session_id: str = None) -> int:
+        """Remove stale active_work, instance_projects, and active_session files.
+
+        DB-based: checks if the session has ended. Skips files with open transactions.
+        """
+        return cleanup_stale_active_work_files(current_claude_session_id)
+
     # --- Mode Detection ---
 
     @staticmethod
