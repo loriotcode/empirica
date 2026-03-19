@@ -898,25 +898,37 @@ def main():
 
     # Rule 3a: SUBAGENT EXEMPTION - subagents don't need their own CASCADE
     # The parent's CHECK already authorized the spawn. Subagents have a different
-    # Claude session_id than the parent (who owns the active_session file).
+    # Claude session_id than the parent (who owns the active_work file).
     #
-    # Detection: Check if an active_session file exists for this instance.
-    # session-create writes active_session_{instance_suffix} for parent sessions.
-    # Subagents (spawned via Agent tool) never call session-create, so they
-    # won't have this file. This is more reliable than checking active_work_*
-    # which may be missing if session-init failed (bug: all sessions looked
-    # like subagents when session-init failed).
+    # Detection: Check if active_work_{claude_session_id}.json exists.
+    # session-init hook writes this file for the PARENT session only.
+    # Subagents (spawned via Agent tool) get a different claude_session_id
+    # from Claude Code, so they won't have a matching active_work file.
+    #
+    # Previous approach (active_session + instance_suffix) was broken because
+    # subprocesses inherit env vars (WINDOWID, TMUX_PANE) from the parent,
+    # making subagents appear as the parent session.
+    #
+    # Edge case: if session-init failed, parent also lacks active_work file.
+    # In that case, both parent and subagent fall through to normal gating
+    # (fail-safe). The autonomy counter (line ~851) uses the same check,
+    # so the signals are consistent.
     claude_session_id_early = hook_input.get('session_id')
     if claude_session_id_early:
         try:
-            from empirica.utils.session_resolver import _get_instance_suffix
-            _as_suffix = _get_instance_suffix()
-            _as_file = Path.home() / '.empirica' / f'active_session{_as_suffix}'
-            if not _as_file.exists():
-                # No active_session file for this instance — likely a subagent
-                respond("allow", f"Subagent exemption: {tool_name} (no active_session for instance)")
-                sys.exit(0)
-            # active_session exists → this is a parent session, continue with normal gating
+            _aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id_early}.json'
+            if not _aw_file.exists():
+                # No active_work file for this claude_session_id — likely a subagent
+                # (or session-init failed, in which case normal gating will handle it)
+                from empirica.utils.session_resolver import _get_instance_suffix
+                _as_suffix = _get_instance_suffix()
+                _as_file = Path.home() / '.empirica' / f'active_session{_as_suffix}'
+                if _as_file.exists():
+                    # active_session exists (parent was set up) but no active_work for
+                    # this session_id → confirmed subagent, not a broken session-init
+                    respond("allow", f"Subagent exemption: {tool_name} (no active_work for {claude_session_id_early[:8]})")
+                    sys.exit(0)
+                # Neither exists → likely broken session-init, fall through to normal gating
         except Exception:
             pass  # Detection failure → continue with normal sentinel logic
 
