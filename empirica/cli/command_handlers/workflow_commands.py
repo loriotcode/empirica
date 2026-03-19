@@ -523,16 +523,18 @@ def handle_preflight_submit_command(args):
                 'EMPIRICA_CALIBRATION_FEEDBACK', 'true'
             ).lower() == 'true'
 
-            # ANTI-GAMING: Previous transaction feedback is limited to non-exploitable metadata.
-            # Specific gaps, suggested ranges, and overestimate/underestimate details are NOT
-            # returned to the AI — they would provide an "answer key" for bypassing CHECK gates.
-            # Full calibration data is available to the USER via calibration-report and statusline.
+            # ANTI-GAMING: Previous transaction feedback uses DIRECTIONAL signals only.
+            # The AI learns WHICH vectors it tends to over/underestimate (e.g., ["know", "context"])
+            # but NOT specific magnitudes, grounded means, or suggested ranges.
+            # This enables genuine learning without providing an "answer key" for gaming CHECK.
+            # Full calibration data (exact gaps, ranges) is user-facing only (calibration-report).
             previous_transaction_feedback = None
             try:
                 if calibration_feedback_enabled and ai_id and ai_id != 'unknown' and project_id:
                     cursor = db.conn.cursor()
                     cursor.execute("""
-                        SELECT gv.overall_calibration_score, gv.grounded_coverage
+                        SELECT gv.calibration_gaps, gv.overall_calibration_score,
+                               gv.grounded_coverage
                         FROM grounded_verifications gv
                         JOIN sessions s ON gv.session_id = s.session_id
                         WHERE gv.ai_id = ? AND s.project_id = ?
@@ -542,10 +544,35 @@ def handle_preflight_submit_command(args):
                     prev = cursor.fetchone()
                     if prev:
                         previous_transaction_feedback = {
-                            "calibration_score": round(prev[0], 3) if prev[0] else None,
-                            "grounded_coverage": round(prev[1], 3) if prev[1] else None,
-                            "note": "Overall calibration from previous transaction. Specific gaps and ranges are user-facing only (calibration-report, statusline)."
+                            "calibration_score": round(prev[1], 3) if prev[1] else None,
+                            "grounded_coverage": round(prev[2], 3) if prev[2] else None,
                         }
+
+                        # Directional-only feedback: WHICH vectors drift and IN WHICH direction
+                        # without specific magnitudes or target values (anti-gaming).
+                        # Helps the AI learn to self-correct without providing an "answer key".
+                        if prev[0]:
+                            gaps = json.loads(prev[0])
+                            significant = {v: g for v, g in gaps.items() if abs(g) > 0.1}
+                            if significant:
+                                overestimate_tendency = sorted(set(
+                                    v.split(":")[-1] if ":" in v else v
+                                    for v, g in significant.items() if g > 0
+                                ))
+                                underestimate_tendency = sorted(set(
+                                    v.split(":")[-1] if ":" in v else v
+                                    for v, g in significant.items() if g < 0
+                                ))
+                                if overestimate_tendency:
+                                    previous_transaction_feedback["overestimate_tendency"] = overestimate_tendency
+                                if underestimate_tendency:
+                                    previous_transaction_feedback["underestimate_tendency"] = underestimate_tendency
+
+                        previous_transaction_feedback["note"] = (
+                            "Directional feedback only — be more cautious with overestimate vectors, "
+                            "less cautious with underestimate vectors. Specific values are user-facing only."
+                        )
+
                         # Context-shift data is non-gaming (explains WHY calibration drifted)
                         try:
                             cursor.execute("""
@@ -566,7 +593,11 @@ def handle_preflight_submit_command(args):
                         except Exception:
                             pass
 
-                        logger.debug(f"Previous transaction feedback: score={prev[0]}, coverage={prev[1]}")
+                        logger.debug(
+                            f"Previous transaction feedback: score={prev[1]}, coverage={prev[2]}, "
+                            f"overest={previous_transaction_feedback.get('overestimate_tendency', [])}, "
+                            f"underest={previous_transaction_feedback.get('underestimate_tendency', [])}"
+                        )
             except Exception as e:
                 logger.debug(f"Previous transaction feedback lookup failed (non-fatal): {e}")
 
