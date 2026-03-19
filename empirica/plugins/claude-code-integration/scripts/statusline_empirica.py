@@ -56,95 +56,6 @@ def get_ai_id() -> str:
     return os.getenv('EMPIRICA_AI_ID', 'claude-code').strip()
 
 
-def detect_extensions() -> dict:
-    """
-    Detect active Empirica extensions (CRM, WORKSPACE).
-
-    Detection is based on database existence, not Python module imports.
-    This allows extensions to work even if not installed as packages.
-
-    Returns:
-        {
-            'crm': {'active': bool, 'db_path': str, 'active_client': str|None},
-            'workspace': {'active': bool, 'db_path': str, 'project_count': int},
-        }
-    """
-    import sqlite3
-
-    result: dict = {
-        'crm': {'active': False, 'db_path': None, 'active_client': None},
-        'workspace': {'active': False, 'db_path': None, 'project_count': 0},
-    }
-
-    # Check CRM
-    crm_db = Path.home() / '.empirica' / 'crm' / 'crm.db'
-    if crm_db.exists():
-        result['crm']['active'] = True
-        result['crm']['db_path'] = str(crm_db)
-        try:
-            conn = sqlite3.connect(str(crm_db))
-            cursor = conn.cursor()
-            # Try to get active client from recent engagement
-            cursor.execute("""
-                SELECT c.name FROM clients c
-                JOIN engagements e ON e.client_id = c.client_id
-                WHERE e.status = 'active'
-                ORDER BY e.started_at DESC LIMIT 1
-            """)
-            row = cursor.fetchone()
-            if row:
-                result['crm']['active_client'] = row[0]
-            conn.close()
-        except Exception:
-            pass
-
-    # Check WORKSPACE
-    workspace_db = Path.home() / '.empirica' / 'workspace' / 'workspace.db'
-    if workspace_db.exists():
-        result['workspace']['active'] = True
-        result['workspace']['db_path'] = str(workspace_db)
-        try:
-            conn = sqlite3.connect(str(workspace_db))
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM global_projects WHERE status = 'active'")
-            row = cursor.fetchone()
-            result['workspace']['project_count'] = row[0] if row else 0
-            conn.close()
-        except Exception:
-            pass
-
-    return result
-
-
-def format_extension_indicators(extensions: dict) -> str:
-    """
-    Format extension indicators for statusline.
-
-    Returns:
-        String like "CRM:Acme WS:27" or "" if no extensions active
-    """
-    parts = []
-
-    if extensions.get('crm', {}).get('active'):
-        client = extensions['crm'].get('active_client')
-        if client:
-            # Truncate client name
-            if len(client) > 8:
-                client = client[:7] + '…'
-            parts.append(f"{Colors.CYAN}CRM:{client}{Colors.RESET}")
-        else:
-            parts.append(f"{Colors.GRAY}CRM{Colors.RESET}")
-
-    if extensions.get('workspace', {}).get('active'):
-        count = extensions['workspace'].get('project_count', 0)
-        if count > 0:
-            parts.append(f"{Colors.CYAN}WS:{count}{Colors.RESET}")
-        else:
-            parts.append(f"{Colors.GRAY}WS{Colors.RESET}")
-
-    return ' '.join(parts)
-
-
 def get_open_counts(db: SessionDatabase, session_id: str, project_id: Optional[str] = None) -> dict:
     """
     Get counts of open goals and unknowns for a specific project.
@@ -596,6 +507,35 @@ def read_statusline_extensions() -> str:
     return ' '.join(parts)
 
 
+def _read_statusline_extensions_data() -> list:
+    """Read raw extension data from ~/.empirica/statusline_ext/*.json.
+
+    Returns a list of extension dicts as written by external packages.
+    Used by build_statusline_data() for structured JSON output.
+
+    Returns:
+        [{"label": "WS:4", "color": "cyan"}, ...] or [] if none
+    """
+    ext_dir = Path.home() / '.empirica' / 'statusline_ext'
+    if not ext_dir.exists():
+        return []
+
+    results = []
+    try:
+        for ext_file in sorted(ext_dir.glob('*.json')):
+            try:
+                import json as _json
+                data = _json.loads(ext_file.read_text())
+                if data.get('label'):
+                    results.append(data)
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    return results
+
+
 def _resolve_claude_session_id(stdin_claude_session_id: Optional[str] = None):
     """
     Resolve the Claude session ID from available sources.
@@ -1002,7 +942,6 @@ def format_statusline(
     goal: Optional[dict] = None,
     open_counts: Optional[dict] = None,
     project_name: Optional[str] = None,
-    extensions: Optional[dict] = None,
     threshold_info: Optional[tuple] = None,
 ) -> str:
     """Format the statusline based on mode."""
@@ -1128,13 +1067,13 @@ def build_statusline_data(
     open_counts: Optional[dict] = None,
     project_name: Optional[str] = None,
     project_path: Optional[str] = None,
-    extensions: Optional[dict] = None,
     ai_id: Optional[str] = None,
 ) -> dict:
     """
     Build structured statusline data for JSON output.
 
     This enables TUI/GUI dashboards to consume statusline state.
+    Extensions are read from ~/.empirica/statusline_ext/*.json (the statusline_ext protocol).
 
     Returns:
         {
@@ -1144,13 +1083,16 @@ def build_statusline_data(
             'goals': {'open': int, 'completion': float},
             'unknowns': {'open': int, 'blockers': int},
             'gate': {'decision': str},
-            'extensions': {'crm': {...}, 'workspace': {...}},
+            'extensions': [{'label': str, ...}, ...],
             'timestamp': float,
         }
     """
     import time
 
     confidence = calculate_confidence(vectors) if vectors else 0.0
+
+    # Read extensions from statusline_ext JSON protocol
+    extensions = _read_statusline_extensions_data()
 
     return {
         'project': {
@@ -1179,7 +1121,7 @@ def build_statusline_data(
         'gate': {
             'decision': gate_decision,
         },
-        'extensions': extensions or {},
+        'extensions': extensions,
         'timestamp': time.time(),
     }
 
