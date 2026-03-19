@@ -403,8 +403,8 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
     """
     import tempfile
 
-    from empirica.utils.session_resolver import _get_instance_suffix as _gis_engagement
-    suffix = _gis_engagement()
+    from empirica.utils.session_resolver import InstanceResolver as R
+    suffix = R.instance_suffix()
 
     # Find the transaction file via active_work → project_path → .empirica/
     tx_path = None
@@ -920,8 +920,8 @@ def main():
             if not _aw_file.exists():
                 # No active_work file for this claude_session_id — likely a subagent
                 # (or session-init failed, in which case normal gating will handle it)
-                from empirica.utils.session_resolver import _get_instance_suffix
-                _as_suffix = _get_instance_suffix()
+                from empirica.utils.session_resolver import InstanceResolver as R
+                _as_suffix = R.instance_suffix()
                 _as_file = Path.home() / '.empirica' / f'active_session{_as_suffix}'
                 if _as_file.exists():
                     # active_session exists (parent was set up) but no active_work for
@@ -999,8 +999,8 @@ def main():
     current_transaction_id = None
     tx_session_id = None
     if empirica_root:
-        from empirica.utils.session_resolver import _get_instance_suffix
-        suffix = _get_instance_suffix()
+        from empirica.utils.session_resolver import InstanceResolver as R
+        suffix = R.instance_suffix()
         tx_file = empirica_root / f'active_transaction{suffix}.json'
         if tx_file.exists():
             try:
@@ -1062,8 +1062,8 @@ def main():
         # Priority 2+: TTY session, generic active_work.json, project fallback
         # Uses canonical resolver which has the full fallback chain
         try:
-            from empirica.utils.session_resolver import get_active_empirica_session_id
-            session_id = get_active_empirica_session_id(claude_session_id)
+            from empirica.utils.session_resolver import InstanceResolver as R
+            session_id = R.session_id(claude_session_id)
         except Exception:
             pass
 
@@ -1113,8 +1113,8 @@ def main():
         pre_tx_nudge = ""
         counter_file = None
         try:
-            from empirica.utils.session_resolver import _get_instance_suffix as _gis_pre_tx
-            suffix = _gis_pre_tx()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            suffix = R.instance_suffix()
             counter_file = Path.home() / '.empirica' / f'pre_tx_calls{suffix}.json'
             count = 0
             if counter_file.exists():
@@ -1161,8 +1161,8 @@ def main():
         # Read tool_call_count from transaction file (already loaded above)
         _gl_count = 0
         if empirica_root:
-            from empirica.utils.session_resolver import _get_instance_suffix as _gis_gl
-            _gl_suffix = _gis_gl()
+            from empirica.utils.session_resolver import InstanceResolver as R
+            _gl_suffix = R.instance_suffix()
             _gl_tx_file = empirica_root / f'active_transaction{_gl_suffix}.json'
             if _gl_tx_file.exists():
                 with open(_gl_tx_file, 'r') as _gl_f:

@@ -395,10 +395,10 @@ def _get_empirica_session(claude_session_id: str = None):
 
     # Priority 1: Database query (fallback)
     try:
-        from empirica.utils.session_resolver import get_latest_session_id
+        from empirica.utils.session_resolver import InstanceResolver as R
         for ai_pattern in ['claude-code', None]:
             try:
-                return get_latest_session_id(ai_id=ai_pattern, active_only=True)
+                return R.latest_session_id(ai_id=ai_pattern, active_only=True)
             except ValueError:
                 continue
     except Exception:

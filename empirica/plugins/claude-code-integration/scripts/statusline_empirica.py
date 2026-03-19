@@ -550,8 +550,8 @@ def _resolve_claude_session_id(stdin_claude_session_id: Optional[str] = None):
         return stdin_claude_session_id
 
     try:
-        from empirica.utils.session_resolver import get_tty_session
-        tty_session = get_tty_session(warn_if_stale=False)
+        from empirica.utils.session_resolver import InstanceResolver as R
+        tty_session = R.tty_session(warn_if_stale=False)
         if tty_session:
             return tty_session.get('claude_session_id')
     except Exception:
@@ -578,8 +578,8 @@ def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id:
     # Priority 0: instance_projects → empirica_session_id (most current after project-switch)
     try:
         import json as _json
-        from empirica.utils.session_resolver import get_instance_id as _gas_get_inst
-        _gas_inst_id = _gas_get_inst()
+        from empirica.utils.session_resolver import InstanceResolver as R
+        _gas_inst_id = R.instance_id()
         if _gas_inst_id:
             _gas_inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{_gas_inst_id}.json'
             if _gas_inst_file.exists():
@@ -620,8 +620,8 @@ def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id:
             # TTY session fallback
             if not empirica_session_id:
                 try:
-                    from empirica.utils.session_resolver import get_tty_session
-                    tty_session = get_tty_session(warn_if_stale=False)
+                    from empirica.utils.session_resolver import InstanceResolver as R
+                    tty_session = R.tty_session(warn_if_stale=False)
                     if tty_session:
                         empirica_session_id = tty_session.get('empirica_session_id')
                 except Exception:
@@ -642,8 +642,8 @@ def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id:
 
     # Get current instance_id for multi-instance isolation (legacy)
     try:
-        from empirica.utils.session_resolver import get_instance_id
-        current_instance_id = get_instance_id()
+        from empirica.utils.session_resolver import InstanceResolver as R
+        current_instance_id = R.instance_id()
     except ImportError:
         current_instance_id = None
 
@@ -1166,8 +1166,8 @@ def main():
 
         # HEADLESS CHECK: No statusline in headless/containerized mode
         try:
-            from empirica.utils.session_resolver import is_headless
-            if is_headless():
+            from empirica.utils.session_resolver import InstanceResolver as R
+            if R.is_headless():
                 return  # Silent exit — no statusline output
         except ImportError:
             pass
@@ -1216,9 +1216,9 @@ def main():
 
         # Priority 0: instance_projects (updated by BOTH hooks AND project-switch CLI)
         try:
-            from empirica.utils.session_resolver import get_instance_id as _sl_get_inst
+            from empirica.utils.session_resolver import InstanceResolver as R
             import json as _json
-            _sl_inst_id = _sl_get_inst()
+            _sl_inst_id = R.instance_id()
             if _sl_inst_id:
                 _sl_inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{_sl_inst_id}.json'
                 if _sl_inst_file.exists():
@@ -1257,9 +1257,9 @@ def main():
         # Priority 3: Check TTY session for project-switch context
         if not project_path:
             try:
-                from empirica.utils.session_resolver import get_tty_session
+                from empirica.utils.session_resolver import InstanceResolver as R
 
-                tty_session = get_tty_session(warn_if_stale=False)
+                tty_session = R.tty_session(warn_if_stale=False)
                 if tty_session:
                     tty_project_path = tty_session.get('project_path')
                     if tty_project_path:
@@ -1350,9 +1350,9 @@ def main():
         transaction_session_id = None
         transaction_id = None
         try:
-            from empirica.utils.session_resolver import _get_instance_suffix
+            from empirica.utils.session_resolver import InstanceResolver as R
             # Build instance-aware filename (sanitized for non-tmux like x11:N → x11_N)
-            suffix = _get_instance_suffix()
+            suffix = R.instance_suffix()
             if project_path:
                 tx_path = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
             else:

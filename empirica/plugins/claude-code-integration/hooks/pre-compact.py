@@ -242,13 +242,13 @@ def main():
     try:
         # Import after cwd change to use correct database
         sys.path.insert(0, str(Path.home() / 'empirical-ai' / 'empirica'))
-        from empirica.utils.session_resolver import get_latest_session_id
+        from empirica.utils.session_resolver import InstanceResolver as R
 
         # Get latest active claude-code* session
         # Try claude-code-* variants first, fallback to any active session
         for ai_pattern in ['claude-code', None]:
             try:
-                empirica_session = get_latest_session_id(ai_id=ai_pattern, active_only=True)
+                empirica_session = R.latest_session_id(ai_id=ai_pattern, active_only=True)
                 break
             except ValueError:
                 continue

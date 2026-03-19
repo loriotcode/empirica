@@ -152,8 +152,8 @@ def auto_postflight(session_id: str, vectors: dict) -> dict:
 def get_active_session() -> str | None:
     """Get active session ID."""
     try:
-        from empirica.utils.session_resolver import get_latest_session_id
-        return get_latest_session_id(ai_id='claude-code', active_only=True)
+        from empirica.utils.session_resolver import InstanceResolver as R
+        return R.latest_session_id(ai_id='claude-code', active_only=True)
     except Exception:
         return None
 

@@ -109,12 +109,10 @@ def add_delegated_work_to_parent(tool_call_count: int) -> bool:
 
     try:
         import tempfile
-        from empirica.utils.session_resolver import (
-            get_active_project_path, _get_instance_suffix
-        )
+        from empirica.utils.session_resolver import InstanceResolver as R
 
-        suffix = _get_instance_suffix()
-        project_path = get_active_project_path()
+        suffix = R.instance_suffix()
+        project_path = R.project_path()
 
         if project_path:
             tx_path = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'

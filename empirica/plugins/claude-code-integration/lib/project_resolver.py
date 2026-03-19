@@ -120,8 +120,8 @@ def get_instance_id() -> Optional[str]:
     """
     # Try empirica import first
     try:
-        from empirica.utils.session_resolver import get_instance_id as _get_instance_id
-        return _get_instance_id()
+        from empirica.utils.session_resolver import InstanceResolver as R
+        return R.instance_id()
     except ImportError:
         pass
 
@@ -238,8 +238,8 @@ def get_active_project_path(claude_session_id: str = None) -> Optional[str]:
     """
     # Try empirica import first
     try:
-        from empirica.utils.session_resolver import get_active_project_path as _get_active_project_path
-        return _get_active_project_path(claude_session_id)
+        from empirica.utils.session_resolver import InstanceResolver as R
+        return R.project_path(claude_session_id)
     except ImportError:
         pass
 
@@ -298,8 +298,8 @@ def get_active_session_id(claude_session_id: str = None) -> Optional[str]:
     """
     # Try empirica import first
     try:
-        from empirica.utils.session_resolver import get_active_empirica_session_id
-        return get_active_empirica_session_id(claude_session_id)
+        from empirica.utils.session_resolver import InstanceResolver as R
+        return R.session_id(claude_session_id)
     except ImportError:
         pass
 
@@ -350,8 +350,8 @@ def get_active_session_id(claude_session_id: str = None) -> Optional[str]:
 
     # Priority 4: TTY session (written by session-create, project-switch)
     try:
-        from empirica.utils.session_resolver import get_tty_session
-        tty_session = get_tty_session()
+        from empirica.utils.session_resolver import InstanceResolver as R
+        tty_session = R.tty_session()
         if tty_session:
             session_id = tty_session.get('empirica_session_id')
             if session_id:
