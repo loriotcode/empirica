@@ -447,6 +447,155 @@ def format_confidence(confidence: float) -> str:
     return f"{emoji}{color}{pct}%{Colors.RESET}"
 
 
+def _color_by_value(value: float) -> str:
+    """Color a 0-1 value: green >= 0.75, yellow 0.50-0.74, red < 0.50."""
+    if value >= 0.75:
+        return Colors.BRIGHT_GREEN
+    elif value >= 0.50:
+        return Colors.YELLOW
+    return Colors.RED
+
+
+def get_dynamic_threshold(db) -> tuple:
+    """Get Brier-based dynamic threshold for statusline display.
+
+    Returns (know_threshold, uncertainty_threshold, threshold_color).
+    Threshold color indicates calibration quality:
+      Green = well-calibrated (threshold at baseline, numbers trusted)
+      Yellow = moderate inflation (some miscalibration detected)
+      Red = significant inflation (unreliable self-assessment)
+    """
+    try:
+        from empirica.core.post_test.dynamic_thresholds import compute_dynamic_thresholds
+        dt = compute_dynamic_thresholds(ai_id="claude-code", db=db)
+        if dt.get("source") == "dynamic":
+            noetic = dt.get("noetic", {})
+            if noetic.get("brier_score") is not None:
+                know_t = noetic["ready_know_threshold"]
+                unc_t = noetic["ready_uncertainty_threshold"]
+                inflation = noetic.get("threshold_inflation", 0)
+                # Color by inflation level (how much the Sentinel distrusts the AI)
+                if inflation <= 0.03:
+                    color = Colors.BRIGHT_GREEN  # Trusted — at baseline
+                elif inflation <= 0.10:
+                    color = Colors.YELLOW         # Moderate inflation
+                else:
+                    color = Colors.RED             # Significant miscalibration
+                return (know_t, unc_t, color)
+    except Exception:
+        pass
+    return (0.70, 0.35, Colors.GRAY)  # Static fallback
+
+
+def format_threshold(know_threshold: float, color: str) -> str:
+    """Format threshold as colored percentage with ↕ indicator."""
+    pct = int(know_threshold * 100)
+    return f"{color}↕{pct}%{Colors.RESET}"
+
+
+def calculate_phase_composite(vectors: dict, phase: str) -> float:
+    """Calculate composite score for noetic or praxic phase.
+
+    Noetic (investigating): avg of clarity, coherence, signal, density
+    Praxic (acting): avg of state, change, completion, impact
+    """
+    if not vectors:
+        return 0.0
+
+    if phase == 'noetic':
+        keys = ['clarity', 'coherence', 'signal', 'density']
+    else:
+        keys = ['state', 'change', 'completion', 'impact']
+
+    values = [vectors.get(k, 0.0) for k in keys if vectors.get(k) is not None]
+    return sum(values) / len(values) if values else 0.0
+
+
+def determine_work_phase(phase: str, gate_decision: str = None) -> str:
+    """Determine if AI is in noetic (investigating) or praxic (acting) mode.
+
+    Logic:
+      PREFLIGHT / CHECK with investigate → noetic
+      CHECK with proceed → transitioning to praxic
+      POSTFLIGHT → last phase (show praxic since work completed)
+      No phase → noetic (default to investigating)
+    """
+    if not phase:
+        return 'noetic'
+    if phase == 'PREFLIGHT':
+        return 'noetic'
+    if phase == 'CHECK':
+        return 'praxic' if gate_decision == 'proceed' else 'noetic'
+    if phase == 'POSTFLIGHT':
+        return 'praxic'  # Work completed
+    return 'noetic'
+
+
+def format_phase_state(phase: str, work_phase: str, composite: float, gate_decision: str = None) -> str:
+    """Format CASCADE phase + work state as compact indicator.
+
+    Examples: PRE 🔍65% | CHK 🔍→⚙ | POST ⚙92% | POST ⚙92% Δ ✓
+    """
+    # Phase abbreviation
+    phase_abbrev = {
+        'PREFLIGHT': 'PRE',
+        'CHECK': 'CHK',
+        'POSTFLIGHT': 'POST',
+    }.get(phase, phase[:3] if phase else '---')
+
+    # Work state emoji + composite
+    if work_phase == 'noetic':
+        emoji = "🔍"
+    else:
+        emoji = "⚙"
+
+    pct = int(composite * 100)
+    color = _color_by_value(composite)
+
+    # CHECK with decision gets special formatting
+    if phase == 'CHECK' and gate_decision:
+        if gate_decision == 'proceed':
+            return f"{Colors.BLUE}{phase_abbrev}{Colors.RESET} {emoji}{Colors.GREEN}→{Colors.RESET}"
+        else:
+            return f"{Colors.BLUE}{phase_abbrev}{Colors.RESET} {emoji}{Colors.YELLOW}…{Colors.RESET}"
+
+    return f"{Colors.BLUE}{phase_abbrev}{Colors.RESET} {emoji}{color}{pct}%{Colors.RESET}"
+
+
+def format_vector_colored(label: str, value: float) -> str:
+    """Format a single vector as colored label:value%."""
+    pct = int(value * 100)
+    color = _color_by_value(value)
+    return f"{color}{label}:{pct}%{Colors.RESET}"
+
+
+def read_statusline_extensions() -> str:
+    """Read extension indicators from ~/.empirica/statusline_ext/*.json.
+
+    External packages (empirica-workspace, etc.) write JSON files here.
+    Each file should contain: {"label": "WS:4", "color": "cyan"} or similar.
+    """
+    ext_dir = Path.home() / '.empirica' / 'statusline_ext'
+    if not ext_dir.exists():
+        return ""
+
+    parts = []
+    try:
+        for ext_file in sorted(ext_dir.glob('*.json')):
+            try:
+                import json as _json
+                data = _json.loads(ext_file.read_text())
+                label = data.get('label', '')
+                if label:
+                    parts.append(f"{Colors.CYAN}{label}{Colors.RESET}")
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    return ' '.join(parts)
+
+
 def _resolve_claude_session_id(stdin_claude_session_id: Optional[str] = None):
     """
     Resolve the Claude session ID from available sources.
@@ -853,7 +1002,8 @@ def format_statusline(
     goal: Optional[dict] = None,
     open_counts: Optional[dict] = None,
     project_name: Optional[str] = None,
-    extensions: Optional[dict] = None
+    extensions: Optional[dict] = None,
+    threshold_info: Optional[tuple] = None,
 ) -> str:
     """Format the statusline based on mode."""
 
@@ -867,39 +1017,43 @@ def format_statusline(
     if len(label) > 20:
         label = label[:18] + '..'
 
-    parts = [f"{Colors.GREEN}[{label}]{Colors.RESET} {conf_str}"]
+    # Threshold indicator (user-facing only — AI doesn't see this)
+    threshold_str = ""
+    if threshold_info:
+        know_t, unc_t, t_color = threshold_info
+        threshold_str = f" {format_threshold(know_t, t_color)}"
 
-    # Add extension indicators (CRM, WORKSPACE) if present
-    if extensions:
-        ext_str = format_extension_indicators(extensions)
-        if ext_str:
-            parts.append(ext_str)
+    parts = [f"{Colors.GREEN}[{label}]{Colors.RESET} {conf_str}{threshold_str}"]
+
+    # Add extension indicators from statusline_ext/*.json (replaces hardcoded CRM/WS)
+    ext_str = read_statusline_extensions()
+    if ext_str:
+        parts.append(ext_str)
 
     if mode == 'basic':
-        # Just confidence
+        # Just confidence + threshold
         return ' '.join(parts)
 
     elif mode == 'default':
-        # Open counts (goals/unknowns to close) + CASCADE gate + key vectors (%) + deltas
-        # Shows actionable items: what needs to be resolved
+        # Redesigned: confidence ↕threshold │ 🎯goals ❓unknowns │ PHASE work_state% │ K:% C:%
         counts_str = format_open_counts(open_counts)
         parts.append(counts_str)
 
-        # CASCADE gate (compliance checkpoint) with metacog decision
+        # Phase + work state (investigating/acting with composite %)
         if phase:
-            phase_str = f"{Colors.BLUE}{phase}{Colors.RESET}"
-            # Show gate decision after CHECK phase
-            if gate_decision and phase == 'CHECK':
-                if gate_decision == 'proceed':
-                    phase_str += f" {Colors.GREEN}→PROCEED{Colors.RESET}"
-                elif gate_decision == 'investigate':
-                    phase_str += f" {Colors.YELLOW}→INVESTIGATE{Colors.RESET}"
+            work_phase = determine_work_phase(phase, gate_decision)
+            composite = calculate_phase_composite(vectors, work_phase)
+            phase_str = format_phase_state(phase, work_phase, composite, gate_decision)
             parts.append(phase_str)
 
+        # K and C vectors (color-coded independently)
         if vectors:
-            # Use percentage format for key vectors
-            vec_str = format_vectors_compact(vectors, keys=['know', 'uncertainty', 'context'], use_percentage=True)
-            parts.append(vec_str)
+            know = vectors.get('know', 0.0)
+            context = vectors.get('context', 0.0)
+            vec_parts = []
+            vec_parts.append(format_vector_colored('K', know))
+            vec_parts.append(format_vector_colored('C', context))
+            parts.append(' '.join(vec_parts))
 
         # Add deltas only on POSTFLIGHT (deltas measure PREFLIGHT→POSTFLIGHT change)
         if phase == 'POSTFLIGHT' and deltas:
@@ -1292,10 +1446,10 @@ def main():
         # Pass project_id to filter by THIS project only
         open_counts = get_open_counts(db, session_id, project_id=project_id)
 
-        db.close()
+        # Get dynamic threshold for statusline display (user-facing only)
+        threshold_info = get_dynamic_threshold(db)
 
-        # Detect extensions (CRM, WORKSPACE)
-        extensions = detect_extensions()
+        db.close()
 
         # JSON output for dashboards
         if output_json:
@@ -1304,7 +1458,7 @@ def main():
                 session, phase, vectors, deltas,
                 gate_decision=gate_decision, goal=goal, open_counts=open_counts,
                 project_name=project_name, project_path=project_path,
-                extensions=extensions, ai_id=ai_id,
+                ai_id=ai_id,
             )
             print(json.dumps(data, indent=2))
             return
@@ -1319,7 +1473,7 @@ def main():
         output = format_statusline(
             session, phase, vectors, deltas, mode,
             gate_decision=gate_decision, goal=goal, open_counts=open_counts,
-            project_name=project_name, extensions=extensions
+            project_name=project_name, threshold_info=threshold_info,
         )
         print(output)
 
