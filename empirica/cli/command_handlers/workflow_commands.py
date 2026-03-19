@@ -2196,6 +2196,15 @@ def handle_postflight_submit_command(args):
                         except Exception as cal_e:
                             logger.debug(f"Calibration export to breadcrumbs skipped: {cal_e}")
 
+                        # BRIER CALIBRATION EXPORT: Write Brier decomposition to .breadcrumbs.yaml
+                        try:
+                            from empirica.core.post_test.dynamic_thresholds import export_brier_to_breadcrumbs
+                            brier_exported = export_brier_to_breadcrumbs(ai_id, db)
+                            if brier_exported:
+                                logger.debug(f"Exported Brier calibration to .breadcrumbs.yaml for {ai_id}")
+                        except Exception as brier_e:
+                            logger.debug(f"Brier calibration export to breadcrumbs skipped: {brier_e}")
+
                     db.close()
             except Exception as e:
                 logger.debug(f"Bayesian belief update failed (non-fatal): {e}")

@@ -384,3 +384,131 @@ def get_brier_profile(
     except Exception as e:
         logger.debug(f"Brier profile computation failed: {e}")
         return {}
+
+
+def export_brier_to_breadcrumbs(
+    ai_id: str,
+    db,
+    git_root: Optional[str] = None,
+) -> bool:
+    """Export Brier score profile to .breadcrumbs.yaml as a 'brier_calibration:' section.
+
+    Adds a parallel section alongside learning_trajectory and grounded_calibration.
+    Called automatically after POSTFLIGHT to keep Brier data fresh.
+
+    Args:
+        ai_id: AI identifier (e.g., 'claude-code')
+        db: Database connection with calibration_trajectory access
+        git_root: Git repository root (auto-detects if None)
+
+    Returns:
+        True if Brier data was written successfully
+    """
+    import os
+    import subprocess
+    from datetime import datetime
+
+    if not git_root:
+        try:
+            result = subprocess.run(
+                ['git', 'rev-parse', '--show-toplevel'],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                git_root = result.stdout.strip()
+            else:
+                return False
+        except Exception:
+            return False
+
+    breadcrumbs_path = os.path.join(git_root, '.breadcrumbs.yaml')
+
+    profile = get_brier_profile(ai_id, db)
+    if not profile:
+        return False
+
+    # Check that at least one phase has real data (not just insufficient_data)
+    has_data = any(
+        phase_data.get("brier_score") is not None
+        for phase_data in profile.values()
+        if isinstance(phase_data, dict) and phase_data.get("status") != "insufficient_data"
+    )
+    if not has_data:
+        return False
+
+    # Build YAML block
+    timestamp = datetime.now().isoformat()
+    lines = [
+        "\n# Brier calibration (auto-updated by Empirica post-test verification)\n",
+        "brier_calibration:\n",
+        f'  last_updated: "{timestamp}"\n',
+        f"  ai_id: {ai_id}\n",
+        "  note: \"Murphy (1973) decomposition: BS = Reliability - Resolution + Uncertainty\"\n",
+    ]
+
+    for phase in ["noetic", "praxic", "combined"]:
+        data = profile.get(phase, {})
+        lines.append(f"  {phase}:\n")
+
+        if data.get("status") == "insufficient_data":
+            n = data.get("n", 0)
+            lines.append(f"    status: insufficient_data\n")
+            lines.append(f"    samples: {n}\n")
+            continue
+
+        if not data or "brier_score" not in data:
+            lines.append(f"    status: no_data\n")
+            continue
+
+        lines.append(f"    brier_score: {data['brier_score']:.4f}\n")
+        lines.append(f"    reliability: {data['reliability']:.4f}\n")
+        lines.append(f"    resolution: {data['resolution']:.4f}\n")
+        lines.append(f"    uncertainty: {data['uncertainty']:.4f}\n")
+        lines.append(f"    n_predictions: {data['n_predictions']}\n")
+        lines.append(f"    trend: {data.get('trend', 'stable')}\n")
+
+    yaml_block = ''.join(lines)
+
+    # Read existing file, find/replace brier_calibration section
+    try:
+        existing_lines = []
+        if os.path.exists(breadcrumbs_path):
+            with open(breadcrumbs_path, 'r') as f:
+                existing_lines = f.readlines()
+
+        section_start = -1
+        section_end = -1
+        in_section = False
+
+        for i, line in enumerate(existing_lines):
+            if '# Brier calibration' in line and section_start == -1:
+                section_start = i
+            elif line.strip().startswith('brier_calibration:'):
+                if section_start == -1:
+                    section_start = i
+                in_section = True
+            elif in_section and line.strip() and not line.startswith(' ') and not line.startswith('\t'):
+                section_end = i
+                break
+
+        if in_section and section_end == -1:
+            section_end = len(existing_lines)
+
+        if section_start >= 0:
+            new_lines = (
+                existing_lines[:section_start]
+                + [yaml_block]
+                + existing_lines[section_end:]
+            )
+        elif existing_lines:
+            new_lines = existing_lines + [yaml_block]
+        else:
+            new_lines = [yaml_block]
+
+        with open(breadcrumbs_path, 'w') as f:
+            f.writelines(new_lines)
+
+        return True
+    except Exception as e:
+        logger.debug(f"Failed to export Brier calibration to breadcrumbs: {e}")
+        return False

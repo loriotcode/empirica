@@ -1258,6 +1258,113 @@ def _show_disputes(output_format: str):
             print(f"Error loading disputes: {e}")
 
 
+def _show_brier_profile(args, ai_id: str, output_format: str):
+    """Show Brier score decomposition per phase.
+
+    Brier decomposition (Murphy 1973): BS = Reliability - Resolution + Uncertainty
+    - Reliability: calibration error (lower = better, 0 = perfect)
+    - Resolution: discrimination power (higher = better)
+    - Uncertainty: inherent domain difficulty (not controllable)
+    """
+    import json
+    from empirica.data.session_database import SessionDatabase
+
+    MIN_SAMPLES = 3  # get_brier_profile uses 3 internally
+
+    try:
+        db = SessionDatabase()
+        from empirica.core.post_test.dynamic_thresholds import get_brier_profile
+
+        profile = get_brier_profile(ai_id, db)
+        db.close()
+
+        if not profile:
+            if output_format == 'json':
+                print(json.dumps({
+                    "ok": False,
+                    "error": "No Brier profile data available",
+                    "hint": "Run POSTFLIGHT sessions to build calibration_trajectory data",
+                }))
+            else:
+                print("No Brier profile data available.")
+                print("Hint: Run POSTFLIGHT sessions to build calibration_trajectory data.")
+            return
+
+        if output_format == 'json':
+            result = {
+                "ok": True,
+                "calibration_type": "brier",
+                "ai_id": ai_id,
+                "note": "Murphy (1973) Brier decomposition: BS = Reliability - Resolution + Uncertainty",
+                "phases": profile,
+            }
+            print(json.dumps(result, indent=2))
+        else:
+            print("=" * 70)
+            print("BRIER SCORE DECOMPOSITION (Murphy 1973)")
+            print("=" * 70)
+            print()
+            print("BS = Reliability - Resolution + Uncertainty")
+            print("  Reliability: calibration error (lower = better, 0 = perfect)")
+            print("  Resolution:  discrimination power (higher = better)")
+            print("  Uncertainty: domain difficulty (not controllable)")
+            print()
+
+            for phase in ["noetic", "praxic", "combined"]:
+                data = profile.get(phase, {})
+                phase_label = phase.upper()
+
+                if data.get("status") == "insufficient_data":
+                    n = data.get("n", 0)
+                    print(f"  {phase_label}: insufficient data ({n}/{MIN_SAMPLES} samples)")
+                    print()
+                    continue
+
+                if not data or "brier_score" not in data:
+                    print(f"  {phase_label}: no data")
+                    print()
+                    continue
+
+                bs = data["brier_score"]
+                rel = data["reliability"]
+                res = data["resolution"]
+                unc = data["uncertainty"]
+                n = data["n_predictions"]
+                trend = data.get("trend", "stable")
+
+                # Quality assessment based on Brier score
+                if bs < 0.05:
+                    quality = "excellent"
+                elif bs < 0.10:
+                    quality = "good"
+                elif bs < 0.20:
+                    quality = "fair"
+                else:
+                    quality = "poor"
+
+                trend_arrow = {"improving": "improving", "degrading": "degrading", "stable": "stable"}.get(trend, "stable")
+
+                print(f"  {phase_label} (n={n}, {quality}, {trend_arrow}):")
+                print(f"    Brier Score:  {bs:.4f}")
+                print(f"    Reliability:  {rel:.4f}  {'(well calibrated)' if rel < 0.03 else '(calibration error)' if rel > 0.10 else ''}")
+                print(f"    Resolution:   {res:.4f}  {'(good discrimination)' if res > 0.05 else ''}")
+                print(f"    Uncertainty:  {unc:.4f}")
+                print()
+
+            print("-" * 70)
+            print("Reliability drives CHECK threshold inflation. Lower = better.")
+            print("Resolution measures ability to distinguish easy/hard tasks.")
+            print("=" * 70)
+            print()
+
+    except Exception as e:
+        if output_format == 'json':
+            print(json.dumps({"ok": False, "error": str(e)}, indent=2))
+        else:
+            print(f"Brier profile unavailable: {e}")
+            print("Hint: Run POSTFLIGHT sessions to collect calibration data")
+
+
 def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str, show_trajectory: bool):
     """Show grounded calibration (POSTFLIGHT → POST-TEST evidence comparison).
 
@@ -1423,14 +1530,19 @@ def handle_calibration_report_command(args):
         update_prompt = getattr(args, 'update_prompt', False)
         verbose = getattr(args, 'verbose', False)
 
-        # Check mode: grounded (default) vs learning-trajectory vs list-disputes
+        # Check mode: grounded (default) vs learning-trajectory vs list-disputes vs brier
         show_learning_trajectory = getattr(args, 'learning_trajectory', False)
         show_trajectory_trend = getattr(args, 'trajectory', False)
         list_disputes = getattr(args, 'list_disputes', False)
+        show_brier = getattr(args, 'brier', False)
 
         # --list-disputes: show all disputes
         if list_disputes:
             return _show_disputes(output_format)
+
+        # --brier: show Brier score decomposition per phase
+        if show_brier:
+            return _show_brier_profile(args, ai_id, output_format)
 
         # DEFAULT: Show grounded calibration (the real calibration)
         if not show_learning_trajectory:

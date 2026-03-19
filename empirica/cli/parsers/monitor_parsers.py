@@ -121,6 +121,8 @@ Use --learning-trajectory to see PREFLIGHT→POSTFLIGHT deltas (learning, not ca
         help='Show calibration trend over time (closing/widening/stable)')
     calibration_parser.add_argument('--list-disputes', action='store_true',
         help='Show all calibration disputes (open and resolved)')
+    calibration_parser.add_argument('--brier', action='store_true',
+        help='Show Brier score decomposition per phase (reliability, resolution, uncertainty)')
 
     # Calibration dispute command - AI pushback on measurement artifacts
     dispute_parser = subparsers.add_parser('calibration-dispute',
