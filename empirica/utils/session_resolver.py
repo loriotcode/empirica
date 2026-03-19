@@ -95,7 +95,34 @@ class InstanceResolver:
         """
         return get_active_empirica_session_id(claude_session_id)
 
+    @staticmethod
+    def resolve_session(session_id_or_alias: str, ai_id: str = None) -> str:
+        """Resolve a partial session ID, alias, or 'latest' to full UUID."""
+        return resolve_session_id(session_id_or_alias, ai_id)
+
+    @staticmethod
+    def latest_session_id(ai_id: str = None, active_only: bool = False) -> 'Optional[str]':
+        """Get the most recent session ID, optionally filtered by ai_id."""
+        return get_latest_session_id(ai_id, active_only)
+
+    # --- Context ---
+
+    @staticmethod
+    def context(claude_session_id: str = None) -> dict:
+        """Get the full active context (project_path, session_id, instance_id, etc.)."""
+        return get_active_context(claude_session_id)
+
+    @staticmethod
+    def engagement(claude_session_id: str = None) -> 'Optional[str]':
+        """Get the active engagement ID."""
+        return get_active_engagement(claude_session_id)
+
     # --- Transaction Lifecycle ---
+
+    @staticmethod
+    def transaction_id(claude_session_id: str = None) -> 'Optional[str]':
+        """Read just the active transaction ID."""
+        return read_active_transaction(claude_session_id)
 
     @staticmethod
     def transaction_read(claude_session_id: str = None) -> 'Optional[dict]':
@@ -141,54 +168,6 @@ class InstanceResolver:
         """Read the TTY session file for this terminal."""
         return get_tty_session(warn_if_stale=warn_if_stale)
 
-    # --- Cleanup ---
-
-    @staticmethod
-    def cleanup_stale_instances() -> int:
-        """Remove orphaned instance_projects files (tmux only)."""
-        return cleanup_stale_instance_projects()
-
-    @staticmethod
-    def cleanup_stale_files(current_claude_session_id: str = None) -> int:
-        """Remove stale active_work, instance_projects, and active_session files.
-
-        DB-based: checks if the session has ended. Skips files with open transactions.
-        """
-        return cleanup_stale_active_work_files(current_claude_session_id)
-
-    # --- Context ---
-
-    @staticmethod
-    def context() -> dict:
-        """Get the full active context (project_path, session_id, instance_id, etc.)."""
-        return get_active_context()
-
-    @staticmethod
-    def engagement() -> 'Optional[str]':
-        """Get the active engagement ID."""
-        return get_active_engagement()
-
-    # --- Session (additional) ---
-
-    @staticmethod
-    def resolve_session(session_id: str) -> str:
-        """Resolve a partial session ID to full UUID."""
-        return resolve_session_id(session_id)
-
-    @staticmethod
-    def latest_session_id(project_path: str = None) -> 'Optional[str]':
-        """Get the most recent session ID, optionally scoped to a project."""
-        return get_latest_session_id(project_path)
-
-    # --- Transaction (additional) ---
-
-    @staticmethod
-    def transaction_id(claude_session_id: str = None) -> 'Optional[str]':
-        """Read just the active transaction ID (shorthand for transaction_read)."""
-        return read_active_transaction(claude_session_id)
-
-    # --- TTY (additional) ---
-
     @staticmethod
     def tty_write(
         claude_session_id: str = None,
@@ -202,6 +181,18 @@ class InstanceResolver:
             project_path=project_path,
         )
 
+    # --- Project Helpers ---
+
+    @staticmethod
+    def project_id_from_db(project_path) -> 'Optional[str]':
+        """Get project_id from a project's local sessions.db."""
+        return _get_project_id_from_local_db(project_path)
+
+    @staticmethod
+    def resolve_workspace_project(identifier: str) -> 'Optional[dict]':
+        """Resolve a project name/path/id via the workspace database."""
+        return _resolve_via_workspace_db(identifier)
+
     # --- Cleanup ---
 
     @staticmethod
@@ -211,23 +202,14 @@ class InstanceResolver:
 
     @staticmethod
     def cleanup_stale_files(current_claude_session_id: str = None) -> int:
-        """Remove stale active_work, instance_projects, and active_session files.
-
-        DB-based: checks if the session has ended. Skips files with open transactions.
-        """
+        """Remove stale active_work, instance_projects, and active_session files."""
         return cleanup_stale_active_work_files(current_claude_session_id)
 
     # --- Mode Detection ---
 
     @staticmethod
     def is_headless() -> bool:
-        """Check if running in headless/containerized mode.
-
-        Headless = no terminal identity available. In this mode:
-        - active_work.json is the primary project resolution file
-        - instance_projects is not used (no instance to key on)
-        - Statusline is not needed
-        """
+        """Check if running in headless/containerized mode."""
         return is_headless()
 
 
