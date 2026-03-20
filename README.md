@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.6.13-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.6.13)
+[![Version](https://img.shields.io/badge/version-1.6.14-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.6.14)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -101,13 +101,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.6.13-alpine
+docker pull nubaeon/empirica:1.6.14-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.6.13
+docker pull nubaeon/empirica:1.6.14
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.6.13 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.6.14 /bin/bash
 ```
 </details>
 
@@ -265,7 +265,7 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.6.13
+## What's New in 1.6.14
 
 - **Brier Score Calibration** — Replaced MAE (improper scoring rule) with Brier score. Murphy 1973 decomposition gives reliability, resolution, and uncertainty components. Miscalibration now RAISES thresholds instead of lowering them. Available via `calibration-report --brier`
 - **Statusline Redesign** — New format shows confidence + threshold gap, investigating/acting phase with composite score, color-coded K/C vectors, and learning deltas. Threshold indicator is user-facing only (AI can't see it)
@@ -307,6 +307,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.6.13
+**Version:** 1.6.14
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*
