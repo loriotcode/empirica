@@ -15,6 +15,7 @@ from typing import Dict, Any
 MODALITY_AVAILABLE = False
 
 from ..cli_utils import handle_cli_error
+from empirica.utils.session_resolver import InstanceResolver as R
 
 # Set up logging for monitor commands
 logger = logging.getLogger(__name__)
@@ -200,7 +201,6 @@ def _display_turtle_health():
     try:
         from empirica.data.session_database import SessionDatabase
         from empirica.data.flow_state_calculator import calculate_flow_score, classify_flow_state, identify_flow_blockers
-        from empirica.utils.session_resolver import InstanceResolver as R
 
         db = SessionDatabase()
 
@@ -1945,7 +1945,6 @@ def handle_system_status_command(args):
         # Auto-detect session if not provided
         if not session_id:
             try:
-                from empirica.utils.session_resolver import InstanceResolver as R
                 session_id = R.latest_session_id(ai_id='claude-code', active_only=True)
             except Exception:
                 pass
@@ -1991,7 +1990,6 @@ def handle_calibration_dispute_command(args):
 
     try:
         from empirica.data.session_database import SessionDatabase
-        from empirica.utils.session_resolver import InstanceResolver as R
 
         vector = args.vector
         reported = args.reported
@@ -2021,8 +2019,6 @@ def handle_calibration_dispute_command(args):
         # Read work_context from active transaction if available
         work_context = None
         try:
-            from empirica.utils.session_resolver import InstanceResolver as R
-            from pathlib import Path
             suffix = R.instance_suffix()
             project_path = R.project_path()
             if project_path:

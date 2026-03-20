@@ -9,6 +9,7 @@ import sqlite3
 import subprocess
 from pathlib import Path
 from typing import Optional, Dict, List, Any
+from empirica.utils.session_resolver import InstanceResolver as R
 from ..cli_utils import handle_cli_error
 
 logger = logging.getLogger(__name__)
@@ -207,7 +208,6 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
         True if successfully written, False otherwise
     """
     import time
-    from empirica.utils.session_resolver import InstanceResolver as R
 
     try:
         marker_dir = Path.home() / '.empirica'
@@ -832,7 +832,6 @@ def handle_project_switch_command(args):
         # Transactions are project-scoped, so switching projects should close the current one
         postflight_result = None
         try:
-            from empirica.utils.session_resolver import InstanceResolver as R
             from empirica.config.path_resolver import get_empirica_root
             from empirica.core.statusline_cache import get_instance_id
 

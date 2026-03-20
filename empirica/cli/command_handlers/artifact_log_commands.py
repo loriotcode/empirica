@@ -9,6 +9,7 @@ import logging
 import sqlite3
 from pathlib import Path
 from typing import Optional
+from empirica.utils.session_resolver import InstanceResolver as R
 from ..cli_utils import handle_cli_error
 from .project_commands import get_workspace_db_path
 
@@ -45,7 +46,7 @@ def _create_entity_artifact_link(
     # Resolve artifact_source (trajectory_path for this project)
     if not project_path:
         try:
-            from empirica.utils.session_resolver import InstanceResolver as R
+
             project_path = R.project_path()
         except Exception:
             pass
@@ -103,7 +104,7 @@ def _extract_entity_params(config_data, args):
     # Auto-inherit from active engagement if no entity explicitly specified
     if not entity_type or entity_type == 'project':
         try:
-            from empirica.utils.session_resolver import InstanceResolver as R
+
             active_eng = R.engagement()
             if active_eng:
                 entity_type = 'engagement'
@@ -117,7 +118,7 @@ def _extract_entity_params(config_data, args):
 def handle_engagement_focus_command(args):
     """Handle engagement-focus command — set active engagement for auto-linking."""
     try:
-        from empirica.utils.session_resolver import InstanceResolver as R, set_active_engagement
+        from empirica.utils.session_resolver import set_active_engagement
 
         if getattr(args, 'clear', False):
             # Clear engagement by setting to None
@@ -220,7 +221,7 @@ def handle_finding_log_command(args):
 
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
-            from empirica.utils.session_resolver import InstanceResolver as R
+
             session_id = R.session_id()
 
         # Validate required fields
@@ -259,7 +260,7 @@ def handle_finding_log_command(args):
             else:
                 # Fallback: try to resolve from unified context (NOT CWD)
                 try:
-                    from empirica.utils.session_resolver import InstanceResolver as R
+        
                     context = R.context()
                     project_path = context.get('project_path')
                     if project_path:
@@ -303,7 +304,7 @@ def handle_finding_log_command(args):
         # Auto-derive active transaction_id
         transaction_id = None
         try:
-            from empirica.utils.session_resolver import InstanceResolver as R
+
             transaction_id = R.transaction_id()
         except Exception:
             pass
@@ -564,7 +565,7 @@ def handle_unknown_log_command(args):
 
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
-            from empirica.utils.session_resolver import InstanceResolver as R
+
             session_id = R.session_id()
 
         # Validate required fields
@@ -603,7 +604,7 @@ def handle_unknown_log_command(args):
             else:
                 # Fallback: try to resolve from unified context (NOT CWD)
                 try:
-                    from empirica.utils.session_resolver import InstanceResolver as R
+        
                     context = R.context()
                     project_path = context.get('project_path')
                     if project_path:
@@ -646,7 +647,7 @@ def handle_unknown_log_command(args):
         # Auto-derive active transaction_id
         transaction_id = None
         try:
-            from empirica.utils.session_resolver import InstanceResolver as R
+
             transaction_id = R.transaction_id()
         except Exception:
             pass
@@ -835,7 +836,7 @@ def handle_unknown_list_command(args):
 
             if not project_id:
                 try:
-                    from empirica.utils.session_resolver import InstanceResolver as R
+        
                     context = R.context()
                     ctx_session = context.get('empirica_session_id')
                     if ctx_session:
@@ -984,7 +985,7 @@ def handle_deadend_log_command(args):
 
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
-            from empirica.utils.session_resolver import InstanceResolver as R
+
             session_id = R.session_id()
 
         # Validate required fields
@@ -1018,7 +1019,7 @@ def handle_deadend_log_command(args):
             else:
                 # Fallback: try to resolve from unified context (NOT CWD)
                 try:
-                    from empirica.utils.session_resolver import InstanceResolver as R
+        
                     context = R.context()
                     project_path = context.get('project_path')
                     if project_path:
@@ -1061,7 +1062,7 @@ def handle_deadend_log_command(args):
         # Auto-derive active transaction_id
         transaction_id = None
         try:
-            from empirica.utils.session_resolver import InstanceResolver as R
+
             transaction_id = R.transaction_id()
         except Exception:
             pass
@@ -1195,7 +1196,7 @@ def handle_assumption_log_command(args):
 
         # Auto-derive session_id
         if not session_id:
-            from empirica.utils.session_resolver import InstanceResolver as R
+
             session_id = R.session_id()
 
         if not assumption:
@@ -1225,7 +1226,7 @@ def handle_assumption_log_command(args):
         # Auto-derive transaction_id
         transaction_id = None
         try:
-            from empirica.utils.session_resolver import InstanceResolver as R
+
             transaction_id = R.transaction_id()
         except Exception:
             pass
@@ -1341,7 +1342,7 @@ def handle_decision_log_command(args):
 
         # Auto-derive session_id
         if not session_id:
-            from empirica.utils.session_resolver import InstanceResolver as R
+
             session_id = R.session_id()
 
         if not choice:
@@ -1383,7 +1384,7 @@ def handle_decision_log_command(args):
         # Auto-derive transaction_id
         transaction_id = None
         try:
-            from empirica.utils.session_resolver import InstanceResolver as R
+
             transaction_id = R.transaction_id()
         except Exception:
             pass
@@ -1531,7 +1532,7 @@ def handle_source_add_command(args):
 
         # Auto-derive session_id from active transaction
         if not session_id:
-            from empirica.utils.session_resolver import InstanceResolver as R
+
             session_id = R.session_id()
 
         if not session_id:

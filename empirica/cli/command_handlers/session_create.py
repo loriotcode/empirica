@@ -10,6 +10,7 @@ Session lifecycle:
 import json
 import re
 import sys
+from empirica.utils.session_resolver import InstanceResolver as R
 from ..cli_utils import handle_cli_error
 
 
@@ -333,7 +334,6 @@ def handle_session_create_command(args):
             # Method 0: Check resolver context files (highest priority)
             # Priority: instance_projects (TMUX) > active_work (Claude session) > canonical active_work
             try:
-                from empirica.utils.session_resolver import InstanceResolver as R
                 import json as _json
                 import sqlite3 as _sqlite3
 
@@ -432,7 +432,6 @@ def handle_session_create_command(args):
             # Use active context project_path - NO CWD FALLBACK (CWD is unreliable)
             if not early_project_id:
                 try:
-                    from empirica.utils.session_resolver import InstanceResolver as R
                     context_project = R.project_path()
                     if not context_project:
                         raise ValueError("No active project context - skip Method 1")
@@ -493,7 +492,6 @@ def handle_session_create_command(args):
 
         # AUTO-CLOSE PREVIOUS SESSIONS before creating new one
         # Get current instance_id for multi-pane isolation
-        from empirica.utils.session_resolver import InstanceResolver as R
         current_instance_id = R.instance_id()
 
         db = SessionDatabase()
@@ -524,7 +522,6 @@ def handle_session_create_command(args):
         # Update active_session file for statusline (instance-specific)
         # Uses instance_id (e.g., tmux:%0) to prevent cross-pane bleeding
         from pathlib import Path
-        from empirica.utils.session_resolver import InstanceResolver as R
 
         instance_id = R.instance_id()
         instance_suffix = ""
@@ -569,7 +566,6 @@ def handle_session_create_command(args):
         # This enables CLI commands to find the active session via TTY context
         # IMPORTANT: Preserve project-switch context - NO CWD FALLBACK
         try:
-            from empirica.utils.session_resolver import InstanceResolver as R
             # Check existing context first (may have been set by project-switch)
             existing_project = R.project_path()
             if existing_project:

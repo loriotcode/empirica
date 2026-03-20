@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 from typing import List, Dict, Any
 from ..cli_utils import handle_cli_error, parse_json_safely
+from empirica.utils.session_resolver import InstanceResolver as R
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +219,6 @@ def handle_goals_create_command(args):
 
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
-            from empirica.utils.session_resolver import InstanceResolver as R
             session_id = R.session_id()
 
         # Validate required fields
@@ -298,7 +298,6 @@ def handle_goals_create_command(args):
         # Auto-derive active transaction_id for epistemic linkage
         transaction_id = None
         try:
-            from empirica.utils.session_resolver import InstanceResolver as R
             transaction_id = R.transaction_id()
         except Exception:
             pass
@@ -973,7 +972,6 @@ def handle_goals_list_command(args):
             # Priority 2: From unified context resolver (transaction → active_work)
             if not project_id:
                 try:
-                    from empirica.utils.session_resolver import InstanceResolver as R
                     context = R.context()
                     ctx_session = context.get('empirica_session_id')
                     if ctx_session:
