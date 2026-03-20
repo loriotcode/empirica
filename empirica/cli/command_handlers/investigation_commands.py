@@ -4,7 +4,7 @@ Investigation Commands - Analysis, investigation, and exploration functionality
 
 import os
 import json
-from ..cli_utils import print_component_status, handle_cli_error, parse_json_safely
+from ..cli_utils import print_component_status, handle_cli_error, parse_json_safely, run_empirica_subprocess
 
 
 def _get_recalibration_attempts(session_id: str) -> int:
@@ -105,11 +105,8 @@ def handle_investigate_command(args):
                 return None
             
             try:
-                import subprocess
-                result = subprocess.run(
+                result = run_empirica_subprocess(
                     ['empirica', 'project-bootstrap', '--session-id', session_id, '--output', 'json'],
-                    capture_output=True,
-                    text=True,
                     timeout=30
                 )
                 if result.returncode == 0:
