@@ -267,16 +267,16 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ## What's New in 1.6.11
 
-- **Instance Isolation Hardened** — `InstanceResolver` unified API replaces scattered resolution logic. 13 suffix-mismatch bugs fixed across 12 files. Session-init fires on `resume` events (new terminal, same conversation). DB-based cleanup removes orphaned state files using session `end_time`
-- **Headless/Interactive Mode** — Auto-detects containerized environments (`is_headless()`). Interactive sessions use per-instance isolation only — no more `active_work.json` pollution across terminals. Statusline silently exits in headless mode
-- **Statusline Extension Protocol** — External packages write JSON to `~/.empirica/statusline_ext/*.json`, keeping workspace-specific displays out of core
+- **Brier Score Calibration** — Replaced MAE (improper scoring rule) with Brier score. Murphy 1973 decomposition gives reliability, resolution, and uncertainty components. Miscalibration now RAISES thresholds instead of lowering them. Available via `calibration-report --brier`
+- **Statusline Redesign** — New format shows confidence + threshold gap, investigating/acting phase with composite score, color-coded K/C vectors, and learning deltas. Threshold indicator is user-facing only (AI can't see it)
+- **Calibration Anti-Gaming** — Specific vector gaps and suggested ranges removed from AI-facing output. Replaced with directional-only feedback (which vectors tend to drift, not by how much). Full data available to users via `calibration-report`
+- **Windows Support** — Project-embed retrieval hardened: path resolution, Qdrant collection creation, Ollama retry with progressive prompt truncation. Contributed by [@kars85](https://github.com/kars85)
 
-### Previous Highlights (1.6.4–1.6.6)
+### Previous Highlights (1.6.4–1.6.10)
 
-- **Temporal Entity Model** — Codebase entities (functions, classes, APIs, imports) tracked with temporal validity. Auto-extracted from file edits, queried during CHECK, used as grounded calibration evidence. Adapted from [world-model-mcp](https://github.com/SaravananJaichandar/world-model-mcp) by Saravanan Jaichandar
-- **Work Type Tagging** — `work_type` and `work_context` fields in PREFLIGHT scale evidence weights by source relevance
+- **Instance Isolation** — `InstanceResolver` unified API, headless/interactive mode split, DB-based file cleanup, 13 suffix-mismatch fixes
+- **Temporal Entity Model** — Codebase entities tracked with temporal validity, auto-extracted from file edits, used as grounded calibration evidence. Adapted from [world-model-mcp](https://github.com/SaravananJaichandar/world-model-mcp) by Saravanan Jaichandar
 - **Epistemic Transaction Skill** — Interactive planning skill for decomposing work into measured transactions with estimated vectors
-- **8th Grounded Evidence Source** — `codebase_model` joins pytest, git, goals, artifacts, issues, sentinel, and code_quality for calibration verification
 
 ---
 

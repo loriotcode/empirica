@@ -5,6 +5,24 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.11] - 2026-03-19
+
+### Added
+- **Brier score calibration** — Replaced MAE (improper scoring rule) with Brier score (strictly proper, Murphy 1973 decomposition). Reliability, resolution, and uncertainty components available via `calibration-report --brier` and auto-exported to `.breadcrumbs.yaml`
+- **Statusline redesign** — New format: `[project] ⚡87% ↕70% │ 🎯1 ❓2 │ PRE 🔍65% │ K:70% C:75%`. Threshold indicator (↕%) shows Sentinel's required confidence color-coded by calibration quality. Phase state shows CASCADE boundary + work mode (🔍 investigating / ⚙ acting) with composite score. All elements color-coded
+- **Calibration anti-gaming** — Specific vector gaps, suggested ranges, and calibration bias removed from AI-facing output. Replaced with directional-only feedback (overestimate/underestimate tendency lists). Full calibration data remains user-facing via calibration-report and statusline
+
+### Fixed
+- **Threshold direction inverted** — Dynamic thresholds previously LOWERED gates for good calibration (wrong). Now: miscalibration RAISES thresholds to compensate for unreliable self-assessment. Good calibration keeps thresholds at domain baselines
+- **Sentinel static-only thresholds** — `sentinel-gate.py` now reads Brier-based dynamic thresholds instead of using hardcoded constants only
+- **Project-embed retrieval on Windows** — Path resolution against project root (not forced under `docs/`), lazy Qdrant collection creation, Ollama retry with progressive prompt truncation, Python code_api skipped for non-Python repos, accurate success reporting. Contributed by @kars85 (#58)
+- **Subagent detection** — Sentinel uses `active_work` instead of `active_session` for subagent detection
+
+### Changed
+- **Calibration thresholds in MCO config** — Domain baselines, safety ceilings, max inflation, min transactions, and lookback moved from hardcoded constants to `cascade_styles.yaml`. Each CASCADE profile (default, exploratory, rigorous, rapid, expert, novice) has profile-appropriate calibration settings
+- **Statusline extension protocol** — Removed hardcoded CRM/workspace DB queries from core statusline. Uses `statusline_ext/*.json` protocol only
+- **InstanceResolver migration** — 28 files migrated from scattered `session_resolver` imports to unified `InstanceResolver` API
+
 ## [1.6.10] - 2026-03-18
 
 ### Added
