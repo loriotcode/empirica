@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 from empirica.utils.session_resolver import InstanceResolver as R
-from ..cli_utils import handle_cli_error
+from ..cli_utils import handle_cli_error, run_empirica_subprocess
 
 logger = logging.getLogger(__name__)
 
@@ -1093,10 +1093,8 @@ def handle_project_switch_command(args):
                 bootstrap_cmd.extend(['--session-id', attached_session['session_id']])
             if project_path:
                 # Run in project directory to ensure correct context
-                result = subprocess.run(
+                result = run_empirica_subprocess(
                     bootstrap_cmd,
-                    capture_output=True,
-                    text=True,
                     timeout=30,
                     cwd=str(project_path)
                 )

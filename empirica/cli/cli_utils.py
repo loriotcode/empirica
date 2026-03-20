@@ -3,9 +3,11 @@ CLI Utilities - Shared helper functions for modular CLI components
 """
 
 import json
+import os
+import subprocess
 import time
 import sys
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Sequence
 
 
 def safe_print(*args, **kwargs):
@@ -32,6 +34,36 @@ def safe_print(*args, **kwargs):
                 arg = arg.encode('ascii', errors='replace').decode('ascii')
             safe_args.append(arg)
         print(*safe_args, **kwargs)
+
+
+def run_empirica_subprocess(
+    command: Sequence[str],
+    *,
+    cwd: Optional[str] = None,
+    timeout: Optional[float] = None
+) -> subprocess.CompletedProcess:
+    """
+    Run an Empirica CLI subprocess with UTF-8-safe decoding.
+
+    Windows can otherwise decode child process output using the active console
+    code page (for example cp1252), which breaks when the child emits Unicode
+    that is not representable there. Force UTF-8 for both the child process and
+    the parent-side decode path.
+    """
+    env = os.environ.copy()
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    env.setdefault("PYTHONUTF8", "1")
+
+    return subprocess.run(
+        list(command),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+        cwd=cwd,
+        env=env,
+    )
 
 
 def print_component_status(component_name: str, status: str, details: Optional[str] = None):
