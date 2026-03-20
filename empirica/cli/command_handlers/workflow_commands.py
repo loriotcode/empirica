@@ -594,8 +594,6 @@ def handle_preflight_submit_command(args):
             except Exception as e:
                 logger.debug(f"Previous transaction feedback lookup failed (non-fatal): {e}")
 
-            db.close()
-
             # PATTERN RETRIEVAL: Load relevant patterns based on task_context or reasoning
             # This arms the AI with lessons, dead_ends, and findings BEFORE starting work
             # Includes adaptive retrieval depth based on time since last session
@@ -631,7 +629,6 @@ def handle_preflight_submit_command(args):
                         include_goals=True,
                         include_assumptions=True,
                         include_decisions=True,
-                        include_calibration=calibration_feedback_enabled,
                         vectors=vectors,
                     )
                     if patterns and any(v for k, v in patterns.items() if k != 'time_gap'):
@@ -648,6 +645,8 @@ def handle_preflight_submit_command(args):
                                    f"{len(patterns.get('prior_decisions', []))} decisions")
                 except Exception as e:
                     logger.debug(f"Pattern retrieval failed (optional): {e}")
+
+            db.close()
 
             result = {
                 "ok": True,
@@ -1564,9 +1563,6 @@ def handle_check_submit_command(args):
                 check_project_id = (bootstrap_result or {}).get('project_id') or bootstrap_status.get('project_id')
                 if check_project_id:
                     from empirica.core.qdrant.pattern_retrieval import check_against_patterns
-                    check_calibration = os.environ.get(
-                        'EMPIRICA_CALIBRATION_FEEDBACK', 'true'
-                    ).lower() == 'true'
                     check_patterns = check_against_patterns(
                         check_project_id,
                         reasoning or "",
@@ -1575,7 +1571,6 @@ def handle_check_submit_command(args):
                         include_eidetic=True,
                         include_goals=True,
                         include_assumptions=True,
-                        include_calibration=check_calibration,
                     )
                     if check_patterns and check_patterns.get("has_warnings"):
                         result["patterns"] = check_patterns

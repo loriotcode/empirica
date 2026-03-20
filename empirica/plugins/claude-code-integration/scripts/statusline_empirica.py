@@ -33,7 +33,6 @@ sys.path.insert(0, str(EMPIRICA_ROOT))
 from empirica.config.path_resolver import get_empirica_root
 from empirica.data.session_database import SessionDatabase
 from empirica.core.signaling import format_vectors_compact
-from empirica.core.statusline_cache import get_instance_id
 
 
 # ANSI color codes
@@ -485,24 +484,19 @@ def read_statusline_extensions() -> str:
 
     External packages (empirica-workspace, etc.) write JSON files here.
     Each file should contain: {"label": "WS:4", "color": "cyan"} or similar.
+
+    Delegates to _read_statusline_extensions_data() for file reading,
+    then formats labels with ANSI colors for terminal display.
     """
-    ext_dir = Path.home() / '.empirica' / 'statusline_ext'
-    if not ext_dir.exists():
+    extensions = _read_statusline_extensions_data()
+    if not extensions:
         return ""
 
     parts = []
-    try:
-        for ext_file in sorted(ext_dir.glob('*.json')):
-            try:
-                import json as _json
-                data = _json.loads(ext_file.read_text())
-                label = data.get('label', '')
-                if label:
-                    parts.append(f"{Colors.CYAN}{label}{Colors.RESET}")
-            except Exception:
-                continue
-    except Exception:
-        pass
+    for data in extensions:
+        label = data.get('label', '')
+        if label:
+            parts.append(f"{Colors.CYAN}{label}{Colors.RESET}")
 
     return ' '.join(parts)
 
@@ -842,7 +836,7 @@ def get_latest_vectors(db: SessionDatabase, session_id: str, transaction_session
             import json
             reflex_data = json.loads(row[14])
             gate_decision = reflex_data.get('decision')
-        except:
+        except Exception:
             pass
 
     return phase, vectors, gate_decision
@@ -1425,7 +1419,7 @@ def main():
         try:
             with open(get_empirica_root() / 'statusline.log', 'a') as f:
                 f.write(f"ERROR: {e}\n")
-        except:
+        except Exception:
             pass
 
 

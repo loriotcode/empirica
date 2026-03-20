@@ -541,7 +541,7 @@ Also mirrored in `plugins/.../lib/project_resolver.py` for hooks that can't impo
 2. **instance_projects is AUTHORITATIVE** — Updated by project-switch, wins over stale active_work
 3. **Transaction-first session resolution** — CLI commands auto-derive session from transaction
 4. **No CWD fallback** — Fail explicitly rather than risk wrong project context
-5. **Self-healing** — Stale files are corrected when discrepancies detected
+5. **No self-healing** — Stale files resolve naturally when the next hook fires and writes both files consistently
 
 ---
 
