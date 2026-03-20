@@ -714,20 +714,21 @@ brew install empirica
             if not self.dry_run:
                 self.ensure_main_branch()
 
-            # Build packages
+            # Update version strings and sweep BEFORE building packages
+            # so the README baked into the wheel has correct version refs
+            self.update_version_strings()
+            if self.old_version:
+                self.sweep_version(self.old_version)
+
+            # Build packages (after sweep so wheel contains current README)
             self.build_package()
             self.build_mcp_package()
 
-            # Calculate tarball SHA256
+            # Calculate tarball SHA256 and update packaging files that need it
             self.tarball_sha256 = self.calculate_sha256()
-
-            # Update all distribution files (targeted + broad sweep)
-            self.update_version_strings()
             self.update_homebrew_formula()
             self.update_dockerfile()
             self.update_chocolatey_nuspec()
-            if self.old_version:
-                self.sweep_version(self.old_version)
 
             # Publish
             self.publish_to_pypi()
