@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.6.14-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.6.14)
+[![Version](https://img.shields.io/badge/version-1.6.15-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.6.15)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -101,13 +101,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.6.14-alpine
+docker pull nubaeon/empirica:1.6.15-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.6.14
+docker pull nubaeon/empirica:1.6.15
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.6.14 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.6.15 /bin/bash
 ```
 </details>
 
@@ -273,7 +273,7 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 - **Bootstrap NoneType Guard** — Fixed `TypeError: '>' not supported between NoneType and float` in drift/delta calculations during `project-bootstrap`. Reported by [@kars85](https://github.com/kars85)
 - **Sentinel Allow List** — Added `gh pr diff` to noetic-safe Bash commands
 
-### Previous Highlights (1.6.11–1.6.14)
+### Previous Highlights (1.6.11–1.6.15)
 
 - **Brier Score Calibration** — Replaced MAE with proper Brier score (Murphy 1973). Miscalibration raises thresholds. Anti-gaming: AI gets directional-only feedback
 - **Statusline Redesign** — Threshold indicator, investigating/acting phase, color-coded K/C vectors, learning deltas
@@ -310,6 +310,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.6.14
+**Version:** 1.6.15
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*
