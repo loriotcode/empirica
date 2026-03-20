@@ -291,7 +291,7 @@ class SystemDashboard(EpistemicObserver):
         auto_subscribe: bool = True,
     ):
         self.session_id = session_id
-        self.node_id = node_id or os.getenv("EMPIRICA_AI_ID", "unknown")
+        self.node_id = node_id or os.getenv("EMPIRICA_AI_ID") or self._resolve_ai_id(session_id)
         self.started_at = time.time()
 
         # Cached state from bus events (push)
@@ -308,6 +308,22 @@ class SystemDashboard(EpistemicObserver):
                 bus.subscribe(self)
             except Exception as e:
                 logger.warning(f"Dashboard could not subscribe to bus: {e}")
+
+    @staticmethod
+    def _resolve_ai_id(session_id: str) -> str:
+        """Resolve ai_id from the session record in the database."""
+        try:
+            from empirica.data.session_database import SessionDatabase
+            db = SessionDatabase()
+            cursor = db.conn.cursor()
+            cursor.execute("SELECT ai_id FROM sessions WHERE session_id = ?", (session_id,))
+            row = cursor.fetchone()
+            db.close()
+            if row and row[0]:
+                return row[0]
+        except Exception:
+            pass
+        return "unknown"
 
     @classmethod
     def get_instance(

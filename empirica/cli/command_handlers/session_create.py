@@ -517,6 +517,7 @@ def handle_session_create_command(args):
             parent_session_id=parent_session_id,
             project_id=early_project_id  # For global registry
         )
+        db.conn.commit()  # Persist session before closing — without this the INSERT is rolled back
         db.close()  # Close connection before auto-capture (prevents lock)
 
         # Update active_session file for statusline (instance-specific)
