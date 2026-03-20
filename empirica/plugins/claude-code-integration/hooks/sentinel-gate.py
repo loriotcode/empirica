@@ -83,7 +83,7 @@ SAFE_BASH_PREFIXES = (
     'git ls-files', 'git ls-tree', 'git cat-file',
     # GitHub CLI read operations
     'gh issue list', 'gh issue view', 'gh issue status',
-    'gh pr list', 'gh pr view', 'gh pr status', 'gh pr checks',
+    'gh pr list', 'gh pr view', 'gh pr diff', 'gh pr status', 'gh pr checks',
     'gh repo view', 'gh release list', 'gh release view',
     'gh search ',  # Search repos, issues, PRs, code (read-only)
     'gh api ',  # API calls (read-only by default)

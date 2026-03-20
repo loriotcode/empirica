@@ -622,7 +622,8 @@ class SessionDatabase:
             post_vectors = postflight['vectors']
             for key in post_vectors:
                 if key in pre_vectors:
-                    learning_delta[key] = round(post_vectors[key] - pre_vectors[key], 3)
+                    if pre_vectors[key] is not None and post_vectors[key] is not None:
+                        learning_delta[key] = round(post_vectors[key] - pre_vectors[key], 3)
         
         # Get active goals
         active_goals = []
@@ -863,15 +864,18 @@ class SessionDatabase:
         for key in current_vectors.keys():
             old_val = checkpoint_vectors.get(key, 0.5)
             new_val = current_vectors[key]
-            diff = new_val - old_val
-            
+            if old_val is not None and new_val is not None:
+                diff = new_val - old_val
+            else:
+                diff = 0.0
+
             diffs[key] = {
                 'old': old_val,
                 'new': new_val,
                 'diff': diff,
                 'abs_diff': abs(diff)
             }
-            
+
             if abs(diff) >= threshold:
                 significant_changes.append({
                     'vector': key,
@@ -2060,8 +2064,9 @@ class SessionDatabase:
                     count = 0
                     for key in ['know', 'uncertainty', 'engagement', 'impact', 'completion']:
                         if key in pre_vectors and key in post_vectors:
-                            drift += abs(pre_vectors[key] - post_vectors[key])
-                            count += 1
+                            if pre_vectors[key] is not None and post_vectors[key] is not None:
+                                drift += abs(pre_vectors[key] - post_vectors[key])
+                                count += 1
 
                     drift = drift / count if count > 0 else 0.0
 
