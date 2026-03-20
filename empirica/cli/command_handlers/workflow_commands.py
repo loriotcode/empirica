@@ -12,7 +12,7 @@ These commands provide JSON output for MCP v2 server integration.
 
 import json
 import logging
-from ..cli_utils import handle_cli_error, parse_json_safely
+from ..cli_utils import handle_cli_error, parse_json_safely, run_empirica_subprocess
 from ..validation import PreflightInput, CheckInput, PostflightInput, safe_validate
 from empirica.core.canonical.empirica_git.sentinel_hooks import SentinelHooks, SentinelDecision, auto_enable_sentinel
 from empirica.utils.session_resolver import InstanceResolver as R
@@ -163,12 +163,9 @@ def _auto_bootstrap(session_id: str) -> dict:
     Returns:
         {"ok": bool, "project_id": str, "message": str}
     """
-    import subprocess
     try:
-        result = subprocess.run(
+        result = run_empirica_subprocess(
             ['empirica', 'project-bootstrap', '--session-id', session_id, '--output', 'json'],
-            capture_output=True,
-            text=True,
             timeout=30
         )
 
