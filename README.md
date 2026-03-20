@@ -31,7 +31,7 @@ AI coding agents today have no self-awareness about what they know:
 | **Measures before acting** | AI investigates your codebase before touching it. The Sentinel gate blocks edits until understanding is demonstrated |
 | **Remembers across sessions** | Findings, dead-ends, and learnings persist in a 4-layer memory system. Session 3 starts where Session 2 left off |
 | **Prevents confident mistakes** | The CHECK gate requires `know >= 0.70` and `uncertainty <= 0.35` before allowing action |
-| **Shows confidence in real-time** | Live statusline in your terminal: `[empirica] ⚡94% │ 🎯3 │ POSTFLIGHT │ K:95% U:5%` |
+| **Shows confidence in real-time** | Live statusline in your terminal: `[empirica] ⚡94% ↕70% │ 🎯3 │ POST 🔍92% │ K:95% C:92%` |
 | **Calibrates against reality** | Dual-track verification compares AI self-assessment against objective evidence — tests, git metrics, goal completion |
 | **Tracks your codebase** | Temporal entity model auto-extracts functions, classes, and imports from every file edit — the AI knows what's alive and what's stale |
 | **Works through natural language** | You describe tasks normally. The AI operates the measurement system automatically |
@@ -47,7 +47,7 @@ You:      "Fix the authentication bug in the login flow"
 
 Empirica: [AI investigates → logs findings → passes Sentinel gate → implements fix → measures learning]
 
-You see:  ⚡87% │ 🎯1 │ POSTFLIGHT │ K:88% U:12% │ ✓ stable
+You see:  ⚡87% ↕70% │ 🎯1 │ POST 🔍85% │ K:88% C:82% │ Δ +K
 ```
 
 **You direct. The AI measures.**
@@ -173,16 +173,17 @@ PREFLIGHT ────────► CHECK ────────► POSTFLIG
 With Claude Code hooks enabled, you see the AI's epistemic state in real-time:
 
 ```
-[empirica] ⚡94% │ 🎯3 ❓12/5 │ POSTFLIGHT │ K:95% U:5% C:92% │ ✓ │ ✓ stable
+[empirica] ⚡94% ↕70% │ 🎯3 ❓12/5 │ POST 🔍92% │ K:95% C:92% │ Δ +K +C
 ```
 
 | Signal | Meaning |
 |--------|---------|
 | **⚡94%** | Overall epistemic confidence |
+| **↕70%** | Sentinel threshold (know gate) — user-facing only |
 | **🎯3 ❓12/5** | Open goals (3), unknowns (12 total, 5 blocking) |
-| **POSTFLIGHT** | Current CASCADE phase |
-| **K:95% U:5% C:92%** | Knowledge, Uncertainty, Context |
-| **✓ stable** | Drift indicator |
+| **POST 🔍92%** | CASCADE phase + work state (🔍 investigating / 🔨 acting) with composite score |
+| **K:95% C:92%** | Knowledge and Context vectors (color-coded by gap to threshold) |
+| **Δ +K +C** | Learning delta (POSTFLIGHT only) — which vectors improved |
 
 ---
 
@@ -265,18 +266,20 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.6.14
+## What's New in 1.6.15
 
-- **Brier Score Calibration** — Replaced MAE (improper scoring rule) with Brier score. Murphy 1973 decomposition gives reliability, resolution, and uncertainty components. Miscalibration now RAISES thresholds instead of lowering them. Available via `calibration-report --brier`
-- **Statusline Redesign** — New format shows confidence + threshold gap, investigating/acting phase with composite score, color-coded K/C vectors, and learning deltas. Threshold indicator is user-facing only (AI can't see it)
-- **Calibration Anti-Gaming** — Specific vector gaps and suggested ranges removed from AI-facing output. Replaced with directional-only feedback (which vectors tend to drift, not by how much). Full data available to users via `calibration-report`
-- **Windows Support** — Project-embed retrieval hardened: path resolution, Qdrant collection creation, Ollama retry with progressive prompt truncation. Contributed by [@kars85](https://github.com/kars85)
+- **InstanceResolver Fix** — Fixed `UnboundLocalError` affecting users who provide `session_id` explicitly. 46 redundant local re-imports removed across 7 CLI handler files
+- **Windows UTF-8 Subprocess Fix** — `run_empirica_subprocess()` helper forces UTF-8 encoding for Empirica-on-Empirica subprocess calls on Windows. Contributed by [@kars85](https://github.com/kars85)
+- **Bootstrap NoneType Guard** — Fixed `TypeError: '>' not supported between NoneType and float` in drift/delta calculations during `project-bootstrap`. Reported by [@kars85](https://github.com/kars85)
+- **Sentinel Allow List** — Added `gh pr diff` to noetic-safe Bash commands
 
-### Previous Highlights (1.6.4–1.6.10)
+### Previous Highlights (1.6.11–1.6.14)
 
-- **Instance Isolation** — `InstanceResolver` unified API, headless/interactive mode split, DB-based file cleanup, 13 suffix-mismatch fixes
-- **Temporal Entity Model** — Codebase entities tracked with temporal validity, auto-extracted from file edits, used as grounded calibration evidence. Adapted from [world-model-mcp](https://github.com/SaravananJaichandar/world-model-mcp) by Saravanan Jaichandar
-- **Epistemic Transaction Skill** — Interactive planning skill for decomposing work into measured transactions with estimated vectors
+- **Brier Score Calibration** — Replaced MAE with proper Brier score (Murphy 1973). Miscalibration raises thresholds. Anti-gaming: AI gets directional-only feedback
+- **Statusline Redesign** — Threshold indicator, investigating/acting phase, color-coded K/C vectors, learning deltas
+- **Instance Isolation** — `InstanceResolver` unified API, headless/interactive mode split, DB-based file cleanup
+- **Temporal Entity Model** — Codebase entities tracked with temporal validity, auto-extracted from file edits
+- **Windows Support** — Project-embed retrieval, Qdrant collection creation, Ollama retry. Contributed by [@kars85](https://github.com/kars85)
 
 ---
 

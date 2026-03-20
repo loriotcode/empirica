@@ -155,17 +155,18 @@ cat ~/.claude/plugins/local/empirica-integration/templates/settings-statusline.j
 
 **Status indicators:**
 - `⚡84%` = confidence score (⚡ high, 💡 good, 💫 uncertain, 🌑 low)
+- `↕70%` = Sentinel threshold (know gate) — user-facing only, AI cannot see this
 - `🎯3 ❓12/5` = open goals (3) and unknowns (12 total, 5 blocking goals)
-- `PREFLIGHT/CHECK/POSTFLIGHT/POST-TEST` = CASCADE workflow phase
-- `K:90% U:15% C:90%` = know/uncertainty/context vectors
-- `✓` / `⚠` / `△` = learning delta summary (net positive / net negative / neutral)
-- `✓ stable` / `⚠ drifting` / `✗ severe` = drift status
+- `PRE/CHECK/POST` = CASCADE workflow phase (abbreviated)
+- `🔍65%` / `🔨80%` = work state (investigating / acting) with composite score
+- `K:90% C:85%` = know/context vectors (color-coded by gap to threshold)
+- `Δ +K +C` = learning delta (POSTFLIGHT only)
 
 ---
 
 ## Step 4: Install Empirica Plugin (Recommended)
 
-The plugin (v1.6.6) enforces the CASCADE workflow and preserves epistemic state automatically.
+The plugin (v1.6.15) enforces the CASCADE workflow and preserves epistemic state automatically.
 
 **What it includes:**
 - **Noetic firewall** (`sentinel-gate.py`): Gates praxic tools (Edit/Write/Bash) until CHECK passes
@@ -482,7 +483,7 @@ empirica session-create --ai-id test-setup --output json
 
 # Verify statusline (if configured)
 python3 /path/to/empirica/scripts/statusline_empirica.py
-# Should show: [empirica] ⚡84% │ 🎯3 ❓2 │ PREFLIGHT │ K:90% U:15% C:90% │ ✓ stable
+# Should show: [empirica] ⚡84% ↕70% │ 🎯3 ❓2 │ PRE 🔍65% │ K:90% C:85%
 #                                 ↑     ↑
 #                           open goals  open unknowns (project-wide)
 ```
