@@ -32,6 +32,6 @@ R.instance_suffix()   # Sanitized suffix for file naming
 1. **Hooks write, everything else reads.** Exception: `project-switch` writes signals.
 2. **`instance_projects` is authoritative** — writable by both hooks and CLI.
 3. **Session-init on resume** — anchor files updated for new terminals automatically.
-4. **`session-init` fires on both `startup` and `resume`** — handles new terminals for continued conversations.
+4. **`session-init` fires on `startup` only** — `resume` is handled by `post-compact.py` which updates anchors for new terminals.
 5. **Suffix sanitization** — `:` → `_`, `%` removed. All file operations use `_get_instance_suffix()`.
 6. **Fail explicitly** — return None rather than silently using wrong project.

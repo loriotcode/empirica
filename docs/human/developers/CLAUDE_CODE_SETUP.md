@@ -17,7 +17,7 @@ This guide sets up Empirica for Claude Code users on Linux, macOS, or Windows.
 | Statusline | Real-time epistemic status display | Plugin scripts/ |
 | MCP config | MCP server configuration | `~/.claude/mcp.json` |
 
-The plugin (v1.6.6) now bundles everything in one package:
+The plugin (v1.6.15) now bundles everything in one package:
 - **Sentinel gate** - Noetic firewall that gates praxic tools until CHECK passes
 - **Session hooks** - Auto-creates sessions, bootstraps projects, captures POSTFLIGHT
 - **Statusline script** - Shows epistemic state in terminal
@@ -226,7 +226,7 @@ cp ~/.claude/plugins/local/empirica-integration/templates/mcp.json ~/.claude/mcp
       {
         "scope": "user",
         "installPath": "~/.claude/plugins/local/empirica-integration",
-        "version": "1.6.6",
+        "version": "1.6.15",
         "isLocal": true
       }
     ]
@@ -323,8 +323,8 @@ The Sentinel gate (noetic firewall) requires PreToolUse hooks. Add to `~/.claude
 | `sentinel-gate.py` | PreToolUse | Gates Edit/Write/Bash until valid CHECK |
 | `tool-router.py` | UserPromptSubmit | Routes prompts to appropriate tools/agents based on epistemic state |
 | `pre-compact.py` | PreCompact | Saves epistemic state to git notes before compaction |
-| `session-init.py` | SessionStart:new | Auto-creates session, bootstraps project, detects git repo |
-| `ewm-protocol-loader.py` | SessionStart:new | Loads personalized workflow protocol |
+| `session-init.py` | SessionStart:startup | Auto-creates session, bootstraps project, detects git repo |
+| `ewm-protocol-loader.py` | SessionStart:startup | Loads personalized workflow protocol |
 | `post-compact.py` | SessionStart:compact | Recovers session state after memory compaction |
 | `transaction-enforcer.py` | Stop | Ensures POSTFLIGHT before session ends if transaction is open |
 | `subagent-start.py` | SubagentStart | Creates child session with parent lineage |

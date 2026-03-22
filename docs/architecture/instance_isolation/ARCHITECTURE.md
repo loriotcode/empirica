@@ -135,7 +135,7 @@ Instance ID (get_instance_id):
 ```
 SessionStart event type:
   "startup"  → session-init.py (creates new session + anchor files)
-  "resume"   → session-init.py (detects existing session, updates anchors for new terminal)
+  "resume"   → post-compact.py (detects existing session, updates anchors for new terminal)
   "compact"  → post-compact.py (context recovery after memory compaction)
 ```
 

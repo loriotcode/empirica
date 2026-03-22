@@ -161,17 +161,36 @@ def validate_tty_session(session: Dict[str, Any] = None) -> Dict[str, Any]
 
 ---
 
-### `cleanup_stale_tty_sessions(max_age_hours=24)`
+### `cleanup_stale_instance_projects()`
 
-Remove stale TTY session files.
+Remove instance_projects entries for tmux panes that no longer exist.
 
 ```python
-def cleanup_stale_tty_sessions(max_age_hours: float = 24) -> int
+def cleanup_stale_instance_projects() -> int
 ```
 
 **Removes files where:**
-- TTY device no longer exists
-- Original process dead AND file older than `max_age_hours`
+- Tmux pane ID no longer exists (verified via `tmux list-panes`)
+- Also cleans up stale `compact_handoff` files for dead panes
+
+**Returns:** Number of files removed.
+
+---
+
+### `cleanup_stale_active_work_files(current_claude_session_id=None)`
+
+Remove active_work_{uuid}.json files for ended sessions.
+
+```python
+def cleanup_stale_active_work_files(current_claude_session_id: str = None) -> int
+```
+
+**Removes files where:**
+- Session has `end_time` in DB (ended)
+- No open transaction references that session
+- Never deletes the current conversation's file
+
+Also cleans up non-tmux instance_projects files (`x11:*`, `term_*`) using the same DB-based check.
 
 **Returns:** Number of files removed.
 
@@ -204,8 +223,8 @@ def get_instance_id() -> Optional[str]
 **Priority order:**
 1. `EMPIRICA_INSTANCE_ID` env var (explicit override)
 2. `TMUX_PANE` → `tmux_0`, `tmux_1`, etc.
-3. `TERM_SESSION_ID` → `term_...` (macOS Terminal.app)
-4. `WINDOWID` → `x11_...` (X11 window)
+3. `TERM_SESSION_ID` → `term:...` (macOS Terminal.app)
+4. `WINDOWID` → `x11:...` (X11 window)
 5. `TTY device` → `term_pts-6` (persists across CLI calls in same terminal)
 6. `None` (legacy behavior)
 
@@ -329,9 +348,12 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
 ```
 
 **Priority chain (TRANSACTION-FIRST):**
-1. Active transaction (`active_transaction_{suffix}.json`) — survives compaction
-2. `active_work_{claude_session_id}.json`
-3. `instance_projects/{instance_id}.json`
+1. Active transaction (`active_transaction_{suffix}.json`, status==open) — survives compaction
+2. `active_work_{claude_session_id}.json` (requires claude_session_id)
+3. `instance_projects/{instance_id}.json` (tmux, X11, macOS Terminal, TTY)
+4. `tty_sessions/{tty_key}.json` (written by session-create, project-switch)
+5. `active_work.json` (headless mode only)
+6. DB fallback (latest session for same project)
 
 **Returns:** Empirica session UUID or `None`.
 
@@ -529,7 +551,7 @@ Also mirrored in `plugins/.../lib/project_resolver.py` for hooks that can't impo
 | File | Purpose | Keyed By |
 |------|---------|----------|
 | `~/.empirica/tty_sessions/{tty_key}.json` | TTY → session mapping | TTY device |
-| `~/.empirica/instance_projects/{instance_id}.json` | Instance → project mapping | TMUX_PANE |
+| `~/.empirica/instance_projects/{instance_id}.json` | Instance → project mapping | instance_id |
 | `~/.empirica/active_work_{claude_session_id}.json` | Claude session → Empirica context | Claude UUID |
 | `{project}/.empirica/active_transaction_{suffix}.json` | Transaction state | Instance |
 

@@ -30,7 +30,7 @@ AI coding agents today have no self-awareness about what they know:
 |------------|-------------------|
 | **Measures before acting** | AI investigates your codebase before touching it. The Sentinel gate blocks edits until understanding is demonstrated |
 | **Remembers across sessions** | Findings, dead-ends, and learnings persist in a 4-layer memory system. Session 3 starts where Session 2 left off |
-| **Prevents confident mistakes** | The CHECK gate requires `know >= 0.70` and `uncertainty <= 0.35` before allowing action |
+| **Prevents confident mistakes** | The CHECK gate uses thresholds computed dynamically from calibration data before allowing action |
 | **Shows confidence in real-time** | Live statusline in your terminal: `[empirica] ⚡94% ↕70% │ 🎯3 │ POST 🔍92% │ K:95% C:92%` |
 | **Calibrates against reality** | Dual-track verification compares AI self-assessment against objective evidence — tests, git metrics, goal completion |
 | **Tracks your codebase** | Temporal entity model auto-extracts functions, classes, and imports from every file edit — the AI knows what's alive and what's stale |

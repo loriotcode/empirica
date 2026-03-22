@@ -132,9 +132,10 @@ TTY sessions can become stale (terminal closed, process died). Empirica detects 
 ```python
 # In session_resolver.py
 def validate_tty_session(session_data):
-    # 1. PID check - is original process alive?
-    # 2. TTY device check - does /dev/pts-N exist?
-    # 3. Timestamp check - is session > 4 hours old?
+    # 1. TTY device check - does /dev/pts-N exist?
+    # 2. Timestamp check - is session > 4 hours old?
+    # Note: PID check is NOT performed - the hook that writes the session
+    # file always exits immediately, so PID would always be stale.
 ```
 
 Stale sessions are:
@@ -190,9 +191,9 @@ cat ~/.empirica/instance_projects/tmux_4.json
 Commands resolve project context in this order:
 
 1. `--session-id` flag (explicit)
-2. `tty_sessions/{tty_key}.json`
-3. `instance_projects/tmux_N.json` (if tmux)
-4. CWD-based detection (fallback)
+2. `instance_projects/{instance_id}.json` (tmux, X11, macOS Terminal, TTY)
+3. `active_work_{uuid}.json` (if claude_session_id available)
+4. `active_work.json` (headless fallback, no CWD)
 
 ---
 
