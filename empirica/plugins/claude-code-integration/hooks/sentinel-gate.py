@@ -1372,6 +1372,15 @@ def main():
             findings_since = cursor.fetchone()[0] or 0
 
             if findings_since == 0:
+                # Still allow noetic tools so investigation can actually happen
+                if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME:
+                    db.close()
+                    respond("allow", f"Noetic tool (prior INVESTIGATE, gathering evidence): {tool_name}")
+                    sys.exit(0)
+                if tool_name == 'Bash' and is_safe_bash_command(tool_input):
+                    db.close()
+                    respond("allow", "Safe Bash (prior INVESTIGATE, gathering evidence)")
+                    sys.exit(0)
                 db.close()
                 respond("deny", f"Previous transaction ended with INVESTIGATE. Show evidence of investigation (findings) or submit CHECK with proceed decision.")
                 sys.exit(0)
