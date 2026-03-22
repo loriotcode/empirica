@@ -616,18 +616,16 @@ def _load_evaluator_thresholds() -> tuple:
         try:
             dt_result = compute_dynamic_thresholds(ai_id="claude-code", db=db)
             if dt_result.get("source") == "dynamic":
-                # Use the stricter of noetic/praxic thresholds
+                # Use noetic thresholds — the evaluator gates the
+                # investigation→action boundary, same as CHECK.
+                # Using max(noetic, praxic) made the evaluator stricter
+                # than CHECK, causing the override to be decorative.
                 noetic = dt_result.get("noetic", {})
-                praxic = dt_result.get("praxic", {})
-                dyn_know = max(
-                    noetic.get("ready_know_threshold", 0.70),
-                    praxic.get("ready_know_threshold", 0.70),
-                )
-                dyn_unc = min(
-                    noetic.get("ready_uncertainty_threshold", 0.35),
-                    praxic.get("ready_uncertainty_threshold", 0.35),
-                )
-                return dyn_know, dyn_unc
+                if noetic.get("brier_score") is not None:
+                    return (
+                        noetic.get("ready_know_threshold", 0.70),
+                        noetic.get("ready_uncertainty_threshold", 0.35),
+                    )
         finally:
             db.close()
     except Exception:

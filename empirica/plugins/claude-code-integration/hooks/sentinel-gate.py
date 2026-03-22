@@ -742,6 +742,11 @@ def is_safe_bash_command(tool_input: dict) -> bool:
         if is_safe_sqlite_command(command_stripped):
             return True
 
+    # Special case: python3 -c read-only scripts (noetic analysis/investigation)
+    if command_stripped.startswith(('python3 -c ', 'python -c ')):
+        if is_safe_python_command(command_stripped):
+            return True
+
     # Check if command starts with any safe prefix
     for prefix in SAFE_BASH_PREFIXES:
         if command_stripped.startswith(prefix):
@@ -792,6 +797,63 @@ def is_safe_sqlite_command(command: str) -> bool:
 
     # Everything else is potentially write (INSERT, UPDATE, DELETE, etc.)
     return False
+
+
+def is_safe_python_command(command: str) -> bool:
+    """
+    Check if a python3 -c command is read-only (noetic).
+
+    Allows:
+    - Read-only DB queries (import, SELECT, fetchall, print)
+    - Data analysis, JSON parsing, aggregation
+    - Imports from empirica for read-only operations
+
+    Blocks:
+    - File writes (open(..., 'w'), Path.write_text, shutil)
+    - Subprocess calls (subprocess.run, os.system, os.popen)
+    - File deletion (os.remove, os.unlink, shutil.rmtree)
+    - Network writes (requests.post, requests.put, requests.delete)
+    """
+    # Extract the Python code from the command
+    # Handles: python3 -c "code" and python3 -c 'code'
+    code = command
+    for prefix in ('python3 -c ', 'python -c '):
+        if command.startswith(prefix):
+            code = command[len(prefix):]
+            break
+
+    # Strip outer quotes
+    code_stripped = code.strip()
+    if (code_stripped.startswith('"') and code_stripped.endswith('"')) or \
+       (code_stripped.startswith("'") and code_stripped.endswith("'")):
+        code_stripped = code_stripped[1:-1]
+
+    code_upper = code_stripped.upper()
+
+    # Block patterns: file writes, subprocess, deletion, network mutation
+    write_patterns = (
+        # File write operations
+        "OPEN(", ".WRITE(", ".WRITE_TEXT(", ".WRITE_BYTES(",
+        "SHUTIL.", "OS.REMOVE(", "OS.UNLINK(", "OS.RMDIR(",
+        "OS.MAKEDIRS(", "OS.MKDIR(",
+        # Subprocess / shell execution
+        "SUBPROCESS.RUN(", "SUBPROCESS.CALL(", "SUBPROCESS.POPEN(",
+        "OS.SYSTEM(", "OS.POPEN(", "OS.EXEC",
+        # Network mutation
+        "REQUESTS.POST(", "REQUESTS.PUT(", "REQUESTS.DELETE(", "REQUESTS.PATCH(",
+        ".POST(", ".PUT(", ".DELETE(", ".PATCH(",
+        # Database writes
+        "INSERT ", "UPDATE ", "DELETE ", "DROP ", "CREATE ", "ALTER ",
+        # Dangerous builtins
+        "EXEC(", "EVAL(", "__IMPORT__(",
+    )
+
+    for pattern in write_patterns:
+        if pattern in code_upper:
+            return False
+
+    # Allow: anything that's not writing is investigation
+    return True
 
 
 def is_safe_pipe_chain(command: str) -> bool:
@@ -1392,8 +1454,19 @@ def main():
             pass
 
     # Check if decision was "investigate" (not authorized for praxic)
+    # BUT: noetic tools and safe Bash (read-only) are still allowed —
+    # investigation work needs to investigate (read DBs, run queries, analyze).
     if decision == 'investigate':
-        respond("deny", f"CHECK returned 'investigate'. Continue noetic phase first.")
+        if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME:
+            db.close()
+            respond("allow", f"Noetic tool during investigation phase: {tool_name}")
+            sys.exit(0)
+        if tool_name == 'Bash' and is_safe_bash_command(tool_input):
+            db.close()
+            respond("allow", "Safe Bash during investigation phase (read-only)")
+            sys.exit(0)
+        db.close()
+        respond("deny", f"CHECK returned 'investigate'. Only noetic (read-only) tools allowed.")
         sys.exit(0)
 
     # Optional: Check age expiry
