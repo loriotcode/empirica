@@ -414,7 +414,12 @@ def _read_json_file(path: Path) -> Optional[dict]:
 
 
 def _scan_workspace_for_project(instance_id: Optional[str]) -> Optional[Path]:
-    """Scan all registered projects in workspace.db for one with an open transaction."""
+    """Scan all registered projects in workspace.db for one with an open transaction.
+
+    Checks both the current instance suffix AND any orphaned transaction files
+    (from previous instance_ids after restart). This enables transaction adoption
+    when TMUX_PANE or WINDOWID changes on restart.
+    """
     workspace_db = Path.home() / '.empirica' / 'workspace' / 'workspace.db'
     if not workspace_db.exists():
         return None
@@ -434,7 +439,12 @@ def _scan_workspace_for_project(instance_id: Optional[str]) -> Optional[Path]:
         if not traj_path:
             continue
         proj_path = Path(traj_path)
-        tx_file = proj_path / '.empirica' / f'active_transaction{suffix}.json'
+        empirica_dir = proj_path / '.empirica'
+        if not empirica_dir.exists():
+            continue
+
+        # Check current-suffix transaction first (exact match)
+        tx_file = empirica_dir / f'active_transaction{suffix}.json'
         if tx_file.exists():
             try:
                 mtime = tx_file.stat().st_mtime
@@ -445,7 +455,24 @@ def _scan_workspace_for_project(instance_id: Optional[str]) -> Optional[Path]:
                         best_match = Path(tx_project)
                         best_mtime = mtime
             except Exception:
-                continue
+                pass
+
+        # Also check ANY open transaction (orphaned from previous instance after restart)
+        try:
+            for tx_candidate in empirica_dir.glob('active_transaction*.json'):
+                if tx_candidate == tx_file:
+                    continue  # Already checked
+                mtime = tx_candidate.stat().st_mtime
+                if mtime <= best_mtime:
+                    continue  # Already have a newer match
+                tx_data = _read_json_file(tx_candidate)
+                if tx_data and tx_data.get('status') == 'open':
+                    tx_project = tx_data.get('project_path', str(proj_path))
+                    if has_valid_db(Path(tx_project)):
+                        best_match = Path(tx_project)
+                        best_mtime = mtime
+        except Exception:
+            pass
 
     return best_match
 

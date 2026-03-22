@@ -224,22 +224,49 @@ def get_session_db_path() -> Path:
 
     # 1. Use unified context resolver (canonical source of truth)
     # This respects: transaction file (survives compaction) → active_work → TTY → instance_projects
+    #
+    # CROSS-CHECK: After context resolver, verify the resolved project matches the
+    # current git root. If they differ, the context is stale (cross-project bleed from
+    # instance_projects, TTY session, or active_work referencing a different project).
+    # In that case, prefer git-root resolution (steps 2-3).
+    context_project_path = None
     try:
         from empirica.utils.session_resolver import InstanceResolver as R
         context = R.context()
-        project_path = context.get('project_path')
-        if project_path:
-            db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
+        context_project_path = context.get('project_path')
+    except Exception as e:
+        logger.debug(f"📍 Unified context lookup failed: {e}")
+
+    # Get git root early — needed for cross-check and step 2
+    git_root = None
+    try:
+        git_root = get_git_root()
+    except Exception:
+        pass
+
+    if context_project_path:
+        # Cross-check: does context match CWD's git root?
+        # If git root exists and differs from context, context is cross-project bleed
+        context_is_local = True
+        if git_root and str(git_root) != context_project_path:
+            # Context points to a DIFFERENT project than CWD — likely stale bleed.
+            # Check if git_root has its own .empirica (i.e., it's a registered project)
+            local_db = Path(str(git_root)) / '.empirica' / 'sessions' / 'sessions.db'
+            if local_db.exists():
+                logger.debug(f"📍 Cross-project bleed detected: context={context_project_path}, git_root={git_root}. Preferring git root.")
+                context_is_local = False
+
+        if context_is_local:
+            db_path = Path(context_project_path) / '.empirica' / 'sessions' / 'sessions.db'
             if db_path.exists():
                 logger.debug(f"📍 Using unified context resolver: {db_path}")
                 return db_path
-    except Exception as e:
-        logger.debug(f"📍 Unified context lookup failed: {e}")
 
     # 2. Check workspace.db for git root → project mapping (global registry)
     # Git root is stable even when CWD changes within the project
     try:
-        git_root = get_git_root()
+        if not git_root:
+            git_root = get_git_root()
         if git_root:
             workspace_db = Path.home() / '.empirica' / 'workspace' / 'workspace.db'
             if workspace_db.exists():

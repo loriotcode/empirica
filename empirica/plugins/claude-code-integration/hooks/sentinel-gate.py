@@ -29,6 +29,7 @@ Related but NOT consumed here:
   uses raw vectors. See workflow_commands.py for where this flag is consumed.
 """
 import json
+import subprocess
 import sys
 import os
 from pathlib import Path
@@ -1041,7 +1042,29 @@ def main():
 
     # Resolve project root using priority chain (claude_session → transaction → instance → TTY → CWD)
     # This is critical for multi-project scenarios where CWD may be reset
+    #
+    # CROSS-CHECK: After resolving, verify the resolved project matches CWD's git root.
+    # If they differ and CWD's git root has its own .empirica, the resolver is stale
+    # (cross-project bleed from instance_projects or TTY referencing another project).
+    original_cwd = os.getcwd()
     project_root = resolve_project_root(claude_session_id=claude_session_id)
+
+    # Cross-check against CWD's git root to detect cross-project bleed
+    if project_root and str(project_root) != original_cwd:
+        try:
+            git_result = subprocess.run(
+                ['git', 'rev-parse', '--show-toplevel'],
+                capture_output=True, text=True, timeout=3,
+                cwd=original_cwd,
+            )
+            if git_result.returncode == 0:
+                cwd_git_root = Path(git_result.stdout.strip())
+                if cwd_git_root != project_root and (cwd_git_root / '.empirica').exists():
+                    print(f"Cross-project bleed: resolver={project_root}, cwd_git={cwd_git_root}. Using CWD project.", file=sys.stderr)
+                    project_root = cwd_git_root
+        except Exception:
+            pass
+
     if project_root:
         empirica_root = project_root / '.empirica'
         os.chdir(project_root)  # Set CWD to the correct project

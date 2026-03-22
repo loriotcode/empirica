@@ -133,9 +133,9 @@ Project Management:
    $ empirica project-switch <name>              # Switch project
 
 Calibration Reports:
-   $ empirica calibration-report                 # Self-referential (Track 1)
-   $ empirica calibration-report --grounded      # Grounded verification (Track 2)
-   $ empirica calibration-report --trajectory    # Trend over time
+   $ empirica calibration-report                        # Grounded verification (Track 2, default)
+   $ empirica calibration-report --learning-trajectory  # Self-referential (Track 1)
+   $ empirica calibration-report --trajectory           # Trend over time
 
 Semantic Search (requires Qdrant):
    $ empirica project-search --task "query"      # Search past learnings
@@ -200,9 +200,24 @@ MCP Server (for any AI agent):
 
 Python API:
    from empirica.data.session_database import SessionDatabase
-   db = SessionDatabase()
+   db = SessionDatabase(project_path="/path/to/project")
    session_id = db.create_session(ai_id="{ai_id}")
    db.close()
+
+═══════════════════════════════════════════════════════════════════════
+
+RESTART RECOVERY
+
+If you restart your machine, terminal, or tmux:
+- Open transactions are preserved in .empirica/active_transaction*.json
+- On next session start, orphaned transactions are auto-adopted
+- The session resumes with its transaction and project context intact
+- Project context maps via CWD → .empirica/project.yaml
+
+Multi-terminal (tmux panes):
+- Each pane gets isolated instance files (TMUX_PANE-keyed)
+- Concurrent projects in different panes won't interfere
+- After tmux restart, pane IDs change but transactions survive
 
 ═══════════════════════════════════════════════════════════════════════
 

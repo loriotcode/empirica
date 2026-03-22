@@ -313,6 +313,48 @@ def _detect_existing_session(claude_session_id: str, project_root: Path) -> dict
         except Exception:
             continue
 
+    # Check for orphaned open transactions (from previous instance after restart).
+    # After machine/terminal/tmux restart, instance-keyed files are stale (TMUX_PANE,
+    # WINDOWID change), but transaction files survive. Adopt and re-key them.
+    empirica_dir = project_root / '.empirica'
+    if empirica_dir.exists():
+        try:
+            from project_resolver import _get_instance_suffix
+            new_suffix = _get_instance_suffix()
+        except ImportError:
+            new_suffix = ''
+
+        best_tx = None
+        best_mtime = 0
+        for tx_file in empirica_dir.glob('active_transaction*.json'):
+            try:
+                mtime = tx_file.stat().st_mtime
+                if mtime <= best_mtime:
+                    continue
+                with open(tx_file, 'r') as f:
+                    tx_data = json.load(f)
+                if tx_data.get('status') == 'open':
+                    best_tx = (tx_file, tx_data, mtime)
+                    best_mtime = mtime
+            except Exception:
+                continue
+
+        if best_tx:
+            tx_file, tx_data, _ = best_tx
+            session_id = tx_data.get('session_id')
+            if session_id:
+                # Re-key the transaction file to the new instance suffix
+                new_tx_file = empirica_dir / f'active_transaction{new_suffix}.json'
+                if tx_file != new_tx_file:
+                    try:
+                        import shutil
+                        shutil.copy2(str(tx_file), str(new_tx_file))
+                        tx_file.unlink()
+                        print(f"🔗 Adopted orphaned transaction {tx_data.get('transaction_id', '?')[:8]}... → new instance", file=sys.stderr)
+                    except Exception:
+                        pass  # Adoption failure is non-fatal, proceed with found session
+                return {'session_id': session_id, 'source': 'orphaned_transaction'}
+
     # Check DB directly via CLI
     try:
         result = subprocess.run(
@@ -427,6 +469,61 @@ Anchor files updated for new terminal. Existing session and transaction state pr
 
         # No existing session found during resume — fall through to create new one
         print(f"⚠️  Resume: no existing session found for {project_root.name}, creating new one", file=sys.stderr)
+
+    # STARTUP PATH: Check for orphaned transactions before creating a new session.
+    # After machine/terminal/tmux restart, event_type is 'startup' but the CWD project
+    # may have an open transaction from the previous instance. Adopt it instead of
+    # creating a duplicate session.
+    if not is_resume:
+        existing = _detect_existing_session(claude_session_id, project_root)
+        if existing.get('session_id') and existing.get('source') == 'orphaned_transaction':
+            session_id = existing['session_id']
+            _write_instance_projects(str(project_root), claude_session_id, session_id)
+
+            # Bootstrap to load context
+            bootstrap_output = None
+            try:
+                bootstrap_cmd = subprocess.run(
+                    ['empirica', 'project-bootstrap', '--session-id', session_id, '--output', 'json'],
+                    capture_output=True, text=True, timeout=30,
+                    cwd=str(project_root)
+                )
+                if bootstrap_cmd.returncode == 0:
+                    bootstrap_output = json.loads(bootstrap_cmd.stdout)
+            except Exception:
+                pass
+
+            output = {
+                "ok": True,
+                "session_id": session_id,
+                "adopted": True,
+                "bootstrap_complete": bootstrap_output is not None,
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": f"""
+## Transaction Adopted After Restart
+
+**Session ID:** `{session_id}` (adopted from orphaned transaction)
+**Project:** {project_root}
+
+Found an open transaction from a previous terminal/tmux instance.
+Session and transaction state preserved — anchor files updated for new instance.
+
+**After reviewing context:** Run CHECK or continue your transaction.
+"""
+                }
+            }
+
+            print(f"""
+🔗 Empirica: Transaction Adopted
+
+✅ Session: {session_id} (from orphaned transaction)
+✅ Project: {project_root.name}
+✅ Transaction state preserved
+""", file=sys.stderr)
+
+            print(json.dumps(output))
+            sys.exit(0)
 
     # Create session and bootstrap
     result = create_session_and_bootstrap(ai_id)
