@@ -1185,7 +1185,7 @@ def get_active_engagement(claude_session_id: str = None) -> Optional[str]:
     return None
 
 
-def _validate_session_in_db(session_id: str) -> bool:
+def _validate_session_in_db(session_id: str, project_path: str = None) -> bool:
     """Check if a session_id exists in the sessions table.
 
     Prevents stale session IDs (surviving compaction) from propagating
@@ -1194,6 +1194,10 @@ def _validate_session_in_db(session_id: str) -> bool:
 
     Args:
         session_id: Empirica session UUID to validate
+        project_path: Project path to locate the correct sessions.db.
+            If provided, uses the project-local DB directly instead of
+            SessionDatabase() default resolution (which may point to
+            a different project's DB in multi-project setups).
 
     Returns:
         True if session exists in sessions table, False otherwise.
@@ -1201,6 +1205,21 @@ def _validate_session_in_db(session_id: str) -> bool:
     if not session_id:
         return False
     try:
+        from pathlib import Path
+        import sqlite3
+
+        # Use project-local DB when project_path is known
+        if project_path:
+            db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
+            if db_path.exists():
+                conn = sqlite3.connect(str(db_path))
+                cursor = conn.cursor()
+                cursor.execute("SELECT 1 FROM sessions WHERE session_id = ?", (session_id,))
+                row = cursor.fetchone()
+                conn.close()
+                return row is not None
+            # DB doesn't exist at project path — fall through to default
+
         from empirica.data.session_database import SessionDatabase
         db = SessionDatabase()
         cursor = db.conn.cursor()
@@ -1219,6 +1238,9 @@ def _find_session_for_project(project_path: str) -> Optional[str]:
     Fallback when the resolved session_id is stale (not in sessions table).
     Queries for the most recent active session matching the project.
 
+    Uses the project-local sessions.db directly when available, avoiding
+    SessionDatabase() default resolution which may point to a different DB.
+
     Args:
         project_path: Filesystem path to the project
 
@@ -1228,13 +1250,23 @@ def _find_session_for_project(project_path: str) -> Optional[str]:
     if not project_path:
         return None
     try:
-        from empirica.data.session_database import SessionDatabase
         from pathlib import Path
+        import sqlite3
 
         folder_name = Path(project_path).name
 
-        db = SessionDatabase()
-        cursor = db.conn.cursor()
+        # Use project-local DB directly
+        db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
+        if db_path.exists():
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        else:
+            # Fallback to SessionDatabase default resolution
+            from empirica.data.session_database import SessionDatabase
+            db = SessionDatabase()
+            conn = db.conn
+            cursor = conn.cursor()
 
         # Look up project_id from projects table (columns: id, name)
         cursor.execute(
@@ -1260,7 +1292,7 @@ def _find_session_for_project(project_path: str) -> Optional[str]:
                     row = wrow
 
         if not row:
-            db.close()
+            conn.close()
             return None
 
         project_id = row[0]
@@ -1271,7 +1303,7 @@ def _find_session_for_project(project_path: str) -> Optional[str]:
             (project_id,)
         )
         session_row = cursor.fetchone()
-        db.close()
+        conn.close()
 
         if session_row:
             logger.info(f"_find_session_for_project: resolved stale session to {session_row[0][:8]}... via project {folder_name}")
@@ -1317,8 +1349,11 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
     tx_data = read_active_transaction_full(claude_session_id)
     if tx_data and tx_data.get('status') == 'open':
         session_id = tx_data.get('session_id')
+        tx_project_path = tx_data.get('project_path')
+        if tx_project_path:
+            project_path_for_fallback = tx_project_path
         if session_id:
-            if _validate_session_in_db(session_id):
+            if _validate_session_in_db(session_id, project_path=tx_project_path):
                 logger.debug(f"get_active_empirica_session_id: from transaction: {session_id[:8]}...")
                 return session_id
             else:
@@ -1335,7 +1370,7 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
                     session_id = data.get('empirica_session_id')
                     project_path_for_fallback = data.get('project_path')
                     if session_id:
-                        if _validate_session_in_db(session_id):
+                        if _validate_session_in_db(session_id, project_path=project_path_for_fallback):
                             logger.debug(f"get_active_empirica_session_id: from active_work: {session_id[:8]}...")
                             return session_id
                         else:
@@ -1353,10 +1388,11 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
                 with open(instance_file, 'r') as f:
                     data = json.load(f)
                     session_id = data.get('empirica_session_id')
+                    inst_project_path = data.get('project_path')
                     if not project_path_for_fallback:
-                        project_path_for_fallback = data.get('project_path')
+                        project_path_for_fallback = inst_project_path
                     if session_id:
-                        if _validate_session_in_db(session_id):
+                        if _validate_session_in_db(session_id, project_path=inst_project_path or project_path_for_fallback):
                             logger.debug(f"get_active_empirica_session_id: from instance_projects: {session_id[:8]}...")
                             return session_id
                         else:
@@ -1369,9 +1405,10 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
     if tty_session:
         session_id = tty_session.get('empirica_session_id')
         if session_id:
+            tty_project_path = tty_session.get('project_path')
             if not project_path_for_fallback:
-                project_path_for_fallback = tty_session.get('project_path')
-            if _validate_session_in_db(session_id):
+                project_path_for_fallback = tty_project_path
+            if _validate_session_in_db(session_id, project_path=tty_project_path or project_path_for_fallback):
                 logger.debug(f"get_active_empirica_session_id: from tty_session: {session_id[:8]}...")
                 return session_id
             else:
@@ -1391,7 +1428,7 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
                     if not project_path_for_fallback:
                         project_path_for_fallback = data.get('project_path')
                     if session_id:
-                        if _validate_session_in_db(session_id):
+                        if _validate_session_in_db(session_id, project_path=project_path_for_fallback):
                             logger.debug(f"get_active_empirica_session_id: from active_work.json (headless): {session_id[:8]}...")
                             return session_id
                         else:
