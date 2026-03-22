@@ -306,7 +306,7 @@ macOS Terminal, or TTY-only environments, instance_id was `None`, so no
 `instance_projects/{id}.json` was written. This broke the resolution chain:
 `get_active_project_path()` → `read_active_transaction()` → CHECK `transaction_id`.
 
-**Why it surfaced now:** Isolation hardening (v1.6.5–1.6.18) removed CWD fallbacks
+**Why it surfaced now:** Isolation hardening (v1.6.5–1.6.19) removed CWD fallbacks
 and tightened resolution to be instance-aware. Correct in principle, but exposed
 the latent tmux-only assumption in CLI commands.
 

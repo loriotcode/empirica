@@ -21,7 +21,7 @@ checked `TMUX_PANE`, breaking X11 and other non-tmux environments.
 
 ## Unified API
 
-All resolution goes through **`InstanceResolver`** (v1.6.18+). All methods are
+All resolution goes through **`InstanceResolver`** (v1.6.19+). All methods are
 `@staticmethod` — no instantiation needed:
 
 ```python
