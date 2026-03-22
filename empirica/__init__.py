@@ -12,7 +12,7 @@ Key Features:
 - Session database (SQLite) with breadcrumb tracking
 - Drift detection and signaling
 
-Version: 1.6.16
+Version: 1.6.17
 """
 
 __version__ = "1.6.17"
