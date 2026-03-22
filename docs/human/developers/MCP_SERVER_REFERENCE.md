@@ -746,7 +746,7 @@ The `grounded_verification` field provides **Track 2 (grounded) calibration** da
   - `evidence_type`: Quality tier of evidence (`OBJECTIVE` or `SEMI_OBJECTIVE`)
 - **`track1_vs_track2`** (object): Comparison between self-referential (Track 1) and grounded (Track 2) calibration with divergence metric
 
-**Grounded verification** is automatically triggered after POSTFLIGHT (the POST-TEST phase of the 4-phase CASCADE). Use `calibration-report --grounded` via CLI for the full report, or `calibration-report --trajectory` for trend analysis.
+**Grounded verification** is automatically triggered after POSTFLIGHT (the POST-TEST phase of the 4-phase CASCADE). Use `calibration-report` via CLI for the full report, or `calibration-report --trajectory` for trend analysis.
 
 **Use when:** Checking if self-assessment is accurate, comparing self-reported vs evidence-based calibration
 

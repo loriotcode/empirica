@@ -93,7 +93,7 @@ metrics = TokenEfficiencyMetrics(
 
 ```bash
 # Metrics are now collected automatically via grounded calibration post-tests.
-# See: empirica calibration-report --grounded
+# See: empirica calibration-report
 #
 # Removed commands (v1.5.0+):
 #   checkpoint-metrics — replaced by post-test evidence collection

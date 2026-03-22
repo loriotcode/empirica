@@ -289,7 +289,7 @@ through assertion. Gaming vectors (inflating self-assessment) is caught by Track
 and degrades autonomy.
 
 **You can check calibration:** "How's your calibration looking?" or "Show me the
-calibration report." The AI will run `empirica calibration-report --grounded`.
+calibration report." The AI will run `empirica calibration-report`.
 
 ### The Cognitive Immune System
 

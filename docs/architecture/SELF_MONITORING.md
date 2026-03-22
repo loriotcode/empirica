@@ -3,7 +3,7 @@
 These systems enable functional self-awareness - the ability to detect when knowledge has degraded, context is stale, or claims exceed evidence.
 
 **Note:** The standalone `memory_gap_detector` module has been removed. Memory gap detection
-concepts are now handled by the grounded calibration pipeline (`empirica calibration-report --grounded`).
+concepts are now handled by the grounded calibration pipeline (`empirica calibration-report`).
 The data models below are retained as architectural reference.
 
 ## Philosophy
@@ -53,7 +53,7 @@ class DriftReport:
 - `SCOPE_DRIFT` - Task expansion (KNOW↓ + scope indicators↑)
 
 **Note:** Drift detection is now handled by the grounded calibration pipeline
-(see `empirica calibration-report --grounded`). The `DriftReport` data model above
+(see `empirica calibration-report`). The `DriftReport` data model above
 is retained for reference but is no longer produced by a standalone monitor class.
 
 ---
@@ -185,4 +185,4 @@ if drift_report.drift_detected:
 
 ## Source Files
 
-- Drift detection and memory gap detection are now handled by the grounded calibration pipeline (see `empirica calibration-report --grounded`)
+- Drift detection and memory gap detection are now handled by the grounded calibration pipeline (see `empirica calibration-report`)

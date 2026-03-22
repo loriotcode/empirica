@@ -185,7 +185,7 @@ empirica deadend-log --approach "..." --why-failed "..."
 empirica mistake-log --mistake "..." --why-wrong "..." --prevention "..."
 empirica assumption-log --assumption "..." --confidence 0.6 --domain "..."
 empirica decision-log --choice "..." --rationale "..." --reversibility exploratory
-empirica source-add --title "..." --source-url "..." --source-type doc
+empirica source-add --title "..." --url "..." --source-type document
 ```
 
 **IMPORTANT:** Don't infer flags - run `empirica <command> --help` when unsure.
@@ -198,12 +198,12 @@ empirica source-add --title "..." --source-url "..." --source-type doc
 **Track 2 (grounded):** POSTFLIGHT vs objective evidence measures calibration accuracy.
 
 Bias corrections are computed automatically from your calibration history.
-Check `empirica calibration-report --grounded` to see your current biases.
+Check `empirica calibration-report` to see your current biases.
 
 ```bash
-empirica calibration-report                # Self-referential calibration
-empirica calibration-report --grounded     # Compare self-ref vs grounded
-empirica calibration-report --trajectory   # Trend: closing/widening/stable
+empirica calibration-report                       # Grounded calibration (default)
+empirica calibration-report --learning-trajectory  # Self-referential (PREFLIGHT->POSTFLIGHT deltas)
+empirica calibration-report --trajectory           # Trend: closing/widening/stable
 ```
 
 ---
@@ -231,7 +231,7 @@ empirica decision-log --choice "Use SQLite over Postgres" --rationale "Single-us
   --reversibility exploratory
 
 # External references consulted
-empirica source-add --title "RFC 6749" --source-url "https://..." --source-type spec
+empirica source-add --title "RFC 6749" --url "https://..." --source-type spec
 ```
 
 ---

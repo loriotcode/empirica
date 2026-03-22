@@ -56,12 +56,12 @@ def get_git_diff_summary(since_preflight: bool = False) -> Dict[str, any]:
                     if '+' in part:
                         try:
                             total_additions += int(part.replace('+', ''))
-                        except:
+                        except Exception:
                             pass
                     if '-' in part:
                         try:
                             total_deletions += int(part.replace('-', ''))
-                        except:
+                        except Exception:
                             pass
 
         # Estimate scope
@@ -250,10 +250,10 @@ def estimate_rehydration_boost(
 
         # Reduce boost if many unknowns remain (more caution needed)
         unknown_count = len(unknowns)
-        if unknown_count > 5:
-            boost *= 0.7
-        elif unknown_count > 10:
+        if unknown_count > 10:
             boost *= 0.5
+        elif unknown_count > 5:
+            boost *= 0.7
 
         return min(boost, 0.15)
 

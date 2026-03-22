@@ -353,8 +353,8 @@ empirica goals-complete --goal-id <ID>        # Complete goal
 empirica goals-list                           # List active goals
 
 # Calibration
-empirica calibration-report                   # Self-referential
-empirica calibration-report --grounded        # Grounded verification
+empirica calibration-report                        # Grounded calibration (default)
+empirica calibration-report --learning-trajectory  # Self-referential (PREFLIGHT->POSTFLIGHT deltas)
 
 # Global Workspace (cross-project)
 empirica workspace-overview                   # Portfolio view

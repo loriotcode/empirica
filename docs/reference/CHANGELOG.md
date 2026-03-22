@@ -77,7 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Dual-Track Calibration** — grounded verification using objective evidence (tests, artifacts, git, goals)
 - 4-phase CASCADE workflow with POST-TEST (automatic grounded verification after POSTFLIGHT)
-- `calibration-report --grounded` — compare self-assessment vs objective evidence
+- `calibration-report` — compare self-assessment vs objective evidence (grounded by default)
 - `calibration-report --trajectory` — track calibration improvement over time
 - PostTestCollector with 6 evidence sources (pytest, git, goals, artifacts, issues, sentinel)
 - EvidenceMapper with quality-weighted aggregation (OBJECTIVE=1.0, SEMI_OBJECTIVE=0.7)
