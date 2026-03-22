@@ -344,7 +344,7 @@ adapts to YOUR actual working patterns, not arbitrary limits.
 
 Subagents (spawned via Task tool) operate under bounded autonomy:
 
-**CASCADE Exemption:** Subagents bypass the parent's Sentinel gates.
+**Transaction Exemption:** Subagents bypass the parent's Sentinel gates.
 Detection: if no `active_session_{instance_suffix}` file exists for the instance, it's a subagent.
 Rationale: the parent's CHECK already authorized the spawn — double-gating is redundant.
 
@@ -473,7 +473,7 @@ Empirica is **cognitive infrastructure**, not just a CLI. In practice:
 **Last Updated:** 2026-02-21
 
 **Hooks:** GitHub Copilot does not currently support lifecycle hooks.
-All session management and CASCADE workflow must be done manually via CLI.
+All session management and epistemic transaction workflow must be done manually via CLI.
 
 This delta contains Copilot-specific guidance to be used with the base Empirica system prompt.
 

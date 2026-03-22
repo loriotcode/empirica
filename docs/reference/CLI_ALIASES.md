@@ -13,7 +13,7 @@ Aliases reduce typing for frequently used commands. They're especially useful fo
 
 ## Alias Reference
 
-### CASCADE Workflow
+### Epistemic Transactions
 | Command | Aliases | Description |
 |---------|---------|-------------|
 | `preflight-submit` | `pre`, `preflight` | Submit PREFLIGHT assessment |
@@ -73,7 +73,7 @@ Aliases reduce typing for frequently used commands. They're especially useful fo
 ## Usage Examples
 
 ```bash
-# CASCADE shortcuts:
+# Transaction shortcuts:
 empirica pre ...           # Instead of preflight-submit
 empirica post ...          # Instead of postflight-submit
 

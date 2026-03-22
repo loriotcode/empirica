@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Brier score calibration** — Replaced MAE (improper scoring rule) with Brier score (strictly proper, Murphy 1973 decomposition). Reliability, resolution, and uncertainty components available via `calibration-report --brier` and auto-exported to `.breadcrumbs.yaml`
-- **Statusline redesign** — New format: `[project] ⚡87% ↕70% │ 🎯1 ❓2 │ PRE 🔍65% │ K:70% C:75%`. Threshold indicator (↕%) shows Sentinel's required confidence color-coded by calibration quality. Phase state shows CASCADE boundary + work mode (🔍 investigating / ⚙ acting) with composite score. All elements color-coded
+- **Statusline redesign** — New format: `[project] ⚡87% ↕70% │ 🎯1 ❓2 │ PRE 🔍65% │ K:70% C:75%`. Threshold indicator (↕%) shows Sentinel's required confidence color-coded by calibration quality. Phase state shows transaction boundary + work mode (🔍 investigating / ⚙ acting) with composite score. All elements color-coded
 - **Calibration anti-gaming** — Specific vector gaps, suggested ranges, and calibration bias removed from AI-facing output. Replaced with directional-only feedback (overestimate/underestimate tendency lists). Full calibration data remains user-facing via calibration-report and statusline
 
 ### Fixed
@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Subagent detection** — Sentinel uses `active_work` instead of `active_session` for subagent detection
 
 ### Changed
-- **Calibration thresholds in MCO config** — Domain baselines, safety ceilings, max inflation, min transactions, and lookback moved from hardcoded constants to `cascade_styles.yaml`. Each CASCADE profile (default, exploratory, rigorous, rapid, expert, novice) has profile-appropriate calibration settings
+- **Calibration thresholds in MCO config** — Domain baselines, safety ceilings, max inflation, min transactions, and lookback moved from hardcoded constants to `cascade_styles.yaml`. Each transaction profile (default, exploratory, rigorous, rapid, expert, novice) has profile-appropriate calibration settings
 - **Statusline extension protocol** — Removed hardcoded CRM/workspace DB queries from core statusline. Uses `statusline_ext/*.json` protocol only
 - **InstanceResolver migration** — 28 files migrated from scattered `session_resolver` imports to unified `InstanceResolver` API
 
@@ -193,7 +193,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Entity Scoping** - `--entity-type`, `--entity-id`, `--via` flags on all artifact commands (findings, unknowns, dead-ends, assumptions, decisions, mistakes, sources) for organization/contact/engagement scoping
 
 ### Fixed
-- **Auto-Derive session_id** - `postflight-submit` and `preflight-submit` now auto-derive session_id from active transaction, matching other CASCADE commands
+- **Auto-Derive session_id** - `postflight-submit` and `preflight-submit` now auto-derive session_id from active transaction, matching other transaction commands
 - **Postflight Project Resolution** - Uses canonical project resolution instead of CWD fallback that failed for non-CWD projects
 - **Entity artifact_source** - Uses `trajectory_path` instead of `sessions.db` path for correct entity artifact sourcing
 - **Sentinel INVESTIGATE Gaming** - Blocks gaming via new transaction creation to bypass investigate decisions
@@ -217,7 +217,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Autonomy Calibration Loop** - Sentinel tracks `tool_call_count` per transaction, PREFLIGHT calculates `avg_turns` from past POSTFLIGHTs, nudges at adaptive 1x/1.5x/2x thresholds (informational, not forced)
 - **Subagent Governance** - Delegated work counting in SubagentStop (transcript tool_use parsing), pre-spawn budget check in SubagentStart (advisory, fail-open), `maxTurns: 25` default ceiling on all 9 agent types
-- **Subagent CASCADE Exemption** - Subagents detected via `active_work` file absence bypass Sentinel gates (parent CHECK authorizes spawn)
+- **Subagent Transaction Exemption** - Subagents detected via `active_work` file absence bypass Sentinel gates (parent CHECK authorizes spawn)
 - **Auto-PREFLIGHT on `project-switch`** - Conservative baseline vectors submitted automatically after project bootstrap
 - **Lifecycle Cleanup** - Automatic cleanup of stale `active_work`, `compact_handoff`, and `instance_projects` files at session boundaries
 - **Release Pipeline: empirica-mcp** - `release.py` now builds and publishes `empirica-mcp` to PyPI alongside the main package
@@ -425,7 +425,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Calibration Update** - 2496 observations, updated bias corrections (completion: +0.75, know: +0.17, uncertainty: -0.11)
-- **Qdrant Optional** - Memory/semantic search features gracefully handle missing Qdrant; core CASCADE uses SQLite only
+- **Qdrant Optional** - Memory/semantic search features gracefully handle missing Qdrant; core epistemic transaction workflow uses SQLite only
 - **MCP Tool Mappings** - Added missing tools (session_snapshot, goals_ready, goals_claim, investigate, vision_analyze, edit_with_confidence)
 - **MCP Output Limiting** - Responses capped at 30K characters to prevent context overflow
 
@@ -508,7 +508,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Documentation Accuracy Audit** - Comprehensive updates via multi-agent investigation:
   - DATABASE_SCHEMA_UNIFIED.md: Updated from 19 to 31 tables (added Session Breadcrumbs, Lessons System, Infrastructure sections)
   - MCP_SERVER_REFERENCE.md: Updated tool count from 40 to 57 tools
-  - Added cross-references between Sentinel, CASCADE, and Noetic/Praxic docs
+  - Added cross-references between Sentinel, epistemic transactions, and Noetic/Praxic docs
   - Added navigation table to CONFIGURATION_REFERENCE.md for end-users
   - Added cross-references to storage architecture and Qdrant integration docs
 
@@ -539,7 +539,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - Wrapped dictionary: `{vectors: {...}}`
    - JSON string inputs (AI-first mode)
    
-   Fixes "Vectors must be a dictionary" errors when using structured CASCADE format.
+   Fixes "Vectors must be a dictionary" errors when using structured transaction format.
    
 2. **agent-spawn Persona Schema Validation** - Fixed validation errors for persona records:
    - PersonaManager.load_persona() now normalizes public_key to valid Ed25519 format (64 hex chars)
@@ -579,7 +579,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Issue Resolution Bug** - `issue-resolve` command was filtering by session_id, preventing resolution of issues from different sessions. Removed session_id constraint from WHERE clause.
 - **Goal Completion Bug** - `goals-complete` command returned success but never updated goal status in database. Added missing UPDATE statement to set status='completed'.
 - **Ollama Auto-Detection** - Embeddings now auto-detect Ollama availability and use semantic embeddings when available, falling back to local hash when not.
-- **Sentinel Auto-Enable** - Sentinel now auto-enables with default epistemic evaluator on module load, appearing in CASCADE responses.
+- **Sentinel Auto-Enable** - Sentinel now auto-enables with default epistemic evaluator on module load, appearing in transaction responses.
 
 ### Changed
 - Added `.beads/` and `*.pem` to .gitignore for security
@@ -624,7 +624,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.1] - 2025-12-29
 
 ### Fixed
-- **CRITICAL: CHECK GATE confidence threshold bug** - The CHECK command was ignoring explicit confidence values provided by AI agents and instead calculating confidence from uncertainty vectors (1.0 - uncertainty). This prevented the proper enforcement of the ≥0.70 confidence threshold for the CASCADE GATE. Fixed by:
+- **CRITICAL: CHECK GATE confidence threshold bug** - The CHECK command was ignoring explicit confidence values provided by AI agents and instead calculating confidence from uncertainty vectors (1.0 - uncertainty). This prevented the proper enforcement of the ≥0.70 confidence threshold for the epistemic transaction gate. Fixed by:
   - Extracting `explicit_confidence` from CHECK input config
   - Using explicit confidence in decision logic when provided
   - Making proceed/investigate decision based on confidence ≥ 0.70 threshold as per system design
@@ -669,7 +669,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Health metrics include: know, uncertainty, findings, unknowns, dead ends
 
 ### Dogfooding
-- Successfully used Empirica's full CASCADE workflow to build these features
+- Successfully used Empirica's full epistemic transaction workflow to build these features
 - PREFLIGHT → CHECK → POSTFLIGHT assessments captured
 - Learning deltas: know +0.13, completion +0.75, uncertainty -0.20
 - BEADS integration tested with 3 issues tracked and closed
@@ -736,7 +736,7 @@ First stable release of Empirica - genuine AI epistemic self-assessment framewor
   - AI model profiles with bias corrections
   - Persona definitions (implementer, architect, researcher)
   - Cascade style configurations
-- **CASCADE Workflow**: Complete epistemic assessment framework
+- **Epistemic Transaction Workflow**: Complete epistemic assessment framework
   - PREFLIGHT: Initial epistemic state assessment
   - CHECK: Decision gate (proceed vs investigate)
   - POSTFLIGHT: Learning measurement and calibration

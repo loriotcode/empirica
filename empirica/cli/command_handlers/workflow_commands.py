@@ -437,12 +437,12 @@ def handle_preflight_submit_command(args):
                     }
                 )
 
-            # JUST create CASCADE record for historical tracking (this remains)
+            # JUST create transaction record for historical tracking (this remains)
             db = _get_db_for_session(session_id)
             cascade_id = str(uuid.uuid4())
             now = time.time()
 
-            # Create CASCADE record
+            # Create transaction record
             db.conn.execute("""
                 INSERT INTO cascades
                 (cascade_id, session_id, task, started_at)

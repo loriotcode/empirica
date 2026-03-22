@@ -11,7 +11,7 @@
 
 ## Transaction-First Pattern
 
-**Most commands auto-derive `--session-id` from the active transaction.** When you're inside a CASCADE workflow (after PREFLIGHT), you don't need to specify `--session-id` explicitly.
+**Most commands auto-derive `--session-id` from the active transaction.** When you're inside an epistemic transaction workflow (after PREFLIGHT), you don't need to specify `--session-id` explicitly.
 
 The CLI uses `get_active_empirica_session_id()` with this priority chain:
 1. **Active transaction** (`active_transaction_*.json`) — highest priority
@@ -42,14 +42,14 @@ The CLI uses `get_active_empirica_session_id()` with this priority chain:
 - **memory-compact** - Compact session memory and optimize storage
 - **transaction-adopt** - Adopt an orphaned transaction from another instance (after tmux restart, etc.)
 
-### 2. CASCADE Workflow (7 commands)
+### 2. Epistemic Transaction Workflow (7 commands)
 - **preflight** - Execute preflight epistemic assessment
 - **preflight-submit** - Submit preflight assessment results
 - **check** - Execute epistemic check during workflow
 - **check-submit** - Submit check assessment results
 - **postflight** - Execute postflight epistemic assessment
 - **postflight-submit** - Submit postflight assessment results
-- **workflow** - Execute complete CASCADE workflow (preflight→think→plan→investigate→act→postflight)
+- **workflow** - Execute complete epistemic transaction workflow (preflight→think→plan→investigate→act→postflight)
 
 ### 3. Goals & Tasks (16 commands)
 - **goals-create** - Create new goal with objective and scope
@@ -296,7 +296,7 @@ Part of: `pip install empirica-workspace`
 
 ---
 
-### CASCADE Workflow Commands
+### Epistemic Transaction Workflow Commands
 
 #### `preflight` / `preflight-submit`
 **Purpose:** Open an epistemic transaction — record baseline vectors before work begins
@@ -331,7 +331,7 @@ Part of: `pip install empirica-workspace`
 **Aliases:** `postflight`, `post`
 
 #### `workflow`
-**Purpose:** Execute complete CASCADE workflow
+**Purpose:** Execute complete epistemic transaction workflow
 **Usage:** `empirica workflow <task_description> [options]`
 **Options:**
 - `--session-id`: Session ID (auto-generated if not provided)
@@ -619,7 +619,7 @@ Part of: `pip install empirica-workspace`
 
 ### Logging Commands
 
-> **Transaction-First Pattern:** These commands auto-derive `--session-id` from the active transaction when running inside a CASCADE workflow (after PREFLIGHT). You only need to specify `--session-id` explicitly when logging outside a transaction.
+> **Transaction-First Pattern:** These commands auto-derive `--session-id` from the active transaction when running inside an epistemic transaction workflow (after PREFLIGHT). You only need to specify `--session-id` explicitly when logging outside a transaction.
 
 > **Entity Scoping (v1.6.6):** All artifact logging commands support cross-entity provenance via `--entity-type`, `--entity-id`, and `--via` flags. This allows artifacts to be scoped to organizations, contacts, engagements, or other non-project entities while preserving project-level storage.
 

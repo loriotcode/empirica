@@ -12,7 +12,7 @@ This guide sets up Empirica for Claude Code users on Linux, macOS, or Windows.
 |-----------|---------|----------|
 | `empirica` | CLI + Python library | pip package |
 | `empirica-mcp` | MCP server for Claude Code | pip package |
-| Claude Code plugin | Noetic firewall + CASCADE workflow | `~/.claude/plugins/local/` |
+| Claude Code plugin | Noetic firewall + epistemic transaction workflow | `~/.claude/plugins/local/` |
 | System prompt | Teaches Claude how to use Empirica | `~/.claude/CLAUDE.md` |
 | Statusline | Real-time epistemic status display | Plugin scripts/ |
 | MCP config | MCP server configuration | `~/.claude/mcp.json` |
@@ -98,7 +98,7 @@ Copy the full contents of that file to `~/.claude/CLAUDE.md`.
 
 **What the system prompt includes:**
 - Calibration data (3,194 observations, bias corrections per vector)
-- CASCADE workflow (PREFLIGHT → CHECK → POSTFLIGHT → POST-TEST)
+- Epistemic transaction workflow (PREFLIGHT → CHECK → POSTFLIGHT → POST-TEST)
 - Core commands with correct flags
 - Memory commands (Qdrant integration)
 - Cognitive immune system (lessons decay)
@@ -111,7 +111,7 @@ Copy the full contents of that file to `~/.claude/CLAUDE.md`.
 empirica session-create --ai-id claude-code --output json
 empirica project-bootstrap --session-id <ID> --output json
 
-# CASCADE phases
+# Transaction phases
 empirica preflight-submit -     # Baseline (JSON stdin)
 empirica check-submit -         # Gate (JSON stdin)
 empirica postflight-submit -    # Learning delta (JSON stdin)
@@ -157,7 +157,7 @@ cat ~/.claude/plugins/local/empirica-integration/templates/settings-statusline.j
 - `⚡84%` = confidence score (⚡ high, 💡 good, 💫 uncertain, 🌑 low)
 - `↕70%` = Sentinel threshold (know gate) — user-facing only, AI cannot see this
 - `🎯3 ❓12/5` = open goals (3) and unknowns (12 total, 5 blocking goals)
-- `PRE/CHECK/POST` = CASCADE workflow phase (abbreviated)
+- `PRE/CHECK/POST` = Transaction phase (abbreviated)
 - `🔍65%` / `🔨80%` = work state (investigating / acting) with composite score
 - `K:90% C:85%` = know/context vectors (color-coded by gap to threshold)
 - `Δ +K +C` = learning delta (POSTFLIGHT only)
@@ -166,7 +166,7 @@ cat ~/.claude/plugins/local/empirica-integration/templates/settings-statusline.j
 
 ## Step 4: Install Empirica Plugin (Recommended)
 
-The plugin (v1.6.15) enforces the CASCADE workflow and preserves epistemic state automatically.
+The plugin (v1.6.15) enforces the epistemic transaction workflow and preserves epistemic state automatically.
 
 **What it includes:**
 - **Noetic firewall** (`sentinel-gate.py`): Gates praxic tools (Edit/Write/Bash) until CHECK passes
@@ -454,7 +454,7 @@ which empirica-mcp
 
 ## Step 6: Set Context Window (Recommended)
 
-Empirica's CASCADE workflow is designed for ~200K context boundaries. With the
+Empirica's epistemic transaction workflow is designed for ~200K context boundaries. With the
 1M context window, compaction triggers too late — causing epistemic state drift
 and degraded measurement quality.
 
@@ -537,7 +537,7 @@ Note: `empirica-mcp` runs as stdio server, not CLI with --help.
 
 - **Full system prompt:** [CLAUDE.md](../system-prompts/CLAUDE.md) (179 lines)
 - **All CLI commands:** [CLI Reference](../reference/CLI_COMMANDS_UNIFIED.md)
-- **CASCADE workflow:** [Workflow Guide](../architecture/NOETIC_PRAXIC_FRAMEWORK.md)
+- **Epistemic transaction workflow:** [Workflow Guide](../architecture/NOETIC_PRAXIC_FRAMEWORK.md)
 
 ---
 

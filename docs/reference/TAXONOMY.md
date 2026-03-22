@@ -125,7 +125,7 @@ Completion means different things depending on the current thinking phase:
 
 ### 2.2 Assessments
 
-An assessment is a snapshot of all 13 vectors at a point in time. There are three types, corresponding to CASCADE phases:
+An assessment is a snapshot of all 13 vectors at a point in time. There are three types, corresponding to transaction phases:
 
 | Assessment | When | Purpose |
 |------------|------|---------|
@@ -171,7 +171,7 @@ The agent chooses which phase it's in based on the nature of its current work.
 
 The CHECK gate controls the noetic→praxic transition. Sentinel enforces it.
 
-### 3.2 Workflow Phases (CASCADE)
+### 3.2 Workflow Phases (Epistemic Transactions)
 
 The mandatory measurement framework. Every significant task follows this sequence:
 
@@ -266,9 +266,9 @@ Sessions, goals, transactions, and trajectories are orthogonal, not hierarchical
 
 ## 5. Systems
 
-### 5.1 CASCADE
+### 5.1 Epistemic Transactions
 
-The workflow framework. Enforces measurement discipline: PREFLIGHT → CHECK → POSTFLIGHT → POST-TEST. Named for the phase sequence that cascades from investigation to action to grounded verification.
+The workflow framework. Enforces measurement discipline: PREFLIGHT → CHECK → POSTFLIGHT → POST-TEST. Named for the epistemic transaction cycle from investigation to action to grounded verification.
 
 ### 5.2 Sentinel
 
@@ -347,7 +347,7 @@ Sources of information that feed into an agent's epistemic state.
 
 | Agent | Role | Capability |
 |-------|------|-----------|
-| **AI Lead** | Primary orchestrating AI (e.g., Claude Code). Manages CASCADE, creates goals, logs artifacts. | Full read/write/execute |
+| **AI Lead** | Primary orchestrating AI (e.g., Claude Code). Manages epistemic transactions, creates goals, logs artifacts. | Full read/write/execute |
 | **Domain Agent** | Specialized investigator spawned for focused analysis. Types: security, architecture, performance, UX. | Scoped read/write within domain |
 | **Sentinel** | Enforcement system (not a conversational agent). Gates praxic actions based on epistemic readiness. | Gate/block/override |
 | **Human** | The user. Makes final decisions, provides requirements, approves plans. | Override/approve/direct |
@@ -486,7 +486,7 @@ Every Empirica term mapped to its closest developer-familiar equivalent. Where t
 | **Session** | Context window / connection | Temporal interval, new one on compaction. Transactions span sessions. |
 | **Noetic phase** | Research / spike / investigation | Produces noetic artifacts, no code changes |
 | **Praxic phase** | Implementation / execution | Produces code, gated by Sentinel |
-| **CASCADE** | CI/CD pipeline (for knowledge) | Enforces measurement, not deployment |
+| **Epistemic transaction** | CI/CD pipeline (for knowledge) | Enforces measurement, not deployment |
 | **Sentinel** | Linter / pre-commit hook | Gates actions on epistemic readiness, not code quality |
 | **Immune system** | Deprecation / knowledge refresh | Lessons decay when new evidence contradicts them |
 | **Tool Router** | Load balancer / request router | Routes by epistemic vectors, not traffic |
@@ -569,7 +569,7 @@ Quick lookup for any term:
 | Blindspot Detector | 5.5 | System |
 | Bootstrap | 6 | Context |
 | Calibration | 2.3 | Epistemic State |
-| CASCADE | 5.1 | System |
+| Epistemic Transactions | 5.1 | System |
 | CHECK | 3.2 | Workflow Phase |
 | Cognitive Immune System | 5.3 | System |
 | Commit | 1.2 | Praxic Artifact |

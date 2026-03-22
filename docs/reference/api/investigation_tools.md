@@ -497,15 +497,15 @@ deadend_id = breadcrumbs.log_dead_end(
 6. Merge Findings (optional)
    └── empirica investigate-merge-branches --branch X
 
-7. Submit to CASCADE
+7. Submit to transaction
    └── empirica check-submit -  # Gate to praxic phase
 ```
 
 ---
 
-## Integration with CASCADE
+## Integration with Epistemic Transactions
 
-Investigation tools feed into the CASCADE workflow:
+Investigation tools feed into the epistemic transaction workflow:
 
 - **PREFLIGHT** retrieves relevant dead-ends and lessons
 - **investigate** commands produce noetic artifacts

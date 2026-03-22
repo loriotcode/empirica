@@ -1,7 +1,7 @@
 """
 Onboarding Command - Interactive Introduction to Empirica
 
-Shows the current Empirica capabilities, CASCADE workflow, and quick start guide.
+Shows the current Empirica capabilities, epistemic transaction workflow, and quick start guide.
 """
 
 import sys
@@ -37,7 +37,7 @@ CORE CONCEPTS
    Gate:          ENGAGEMENT
    Meta:          UNCERTAINTY (higher = more uncertain)
 
-2. CASCADE Workflow (Epistemic Transactions)
+2. Epistemic Transaction Workflow
    PREFLIGHT --> CHECK --> POSTFLIGHT --> POST-TEST
 
    - PREFLIGHT:  Assess baseline before starting (what do you know?)

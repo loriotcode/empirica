@@ -253,8 +253,8 @@ def _display_turtle_health():
         else:
             print("   ⚠️  No vectors recorded - run PREFLIGHT first")
 
-        # CASCADE Completeness
-        print("\n   🔄 CASCADE Completeness")
+        # Transaction Completeness
+        print("\n   🔄 Transaction Completeness")
         print("   " + "-" * 40)
         cursor.execute("""
             SELECT phase, COUNT(*) as count
@@ -588,7 +588,7 @@ def handle_mco_load_command(args):
                 print(f"   AI ID: {ai_id}")
             print("=" * 70)
             print(formatted)
-            print("\n💡 Internalize these values. Apply bias corrections during CASCADE assessments.")
+            print("\n💡 Internalize these values. Apply bias corrections during transaction assessments.")
 
     except Exception as e:
         handle_cli_error(e, "MCO Load", getattr(args, 'verbose', False))
@@ -1601,7 +1601,7 @@ def handle_calibration_report_command(args):
             result = {
                 "ok": False,
                 "error": f"No trajectories found in last {weeks} weeks",
-                "hint": "Run more CASCADE workflows to build calibration data"
+                "hint": "Run more epistemic transaction workflows to build calibration data"
             }
             if output_format == 'json':
                 print(json.dumps(result, indent=2))

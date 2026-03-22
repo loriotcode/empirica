@@ -673,7 +673,7 @@ has_key = loader.has_credential("MINIMAX_API_KEY")
 ### Sentinel (Safety Gates)
 
 - `SENTINEL_URL`: URL for external Sentinel service (optional)
-- `EMPIRICA_ENFORCE_CASCADE_PHASES`: Strictly enforce CASCADE phase ordering (`true`, `false`)
+- `EMPIRICA_ENFORCE_CASCADE_PHASES`: Strictly enforce transaction phase ordering (`true`, `false`)
 - `EMPIRICA_SENTINEL_LOOPING`: Enable/disable sentinel CHECK-investigate loop (`true`, `false`, default: `true`). When `false`, CHECK decisions bypass investigate requirement. **Preferred:** Use file flag `~/.empirica/sentinel_enabled` instead (dynamically settable without restart)
 - `EMPIRICA_SENTINEL_MODE`: Sentinel operating mode (`observer`, `controller`, `auto`, default: `auto`)
   - `observer`: Passive oversight - log warnings but don't block AI actions
@@ -881,15 +881,15 @@ EMPIRICA_LOG_LEVEL=debug empirica session-create --ai-id test
 
 **Location:** `empirica/config/mco/`  
 **Total Size:** ~3600 lines of YAML configuration  
-**Purpose:** Define AI behavior patterns, CASCADE styles, epistemic thresholds, and protocols
+**Purpose:** Define AI behavior patterns, transaction styles, epistemic thresholds, and protocols
 
 ### MCO Configuration Files
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `protocols.yaml` | 635 | MCP tool usage schemas (CASCADE, goals, handoffs, mistakes) |
+| `protocols.yaml` | 635 | MCP tool usage schemas (transactions, goals, handoffs, mistakes) |
 | `feedback_loops.yaml` | 493 | Statusline warning responses for drift detection |
-| `cascade_styles.yaml` | 422 | 6 CASCADE workflow profiles (default, exploratory, rigorous, rapid, expert, novice) |
+| `cascade_styles.yaml` | 422 | 6 transaction style profiles (default, exploratory, rigorous, rapid, expert, novice) |
 | `epistemic_conduct.yaml` | 355 | Bidirectional accountability (AI↔human challenge triggers) |
 | `MCO_INDEX.yaml` | 326 | Semantic guide to all MCO objects and relationships |
 | `model_profiles.yaml` | 313 | Model-specific bias corrections (per LLM overconfidence patterns) |
@@ -929,7 +929,7 @@ EMPIRICA_LOG_LEVEL=debug empirica session-create --ai-id test
 **6. Documentation & Reference**
 - `MCO_INDEX.yaml` - Master index with relationships and workflows
 
-### MCO Integration with CASCADE
+### MCO Integration with Epistemic Transactions
 
 **Session Start:**
 ```
@@ -984,9 +984,9 @@ EMPIRICA_LOG_LEVEL=debug empirica session-create --ai-id test
 
 **Personas (6 types):**
 - Researcher, Implementer, Reviewer, Coordinator, Learner, Expert
-- Influence CASCADE style selection
+- Influence transaction style selection
 
-**CASCADE Styles (6 profiles):**
+**Transaction Styles (6 profiles):**
 - Default, Exploratory, Rigorous, Rapid, Expert, Novice
 - Different assessment depths and gate thresholds
 
@@ -1075,7 +1075,7 @@ The master index (`MCO_INDEX.yaml`) provides:
 | System Config | 1 | ~200 | `.empirica/config.yaml` |
 | Project Config | 1 | ~300 | `.empirica/project.yaml` |
 | Module Configs | 2 | ~500 | `modality_config.yaml`, `investigation_profiles.yaml` |
-| MCO Configs | 11 | 3615 | Metacognitive behavior, CASCADE styles, protocols |
+| MCO Configs | 11 | 3615 | Metacognitive behavior, transaction styles, protocols |
 | Config Loaders | 8 | 2186 | Python modules for loading configs |
 
 **Grand Total:** ~6800 lines of configuration across all layers
@@ -1084,7 +1084,7 @@ The master index (`MCO_INDEX.yaml`) provides:
 - ✅ System configuration (global settings)
 - ✅ Project configuration (per-project settings)
 - ✅ Module configuration (modality profiles, investigation strategies)
-- ✅ MCO configuration (AI behavior, CASCADE styles, protocols)
+- ✅ MCO configuration (AI behavior, transaction styles, protocols)
 - ✅ Python loaders (8 modules documented)
 - ✅ Environment variables (precedence and usage)
 - ✅ Loading order and precedence rules

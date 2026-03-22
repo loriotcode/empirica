@@ -442,7 +442,7 @@ def determine_work_phase(phase: str, gate_decision: str = None) -> str:
 
 
 def format_phase_state(phase: str, work_phase: str, composite: float, gate_decision: str = None) -> str:
-    """Format CASCADE phase + work state as compact indicator.
+    """Format transaction phase + work state as compact indicator.
 
     Examples: PRE 🔍65% | CHK 🔍→⚙ | POST ⚙92% | POST ⚙92% Δ ✓
     """

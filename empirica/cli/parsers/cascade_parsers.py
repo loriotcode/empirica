@@ -1,4 +1,4 @@
-"""CASCADE workflow command parsers.
+"""Epistemic transaction workflow command parsers.
 
 Aliases:
 - preflight-submit → pre, preflight
@@ -8,7 +8,7 @@ Aliases:
 def add_cascade_parsers(subparsers):
     """Add cascade command parsers (Primary CLI interface for epistemic assessments)
 
-    The CASCADE workflow commands are the primary interface for AI-based epistemic assessments.
+    The transaction workflow commands are the primary interface for AI-based epistemic assessments.
     MCP tools route to these CLI commands:
     - preflight-submit: Submit preflight assessment vectors
     - check / check-submit: Execute/submit check assessment

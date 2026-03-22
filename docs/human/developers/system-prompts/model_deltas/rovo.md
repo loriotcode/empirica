@@ -4,7 +4,7 @@
 **Last Updated:** 2026-02-21
 
 **Hooks:** Rovo does not currently support lifecycle hooks.
-All session management and CASCADE workflow must be done manually via CLI.
+All session management and epistemic transaction workflow must be done manually via CLI.
 
 This delta contains Rovo-specific guidance to be used with the base Empirica system prompt.
 

@@ -86,7 +86,7 @@ echo 'source ~/.claude/plugins/local/empirica-integration/hooks/set-session-env.
 
 ### 3. Use Empirica Workflow
 
-**Run CASCADE to create checkpoints:**
+**Run epistemic transactions to create checkpoints:**
 ```bash
 # Required for hooks to save snapshots
 empirica preflight-submit -  # JSON via stdin

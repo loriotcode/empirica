@@ -50,7 +50,7 @@ bus = EpistemicBus()
 │              │   (pip install empirica)     │                       │
 │              │                              │                       │
 │              │  • 13 Epistemic Vectors      │                       │
-│              │  • CASCADE Workflow          │                       │
+│              │  • Epistemic Transactions    │                       │
 │              │  • SQLite + Qdrant Storage   │                       │
 │              │  • Epistemic Bus             │                       │
 │              │  • Plugin Registry           │                       │

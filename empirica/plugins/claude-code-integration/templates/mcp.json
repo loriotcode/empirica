@@ -8,7 +8,7 @@
         "EMPIRICA_EPISTEMIC_MODE": "true"
       },
       "tools": ["*"],
-      "description": "Empirica epistemic framework - CASCADE workflow, goals, findings"
+      "description": "Empirica epistemic framework - epistemic transaction workflow, goals, findings"
     }
   }
 }

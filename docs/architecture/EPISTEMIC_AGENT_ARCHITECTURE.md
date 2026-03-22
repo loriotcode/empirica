@@ -11,7 +11,7 @@
 
 > "Same epistemic rules apply at every meta-layer."
 
-The Epistemic Agent architecture follows a recursive self-similar pattern. Each layer has its own CASCADE workflow (PREFLIGHT → CHECK → POSTFLIGHT), maintains its own epistemic vectors, and can spawn agents at lower layers.
+The Epistemic Agent architecture follows a recursive self-similar pattern. Each layer has its own epistemic transaction workflow (PREFLIGHT → CHECK → POSTFLIGHT), maintains its own epistemic vectors, and can spawn agents at lower layers.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -35,7 +35,7 @@ The Epistemic Agent architecture follows a recursive self-similar pattern. Each 
 └──────────────────────────────────────────────────────────────────────┘
                                    ↓
 ┌──────────────────────────────────────────────────────────────────────┐
-│                      LAYER 1: CASCADE Workflow                       │
+│                LAYER 1: Epistemic Transaction Workflow                │
 │  (Foundation: PREFLIGHT → CHECK → POSTFLIGHT)                        │
 │  Epistemic State: 13 vectors (know, uncertainty, context, etc.)      │
 │  See: ../human/end-users/05_EPISTEMIC_VECTORS_EXPLAINED.md           │
@@ -75,7 +75,7 @@ empirica agent-spawn \
 **What happens:**
 1. Creates investigation branch in DB
 2. Applies persona-specific epistemic priors
-3. Generates prompt with CASCADE instructions
+3. Generates prompt with epistemic transaction instructions
 4. Returns branch_id for later reporting
 
 ### agent-report
@@ -277,7 +277,7 @@ reputation = reputation_seed + (Σ import_successes / Σ imports) × 0.5
 | Item | Status | Implementation |
 |------|--------|----------------|
 | Autonomy calibration loop | ✅ Done | Sentinel tracks `tool_call_count` per transaction, PREFLIGHT calculates `avg_turns` from history, nudges at 1x/1.5x/2x thresholds. See [SENTINEL_ARCHITECTURE.md](./SENTINEL_ARCHITECTURE.md#autonomy-calibration-loop). |
-| Subagent CASCADE exemption | ✅ Done | Subagents (no `active_session` file) bypass Sentinel gates. Parent CHECK authorizes spawn. See [SENTINEL_ARCHITECTURE.md](./SENTINEL_ARCHITECTURE.md#subagent-cascade-exemption). |
+| Subagent transaction exemption | ✅ Done | Subagents (no `active_session` file) bypass Sentinel gates. Parent CHECK authorizes spawn. See [SENTINEL_ARCHITECTURE.md](./SENTINEL_ARCHITECTURE.md#subagent-cascade-exemption). |
 | Subagent governance | ✅ Done | Delegated work counting (SubagentStop transcript parsing), pre-spawn budget check (SubagentStart), `maxTurns: 25` default ceiling on all agents. |
 | Stale transaction detection | ✅ Done | Status-only purge (`status != "open"`). No time-based eviction — overnight sessions survive. |
 | Automatic branch pruning | ❌ Not started | Sentinel prunes low-merge-score branches |
@@ -334,7 +334,7 @@ POSTFLIGHT         POSTFLIGHT        POSTFLIGHT
 
 ## References
 
-- [CASCADE Workflow](./CHECK_SEMANTICS_FORMALIZATION.md)
+- [Epistemic Transaction Workflow](./CHECK_SEMANTICS_FORMALIZATION.md)
 - [Storage Architecture](./STORAGE_ARCHITECTURE_COMPLETE.md)
 - [Qdrant Integration](./QDRANT_EPISTEMIC_INTEGRATION.md)
 - [Main Architecture Overview](./README.md)

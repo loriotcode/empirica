@@ -169,7 +169,7 @@ prompt = snapshot.to_context_prompt(level="standard")
 | `context_summary` | ContextSummary | Semantic + narrative context |
 | `compression_ratio` | float | Token reduction achieved (typically 0.95) |
 | `fidelity_score` | float | How well snapshot represents full context |
-| `cascade_phase` | str | CASCADE phase (PREFLIGHT/CHECK/POSTFLIGHT) |
+| `cascade_phase` | str | Transaction phase (PREFLIGHT/CHECK/POSTFLIGHT) |
 
 ---
 
@@ -291,9 +291,9 @@ for traj in results:
 
 ---
 
-## Integration with CASCADE
+## Integration with Epistemic Transactions
 
-Epistemic tracking integrates with the CASCADE workflow:
+Epistemic tracking integrates with the epistemic transaction workflow:
 
 1. **PREFLIGHT** → Creates baseline snapshot
 2. **CHECK** → Validates readiness gate
@@ -372,7 +372,7 @@ if postflight and preflight:
 
 - [EPISTEMIC_BUS.md](../../architecture/EPISTEMIC_BUS.md) - Event-driven epistemic updates
 - [SELF_MONITORING.md](../../architecture/SELF_MONITORING.md) - AI self-awareness architecture
-- [CASCADE Workflow](cascade_workflow.md) - Epistemic measurement phases
+- [Epistemic Transaction Workflow](cascade_workflow.md) - Epistemic measurement phases
 - [Signaling API](signaling.md) - Drift levels and vector health
 
 ---

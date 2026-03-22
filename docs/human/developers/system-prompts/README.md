@@ -56,7 +56,7 @@ python3 scripts/sync_system_prompts.py
 ### Source of Truth
 
 1. **CANONICAL_CORE.md** - AI-agnostic core prompt
-   - All shared workflow: CASCADE, vectors, breadcrumbs
+   - All shared workflow: epistemic transactions, vectors, breadcrumbs
    - Edit this to change behavior for ALL AIs
 
 2. **model_deltas/** - Model-specific additions
@@ -95,7 +95,7 @@ It may diverge from the repo version. Sync manually when stable.
 
 ## Key Concepts
 
-### CASCADE Workflow
+### Epistemic Transaction Workflow
 ```
 PREFLIGHT → NOETIC → CHECK → PRAXIC → POSTFLIGHT → POST-TEST
 ```

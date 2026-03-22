@@ -1,4 +1,4 @@
-# CASCADE Workflow API Reference
+# Epistemic Transaction Workflow API Reference
 
 **Version:** 1.6.6
 **Purpose:** Epistemic measurement phases for AI self-assessment and grounded calibration
@@ -7,7 +7,7 @@
 
 ## Overview
 
-The CASCADE workflow defines the epistemic measurement phases that track AI knowledge state across work cycles:
+The epistemic transaction workflow defines the epistemic measurement phases that track AI knowledge state across work cycles:
 
 ```
 PREFLIGHT ──► CHECK ──► POSTFLIGHT ──► POST-TEST
@@ -36,7 +36,7 @@ After PREFLIGHT, most commands auto-derive `--session-id` from the active transa
 
 ## Epistemic Vectors
 
-All CASCADE commands accept these vectors (0.0-1.0):
+All transaction commands accept these vectors (0.0-1.0):
 
 | Vector | Description | Typical Range |
 |--------|-------------|---------------|
@@ -377,7 +377,7 @@ db.record_checkpoint(
 
 ## Sentinel Integration
 
-The Sentinel gate enforces the CASCADE workflow:
+The Sentinel gate enforces the epistemic transaction workflow:
 
 1. **PreToolUse hooks** block praxic tools (Edit/Write/Bash) until CHECK passes
 2. **Session hooks** auto-create sessions and bootstrap projects

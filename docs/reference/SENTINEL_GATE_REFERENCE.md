@@ -233,7 +233,7 @@ When no transaction is open, the Sentinel counts tool calls in a separate counte
 
 Subagents (spawned via `Task` tool) bypass the Sentinel gate. Detection: if no `active_session_{instance_suffix}` file exists for the instance, it's a subagent (subagents never call `session-create`).
 
-Rationale: The parent's CHECK already authorized the spawn. Double-gating is redundant (see CASCADE Exemption in CANONICAL_CORE.md).
+Rationale: The parent's CHECK already authorized the spawn. Double-gating is redundant (see Transaction Exemption in CANONICAL_CORE.md).
 
 Subagent tool calls are counted separately and added to the parent's `delegated_tool_calls` by the `SubagentStop` hook.
 
@@ -341,6 +341,6 @@ The Sentinel outputs JSON to stdout in Claude Code's expected hook format:
 | [Sentinel Constitution](../architecture/SENTINEL_CONSTITUTION.md) | Governance principles that constrain this code |
 | [Sentinel Architecture](../architecture/SENTINEL_ARCHITECTURE.md) | Higher-level architecture (orchestrator, compliance gates) |
 | [Phase-Aware Calibration](../architecture/PHASE_AWARE_CALIBRATION.md) | How phase-split tool counts feed calibration |
-| [CASCADE Workflow](api/cascade_workflow.md) | PREFLIGHT/CHECK/POSTFLIGHT phase definitions |
+| [Epistemic Transaction Workflow](api/cascade_workflow.md) | PREFLIGHT/CHECK/POSTFLIGHT phase definitions |
 | [Environment Variables](ENVIRONMENT_VARIABLES.md) | Full env var reference |
 | [Configuration Reference](CONFIGURATION_REFERENCE.md) | File-based configuration |

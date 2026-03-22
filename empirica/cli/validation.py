@@ -20,7 +20,7 @@ T = TypeVar('T', bound=BaseModel)
 
 
 # =============================================================================
-# CASCADE Workflow Input Models
+# Epistemic Transaction Workflow Input Models
 # =============================================================================
 
 class VectorValues(BaseModel):

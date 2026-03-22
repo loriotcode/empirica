@@ -120,7 +120,7 @@ pip install empirica-mcp        # MCP Server (for Cursor, Cline, etc.)
 cd your-project && empirica project-init
 ```
 
-The CLI works standalone on any platform. The full epistemic workflow (CASCADE, Sentinel, calibration) requires loading the system prompt into your AI. See [System Prompts](docs/human/developers/system-prompts/) for Claude, Copilot, Gemini, Qwen, and Roo Code.
+The CLI works standalone on any platform. The full epistemic workflow (epistemic transactions, Sentinel, calibration) requires loading the system prompt into your AI. See [System Prompts](docs/human/developers/system-prompts/) for Claude, Copilot, Gemini, Qwen, and Roo Code.
 </details>
 
 ### First Session
@@ -150,7 +150,7 @@ Plan
 
 **Plans** decompose into **transactions** — one per goal or Claude Code task. Each transaction is a **noetic-praxic loop**: investigate first (noetic), then act (praxic), with the Sentinel gating the transition. Along the way, the AI collects and reads **artifacts** (findings, unknowns, assumptions, dead-ends, decisions) while using **semantic search** to surface relevant epistemic patterns and anti-patterns from the project's history. Top artifacts are ranked by confidence and fed into each project's **MEMORY.md** as a hot cache.
 
-### The CASCADE Cycle
+### The Epistemic Transaction Cycle
 
 ```
 PREFLIGHT ────────► CHECK ────────► POSTFLIGHT
@@ -181,7 +181,7 @@ With Claude Code hooks enabled, you see the AI's epistemic state in real-time:
 | **⚡94%** | Overall epistemic confidence |
 | **↕70%** | Sentinel threshold (know gate) — user-facing only |
 | **🎯3 ❓12/5** | Open goals (3), unknowns (12 total, 5 blocking) |
-| **POST 🔍92%** | CASCADE phase + work state (🔍 investigating / 🔨 acting) with composite score |
+| **POST 🔍92%** | Transaction phase + work state (🔍 investigating / 🔨 acting) with composite score |
 | **K:95% C:92%** | Knowledge and Context vectors (color-coded by gap to threshold) |
 | **Δ +K +C** | Learning delta (POSTFLIGHT only) — which vectors improved |
 
@@ -233,7 +233,7 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 | Platform | Integration Level | What You Get |
 |----------|------------------|-------------|
 | **Claude Code** | Full (production) | Hooks, Sentinel gate, skills, agents, statusline, MCP |
-| **Cursor, Cline** | MCP server | CASCADE workflow, memory, calibration via MCP tools |
+| **Cursor, Cline** | MCP server | Epistemic transaction workflow, memory, calibration via MCP tools |
 | **Gemini CLI, Copilot** | Experimental | System prompt + CLI |
 | **Any AI** | CLI + prompt | Full measurement via CLI commands and system prompt |
 
@@ -256,7 +256,7 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 | Project | Description | Status |
 |---------|-------------|--------|
-| **[Empirica](https://github.com/Nubaeon/empirica)** | Core measurement system — CASCADE, Sentinel, calibration, 13 vectors | Open source |
+| **[Empirica](https://github.com/Nubaeon/empirica)** | Core measurement system — epistemic transactions, Sentinel, calibration, 13 vectors | Open source |
 | **[Empirica Iris](https://github.com/Nubaeon/empirica-iris)** | Epistemic browser automation with SVG spatial indexing — Sentinel gating for visual interactions | Open source |
 | **[Docpistemic](https://github.com/Nubaeon/docpistemic)** | Epistemic documentation coverage assessment — know what your docs know | Open source |
 | **[Breadcrumbs](https://github.com/Nubaeon/breadcrumbs)** | Survive context compacts with git notes — dead simple session continuity | Open source |

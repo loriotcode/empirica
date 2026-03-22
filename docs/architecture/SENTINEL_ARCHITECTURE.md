@@ -9,7 +9,7 @@ The Sentinel is the gate controller of Empirica's cognitive architecture. It gov
 - [Sentinel Constitution](./SENTINEL_CONSTITUTION.md) - Governance principles for the measurement system
 - [NOETIC_PRAXIC_FRAMEWORK.md](./NOETIC_PRAXIC_FRAMEWORK.md) - The noetic/praxic phase framework
 - [Phase-Aware Calibration](./PHASE_AWARE_CALIBRATION.md) - How phase-split tool counts feed calibration
-- [CASCADE Workflow](../../plugins/claude-code-integration/skills/empirica-framework/references/cascade-workflow.md) - PREFLIGHT→CHECK→POSTFLIGHT phases
+- [Epistemic Transaction Workflow](../../plugins/claude-code-integration/skills/empirica-framework/references/cascade-workflow.md) - PREFLIGHT→CHECK→POSTFLIGHT phases
 - [CONFIGURATION_REFERENCE.md](../reference/CONFIGURATION_REFERENCE.md) - EMPIRICA_SENTINEL_LOOPING and autopilot settings
 
 ## Philosophy
@@ -373,7 +373,7 @@ The first matching priority level wins. If multiple gates trigger at different l
 
 ---
 
-## Integration with CASCADE
+## Integration with Epistemic Transactions
 
 ```
 PREFLIGHT ──────────────────► CHECK ──────────────────► POSTFLIGHT ──────────────────► POST-TEST
@@ -408,7 +408,7 @@ Nudges are informational — the agent decides when to POSTFLIGHT based on work 
 
 ---
 
-## Subagent CASCADE Exemption
+## Subagent Transaction Exemption
 
 Subagents bypass Sentinel gating. Detection: no `active_session_{instance_suffix}` file exists for the instance (subagents never call `session-create`). Rationale: the parent's CHECK already authorized the spawn; double-gating is redundant.
 

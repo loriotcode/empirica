@@ -3,12 +3,12 @@
 Empirica PostCompact Hook - Phase-Aware Recovery
 
 After memory compaction, the AI has only a summary - not real knowledge.
-This hook detects the CASCADE phase state and routes appropriately:
+This hook detects the transaction phase state and routes appropriately:
 
 1. If old session is COMPLETE (has POSTFLIGHT) → New session + PREFLIGHT
 2. If old session is INCOMPLETE (mid-work) → CHECK gate on old session
 
-Key insight: Compact can happen at ANY point in the CASCADE cycle.
+Key insight: Compact can happen at ANY point in the transaction cycle.
 The recovery action depends on WHERE in the cycle compact occurred.
 """
 
@@ -408,7 +408,7 @@ def _get_empirica_session(claude_session_id: str = None):
 
 def _get_session_phase_state(session_id: str) -> dict:
     """
-    Detect the CASCADE phase state of a session.
+    Detect the transaction phase state of a session.
 
     Returns:
         {
