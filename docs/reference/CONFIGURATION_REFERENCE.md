@@ -1066,6 +1066,71 @@ The master index (`MCO_INDEX.yaml`) provides:
 
 ---
 
+### Tiered Weight Architecture
+
+Empirica uses a 4-layer weight system for calibration scoring. Each layer serves a distinct purpose and operates at a different granularity.
+
+**Layer 1: Confidence Aggregation (Tier 0)**
+- **Source:** `config/mco/confidence_weights.yaml` — `foundation_confidence_weights`, `comprehension_confidence_weights`, etc.
+- **Purpose:** Aggregate 13 epistemic vectors into tier-level confidence scores (foundation, comprehension, execution, overall)
+- **Consumer:** `reflex_exporter.py` (dashboard visualization)
+- **Granularity:** Static per-model (claude_sonnet, claude_haiku, gpt4, default)
+- **Example:** Foundation confidence = know × 0.40 + do × 0.30 + context × 0.30
+
+**Layer 2: Domain Category Weights (Tier 1)**
+- **Source:** `config/mco/confidence_weights.yaml` — `domain_category_weights`
+- **Purpose:** How much each vector category (foundation/comprehension/execution/engagement) matters for calibration scoring in a given domain
+- **Consumer:** `core/post_test/mapper.py` — `_compute_weighted_calibration()`
+- **Granularity:** Per domain (software, consulting, research, operations, default)
+- **Example:** Software domain weights execution at 0.35 (shipping code matters most), research weights comprehension at 0.30
+
+**Layer 3: Per-Project Per-Phase Weights (Tier 2)**
+- **Source:** `.empirica/project.yaml` — `calibration_weights` (seeded at `project-init`, backfilled by `project-bootstrap` for older projects)
+- **Purpose:** Scale individual vector gaps within categories, per phase (noetic vs praxic)
+- **Consumer:** `core/post_test/mapper.py` via `grounded_calibration.py` — passed as `per_vector_weights`
+- **Granularity:** Per project, per phase (noetic/praxic), per vector
+- **Example:** In noetic phase, execution vectors (do, change, state) are weighted low (0.2-0.3) because they're irrelevant to investigation
+
+**Layer 4: Work-Type Evidence Relevance**
+- **Source:** `core/post_test/mapper.py` — `WORK_TYPE_RELEVANCE` (hardcoded)
+- **Purpose:** Scale how much each evidence source (git metrics, test results, code quality, etc.) matters for the current work type
+- **Consumer:** `EvidenceMapper.map_evidence()`
+- **Granularity:** Per transaction (from PREFLIGHT `work_type` field)
+- **Example:** Research work down-weights git_metrics (0.2) and test_results (0.2) but up-weights artifact_counts (1.5)
+
+**How they interact:**
+```
+PREFLIGHT declares work_type + work_context
+    ↓
+Layer 4: Evidence items scaled by work_type relevance
+    ↓
+Layer 3: Per-vector gaps scaled by project phase weights
+    ↓
+Layer 2: Gaps grouped by category, weighted by domain importance
+    ↓
+= Overall calibration score (lower = better calibrated)
+```
+
+**Cascade Profile Selection:**
+
+The `work_type` and `work_context` from PREFLIGHT also select a cascade_styles profile (exploratory, rigorous, rapid, etc.), which determines the CHECK gate thresholds:
+
+| work_context | Profile | Gate Behavior |
+|---|---|---|
+| `greenfield` | exploratory | Lower bars, more investigation cycles |
+| `investigation` | exploratory | Tolerance for uncertainty |
+| `iteration` | default | Balanced thresholds |
+| `refactor` | default | Standard rigor |
+
+| work_type (overrides within default context) | Profile |
+|---|---|
+| `research` | exploratory |
+| `audit` | rigorous |
+| `release` | rigorous |
+| `design` | exploratory |
+
+---
+
 ## Summary Statistics (Updated)
 
 **Total Configuration Coverage:**

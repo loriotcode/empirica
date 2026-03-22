@@ -355,7 +355,7 @@ def handle_preflight_submit_command(args):
                         project_path=resolved_project_path
                     )
 
-                    # Inject work_context and work_type into transaction file if provided
+                    # Inject work_context, work_type, and cascade profile into transaction file
                     if work_context or work_type:
                         try:
                             suffix = R.instance_suffix()
@@ -367,8 +367,16 @@ def handle_preflight_submit_command(args):
                                     tx_d['work_context'] = work_context
                                 if work_type:
                                     tx_d['work_type'] = work_type
+                                # Auto-select cascade profile from work parameters
+                                from empirica.config.threshold_loader import ThresholdLoader
+                                selected_profile = ThresholdLoader.select_profile_for_work(
+                                    work_type=work_type, work_context=work_context
+                                )
+                                tx_d['cascade_profile'] = selected_profile
                                 with open(tx_file, 'w') as f:
                                     _json.dump(tx_d, f, indent=2)
+                                if selected_profile != 'default':
+                                    logger.info(f"Cascade profile: {selected_profile} (from work_type={work_type}, work_context={work_context})")
                         except Exception:
                             pass  # Non-fatal
 
@@ -1178,13 +1186,36 @@ def handle_check_submit_command(args):
         # Dynamic thresholds from Brier score calibration
         # Miscalibration RAISES thresholds (compensates for unreliable self-assessment)
         # Good calibration keeps thresholds at domain baseline (numbers are trusted)
+        # Profile-aware: if the transaction has a cascade_profile, use its baselines
         ready_know_threshold = 0.70  # Static default
         ready_uncertainty_threshold = 0.35  # Static default
         dynamic_thresholds_info = None
+        profile_base_thresholds = None
+        try:
+            cascade_profile = None
+            tx_id = R.transaction_id()
+            if tx_id:
+                tx_data = R.transaction_read()
+                if tx_data:
+                    cascade_profile = tx_data.get('cascade_profile')
+            if cascade_profile and cascade_profile != 'default':
+                from empirica.config.threshold_loader import ThresholdLoader
+                loader = ThresholdLoader.get_instance()
+                if loader.load_profile(cascade_profile):
+                    profile_base_thresholds = {
+                        'ready_know_threshold': loader.get('cascade.ready_know_threshold', 0.70),
+                        'ready_uncertainty_threshold': loader.get('cascade.ready_uncertainty_threshold', 0.35),
+                    }
+                    logger.info(f"CHECK using cascade profile '{cascade_profile}' baselines: {profile_base_thresholds}")
+        except Exception:
+            pass
         try:
             from empirica.core.post_test.dynamic_thresholds import compute_dynamic_thresholds
             dt_db = _get_db_for_session(session_id)
-            dt_result = compute_dynamic_thresholds(ai_id="claude-code", db=dt_db)
+            dt_result = compute_dynamic_thresholds(
+                ai_id="claude-code", db=dt_db,
+                base_thresholds=profile_base_thresholds,
+            )
             dt_db.close()
 
             if dt_result.get("source") == "dynamic":

@@ -219,9 +219,58 @@ class ThresholdLoader:
         
         logger.info(f"✅ Loaded threshold profile: {profile_name}")
         logger.info(f"   Description: {self.current_profile.get('description', 'N/A')}")
-        
+
         return True
-    
+
+    @staticmethod
+    def select_profile_for_work(
+        work_type: Optional[str] = None,
+        work_context: Optional[str] = None,
+    ) -> str:
+        """Select the best cascade_styles profile for the given work parameters.
+
+        Maps PREFLIGHT work_type/work_context to one of the defined profiles
+        (default, exploratory, rigorous, rapid, expert, novice).
+
+        Priority: work_context takes precedence (it describes the working mode),
+        work_type refines within that (what kind of work).
+
+        Args:
+            work_type: Type of work (code, research, debug, release, audit, etc.)
+            work_context: Working mode (greenfield, iteration, investigation, refactor)
+
+        Returns:
+            Profile name string.
+        """
+        # work_context → profile (primary signal)
+        context_map = {
+            'greenfield': 'exploratory',
+            'investigation': 'exploratory',
+            'refactor': 'default',
+            'iteration': 'default',
+        }
+
+        # work_type overrides within iteration context
+        type_overrides = {
+            'research': 'exploratory',
+            'audit': 'rigorous',
+            'release': 'rigorous',
+            'design': 'exploratory',
+        }
+
+        # Start with context-based selection
+        profile = context_map.get(work_context, 'default')
+
+        # work_type can override for specific combinations
+        if work_type in type_overrides:
+            type_profile = type_overrides[work_type]
+            # Only override if context didn't already set a stronger profile
+            # e.g., investigation + audit → keep exploratory (investigation wins)
+            if profile == 'default':
+                profile = type_profile
+
+        return profile
+
     def get(self, key_path: str, default: Any = None) -> Any:
         """
         Get threshold value by dot-notation path.
