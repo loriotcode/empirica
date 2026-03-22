@@ -542,33 +542,30 @@ def default_epistemic_evaluator(checkpoint_data: Dict[str, Any]) -> SentinelDeci
     to internalize and self-correct, NOT for the system to pre-apply. What the AI
     reports is what the Sentinel evaluates.
 
-    This evaluator is NOT affected by the EMPIRICA_CALIBRATION_FEEDBACK env var.
-    That flag gates calibration FEEDBACK in workflow output (PREFLIGHT/CHECK
-    enrichment), not gating logic. The Sentinel always evaluates raw vectors.
-
-    Thresholds are configurable via:
-    - .breadcrumbs.yaml: learning_trajectory.readiness.{min_know, max_uncertainty}
-    - Environment: EMPIRICA_KNOW_THRESHOLD, EMPIRICA_UNCERTAINTY_THRESHOLD
+    Threshold priority:
+    1. Environment variables (EMPIRICA_KNOW_THRESHOLD, etc.) — always win
+    2. Brier-inflated dynamic thresholds from compute_dynamic_thresholds() —
+       uses the SAME thresholds as CHECK, ensuring the Sentinel is never
+       weaker than the gate it enforces
+    3. MCO cascade_styles.yaml via ThresholdLoader — user-configured baseline
+    4. Defaults (know=0.70, uncertainty=0.35)
 
     Logic:
     - UNCERTAINTY > 0.7 → INVESTIGATE (too uncertain to proceed)
     - KNOW < 0.5 and UNCERTAINTY > 0.5 → INVESTIGATE (low knowledge + doubt)
     - ENGAGEMENT < 0.5 → ESCALATE (human needed)
-    - KNOW >= min_know and UNCERTAINTY <= max_uncertainty → PROCEED (readiness gate passed)
+    - KNOW >= threshold and UNCERTAINTY <= threshold → PROCEED (readiness gate passed)
     - Otherwise → INVESTIGATE (gate not passed)
     """
     vectors = checkpoint_data.get('vectors', {})
 
     # Use RAW vectors - no bias corrections applied by system
-    # Calibration data in .breadcrumbs.yaml is feedback for AI to internalize
     uncertainty = vectors.get('uncertainty', 0.5)
     know = vectors.get('know', 0.5)
     engagement = vectors.get('engagement', 0.7)
 
-    # Load configurable thresholds
-    thresholds = _load_readiness_thresholds()
-    min_know = thresholds['min_know']
-    max_uncertainty = thresholds['max_uncertainty']
+    # Load thresholds: dynamic (Brier-inflated) first, MCO/static fallback
+    min_know, max_uncertainty = _load_evaluator_thresholds()
 
     # Escalate if engagement too low
     if engagement < 0.5:
@@ -582,12 +579,63 @@ def default_epistemic_evaluator(checkpoint_data: Dict[str, Any]) -> SentinelDeci
     if know < 0.5 and uncertainty > 0.5:
         return SentinelDecision.INVESTIGATE
 
-    # Check readiness gate (RAW vectors, configurable thresholds)
+    # Check readiness gate (RAW vectors, dynamic or configured thresholds)
     if know >= min_know and uncertainty <= max_uncertainty:
         return SentinelDecision.PROCEED
 
     # Readiness gate failed — investigate to improve vectors
     return SentinelDecision.INVESTIGATE
+
+
+def _load_evaluator_thresholds() -> tuple:
+    """Load thresholds for the Sentinel evaluator.
+
+    Priority:
+    1. Env vars (always win — explicit user override)
+    2. Brier-inflated dynamic thresholds (consistent with CHECK handler)
+    3. MCO config / static defaults (fallback)
+
+    Returns:
+        (min_know, max_uncertainty) tuple
+    """
+    import os
+
+    # Check env var overrides first — these always win
+    env_know = os.getenv('EMPIRICA_KNOW_THRESHOLD')
+    env_unc = os.getenv('EMPIRICA_UNCERTAINTY_THRESHOLD')
+    if env_know or env_unc:
+        thresholds = _load_readiness_thresholds()
+        return thresholds['min_know'], thresholds['max_uncertainty']
+
+    # Try Brier-inflated dynamic thresholds (same as CHECK uses)
+    try:
+        from empirica.core.post_test.dynamic_thresholds import compute_dynamic_thresholds
+        from empirica.data.session_database import SessionDatabase
+
+        db = SessionDatabase()
+        try:
+            dt_result = compute_dynamic_thresholds(ai_id="claude-code", db=db)
+            if dt_result.get("source") == "dynamic":
+                # Use the stricter of noetic/praxic thresholds
+                noetic = dt_result.get("noetic", {})
+                praxic = dt_result.get("praxic", {})
+                dyn_know = max(
+                    noetic.get("ready_know_threshold", 0.70),
+                    praxic.get("ready_know_threshold", 0.70),
+                )
+                dyn_unc = min(
+                    noetic.get("ready_uncertainty_threshold", 0.35),
+                    praxic.get("ready_uncertainty_threshold", 0.35),
+                )
+                return dyn_know, dyn_unc
+        finally:
+            db.close()
+    except Exception:
+        pass  # Fall back to MCO/static
+
+    # Fallback: MCO config / static defaults
+    thresholds = _load_readiness_thresholds()
+    return thresholds['min_know'], thresholds['max_uncertainty']
 
 
 # Alias for backwards compatibility
