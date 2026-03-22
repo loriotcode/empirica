@@ -143,6 +143,30 @@ def handle_project_bootstrap_command(args):
         # Use SessionDatabase() default - it uses unified context resolver (NO CWD fallback)
         db = SessionDatabase()
 
+        # Backfill: Seed Tier 2 calibration weights for pre-existing projects
+        # Projects created before this feature have no calibration_weights in project.yaml.
+        # Without them, every POSTFLIGHT falls back to _seed_calibration_weights() dynamically,
+        # which works but means the weights are never persisted or customizable.
+        try:
+            from empirica.utils.session_resolver import InstanceResolver as R
+            _proj_path = R.project_path()
+            if _proj_path:
+                from pathlib import Path
+                _proj_yaml = Path(_proj_path) / '.empirica' / 'project.yaml'
+                if _proj_yaml.exists():
+                    import yaml
+                    with open(_proj_yaml, 'r') as _f:
+                        _proj_cfg = yaml.safe_load(_f) or {}
+                    if 'calibration_weights' not in _proj_cfg:
+                        from .project_init import _seed_calibration_weights
+                        _ptype = _proj_cfg.get('type', 'software')
+                        _proj_cfg['calibration_weights'] = _seed_calibration_weights(_ptype)
+                        with open(_proj_yaml, 'w') as _f:
+                            yaml.dump(_proj_cfg, _f, default_flow_style=False, sort_keys=False)
+                        logger.info(f"Backfilled calibration_weights for project type '{_ptype}'")
+        except Exception as e:
+            logger.debug(f"Calibration weight backfill skipped: {e}")
+
         # Get new parameters
         session_id = getattr(args, 'session_id', None)
         include_live_state = getattr(args, 'include_live_state', False)
