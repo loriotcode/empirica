@@ -157,7 +157,7 @@ def handle_cli_error(error: Exception, command: str, verbose: bool = False, sess
                     else:
                         session_id = None
                     db.close()
-                except:
+                except Exception:
                     pass
 
             # Initialize service if we have a session_id

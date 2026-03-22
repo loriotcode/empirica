@@ -90,9 +90,9 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
                             f"CASCADE {i}: {task}... (+{know - prev_know:.2f} knowledge)"
                         )
                     prev_know = know
-                except:
-                    pass
-        
+                except Exception:
+                    logger.debug("Failed to parse cascade vectors for knowledge trajectory")
+
         # 5. Extract key findings from CHECK phases and investigation logs
         key_findings = []
         investigation_notes = []
@@ -121,9 +121,9 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
                         for act_entry in context['act_log']:
                             if 'actions' in act_entry:
                                 actions_taken.extend(act_entry['actions'])
-                except:
-                    pass
-        
+                except Exception:
+                    logger.debug("Failed to parse cascade context for findings extraction")
+
         # Combine and deduplicate findings
         all_findings = key_findings + investigation_notes
         key_findings = list(dict.fromkeys(all_findings))[:5]
@@ -138,9 +138,9 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
                     unknowns = last_context.get('check_unknowns', [])
                     if isinstance(unknowns, list):
                         remaining_unknowns = unknowns[:3]  # Top 3 only
-                except:
-                    pass
-        
+                except Exception:
+                    logger.debug("Failed to parse last cascade context for unknowns")
+
         # 7. Get artifacts from git diff (simplified - just note that files were modified)
         artifacts = _get_artifacts_from_session(session_id, start_time)
         
@@ -166,9 +166,9 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
                 start_dt = datetime.fromisoformat(start_time)
                 end_dt = datetime.fromisoformat(end_time)
                 duration_seconds = int((end_dt - start_dt).total_seconds())
-            except:
-                pass
-        
+            except Exception:
+                logger.debug("Failed to parse session timestamps for duration calculation")
+
         # 10. Build compact handoff report
         return {
             "session_id": session_id,

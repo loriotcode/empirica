@@ -1766,9 +1766,9 @@ class SessionDatabase:
             try:
                 import json
                 repos = json.loads(repos)
-            except:
+            except Exception:
                 repos = []
-        
+
         breadcrumbs['project'] = {
             'id': project['id'],
             'name': project.get('name', 'Unknown'),
@@ -1878,8 +1878,8 @@ class SessionDatabase:
                     with open(snapshots[0], 'r') as f:
                         snapshot = json.load(f)
                         return snapshot.get('session_id')
-            except:
-                pass
+            except Exception:
+                logger.debug("Failed to read pre_summary snapshot for session_id")
 
         # Get latest session for project
         cursor = self.conn.cursor()
@@ -2077,7 +2077,7 @@ class SessionDatabase:
                         depth = "moderate"
                     else:
                         depth = "minimal"
-            except:
+            except Exception:
                 depth = "moderate"  # Fallback to moderate on error
 
         # Shared slimming helpers for depth filtering

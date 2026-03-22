@@ -27,6 +27,7 @@ def export_to_reflex_logs(
         vectors = assessment_data.get("vectors", {})
 
         # Load configuration weights for confidence calculations
+        config = None
         try:
             import yaml
 
@@ -70,13 +71,13 @@ def export_to_reflex_logs(
                 'coherence': 0.3,
                 'signal': 0.2,
                 'density': 0.2
-            }) if 'config' in locals() else {
+            }) if config is not None else {
                 'clarity': 0.3,
                 'coherence': 0.3,
                 'signal': 0.2,
                 'density': 0.2
             }
-        except:
+        except Exception:
             comprehension_weights = {
                 'clarity': 0.3,
                 'coherence': 0.3,
@@ -98,13 +99,13 @@ def export_to_reflex_logs(
                 'change': 0.25,
                 'completion': 0.25,
                 'impact': 0.25
-            }) if 'config' in locals() else {
+            }) if config is not None else {
                 'state': 0.25,
                 'change': 0.25,
                 'completion': 0.25,
                 'impact': 0.25
             }
-        except:
+        except Exception:
             execution_weights = {
                 'state': 0.25,
                 'change': 0.25,
@@ -126,13 +127,13 @@ def export_to_reflex_logs(
                 'comprehension': 0.25,
                 'execution': 0.25,
                 'engagement': 0.15
-            }) if 'config' in locals() else {
+            }) if config is not None else {
                 'foundation': 0.35,
                 'comprehension': 0.25,
                 'execution': 0.25,
                 'engagement': 0.15
             }
-        except:
+        except Exception:
             overall_weights = {
                 'foundation': 0.35,
                 'comprehension': 0.25,

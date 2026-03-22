@@ -194,7 +194,7 @@ def _get_version():
         install_path = empirica.__file__.rsplit('/', 2)[0] if '/' in empirica.__file__ else empirica.__file__
         
         return f"{version}\n{python_version}\nInstall: {install_path}"
-    except:
+    except Exception:
         return "1.0.5 (version info unavailable)"
 
 

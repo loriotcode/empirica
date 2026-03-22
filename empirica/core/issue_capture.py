@@ -363,9 +363,9 @@ class AutoIssueCaptureService:
             elif isinstance(value, (list, dict)):
                 try:
                     safe_context[key] = str(value)[:500]
-                except:
-                    pass
-        
+                except Exception:
+                    logger.debug("Failed to stringify local variable %s", key)
+
         return safe_context
     
     def _store_issue(self, issue: Dict[str, Any]) -> None:

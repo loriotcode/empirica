@@ -248,7 +248,7 @@ class FlowStateMetrics:
                 scope = goal_data.get('scope', {})
                 scope_breadth = scope.get('breadth', 0.3)
                 scope_duration = scope.get('duration', 0.2)
-            except:
+            except Exception:
                 scope_breadth = 0.3
                 scope_duration = 0.2
             is_high_scope = scope_breadth >= 0.6 or scope_duration >= 0.5

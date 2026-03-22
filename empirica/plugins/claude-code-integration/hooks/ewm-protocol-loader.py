@@ -55,7 +55,7 @@ def find_protocol() -> Path | None:
             git_root = Path(result.stdout.strip())
             search_paths.insert(0, git_root / 'workflow-protocol.yaml')
             search_paths.insert(1, git_root / '.empirica' / 'workflow-protocol.yaml')
-    except:
+    except Exception:
         pass
 
     # Also check home-level for global protocol
@@ -329,7 +329,7 @@ def format_unknown_user_prompt(protocol: dict) -> str:
 def main():
     try:
         json.loads(sys.stdin.read())
-    except:
+    except Exception:
         pass
 
     # Find and load protocol

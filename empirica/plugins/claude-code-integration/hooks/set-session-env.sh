@@ -20,7 +20,7 @@ try:
         print(active_claude[0]['session_id'])
     else:
         sys.exit(1)
-except:
+except Exception:
     sys.exit(1)
 ")
 

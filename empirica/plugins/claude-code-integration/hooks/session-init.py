@@ -189,7 +189,7 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
         try:
             tty_path = os.ttyname(sys.stdin.fileno())
             tty_key = tty_path.replace('/', '-').lstrip('-')
-        except:
+        except Exception:
             pass
 
         instance_data = {
@@ -342,7 +342,7 @@ def main():
     hook_input = {}
     try:
         hook_input = json.loads(sys.stdin.read())
-    except:
+    except Exception:
         pass
 
     # Extract claude_session_id from hook input (critical for instance isolation)
