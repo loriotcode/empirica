@@ -96,9 +96,13 @@ def create_session_and_bootstrap(ai_id: str, project_id: str = None) -> dict:
 
     try:
         # Create session
+        # Set EMPIRICA_CWD_RELIABLE=true because session-init already os.chdir'd
+        # to the resolved project_root. This enables the git-root cross-check in
+        # get_session_db_path() to detect cross-project bleed from stale context.
+        env = {**os.environ, 'EMPIRICA_CWD_RELIABLE': 'true'}
         create_cmd = subprocess.run(
             ['empirica', 'session-create', '--ai-id', ai_id, '--output', 'json'],
-            capture_output=True, text=True, timeout=15
+            capture_output=True, text=True, timeout=15, env=env
         )
 
         if create_cmd.returncode != 0:
@@ -114,10 +118,10 @@ def create_session_and_bootstrap(ai_id: str, project_id: str = None) -> dict:
 
         result["session_id"] = session_id
 
-        # Run bootstrap
+        # Run bootstrap (env inherited from create_session — includes EMPIRICA_CWD_RELIABLE)
         bootstrap_cmd = subprocess.run(
             ['empirica', 'project-bootstrap', '--session-id', session_id, '--output', 'json'],
-            capture_output=True, text=True, timeout=30
+            capture_output=True, text=True, timeout=30, env=env
         )
 
         if bootstrap_cmd.returncode == 0:

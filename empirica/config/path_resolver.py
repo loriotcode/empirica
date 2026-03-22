@@ -224,11 +224,6 @@ def get_session_db_path() -> Path:
 
     # 1. Use unified context resolver (canonical source of truth)
     # This respects: transaction file (survives compaction) → active_work → TTY → instance_projects
-    #
-    # CROSS-CHECK: After context resolver, verify the resolved project matches the
-    # current git root. If they differ, the context is stale (cross-project bleed from
-    # instance_projects, TTY session, or active_work referencing a different project).
-    # In that case, prefer git-root resolution (steps 2-3).
     context_project_path = None
     try:
         from empirica.utils.session_resolver import InstanceResolver as R
@@ -245,11 +240,21 @@ def get_session_db_path() -> Path:
         pass
 
     if context_project_path:
-        # Cross-check: does context match CWD's git root?
-        # If git root exists and differs from context, context is cross-project bleed
+        # CROSS-CHECK (gated): Verify context project matches CWD's git root.
+        #
+        # CWD is UNRELIABLE in hooks (Claude Code resets after compaction — see
+        # instance_isolation/KNOWN_ISSUES.md Issue 11.10). This cross-check only
+        # activates when CWD is KNOWN reliable:
+        # - CLI commands called from session-init.py (which os.chdir's to project_root)
+        # - Direct user CLI invocations (user explicitly cd'd there)
+        #
+        # Without this check, stale context (TTY session, old instance_projects)
+        # can resolve to a DIFFERENT project's DB — causing wrong-DB writes for
+        # session-create, goals-complete, and other CLI commands.
+        cwd_reliable = os.getenv('EMPIRICA_CWD_RELIABLE', '').lower() == 'true'
         context_is_local = True
-        if git_root and str(git_root) != context_project_path:
-            # Context points to a DIFFERENT project than CWD — likely stale bleed.
+        if cwd_reliable and git_root and str(git_root) != context_project_path:
+            # Context points to a DIFFERENT project than CWD — stale bleed.
             # Check if git_root has its own .empirica (i.e., it's a registered project)
             local_db = Path(str(git_root)) / '.empirica' / 'sessions' / 'sessions.db'
             if local_db.exists():
