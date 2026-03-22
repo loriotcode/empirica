@@ -1722,10 +1722,11 @@ def get_active_context(claude_session_id: str = None) -> dict:
         - project_path: Project directory path
         - instance_id: Instance identifier (TMUX_PANE, etc.)
 
-    Priority chain for resolution:
-    1. active_work_{claude_session_id}.json (if claude_session_id provided)
-    2. TTY session file (if TTY available)
-    3. instance_projects (if TMUX_PANE available)
+    Priority chain for resolution (matches ARCHITECTURE.md):
+    0. Active transaction file (survives compaction — authoritative during transaction)
+    1. instance_projects/{instance_id}.json (updated by hooks AND project-switch)
+    2. active_work_{claude_session_id}.json (updated by hooks only)
+    3. TTY session file (fallback)
 
     Args:
         claude_session_id: Optional Claude Code conversation UUID (from hook input)
@@ -1743,21 +1744,25 @@ def get_active_context(claude_session_id: str = None) -> dict:
         'instance_id': get_instance_id(),
     }
 
-    # Priority 0: Check active_work file by Claude session_id (most authoritative)
-    if claude_session_id:
-        active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
-        if active_work_file.exists():
-            try:
-                with open(active_work_file, 'r') as f:
-                    data = json.load(f)
-                    context['empirica_session_id'] = data.get('empirica_session_id')
-                    context['project_path'] = data.get('project_path')
-                    logger.debug(f"get_active_context: loaded from active_work file")
-            except Exception:
-                pass
+    # Priority 0: Active transaction file (AUTHORITATIVE during transaction)
+    # Transaction files survive compaction and contain the correct project_path,
+    # session_id, and transaction_id. This MUST be checked first because after
+    # compact, active_work and instance_projects may reference stale data or
+    # a new claude_session_id that doesn't match the pre-compact files.
+    tx_data = read_active_transaction_full(claude_session_id)
+    if tx_data and tx_data.get('status') == 'open':
+        tx_project = tx_data.get('project_path')
+        tx_session = tx_data.get('session_id')
+        tx_id = tx_data.get('transaction_id')
+        if tx_project:
+            context['project_path'] = tx_project
+        if tx_session:
+            context['empirica_session_id'] = tx_session
+        if tx_id:
+            context['transaction_id'] = tx_id
+        logger.debug(f"get_active_context: from transaction file (P0)")
 
-    # Priority 1: Instance projects (HIGHER priority - updated by project-switch)
-    # This is the most reliable source when user switches projects
+    # Priority 1: Instance projects (updated by hooks AND project-switch CLI)
     if context['instance_id'] and (not context['empirica_session_id'] or not context['project_path']):
         instance_file = Path.home() / '.empirica' / 'instance_projects' / f"{context['instance_id']}.json"
         if instance_file.exists():
@@ -1770,10 +1775,26 @@ def get_active_context(claude_session_id: str = None) -> dict:
                         context['empirica_session_id'] = data.get('empirica_session_id')
                     if not context['claude_session_id']:
                         context['claude_session_id'] = data.get('claude_session_id')
+                    logger.debug(f"get_active_context: supplemented from instance_projects (P1)")
             except Exception:
                 pass
 
-    # Priority 2: TTY session (fallback - may be stale after project-switch)
+    # Priority 2: Active work file by Claude session_id
+    if claude_session_id and (not context['empirica_session_id'] or not context['project_path']):
+        active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
+        if active_work_file.exists():
+            try:
+                with open(active_work_file, 'r') as f:
+                    data = json.load(f)
+                    if not context['project_path']:
+                        context['project_path'] = data.get('project_path')
+                    if not context['empirica_session_id']:
+                        context['empirica_session_id'] = data.get('empirica_session_id')
+                    logger.debug(f"get_active_context: supplemented from active_work (P2)")
+            except Exception:
+                pass
+
+    # Priority 3: TTY session (fallback - may be stale after project-switch)
     if not context['empirica_session_id'] or not context['project_path']:
         tty_session = get_tty_session(warn_if_stale=False)
         if tty_session:
@@ -1783,16 +1804,6 @@ def get_active_context(claude_session_id: str = None) -> dict:
                 context['empirica_session_id'] = tty_session.get('empirica_session_id')
             if not context['project_path']:
                 context['project_path'] = tty_session.get('project_path')
-
-    # Load transaction from transaction file
-    if context['project_path']:
-        tx_data = read_active_transaction_full(claude_session_id)
-        if tx_data:
-            context['transaction_id'] = tx_data.get('transaction_id')
-            # Transaction file may have more recent session_id (from PREFLIGHT)
-            tx_session = tx_data.get('session_id')
-            if tx_session:
-                context['empirica_session_id'] = tx_session
 
     return context
 
