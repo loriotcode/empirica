@@ -1217,11 +1217,30 @@ def _validate_session_in_db(session_id: str, project_path: str = None) -> bool:
                 cursor.execute("SELECT 1 FROM sessions WHERE session_id = ?", (session_id,))
                 row = cursor.fetchone()
                 conn.close()
-                return row is not None
+                found = row is not None
+                if not found:
+                    logger.warning(
+                        f"_validate_session_in_db: session {session_id[:8]}... NOT FOUND "
+                        f"in project-local DB: {db_path}"
+                    )
+                    # Diagnostic: list recent sessions in this DB
+                    try:
+                        conn2 = sqlite3.connect(str(db_path))
+                        c2 = conn2.cursor()
+                        c2.execute("SELECT session_id, ai_id FROM sessions ORDER BY start_time DESC LIMIT 5")
+                        recent = c2.fetchall()
+                        conn2.close()
+                        logger.warning(f"  Recent sessions in DB: {[(r[0][:8], r[1]) for r in recent]}")
+                    except Exception:
+                        pass
+                return found
+            else:
+                logger.warning(f"_validate_session_in_db: DB does not exist at {db_path}")
             # DB doesn't exist at project path — fall through to default
 
         from empirica.data.session_database import SessionDatabase
         db = SessionDatabase()
+        logger.debug(f"_validate_session_in_db: fallback to SessionDatabase default, db_path={getattr(db, 'db_path', '?')}")
         cursor = db.conn.cursor()
         cursor.execute("SELECT 1 FROM sessions WHERE session_id = ?", (session_id,))
         row = cursor.fetchone()

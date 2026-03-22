@@ -495,6 +495,7 @@ def handle_session_create_command(args):
         current_instance_id = R.instance_id()
 
         db = SessionDatabase()
+        logger.info(f"session-create: using DB at {getattr(db, 'db_path', '?')}")
         close_result = auto_close_previous_sessions(db, ai_id, early_project_id, current_instance_id, output_format)
 
         if close_result["closed_sessions"]:
