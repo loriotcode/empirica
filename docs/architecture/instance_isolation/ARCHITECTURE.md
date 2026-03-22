@@ -126,6 +126,16 @@ Instance ID (get_instance_id):
   4: WINDOWID (X11, e.g. → x11:77639996)
   5: TTY device (e.g. → term_pts_6)
   6: None
+
+Database Path (get_session_db_path):
+  P0: EMPIRICA_SESSION_DB env var (explicit override — tests, CI, Docker)
+  P1: Unified context (transaction → active_work → TTY → instance_projects)
+      ↳ Cross-check (only when EMPIRICA_CWD_RELIABLE=true):
+        If context_project ≠ git_root AND git_root has .empirica → prefer git root
+        Prevents stale context from writing to wrong-project DB
+  P2: workspace.db lookup (git root → project via global registry)
+  P3: Git root based (.empirica/sessions/sessions.db)
+  ❌ NO CWD FALLBACK — raise ValueError if unresolvable
 ```
 
 ---
@@ -143,6 +153,13 @@ On **resume** (continued conversation in new terminal), session-init:
 1. Detects existing session via active_work, active_session, or DB scan
 2. Updates anchor files (instance_projects, active_work) for the new WINDOWID
 3. Does NOT create a duplicate session
+
+On **startup** after machine/terminal/tmux restart:
+1. `find_project_root()` resolves via CWD/git root (allow_cwd_fallback=True)
+2. Scans project's `.empirica/` for orphaned open transactions (any suffix)
+3. If found, adopts the orphaned transaction: re-keys to new instance suffix, returns session_id
+4. Updates anchor files for the new instance, reuses existing session
+5. Falls through to create new session only if no adoptable transaction exists
 
 ---
 

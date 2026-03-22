@@ -335,6 +335,26 @@ broken session-init).
 
 **Commit:** `c74705c0`
 
+### 11.22 Cross-Project Session Bleed via Stale Context (2026-03-22)
+
+**Symptom:** `session-create`, `goals-complete`, and Sentinel use wrong project's
+database when working in a multi-project setup. Goals marked complete don't show
+as complete in statusline. Sessions created in one project appear in another.
+
+**Root cause:** `get_session_db_path()` calls `R.context()` which falls through the
+priority chain (transaction → instance_projects → TTY session). When instance-keyed
+files don't match (after restart, project switch, or tmux recreation), TTY session
+or stale instance_projects return a DIFFERENT project's path. Since `get_session_db_path()`
+trusts the context resolver unconditionally, `SessionDatabase()` connects to the wrong DB.
+
+**Fix:** Added git-root cross-check to `get_session_db_path()`, gated behind
+`EMPIRICA_CWD_RELIABLE=true` env var. Only activates when CWD is known reliable
+(set by `session-init.py` after `os.chdir(project_root)`). Detects when context
+project differs from git root and falls through to git-root-based resolution.
+Sentinel hook does NOT use CWD cross-check (CWD unreliable in hooks per 11.10).
+
+**Commit:** `7aade9e4`, `937bf15f`
+
 ---
 
 ## By Design (Not Bugs)
@@ -343,12 +363,12 @@ broken session-init).
 
 **Scenario:** Terminal closes, new session has different instance IDs, old transaction can't be found.
 
-**Why NOT auto-recovered:**
-- Different Claude sessions shouldn't inherit each other's transactions
-- Auto-pickup could cause wrong-context pollution
-- Terminal failure is rare and requires human intervention anyway
+**Auto-adoption (v1.6.20+):** `session-init.py` now scans the CWD project's `.empirica/`
+for any `active_transaction*.json` with `status: open` on startup. If found, it adopts the
+most recent orphaned transaction by re-keying to the new instance suffix and reusing the session.
+This is safe because session-init already resolved the correct project via CWD/git root.
 
-**Recovery:**
+**Manual recovery** (if auto-adoption fails):
 ```bash
 # Option 1: Adopt the transaction (works for any instance type)
 empirica transaction-adopt --from <old_instance_id>

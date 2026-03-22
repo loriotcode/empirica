@@ -28,6 +28,7 @@ This document lists all environment variables that control Empirica's behavior.
 | Variable | Purpose | Default | Required |
 |----------|---------|---------|----------|
 | `EMPIRICA_INSTANCE_ID` | AI instance identifier | (auto-detected from TMUX_PANE) | No |
+| `EMPIRICA_CWD_RELIABLE` | Gates CWD cross-check in `get_session_db_path()` — when `true`, detects cross-project DB bleed from stale context by comparing context project against git root. Set automatically by `session-init.py` after `os.chdir()`. Do NOT set globally. | `false` | `true`, `false` |
 | `CLAUDE_INSTANCE_ID` | Claude-specific instance ID | (optional) | No |
 | `TMUX_PANE` | Tmux pane identifier | (auto-detected) | No |
 | `TERM_SESSION_ID` | Terminal session ID | (auto-detected) | No |
