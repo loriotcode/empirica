@@ -404,15 +404,19 @@ def format_threshold(know_threshold: float, color: str) -> str:
 
 
 def calculate_phase_composite(vectors: dict, phase: str) -> float:
-    """Calculate composite score for noetic or praxic phase.
+    """Calculate composite score for the current workflow phase.
 
     Noetic (investigating): avg of clarity, coherence, signal, density
     Praxic (acting): avg of state, change, completion, impact
+    Check (readiness gate): avg of know, context, clarity, coherence, signal, density
+      — CHECK evaluates readiness-to-act, not execution progress
     """
     if not vectors:
         return 0.0
 
-    if phase == 'noetic':
+    if phase == 'check':
+        keys = ['know', 'context', 'clarity', 'coherence', 'signal', 'density']
+    elif phase == 'noetic':
         keys = ['clarity', 'coherence', 'signal', 'density']
     else:
         keys = ['state', 'change', 'completion', 'impact']
@@ -975,7 +979,9 @@ def format_statusline(
         # Phase + work state (investigating/acting with composite %)
         if phase:
             work_phase = determine_work_phase(phase, gate_decision)
-            composite = calculate_phase_composite(vectors, work_phase)
+            # CHECK uses readiness vectors, not execution vectors
+            composite_phase = 'check' if phase == 'CHECK' else work_phase
+            composite = calculate_phase_composite(vectors, composite_phase)
             phase_str = format_phase_state(phase, work_phase, composite, gate_decision)
             parts.append(phase_str)
 
