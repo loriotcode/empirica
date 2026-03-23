@@ -5,6 +5,24 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.22] - 2026-03-23
+
+### Added
+- **Profile management CLI** — `profile-sync`, `profile-prune`, `profile-status` commands for epistemic profile lifecycle. Git notes as canonical portable format, SQLite as working database. Rule-based and manual pruning with `--dry-run` support
+- **ProfileImporter** — Git-notes-to-SQLite import path. Rebuilds working database from portable git notes (findings, unknowns, dead-ends, mistakes, goals). INSERT OR IGNORE deduplication
+- **Sentinel remote command classification** — SSH/rsync/scp commands now classified as noetic/praxic instead of blanket allow/deny. Inner commands extracted and classified using same SAFE_BASH_PREFIXES logic. Direction-aware for rsync/scp (upload=praxic, download=noetic). Includes Docker inspection, heredoc handling, chain/pipe parsing
+- **Release script two-phase flow** — `--prepare` (merge, build, test gate) and `--publish` (push to all channels) split for safer releases
+
+### Fixed
+- **CHECK composite showed wrong percentage** — CHECK phase was calculating composite from execution vectors (state, change, completion, impact) instead of readiness vectors (know, context, clarity, coherence, signal, density). CHECK gates readiness-to-act, not acting progress
+- **Statusline CHECK phase display** — Now shows percentage composite instead of just arrow/ellipsis
+- **Profile resource leaks** — 3 `SessionDatabase` instances opened without try/finally in profile commands. db.close() was skipped on exceptions
+- **Bootstrap NoneType comparison** — `structure_health` conformance/confidence could be `None` (key exists with null value), causing `'>' not supported between NoneType and float`. Guarded with `or 0.0`
+- **CLAUDE.md template gaps** — Added TRANSACTION CONTEXT FIELDS section and profile commands to CORE COMMANDS
+- **Docstring accuracy** — Fixed phantom command references in ProfileImporter module docstring, wrong return type in `_apply_prune_rule`
+- **project-search project name resolution** — Resolve project names before Qdrant lookup. Contributed by @kars85 (#65)
+- **project-search docs default** — Include project docs in focused search and initialize docs ignore defaults. Contributed by @kars85 (#63)
+
 ## [1.6.11] - 2026-03-19
 
 ### Added
