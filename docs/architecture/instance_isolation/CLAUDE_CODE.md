@@ -159,7 +159,7 @@ The statusline is querying the wrong session.
 
 tmux died and new panes have different IDs (e.g., `%7` instead of `%4`).
 
-**Automatic:** As of v1.6.20, `session-init.py` auto-detects orphaned open
+**Automatic:** As of v1.6.21, `session-init.py` auto-detects orphaned open
 transactions on startup. It scans the project's `.empirica/` for any
 `active_transaction*.json` with `status: open`, adopts the most recent one,
 and re-keys it to the new instance suffix. No manual intervention needed.

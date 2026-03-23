@@ -306,7 +306,7 @@ macOS Terminal, or TTY-only environments, instance_id was `None`, so no
 `instance_projects/{id}.json` was written. This broke the resolution chain:
 `get_active_project_path()` → `read_active_transaction()` → CHECK `transaction_id`.
 
-**Why it surfaced now:** Isolation hardening (v1.6.5–1.6.20) removed CWD fallbacks
+**Why it surfaced now:** Isolation hardening (v1.6.5–1.6.21) removed CWD fallbacks
 and tightened resolution to be instance-aware. Correct in principle, but exposed
 the latent tmux-only assumption in CLI commands.
 
@@ -363,7 +363,7 @@ Sentinel hook does NOT use CWD cross-check (CWD unreliable in hooks per 11.10).
 
 **Scenario:** Terminal closes, new session has different instance IDs, old transaction can't be found.
 
-**Auto-adoption (v1.6.20+):** `session-init.py` now scans the CWD project's `.empirica/`
+**Auto-adoption (v1.6.21+):** `session-init.py` now scans the CWD project's `.empirica/`
 for any `active_transaction*.json` with `status: open` on startup. If found, it adopts the
 most recent orphaned transaction by re-keying to the new instance suffix and reusing the session.
 This is safe because session-init already resolved the correct project via CWD/git root.
