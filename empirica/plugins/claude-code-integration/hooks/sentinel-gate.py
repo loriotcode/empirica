@@ -253,6 +253,7 @@ EMPIRICA_TIER1_PREFIXES = (
     'empirica workspace-list', 'empirica ecosystem-check',  # Workspace queries - read-only
     'empirica --help', 'empirica -h',
     'empirica version',
+    'empirica profile-status',  # Profile status - read-only
 )
 
 # Tier 2: State-changing commands - allowed (these ARE the epistemic workflow)
@@ -285,6 +286,7 @@ EMPIRICA_TIER2_PREFIXES = (
     'empirica sentinel-orchestrate', 'empirica sentinel-load-profile',  # Sentinel management
     'empirica artifacts-generate',  # Artifact generation
     'empirica goals-mark-stale', 'empirica goals-refresh',  # Goal staleness management
+    'empirica profile-sync', 'empirica profile-prune',  # Profile management - state-changing
 )
 
 
@@ -699,6 +701,13 @@ def is_safe_bash_command(tool_input: dict) -> bool:
                     continue  # cd is always safe
                 if is_safe_empirica_command(segment_clean):
                     continue  # empirica tier1/tier2 commands are safe
+                # Check remote commands (ssh, rsync, scp)
+                if segment_clean.startswith(('ssh ', 'rsync ', 'scp ', 'ssh-')):
+                    if is_safe_remote_command(segment_clean):
+                        continue
+                    else:
+                        all_segments_safe = False
+                        break
                 # Check against SAFE_BASH_PREFIXES (grep, cat, ls, git status, etc.)
                 segment_is_safe = False
                 for prefix in SAFE_BASH_PREFIXES:
@@ -736,6 +745,10 @@ def is_safe_bash_command(tool_input: dict) -> bool:
 
     # Strip leading whitespace and check against safe prefixes
     command_stripped = command.lstrip()
+
+    # Special case: remote commands (ssh, rsync, scp) — classify inner command
+    if command_stripped.startswith(('ssh ', 'rsync ', 'scp ', 'ssh-')):
+        return is_safe_remote_command(command_stripped)
 
     # Special case: sqlite3 read-only queries (noetic DB access)
     if command_stripped.startswith('sqlite3 '):
@@ -853,6 +866,339 @@ def is_safe_python_command(command: str) -> bool:
             return False
 
     # Allow: anything that's not writing is investigation
+    return True
+
+
+def is_safe_remote_command(command: str) -> bool:
+    """
+    Classify remote commands (ssh, rsync, scp) as noetic or praxic.
+
+    Remote commands need their own classification logic because:
+    - ssh wraps an arbitrary remote command that may be read-only or destructive
+    - rsync/scp direction determines whether it's reading or writing
+    - A blanket allow/deny for SSH is too coarse
+
+    Returns True if the remote command is noetic (safe/read-only).
+
+    Classification:
+    - ssh user@host "ls /path"        → noetic (reading remotely)
+    - ssh user@host "docker ps"       → noetic (inspecting)
+    - ssh user@host "git push ..."    → praxic (writing remotely)
+    - ssh user@host (no command)      → noetic (interactive session / investigation)
+    - rsync --dry-run ...             → noetic
+    - rsync src/ server:/path         → praxic (uploading)
+    - rsync server:/path local/       → noetic (downloading)
+    - scp file server:/path           → praxic (uploading)
+    - scp server:/path file           → noetic (downloading)
+    - ssh-copy-id                     → praxic (modifying remote authorized_keys)
+    - ssh-add, ssh-keygen             → local operations, allowed
+    """
+    command_stripped = command.lstrip()
+
+    # --- ssh-add, ssh-keygen, ssh-agent: local key management, always safe ---
+    if command_stripped.startswith(('ssh-add', 'ssh-keygen', 'ssh-agent', 'ssh -T')):
+        return True
+
+    # --- ssh-copy-id: modifies remote, always praxic ---
+    if command_stripped.startswith('ssh-copy-id'):
+        return False
+
+    # --- scp: check transfer direction ---
+    if command_stripped.startswith('scp '):
+        return _classify_scp(command_stripped)
+
+    # --- rsync: check direction and flags ---
+    if command_stripped.startswith('rsync '):
+        return _classify_rsync(command_stripped)
+
+    # --- ssh: extract and classify the inner command ---
+    if command_stripped.startswith('ssh '):
+        return _classify_ssh(command_stripped)
+
+    return False  # Unknown remote command type
+
+
+def _classify_ssh(command: str) -> bool:
+    """
+    Extract the remote command from an SSH invocation and classify it.
+
+    SSH format: ssh [options] [user@]host [command...]
+    Options that take arguments: -B -b -c -D -E -e -F -I -i -J -L -l -m -O -o -p -R -S -W -w
+    """
+    # Handle heredoc-style SSH: ssh user@host << 'EOF' ... EOF
+    # These are complex multi-command blocks — treat as praxic
+    if '<<' in command:
+        # Extract the heredoc content and classify each line
+        return _classify_ssh_heredoc(command)
+
+    parts = command.split()
+    if len(parts) < 2:
+        return True  # Just 'ssh' alone, harmless
+
+    # SSH options that consume the NEXT argument
+    ssh_opts_with_arg = set('BbcDEeFIiJLlmOopRSWw')
+
+    i = 1  # Skip 'ssh'
+    skip_next = False
+    host_found = False
+    remote_cmd_parts = []
+
+    for i in range(1, len(parts)):
+        part = parts[i]
+
+        if skip_next:
+            skip_next = False
+            continue
+
+        # ConnectTimeout and similar -o options
+        if part.startswith('-o'):
+            if part == '-o':
+                skip_next = True  # -o Option=Value
+            # else: -oOption=Value (combined)
+            continue
+
+        # Options with arguments: -p 22, -i ~/.ssh/key, etc.
+        if part.startswith('-') and len(part) >= 2:
+            opt_char = part[1]
+            if opt_char in ssh_opts_with_arg:
+                if len(part) == 2:
+                    skip_next = True  # Arg is next word
+                # else: -p22 (combined), no skip
+            # Flags without args: -A, -v, -N, -T, etc.
+            continue
+
+        if not host_found:
+            host_found = True
+            continue  # This is the hostname
+
+        # Everything after hostname is the remote command
+        remote_cmd_parts = parts[i:]
+        break
+
+    if not remote_cmd_parts:
+        return True  # No remote command = interactive session (noetic investigation)
+
+    # Reconstruct the remote command
+    # Handle quoted strings: ssh host "ls -la && echo done"
+    # The shell already split on spaces, so we rejoin
+    remote_cmd = ' '.join(remote_cmd_parts)
+
+    # Strip surrounding quotes if present
+    if (remote_cmd.startswith('"') and remote_cmd.endswith('"')) or \
+       (remote_cmd.startswith("'") and remote_cmd.endswith("'")):
+        remote_cmd = remote_cmd[1:-1]
+
+    # Now classify the remote command using the same logic as local commands
+    return _is_remote_cmd_safe(remote_cmd)
+
+
+def _classify_ssh_heredoc(command: str) -> bool:
+    """
+    Classify an SSH command that uses a heredoc for its remote commands.
+
+    Format: ssh user@host 'cmd1 && cmd2 && ...'
+    Or:     ssh user@host << 'EOF'
+            cmd1
+            cmd2
+            EOF
+
+    Strategy: Extract each command line and check all are safe.
+    If we can't parse it reliably, default to praxic (conservative).
+    """
+    # For heredoc-in-command (the heredoc content is in the command string),
+    # try to extract the content between the delimiters
+    heredoc_match = re.search(r"<<\s*'?(\w+)'?\s*\n(.*?)\n\1", command, re.DOTALL)
+    if heredoc_match:
+        heredoc_content = heredoc_match.group(2)
+        lines = [l.strip() for l in heredoc_content.strip().split('\n') if l.strip()]
+        return all(_is_remote_cmd_safe(line) for line in lines)
+
+    # Can't parse heredoc content (probably not in the command string yet)
+    # Conservative: treat as praxic
+    return False
+
+
+def _is_remote_cmd_safe(remote_cmd: str) -> bool:
+    """
+    Classify a remote command string as noetic or praxic.
+    Uses the same SAFE_BASH_PREFIXES logic as local commands,
+    plus handles chains (&&, ||) within the remote command.
+    """
+    remote_cmd = remote_cmd.strip()
+    if not remote_cmd:
+        return True
+
+    # Handle chains within the remote command: cmd1 && cmd2 && cmd3
+    for chain_op in ('&&', '||', ';'):
+        if chain_op in remote_cmd:
+            segments = [s.strip() for s in remote_cmd.split(chain_op)]
+            return all(_is_single_remote_cmd_safe(seg) for seg in segments if seg)
+
+    # Handle pipes within the remote command
+    if '|' in remote_cmd:
+        segments = [s.strip() for s in remote_cmd.split('|')]
+        if not segments:
+            return False
+        # First segment must be safe, rest must be safe pipe targets
+        if not _is_single_remote_cmd_safe(segments[0]):
+            return False
+        for seg in segments[1:]:
+            seg = seg.strip()
+            if not any(seg.startswith(t) for t in SAFE_PIPE_TARGETS):
+                if not _is_single_remote_cmd_safe(seg):
+                    return False
+        return True
+
+    return _is_single_remote_cmd_safe(remote_cmd)
+
+
+def _is_single_remote_cmd_safe(cmd: str) -> bool:
+    """Check a single remote command against SAFE_BASH_PREFIXES."""
+    cmd = cmd.strip()
+    if not cmd:
+        return True
+
+    # Strip safe redirects
+    cmd_clean = SAFE_REDIRECT_PATTERN.sub('', cmd).strip()
+
+    # cd is always safe
+    if cmd_clean.startswith('cd '):
+        return True
+
+    # Docker inspection commands (common in remote infra work)
+    docker_safe = (
+        'docker ps', 'docker images', 'docker logs', 'docker inspect',
+        'docker stats', 'docker top', 'docker port', 'docker diff',
+        'docker info', 'docker version', 'docker network ls',
+        'docker network inspect', 'docker volume ls', 'docker volume inspect',
+        'docker compose ps', 'docker compose logs', 'docker-compose ps',
+        'docker-compose logs', 'docker exec -u git forgejo gitea admin user generate-access-token',
+    )
+    for prefix in docker_safe:
+        if cmd_clean.startswith(prefix):
+            return True
+
+    # systemctl status/is-active (read-only)
+    if cmd_clean.startswith(('systemctl status', 'systemctl is-active', 'systemctl list-')):
+        return True
+
+    # journalctl (log reading)
+    if cmd_clean.startswith('journalctl'):
+        return True
+
+    # Check standard SAFE_BASH_PREFIXES
+    for prefix in SAFE_BASH_PREFIXES:
+        if cmd_clean.startswith(prefix) or (prefix.endswith(' ') and cmd_clean == prefix.rstrip()):
+            return True
+
+    return False
+
+
+def _classify_rsync(command: str) -> bool:
+    """
+    Classify rsync as noetic or praxic based on direction and flags.
+
+    Noetic: --dry-run/-n, downloading (remote→local)
+    Praxic: uploading (local→remote), --delete
+    """
+    parts = command.split()
+
+    # --dry-run or -n → always noetic (just showing what would happen)
+    if '--dry-run' in parts or '-n' in parts:
+        return True
+
+    # --delete is always destructive → praxic
+    if '--delete' in parts or '--delete-before' in parts or '--delete-after' in parts:
+        return False
+
+    # Determine direction by finding src and dest arguments
+    # rsync [options] source... dest
+    # Remote paths contain ':' (user@host:/path or host:/path)
+    # Skip option arguments
+    rsync_opts_with_arg = set('efi')  # Common opts that take next arg
+    non_option_args = []
+    skip_next = False
+
+    for i, part in enumerate(parts[1:], 1):
+        if skip_next:
+            skip_next = False
+            continue
+        if part.startswith('--'):
+            if '=' not in part and part in ('--rsh', '--filter', '--exclude', '--include',
+                                             '--exclude-from', '--include-from', '--files-from',
+                                             '--log-file', '--out-format', '--backup-dir',
+                                             '--suffix', '--compare-dest', '--copy-dest',
+                                             '--link-dest', '--compress-level', '--skip-compress',
+                                             '--max-size', '--min-size', '--timeout',
+                                             '--contimeout', '--address', '--port',
+                                             '--sockopts', '--outbuf', '--remote-option',
+                                             '--info', '--debug', '--chmod',
+                                             '--chown', '--groupmap', '--usermap'):
+                skip_next = True
+            continue
+        if part.startswith('-') and not part.startswith('--'):
+            # Short options, check if any consume next arg
+            opt_chars = part[1:]
+            if opt_chars and opt_chars[-1] in rsync_opts_with_arg:
+                skip_next = True
+            continue
+        non_option_args.append(part)
+
+    if len(non_option_args) < 2:
+        return False  # Can't determine direction, conservative
+
+    # Last non-option arg is destination
+    dest = non_option_args[-1]
+    sources = non_option_args[:-1]
+
+    # If destination has ':' → uploading → praxic
+    if ':' in dest and not dest.startswith('/'):
+        return False
+
+    # If any source has ':' and dest is local → downloading → noetic
+    if any(':' in src and not src.startswith('/') for src in sources):
+        return True
+
+    # Both local (or can't tell) → praxic (conservative)
+    return False
+
+
+def _classify_scp(command: str) -> bool:
+    """
+    Classify scp as noetic or praxic based on transfer direction.
+
+    Noetic: downloading (remote→local)
+    Praxic: uploading (local→remote)
+    """
+    parts = command.split()
+
+    # SCP options that consume next argument
+    scp_opts_with_arg = set('cFiloPSs')
+    non_option_args = []
+    skip_next = False
+
+    for part in parts[1:]:
+        if skip_next:
+            skip_next = False
+            continue
+        if part.startswith('-') and len(part) >= 2:
+            opt_char = part[1]
+            if opt_char in scp_opts_with_arg and len(part) == 2:
+                skip_next = True
+            continue
+        non_option_args.append(part)
+
+    if len(non_option_args) < 2:
+        return False  # Can't determine direction
+
+    # Last arg is destination
+    dest = non_option_args[-1]
+
+    # If destination contains ':' (and isn't an absolute path) → uploading → praxic
+    if ':' in dest and not dest.startswith('/'):
+        return False
+
+    # Otherwise → downloading or local copy → noetic
     return True
 
 
