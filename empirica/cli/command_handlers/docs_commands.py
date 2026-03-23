@@ -67,6 +67,8 @@ def _auto_detect_project_config(project_root: Path) -> ProjectConfig:
     cli_module = None
     cli_entry = None
     cli_framework = "unknown"
+    docs_ignore_classes: list[str] = []
+    docs_ignore_paths: list[str] = []
 
     if pyproject.exists():
         try:
