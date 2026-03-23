@@ -28,7 +28,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 PLUGIN_NAME = "empirica-integration"
-PLUGIN_VERSION = "1.6.21"
+PLUGIN_VERSION = "1.6.22"
 
 
 def _find_python() -> str:
@@ -127,7 +127,7 @@ def handle_setup_claude_code_command(args):
     """Handle setup-claude-code command"""
     try:
         output_format = getattr(args, 'output', 'human')
-        # --force is accepted for backward compat but is now a no-op (plugin always syncs)
+        force = getattr(args, 'force', False)
         skip_mcp = getattr(args, 'skip_mcp', False)
         skip_claude_md = getattr(args, 'skip_claude_md', False)
 
@@ -269,6 +269,13 @@ def handle_setup_claude_code_command(args):
         settings['enabledPlugins'][plugin_key] = True
         if output_format != 'json':
             print("   ✓ Plugin enabled")
+
+        # --force: clear hooks and statusLine so everything gets rewritten from current definitions
+        if force:
+            settings['hooks'] = {}
+            settings.pop('statusLine', None)
+            if output_format != 'json':
+                print("   --force: clearing existing hooks and statusLine for reinstall")
 
         # Configure StatusLine
         # Claude Code pipes session JSON to statusline stdin — do NOT redirect stdin
