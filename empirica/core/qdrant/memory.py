@@ -184,14 +184,15 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
     Args:
         project_id: Project UUID
         query_text: Search query
-        kind: "focused" (default: eidetic + episodic), "all", "docs", "memory", "eidetic", "episodic"
+        kind: "focused" (default: docs + eidetic + episodic), "all", "docs", "memory", "eidetic", "episodic"
         limit: Max results per collection
 
     Returns empty results if Qdrant not available.
     """
-    # Focused = eidetic + episodic (refined knowledge, no raw duplicates)
+    # Focused = docs + eidetic + episodic so project-embed content is searchable
+    # without forcing callers to discover the hidden --type docs / --type all modes.
     if kind == "focused":
-        search_kinds = ["eidetic", "episodic"]
+        search_kinds = ["docs", "eidetic", "episodic"]
     elif kind == "all":
         search_kinds = ["docs", "memory", "eidetic", "episodic"]
     else:
