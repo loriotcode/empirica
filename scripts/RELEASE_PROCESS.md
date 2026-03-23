@@ -11,32 +11,45 @@ Edit `pyproject.toml` and update the version:
 version = "1.0.3"  # Update this
 ```
 
-### 2. Preview Changes
+### 2. Prepare Release (merge, build, test)
 ```bash
-python scripts/release.py --dry-run
+python scripts/release.py --prepare --old-version 1.6.20
 ```
 
-This will show you what would be updated:
-- ✅ Homebrew formula (SHA256 + URL)
-- ✅ Dockerfile (version label + wheel paths)
-- ✅ Chocolatey nuspec (version)
-- ✅ PyPI publish
-- ✅ Docker build + push
-- ✅ Git tag + GitHub release
+This will:
+1. Merge develop → main
+2. Update all version strings
+3. Build Python packages (empirica + empirica-mcp)
+4. Update Homebrew formula, Dockerfile, Chocolatey nuspec
+5. Run import smoke tests (catches missing imports like #61)
+6. Run test suite (aborts if tests fail)
 
-### 3. Execute Release
+**If tests fail:** Fix on develop, then re-run `--prepare`.
+
+### 3. Review
+- Check the build artifacts in `dist/`
+- Manually test: `empirica session-create --ai-id test --output json`
+- Review the diff: `git log main..HEAD`
+
+### 4. Publish
+```bash
+python scripts/release.py --publish
+```
+
+This publishes to all channels:
+- ✅ PyPI (empirica + empirica-mcp)
+- ✅ Git tag + push
+- ✅ Docker build + push
+- ✅ GitHub release with artifacts
+- ✅ Homebrew tap update
+- ✅ Switch back to develop
+
+### Legacy (one-shot, less safe)
 ```bash
 python scripts/release.py
 ```
-
-That's it! The script will:
-1. Build Python package
-2. Calculate tarball SHA256
-3. Update all distribution files
-4. Publish to PyPI
-5. Create git tag and push
-6. Build and push Docker images
-7. Create GitHub release with artifacts
+Runs prepare + publish in one shot. Still runs tests as a gate but
+gives no review window. Use `--prepare` / `--publish` for production.
 
 ## What Gets Updated Automatically
 
@@ -149,11 +162,14 @@ Edit `scripts/release.py` and comment out the step in the `run()` method.
 # 1. Edit version in pyproject.toml
 vim pyproject.toml
 
-# 2. Preview
-python scripts/release.py --dry-run
+# 2. Prepare (merge, build, test)
+python scripts/release.py --prepare --old-version <prev>
 
-# 3. Release
-python scripts/release.py
+# 3. Review artifacts + smoke test
+empirica session-create --ai-id test --output json
+
+# 4. Publish
+python scripts/release.py --publish
 
 # Done! ✅
 ```
