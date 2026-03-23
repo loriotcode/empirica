@@ -697,8 +697,190 @@ brew install empirica
             self.run_command(["git", "merge", "main", "-m", f"Merge main — post-release {self.version}"])
             self.run_command(["git", "push", "origin", "develop"], check=False)
 
+    def run_tests(self) -> bool:
+        """Run test suite as a release gate. Returns True if tests pass."""
+        log("\n" + "=" * 60)
+        log("🧪 Running test suite (release gate)")
+        log("=" * 60)
+
+        if self.dry_run:
+            info("Would run: python3 -m pytest tests/ -x -q --tb=short")
+            return True
+
+        result = subprocess.run(
+            ["python3", "-m", "pytest", "tests/", "-x", "-q", "--tb=short",
+             "--ignore=tests/integration", "--ignore=tests/manual_test_goals.py",
+             "-p", "no:cacheprovider"],
+            capture_output=True, text=True, timeout=120,
+            cwd=str(self.repo_root),
+        )
+
+        if result.returncode == 0:
+            success("Tests passed!")
+            if result.stdout:
+                # Show summary line
+                for line in result.stdout.strip().splitlines()[-3:]:
+                    info(f"  {line}")
+            return True
+        else:
+            log(f"\n{RED}Tests FAILED:{RESET}")
+            # Show failure output
+            output = result.stdout + result.stderr
+            for line in output.strip().splitlines()[-20:]:
+                log(f"  {line}")
+            return False
+
+    def run_import_check(self) -> bool:
+        """Quick check that key CLI entry points import without error."""
+        log("\n" + "=" * 60)
+        log("🔍 Checking critical imports (smoke test)")
+        log("=" * 60)
+
+        checks = [
+            ("session-create", "from empirica.cli.command_handlers.session_create import handle_session_create_command"),
+            ("cli-core", "from empirica.cli.cli_core import main"),
+            ("session-database", "from empirica.data.session_database import SessionDatabase"),
+            ("path-resolver", "from empirica.config.path_resolver import get_session_db_path"),
+        ]
+
+        all_ok = True
+        for name, import_stmt in checks:
+            if self.dry_run:
+                info(f"Would check: {name}")
+                continue
+            result = subprocess.run(
+                ["python3", "-c", import_stmt],
+                capture_output=True, text=True, timeout=10,
+                cwd=str(self.repo_root),
+            )
+            if result.returncode == 0:
+                success(f"  {name}: OK")
+            else:
+                log(f"  {RED}{name}: FAILED — {result.stderr.strip().splitlines()[-1]}{RESET}")
+                all_ok = False
+
+        return all_ok
+
+    def run_prepare(self):
+        """Prepare release: merge to main, build, test. Does NOT publish.
+
+        This is the safe first half of the release pipeline. After running
+        this, review the build artifacts and test results before publishing
+        with --publish.
+        """
+        log("\n╔════════════════════════════════════════════════════════════╗")
+        log("║  Empirica Release — PREPARE (merge + build + test)        ║")
+        log("╚════════════════════════════════════════════════════════════╝\n")
+
+        if self.dry_run:
+            warning("DRY RUN MODE - No changes will be made\n")
+
+        try:
+            self.version = self.read_version()
+
+            # Merge develop → main
+            if not self.dry_run:
+                self.ensure_main_branch()
+
+            # Update version strings
+            self.update_version_strings()
+            if self.old_version:
+                self.sweep_version(self.old_version)
+
+            # Build packages
+            self.build_package()
+            self.build_mcp_package()
+
+            # Calculate SHA256 and update packaging
+            self.tarball_sha256 = self.calculate_sha256()
+            self.update_homebrew_formula()
+            self.update_dockerfile()
+            self.update_chocolatey_nuspec()
+
+            # Gate: import smoke test
+            if not self.run_import_check():
+                error("Import check failed — fix before publishing.")
+
+            # Gate: test suite
+            if not self.run_tests():
+                warning("Tests failed. Fix issues before running --publish.")
+                warning("You are on the 'main' branch with built artifacts.")
+                warning("To abort: git checkout develop && git reset --hard origin/main")
+                info(f"\nOnce fixed, run: python scripts/release.py --publish")
+                sys.exit(1)
+
+            log("\n╔════════════════════════════════════════════════════════════╗")
+            log("║  ✅ Prepare Complete — Ready to Publish                    ║")
+            log("╚════════════════════════════════════════════════════════════╝\n")
+
+            success(f"v{self.version} built and tested on main branch")
+            info(f"Artifacts: dist/empirica-{self.version}*.tar.gz, *.whl")
+            info(f"SHA256: {self.tarball_sha256}")
+            info(f"\nNext: review changes, then run:")
+            info(f"  python scripts/release.py --publish")
+
+        except Exception as e:
+            error(f"Prepare failed: {e}")
+
+    def run_publish(self):
+        """Publish a prepared release. Requires --prepare to have been run first."""
+        log("\n╔════════════════════════════════════════════════════════════╗")
+        log("║  Empirica Release — PUBLISH                               ║")
+        log("╚════════════════════════════════════════════════════════════╝\n")
+
+        if self.dry_run:
+            warning("DRY RUN MODE - No changes will be made\n")
+
+        try:
+            self.version = self.read_version()
+
+            # Verify we're on main with built artifacts
+            result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True, text=True, cwd=self.repo_root,
+            )
+            current_branch = result.stdout.strip()
+            if current_branch != "main" and not self.dry_run:
+                error(f"--publish requires main branch (currently on '{current_branch}'). Run --prepare first.")
+
+            tarball = self.repo_root / "dist" / f"empirica-{self.version}.tar.gz"
+            if not tarball.exists() and not self.dry_run:
+                error(f"No built artifacts found at {tarball}. Run --prepare first.")
+
+            self.tarball_sha256 = self.calculate_sha256()
+
+            # Publish to all channels
+            self.publish_to_pypi()
+            self.publish_mcp_to_pypi()
+            self.create_git_tag()
+            self.build_and_push_docker()
+            self.create_github_release()
+            self.update_homebrew_tap()
+
+            # Switch back to develop
+            if not self.dry_run:
+                self.back_to_develop()
+
+            log("\n╔════════════════════════════════════════════════════════════╗")
+            log("║  ✅ Release Published!                                     ║")
+            log("╚════════════════════════════════════════════════════════════╝\n")
+
+            success(f"Released empirica v{self.version}")
+            info(f"PyPI: https://pypi.org/project/empirica/{self.version}/")
+            info(f"PyPI (MCP): https://pypi.org/project/empirica-mcp/{self.version}/")
+            info(f"Docker: docker pull nubaeon/empirica:{self.version}")
+            info(f"Docker: docker pull nubaeon/empirica:{self.version}-alpine")
+            info(f"GitHub: https://github.com/Nubaeon/empirica/releases/tag/v{self.version}")
+            info(f"Homebrew: brew upgrade empirica")
+
+        except Exception as e:
+            error(f"Publish failed: {e}")
+
     def run(self):
-        """Execute full release process"""
+        """Execute full release process (prepare + publish in one shot).
+
+        For safer releases, use --prepare then --publish separately.
+        """
         log("\n╔════════════════════════════════════════════════════════════╗")
         log("║  Empirica Automated Release Pipeline                       ║")
         log("╚════════════════════════════════════════════════════════════╝\n")
@@ -706,29 +888,38 @@ brew install empirica
         if self.dry_run:
             warning("DRY RUN MODE - No changes will be made\n")
 
+        warning("Running full release (prepare + publish) in one shot.")
+        warning("For safer releases, use: --prepare → review → --publish\n")
+
         try:
-            # Read version from pyproject.toml (single source of truth)
             self.version = self.read_version()
 
-            # Merge develop → main (release happens on main)
+            # Merge develop → main
             if not self.dry_run:
                 self.ensure_main_branch()
 
-            # Update version strings and sweep BEFORE building packages
-            # so the README baked into the wheel has correct version refs
+            # Update version strings and sweep
             self.update_version_strings()
             if self.old_version:
                 self.sweep_version(self.old_version)
 
-            # Build packages (after sweep so wheel contains current README)
+            # Build packages
             self.build_package()
             self.build_mcp_package()
 
-            # Calculate tarball SHA256 and update packaging files that need it
+            # Calculate SHA256 and update packaging
             self.tarball_sha256 = self.calculate_sha256()
             self.update_homebrew_formula()
             self.update_dockerfile()
             self.update_chocolatey_nuspec()
+
+            # Gate: import smoke test
+            if not self.run_import_check():
+                error("Import check failed — aborting release.")
+
+            # Gate: test suite
+            if not self.run_tests():
+                error("Tests failed — aborting release. Fix and retry.")
 
             # Publish
             self.publish_to_pypi()
@@ -738,7 +929,7 @@ brew install empirica
             self.create_github_release()
             self.update_homebrew_tap()
 
-            # Switch back to develop and merge release commits
+            # Switch back to develop
             if not self.dry_run:
                 self.back_to_develop()
 
@@ -759,7 +950,19 @@ brew install empirica
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Automated release script for Empirica")
+    parser = argparse.ArgumentParser(
+        description="Automated release script for Empirica",
+        epilog="""
+Recommended flow:
+  1. python scripts/release.py --prepare          # merge, build, test
+  2. (review artifacts, smoke test manually)
+  3. python scripts/release.py --publish           # push to all channels
+
+Legacy (one-shot, less safe):
+  python scripts/release.py                        # prepare + publish
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -774,11 +977,28 @@ def main():
         action="store_true",
         help="Update version strings only (no build/publish). Requires --old-version."
     )
+    parser.add_argument(
+        "--prepare",
+        action="store_true",
+        help="Merge to main, build, and test — but do NOT publish. Review before --publish."
+    )
+    parser.add_argument(
+        "--publish",
+        action="store_true",
+        help="Publish a prepared release (requires --prepare to have been run first)."
+    )
     args = parser.parse_args()
+
+    if args.prepare and args.publish:
+        parser.error("Use --prepare and --publish separately, not together.")
 
     manager = ReleaseManager(dry_run=args.dry_run, old_version=args.old_version)
     if args.version_only:
         manager.run_version_update()
+    elif args.prepare:
+        manager.run_prepare()
+    elif args.publish:
+        manager.run_publish()
     else:
         manager.run()
 
