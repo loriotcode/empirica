@@ -8,10 +8,13 @@ Session lifecycle:
 """
 
 import json
+import logging
 import re
 import sys
 from empirica.utils.session_resolver import InstanceResolver as R
 from ..cli_utils import handle_cli_error
+
+logger = logging.getLogger(__name__)
 
 
 def _is_uuid_format(value: str) -> bool:
