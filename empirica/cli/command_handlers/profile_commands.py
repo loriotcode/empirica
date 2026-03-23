@@ -131,14 +131,15 @@ def _import_notes_to_sqlite() -> Dict[str, Any]:
         from empirica.data.session_database import SessionDatabase
 
         db = SessionDatabase()
-        importer = ProfileImporter(workspace_root=_get_workspace_root())
-        stats = importer.import_all(db)
-        db.close()
-
-        return {
-            'ok': True,
-            'stats': stats,
-        }
+        try:
+            importer = ProfileImporter(workspace_root=_get_workspace_root())
+            stats = importer.import_all(db)
+            return {
+                'ok': True,
+                'stats': stats,
+            }
+        finally:
+            db.close()
     except Exception as e:
         logger.warning(f"Import failed: {e}")
         return {
@@ -348,7 +349,7 @@ def _apply_prune_rule(db, rule: str, older_than_days: Optional[int] = None,
                       dry_run: bool = False) -> Dict[str, Any]:
     """Apply a mechanical pruning rule.
 
-    Returns list of pruned (or would-be-pruned) artifacts.
+    Returns dict with 'ok', 'count', and 'pruned'/'candidates' keys.
     """
     cursor = db.conn.cursor()
     candidates = []
@@ -471,30 +472,30 @@ def handle_profile_prune_command(args):
         from empirica.data.session_database import SessionDatabase
         db = SessionDatabase()
 
-        if artifact_id:
-            if not artifact_type:
-                result = {"ok": False, "error": "--artifact-type required with --artifact-id"}
-                print(json.dumps(result, indent=2))
-                db.close()
-                return 1
+        try:
+            if artifact_id:
+                if not artifact_type:
+                    result = {"ok": False, "error": "--artifact-type required with --artifact-id"}
+                    print(json.dumps(result, indent=2))
+                    return 1
 
-            if dry_run:
-                result = {
-                    "ok": True,
-                    "dry_run": True,
-                    "would_prune": {
-                        "artifact_id": artifact_id,
-                        "artifact_type": artifact_type,
-                        "reason": reason or "Manual prune",
+                if dry_run:
+                    result = {
+                        "ok": True,
+                        "dry_run": True,
+                        "would_prune": {
+                            "artifact_id": artifact_id,
+                            "artifact_type": artifact_type,
+                            "reason": reason or "Manual prune",
+                        }
                     }
-                }
+                else:
+                    result = _prune_artifact(db, artifact_id, artifact_type, reason or "Manual prune")
             else:
-                result = _prune_artifact(db, artifact_id, artifact_type, reason or "Manual prune")
-        else:
-            assert rule is not None  # guaranteed by earlier check
-            result = _apply_prune_rule(db, rule, older_than, dry_run)
-
-        db.close()
+                assert rule is not None  # guaranteed by earlier check
+                result = _apply_prune_rule(db, rule, older_than, dry_run)
+        finally:
+            db.close()
 
         if output_format == 'json':
             print(json.dumps(result, indent=2, default=str))
@@ -529,46 +530,47 @@ def handle_profile_status_command(args):
 
         from empirica.data.session_database import SessionDatabase
         db = SessionDatabase()
-        cursor = db.conn.cursor()
+        try:
+            cursor = db.conn.cursor()
 
-        # Artifact counts from SQLite
-        artifact_counts = {}
-        tables = {
-            'findings': 'project_findings',
-            'unknowns': 'project_unknowns',
-            'dead_ends': 'project_dead_ends',
-            'mistakes': 'mistakes_made',
-            'goals': 'goals',
-        }
-        for name, table in tables.items():
+            # Artifact counts from SQLite
+            artifact_counts = {}
+            tables = {
+                'findings': 'project_findings',
+                'unknowns': 'project_unknowns',
+                'dead_ends': 'project_dead_ends',
+                'mistakes': 'mistakes_made',
+                'goals': 'goals',
+            }
+            for name, table in tables.items():
+                try:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                    artifact_counts[name] = cursor.fetchone()[0]
+                except Exception:
+                    artifact_counts[name] = -1  # table doesn't exist
+
+            # Resolved unknowns count
             try:
-                cursor.execute(f"SELECT COUNT(*) FROM {table}")
-                artifact_counts[name] = cursor.fetchone()[0]
+                cursor.execute("SELECT COUNT(*) FROM project_unknowns WHERE is_resolved = 1")
+                artifact_counts['unknowns_resolved'] = cursor.fetchone()[0]
             except Exception:
-                artifact_counts[name] = -1  # table doesn't exist
+                artifact_counts['unknowns_resolved'] = 0
 
-        # Resolved unknowns count
-        try:
-            cursor.execute("SELECT COUNT(*) FROM project_unknowns WHERE is_resolved = 1")
-            artifact_counts['unknowns_resolved'] = cursor.fetchone()[0]
-        except Exception:
-            artifact_counts['unknowns_resolved'] = 0
+            # Session count
+            try:
+                cursor.execute("SELECT COUNT(*) FROM sessions")
+                artifact_counts['sessions'] = cursor.fetchone()[0]
+            except Exception:
+                artifact_counts['sessions'] = 0
 
-        # Session count
-        try:
-            cursor.execute("SELECT COUNT(*) FROM sessions")
-            artifact_counts['sessions'] = cursor.fetchone()[0]
-        except Exception:
-            artifact_counts['sessions'] = 0
-
-        # Transaction count
-        try:
-            cursor.execute("SELECT COUNT(*) FROM epistemic_snapshots WHERE snapshot_type IN ('preflight', 'postflight')")
-            artifact_counts['snapshots'] = cursor.fetchone()[0]
-        except Exception:
-            artifact_counts['snapshots'] = 0
-
-        db.close()
+            # Transaction count
+            try:
+                cursor.execute("SELECT COUNT(*) FROM epistemic_snapshots WHERE snapshot_type IN ('preflight', 'postflight')")
+                artifact_counts['snapshots'] = cursor.fetchone()[0]
+            except Exception:
+                artifact_counts['snapshots'] = 0
+        finally:
+            db.close()
 
         # Git notes counts (canonical)
         notes_counts = {}

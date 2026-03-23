@@ -6,8 +6,8 @@ This is the reverse of the dual-write pattern — given git notes as the
 canonical portable format, reconstruct the working database.
 
 Used by:
-- `empirica profile sync` — after fetching notes from remote
-- `empirica profile import` — from a different repo's notes
+- `empirica profile-sync` — after fetching notes from remote
+- `empirica profile-sync --import-only` — import from local notes without fetch
 - Database recovery — rebuild after corruption or fresh machine setup
 
 Design:

@@ -214,6 +214,14 @@ empirica mistake-log --mistake "..." --why-wrong "..." --prevention "..."
 empirica assumption-log --assumption "..." --confidence 0.6 --domain "..."
 empirica decision-log --choice "..." --rationale "..." --reversibility exploratory
 empirica source-add --title "..." --source-url "..." --source-type doc
+
+# Profile management (epistemic profile sync, prune, status)
+empirica profile-sync               # Fetch notes → import to SQLite (idempotent)
+empirica profile-sync --import-only # Import local notes without fetch
+empirica profile-sync --push        # Bidirectional: fetch + import + push
+empirica profile-prune --rule <rule> --dry-run  # Preview rule-based pruning
+empirica profile-prune --artifact-id <UUID> --artifact-type finding  # Manual prune
+empirica profile-status             # Artifact counts, drift detection, calibration summary
 ```
 
 **IMPORTANT:** Don't infer flags - run `empirica <command> --help` when unsure.
