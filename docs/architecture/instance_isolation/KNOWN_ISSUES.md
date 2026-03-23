@@ -335,6 +335,39 @@ broken session-init).
 
 **Commit:** `c74705c0`
 
+### 11.22 Transaction Suffix Mismatch in Hook Context (2026-03-23)
+
+**Symptom:** Sentinel blocks ALL praxic actions in Claude Code sessions. User cannot
+write, edit, or execute anything. CHECK passes via CLI but sentinel-gate hook can't
+find the transaction. Reported by Philipp on macOS with tmux.
+
+**Root cause:** Transaction files are written by CLI commands where `TMUX_PANE` is
+available (e.g., `active_transaction_tmux_5.json`). But Claude Code hooks don't
+reliably inherit `TMUX_PANE` — `get_instance_id()` returns `None`, so
+`_get_instance_suffix()` returns `""`, and the hook looks for
+`active_transaction.json` which doesn't exist.
+
+This is a reader/writer suffix mismatch: the writer has env var context the reader
+lacks. Unlike 11.20 (where the writer was wrong), here both sides use the canonical
+`get_instance_id()` correctly — but the env vars available differ between contexts.
+
+**Fix:** Added `_find_transaction_file()` fallback to both `session_resolver.py` and
+`sentinel-gate.py`. When the exact-suffix file doesn't exist, scans for any
+`active_transaction_*.json` matching the current `session_id`. The scan is safe
+because it's scoped by session_id — no cross-instance talk.
+
+The fix is at the InstanceResolver level (`read_active_transaction_full()`) so all
+consumers benefit automatically, plus mirrored in sentinel-gate.py which has its
+own transaction lookup for performance reasons.
+
+**Risk:** If multiple instances share a session_id (shouldn't happen in practice),
+the scan could return the wrong instance's transaction file. Monitor for unexpected
+cross-instance behavior after this change.
+
+**Workaround (pre-fix):** `echo "false" > ~/.empirica/sentinel_enabled`
+
+**Commit:** TBD
+
 ### 11.22 Cross-Project Session Bleed via Stale Context (2026-03-22)
 
 **Symptom:** `session-create`, `goals-complete`, and Sentinel use wrong project's

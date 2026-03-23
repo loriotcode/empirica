@@ -390,6 +390,54 @@ _autonomy_nudge = ""  # Module-level: set during increment, read by respond
 _goalless_nudge = ""  # Module-level: set when no goals detected, read by respond
 
 
+def _find_transaction_file(empirica_dir: Path, suffix: str,
+                           session_id: Optional[str] = None) -> Optional[Path]:
+    """Find the active transaction file, with suffix-mismatch fallback.
+
+    Primary: exact file matching the current instance suffix.
+    Fallback: when exact file doesn't exist (e.g., hook context where
+    TMUX_PANE is not inherited), scan for any active_transaction_*.json
+    matching the given session_id.
+
+    Safe because it's scoped by session_id — no cross-instance talk.
+    See: docs/architecture/instance_isolation/KNOWN_ISSUES.md (11.21)
+    """
+    # Primary: exact suffix match
+    exact = empirica_dir / f'active_transaction{suffix}.json'
+    if exact.exists():
+        return exact
+
+    # Fallback: scan for suffix-mismatched files matching this session
+    if session_id:
+        try:
+            for tx_file in sorted(empirica_dir.glob('active_transaction*.json')):
+                try:
+                    with open(tx_file, 'r') as f:
+                        tx_data = json.load(f)
+                    if tx_data.get('session_id') == session_id:
+                        return tx_file
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+    return None
+
+
+def _resolve_empirica_session_id(claude_session_id: Optional[str]) -> Optional[str]:
+    """Resolve empirica session_id from claude_session_id via active_work file."""
+    if not claude_session_id:
+        return None
+    try:
+        aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
+        if aw_file.exists():
+            with open(aw_file, 'r') as f:
+                return json.load(f).get('empirica_session_id')
+    except Exception:
+        pass
+    return None
+
+
 def _try_increment_tool_count(claude_session_id: Optional[str] = None,
                               tool_name: Optional[str] = None,
                               tool_input: Optional[dict] = None) -> tuple:
@@ -407,6 +455,7 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
 
     from empirica.utils.session_resolver import InstanceResolver as R
     suffix = R.instance_suffix()
+    empirica_session_id = _resolve_empirica_session_id(claude_session_id)
 
     # Find the transaction file via active_work → project_path → .empirica/
     tx_path = None
@@ -419,9 +468,8 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
                 with open(aw_file, 'r') as f:
                     pp = json.load(f).get('project_path')
                 if pp:
-                    candidate = Path(pp) / '.empirica' / f'active_transaction{suffix}.json'
-                    if candidate.exists():
-                        tx_path = candidate
+                    tx_path = _find_transaction_file(
+                        Path(pp) / '.empirica', suffix, empirica_session_id)
             except Exception:
                 pass
 
@@ -429,15 +477,13 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
     if not tx_path:
         pp = get_active_project_path(claude_session_id)
         if pp:
-            candidate = Path(pp) / '.empirica' / f'active_transaction{suffix}.json'
-            if candidate.exists():
-                tx_path = candidate
+            tx_path = _find_transaction_file(
+                Path(pp) / '.empirica', suffix, empirica_session_id)
 
     # Try 3: global fallback
     if not tx_path:
-        candidate = Path.home() / '.empirica' / f'active_transaction{suffix}.json'
-        if candidate.exists():
-            tx_path = candidate
+        tx_path = _find_transaction_file(
+            Path.home() / '.empirica', suffix, empirica_session_id)
 
     if not tx_path:
         return 0, 0
@@ -1409,13 +1455,15 @@ def main():
 
     # Read active transaction first (transactions can span compaction boundaries)
     # The transaction file's session_id is authoritative when a transaction is open
+    # Uses _find_transaction_file() for suffix-mismatch resilience (KNOWN_ISSUES 11.21)
     current_transaction_id = None
     tx_session_id = None
     if empirica_root:
         from empirica.utils.session_resolver import InstanceResolver as R
         suffix = R.instance_suffix()
-        tx_file = empirica_root / f'active_transaction{suffix}.json'
-        if tx_file.exists():
+        empirica_session_id = _resolve_empirica_session_id(claude_session_id)
+        tx_file = _find_transaction_file(empirica_root, suffix, empirica_session_id)
+        if tx_file:
             try:
                 with open(tx_file, 'r') as f:
                     tx_data = json.load(f)
@@ -1571,13 +1619,13 @@ def main():
     # Nudge is appended to permissionDecisionReason on allow — not a deny.
     global _goalless_nudge
     try:
-        # Read tool_call_count from transaction file (already loaded above)
+        # Read tool_call_count from transaction file (uses suffix-mismatch fallback)
         _gl_count = 0
         if empirica_root:
-            from empirica.utils.session_resolver import InstanceResolver as R
-            _gl_suffix = R.instance_suffix()
-            _gl_tx_file = empirica_root / f'active_transaction{_gl_suffix}.json'
-            if _gl_tx_file.exists():
+            _gl_tx_file = _find_transaction_file(
+                empirica_root, suffix,
+                _resolve_empirica_session_id(claude_session_id))
+            if _gl_tx_file:
                 with open(_gl_tx_file, 'r') as _gl_f:
                     _gl_tx = json.load(_gl_f)
                 _gl_count = _gl_tx.get('tool_call_count', 0)

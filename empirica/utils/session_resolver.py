@@ -1074,6 +1074,61 @@ def increment_transaction_tool_count(claude_session_id: str = None) -> Optional[
         return None
 
 
+def _find_transaction_file(empirica_dir: 'Path', suffix: str,
+                           session_id: str = None) -> 'Optional[Path]':
+    """Find the active transaction file, with suffix-mismatch fallback.
+
+    Primary: Look for the exact file matching the current instance suffix.
+    Fallback: When the exact file doesn't exist (e.g., hook context where
+    TMUX_PANE is not inherited), scan for any active_transaction_*.json that
+    matches the given session_id.
+
+    This handles the environment-mismatch scenario where:
+    - CLI writes active_transaction_tmux_5.json (TMUX_PANE available)
+    - Hook looks for active_transaction.json (no TMUX_PANE in hook context)
+
+    The fallback is safe because it's scoped by session_id — it won't
+    cross-talk between instances. If session_id is None, only exact
+    suffix match is attempted (no scan).
+
+    See: docs/architecture/instance_isolation/KNOWN_ISSUES.md (11.21)
+
+    Args:
+        empirica_dir: The .empirica directory to search in
+        suffix: The instance suffix from _get_instance_suffix()
+        session_id: Optional session_id to match against when scanning
+
+    Returns:
+        Path to the transaction file, or None
+    """
+    # Primary: exact suffix match
+    exact = empirica_dir / f'active_transaction{suffix}.json'
+    if exact.exists():
+        return exact
+
+    # Fallback: scan for suffix-mismatched files matching this session
+    # Only when we have a session_id to scope the search (prevents cross-talk)
+    if session_id:
+        try:
+            for tx_file in sorted(empirica_dir.glob('active_transaction*.json')):
+                try:
+                    with open(tx_file, 'r') as f:
+                        tx_data = json.load(f)
+                    if tx_data.get('session_id') == session_id:
+                        logger.debug(
+                            f"Transaction suffix mismatch resolved: "
+                            f"expected '{suffix}', found '{tx_file.name}' "
+                            f"(session={session_id[:8]})"
+                        )
+                        return tx_file
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+    return None
+
+
 def read_active_transaction_full(claude_session_id: str = None) -> Optional[dict]:
     """Read the full active transaction data from the tracking file.
 
@@ -1085,26 +1140,40 @@ def read_active_transaction_full(claude_session_id: str = None) -> Optional[dict
     - project_path: Project this transaction belongs to
 
     Uses get_active_project_path() to find the correct project, then reads transaction from there.
+    Uses _find_transaction_file() for suffix-mismatch resilience (see KNOWN_ISSUES 11.21).
     """
     from pathlib import Path
     suffix = _get_instance_suffix()
 
+    # Resolve session_id for fallback scanning
+    session_id = None
+    if claude_session_id:
+        try:
+            aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
+            if aw_file.exists():
+                with open(aw_file, 'r') as f:
+                    session_id = json.load(f).get('empirica_session_id')
+        except Exception:
+            pass
+
     # Use canonical project resolution
     project_path = get_active_project_path(claude_session_id)
     if project_path:
-        candidate = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
-        if candidate.exists():
+        empirica_dir = Path(project_path) / '.empirica'
+        tx_file = _find_transaction_file(empirica_dir, suffix, session_id)
+        if tx_file:
             try:
-                with open(candidate, 'r') as f:
+                with open(tx_file, 'r') as f:
                     return json.load(f)
             except Exception:
                 pass
 
     # Fallback: Global ~/.empirica/
-    global_candidate = Path.home() / '.empirica' / f'active_transaction{suffix}.json'
-    if global_candidate.exists():
+    global_dir = Path.home() / '.empirica'
+    tx_file = _find_transaction_file(global_dir, suffix, session_id)
+    if tx_file:
         try:
-            with open(global_candidate, 'r') as f:
+            with open(tx_file, 'r') as f:
                 return json.load(f)
         except Exception:
             pass
