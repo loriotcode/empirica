@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CHECK composite showed wrong percentage** — CHECK phase was calculating composite from execution vectors (state, change, completion, impact) instead of readiness vectors (know, context, clarity, coherence, signal, density). CHECK gates readiness-to-act, not acting progress
 - **Statusline CHECK phase display** — Now shows percentage composite instead of just arrow/ellipsis
 - **Profile resource leaks** — 3 `SessionDatabase` instances opened without try/finally in profile commands. db.close() was skipped on exceptions
-- **Bootstrap NoneType comparison** — `structure_health` conformance/confidence could be `None` (key exists with null value), causing `'>' not supported between NoneType and float`. Guarded with `or 0.0`
+- **Bootstrap NoneType comparison** — `workflow_suggestions.py` `duration_minutes` could be `None` when session `start_time` is NULL, causing `max(0.0, None)` TypeError. Also guarded `structure_health` conformance/confidence against None
+- **Breadcrumbs showed resolved issues** — `get_auto_captured_issues` query returned issues regardless of status. Resolved/wontfix issues appeared as active high-severity problems in bootstrap output. Added status filter
 - **CLAUDE.md template gaps** — Added TRANSACTION CONTEXT FIELDS section and profile commands to CORE COMMANDS
 - **Docstring accuracy** — Fixed phantom command references in ProfileImporter module docstring, wrong return type in `_apply_prune_rule`
 - **project-search project name resolution** — Resolve project names before Qdrant lookup. Contributed by @kars85 (#65)

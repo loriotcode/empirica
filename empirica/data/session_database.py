@@ -1284,8 +1284,9 @@ class SessionDatabase:
             WHERE session_id IN (
                 SELECT session_id FROM sessions WHERE project_id = ?
             )
-            ORDER BY 
-                CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 
+            AND status NOT IN ('resolved', 'wontfix')
+            ORDER BY
+                CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2
                              WHEN 'medium' THEN 3 WHEN 'low' THEN 4 END,
                 created_at DESC
             LIMIT ?
