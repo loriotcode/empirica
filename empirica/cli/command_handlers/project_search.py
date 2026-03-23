@@ -13,7 +13,9 @@ def handle_project_search_command(args):
     """Handle project-search command for semantic search over docs and memory."""
     try:
         from empirica.core.qdrant.vector_store import init_collections, search, search_global
-        project_id = args.project_id
+        from empirica.cli.utils.project_resolver import resolve_project_id
+
+        project_id = resolve_project_id(args.project_id)
         task = args.task
         kind = getattr(args, 'type', 'all')
         limit = getattr(args, 'limit', 5)
