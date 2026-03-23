@@ -70,7 +70,7 @@ def calculate_completeness_score(session_id: str, db) -> Dict[str, Any]:
         FROM sessions WHERE session_id = ?
     """, (session_id,))
     row = cursor.fetchone()
-    duration_minutes = max(0.0, row['duration_minutes']) if row else 0.0
+    duration_minutes = max(0.0, row['duration_minutes'] or 0.0) if row else 0.0
 
     # Count findings
     cursor.execute("""
