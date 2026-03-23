@@ -444,7 +444,7 @@ def determine_work_phase(phase: str, gate_decision: str = None) -> str:
 def format_phase_state(phase: str, work_phase: str, composite: float, gate_decision: str = None) -> str:
     """Format transaction phase + work state as compact indicator.
 
-    Examples: PRE 🔍65% | CHK 🔍→⚙ | POST ⚙92% | POST ⚙92% Δ ✓
+    Examples: PRE 🔍65% | CHK 🔍82%→ | CHK ⚙65%… | POST ⚙92% Δ ✓
     """
     # Phase abbreviation
     phase_abbrev = {
@@ -462,12 +462,12 @@ def format_phase_state(phase: str, work_phase: str, composite: float, gate_decis
     pct = int(composite * 100)
     color = _color_by_value(composite)
 
-    # CHECK with decision gets special formatting
+    # CHECK with decision: show percentage AND transition indicator
     if phase == 'CHECK' and gate_decision:
         if gate_decision == 'proceed':
-            return f"{Colors.BLUE}{phase_abbrev}{Colors.RESET} {emoji}{Colors.GREEN}→{Colors.RESET}"
+            return f"{Colors.BLUE}{phase_abbrev}{Colors.RESET} {emoji}{color}{pct}%{Colors.GREEN}→{Colors.RESET}"
         else:
-            return f"{Colors.BLUE}{phase_abbrev}{Colors.RESET} {emoji}{Colors.YELLOW}…{Colors.RESET}"
+            return f"{Colors.BLUE}{phase_abbrev}{Colors.RESET} {emoji}{color}{pct}%{Colors.YELLOW}…{Colors.RESET}"
 
     return f"{Colors.BLUE}{phase_abbrev}{Colors.RESET} {emoji}{color}{pct}%{Colors.RESET}"
 
