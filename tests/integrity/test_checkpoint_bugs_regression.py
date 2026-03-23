@@ -28,6 +28,7 @@ class TestCheckpointListMethod:
         subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
         subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, check=True)
         subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
+        subprocess.run(["git", "config", "commit.gpgsign", "false"], cwd=tmp_path, check=True)
         
         # Create initial commit
         test_file = tmp_path / "test.txt"
@@ -314,7 +315,8 @@ class TestCheckpointVectorStorage:
         subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
         subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, check=True)
         subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
-        
+        subprocess.run(["git", "config", "commit.gpgsign", "false"], cwd=tmp_path, check=True)
+
         test_file = tmp_path / "test.txt"
         test_file.write_text("test")
         subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
@@ -352,7 +354,8 @@ class TestCheckpointVectorStorage:
         subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
         subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, check=True)
         subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
-        
+        subprocess.run(["git", "config", "commit.gpgsign", "false"], cwd=tmp_path, check=True)
+
         test_file = tmp_path / "test.txt"
         test_file.write_text("test")
         subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
@@ -414,7 +417,8 @@ class TestCLICheckpointCommands:
         subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
         subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, check=True)
         subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
-        
+        subprocess.run(["git", "config", "commit.gpgsign", "false"], cwd=tmp_path, check=True)
+
         test_file = tmp_path / "test.txt"
         test_file.write_text("test")
         subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
@@ -438,7 +442,8 @@ class TestCLICheckpointCommands:
         subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
         subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, check=True)
         subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
-        
+        subprocess.run(["git", "config", "commit.gpgsign", "false"], cwd=tmp_path, check=True)
+
         test_file = tmp_path / "test.txt"
         test_file.write_text("test")
         subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)

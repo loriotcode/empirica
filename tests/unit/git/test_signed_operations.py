@@ -34,6 +34,7 @@ def temp_repo():
         # Configure git user for commits
         repo.config_writer().set_value("user", "name", "Test User").release()
         repo.config_writer().set_value("user", "email", "test@test.local").release()
+        repo.config_writer().set_value("commit", "gpgsign", "false").release()
 
         # Create initial commit so HEAD exists (required for git notes)
         readme = Path(tmpdir) / "README.md"

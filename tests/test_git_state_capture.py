@@ -21,7 +21,8 @@ class TestGitStateCapture:
         subprocess.run(["git", "init"], cwd=repo_path, check=True)
         subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_path, check=True)
         subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_path, check=True)
-        
+        subprocess.run(["git", "config", "commit.gpgsign", "false"], cwd=repo_path, check=True)
+
         # Create initial commit
         (repo_path / "README.md").write_text("# Test Repo\n")
         subprocess.run(["git", "add", "."], cwd=repo_path, check=True)
