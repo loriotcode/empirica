@@ -711,7 +711,7 @@ brew install empirica
             ["python3", "-m", "pytest", "tests/", "-x", "-q", "--tb=short",
              "--ignore=tests/integration", "--ignore=tests/manual_test_goals.py",
              "-p", "no:cacheprovider"],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, timeout=300,
             cwd=str(self.repo_root),
         )
 
