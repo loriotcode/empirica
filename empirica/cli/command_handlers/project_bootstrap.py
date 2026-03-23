@@ -735,8 +735,9 @@ def handle_project_bootstrap_command(args):
                 health = breadcrumbs['structure_health']
                 
                 # Show detected pattern with confidence
-                confidence = health.get('confidence', 0.0)
-                conformance = health.get('conformance', 0.0)
+                # .get() returns None if key exists with None value — guard against it
+                confidence = health.get('confidence') or 0.0
+                conformance = health.get('conformance') or 0.0
                 
                 # Choose emoji based on conformance
                 if conformance >= 0.9:
