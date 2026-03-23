@@ -1,0 +1,698 @@
+"""
+Profile Commands - Epistemic profile management
+
+Commands:
+- profile-sync: Full sync pipeline (fetch → import → optional Qdrant rebuild)
+- profile-prune: Transparent artifact pruning with git notes receipts
+- profile-status: Unified profile status view
+"""
+
+import json
+import logging
+import subprocess
+import time
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+from ..cli_utils import handle_cli_error
+
+logger = logging.getLogger(__name__)
+
+
+def _get_workspace_root() -> str:
+    """Get workspace root from active context, git root, or cwd."""
+    import os
+    try:
+        from empirica.utils.session_resolver import InstanceResolver as R
+        context_project = R.project_path()
+        if context_project:
+            return context_project
+    except Exception:
+        pass
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', '--show-toplevel'],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return os.getcwd()
+
+
+def _load_sync_config() -> Dict[str, Any]:
+    """Load sync config — reuses sync_commands logic."""
+    from .sync_commands import _load_sync_config as load_config
+    return load_config()
+
+
+def _fetch_notes(remote: str) -> Dict[str, Any]:
+    """Fetch all empirica git notes refs from remote.
+
+    Returns dict with 'ok', 'fetched', 'errors' keys.
+    """
+    results = {'ok': True, 'fetched': {}, 'errors': []}
+
+    # Fetch all empirica notes at once
+    refspecs = [
+        'refs/notes/empirica/*:refs/notes/empirica/*',
+        'refs/notes/breadcrumbs:refs/notes/breadcrumbs',
+        'refs/notes/empirica-precompact:refs/notes/empirica-precompact',
+    ]
+
+    for refspec in refspecs:
+        try:
+            result = subprocess.run(
+                ['git', 'fetch', remote, refspec],
+                capture_output=True, text=True, timeout=60,
+                cwd=_get_workspace_root()
+            )
+            ref_name = refspec.split(':')[0].replace('refs/notes/', '')
+            if result.returncode == 0:
+                results['fetched'][ref_name] = True
+            else:
+                if 'no matching refs' not in (result.stderr or '').lower():
+                    results['errors'].append(f"{ref_name}: {result.stderr.strip()}")
+                results['fetched'][ref_name] = False
+        except subprocess.TimeoutExpired:
+            results['errors'].append(f"Fetch timed out for {refspec}")
+            results['ok'] = False
+        except Exception as e:
+            results['errors'].append(str(e))
+            results['ok'] = False
+
+    if results['errors']:
+        results['ok'] = False
+
+    return results
+
+
+def _push_notes(remote: str) -> Dict[str, Any]:
+    """Push all empirica git notes refs to remote."""
+    results = {'ok': True, 'pushed': {}, 'errors': []}
+
+    refspecs = [
+        'refs/notes/empirica/*:refs/notes/empirica/*',
+        'refs/notes/breadcrumbs:refs/notes/breadcrumbs',
+        'refs/notes/empirica-precompact:refs/notes/empirica-precompact',
+    ]
+
+    for refspec in refspecs:
+        try:
+            result = subprocess.run(
+                ['git', 'push', remote, refspec],
+                capture_output=True, text=True, timeout=60,
+                cwd=_get_workspace_root()
+            )
+            ref_name = refspec.split(':')[0].replace('refs/notes/', '')
+            if result.returncode == 0:
+                results['pushed'][ref_name] = True
+            else:
+                if 'no matching refs' not in (result.stderr or '').lower():
+                    results['errors'].append(f"{ref_name}: {result.stderr.strip()}")
+                results['pushed'][ref_name] = False
+        except subprocess.TimeoutExpired:
+            results['errors'].append(f"Push timed out for {refspec}")
+            results['ok'] = False
+        except Exception as e:
+            results['errors'].append(str(e))
+            results['ok'] = False
+
+    if results['errors']:
+        results['ok'] = False
+
+    return results
+
+
+def _import_notes_to_sqlite() -> Dict[str, Any]:
+    """Import git notes artifacts into SQLite using ProfileImporter (idempotent)."""
+    try:
+        from empirica.core.canonical.empirica_git.profile_import import ProfileImporter
+        from empirica.data.session_database import SessionDatabase
+
+        db = SessionDatabase()
+        importer = ProfileImporter(workspace_root=_get_workspace_root())
+        stats = importer.import_all(db)
+        db.close()
+
+        return {
+            'ok': True,
+            'stats': stats,
+        }
+    except Exception as e:
+        logger.warning(f"Import failed: {e}")
+        return {
+            'ok': False,
+            'error': str(e),
+        }
+
+
+def _rebuild_qdrant() -> Dict[str, Any]:
+    """Rebuild Qdrant semantic index from SQLite."""
+    try:
+        from empirica.core.qdrant.rebuild import rebuild_qdrant_from_db
+        result = rebuild_qdrant_from_db()
+        return {'ok': True, 'result': result}
+    except ImportError:
+        return {'ok': False, 'error': 'Qdrant not available (qdrant-client not installed)'}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+
+def handle_profile_sync_command(args):
+    """Handle profile-sync command — full sync pipeline."""
+    try:
+        sync_config = _load_sync_config()
+        remote = getattr(args, 'remote', None) or sync_config.get('notes_remote', sync_config.get('remote', 'forgejo'))
+        output_format = getattr(args, 'output', 'json')
+        do_push = getattr(args, 'push', False)
+        do_qdrant = getattr(args, 'qdrant', False)
+        import_only = getattr(args, 'import_only', False)
+        force = getattr(args, 'force', False)
+
+        if not sync_config.get('enabled', True) and not force and not import_only:
+            result = {
+                "ok": False,
+                "error": "Sync is disabled in config",
+                "hint": "Run 'empirica sync-config enabled true' to enable, or use --force"
+            }
+            print(json.dumps(result, indent=2))
+            return 1
+
+        result = {
+            "ok": True,
+            "pipeline": [],
+        }
+
+        # Step 1: Fetch notes from remote (unless import-only)
+        if not import_only:
+            fetch_result = _fetch_notes(remote)
+            result['fetch'] = fetch_result
+            result['pipeline'].append('fetch')
+            if not fetch_result['ok']:
+                result['ok'] = False
+                result['error'] = 'Fetch failed'
+                print(json.dumps(result, indent=2, default=str))
+                return 1
+
+        # Step 2: Import notes to SQLite (idempotent via ProfileImporter)
+        import_result = _import_notes_to_sqlite()
+        result['import'] = import_result
+        result['pipeline'].append('import')
+
+        if not import_result['ok']:
+            result['ok'] = False
+            result['error'] = 'Import failed'
+
+        # Step 3: Push notes to remote (if requested)
+        if do_push and result['ok']:
+            push_result = _push_notes(remote)
+            result['push'] = push_result
+            result['pipeline'].append('push')
+            if not push_result['ok']:
+                result['push_warning'] = 'Push had errors but import succeeded'
+
+        # Step 4: Rebuild Qdrant (if requested)
+        if do_qdrant and result['ok']:
+            qdrant_result = _rebuild_qdrant()
+            result['qdrant'] = qdrant_result
+            result['pipeline'].append('qdrant')
+            if not qdrant_result['ok']:
+                result['qdrant_warning'] = 'Qdrant rebuild failed but import succeeded'
+
+        # Summary
+        summary = import_result.get('stats', {}).get('_summary', {})
+        result['summary'] = {
+            'imported': summary.get('imported', 0),
+            'skipped': summary.get('skipped', 0),
+            'total_notes': summary.get('total', 0),
+        }
+
+        if output_format == 'json':
+            print(json.dumps(result, indent=2, default=str))
+        else:
+            if result['ok']:
+                print(f"✅ Profile sync complete")
+                if not import_only:
+                    print(f"   Fetched from: {remote}")
+                print(f"   Imported: {summary.get('imported', 0)} new artifacts")
+                print(f"   Skipped: {summary.get('skipped', 0)} (already in SQLite)")
+                print(f"   Total in notes: {summary.get('total', 0)}")
+                # Per-type breakdown
+                stats = import_result.get('stats', {})
+                for artifact_type in ['findings', 'unknowns', 'dead_ends', 'mistakes', 'goals']:
+                    type_stats = stats.get(artifact_type, {})
+                    if type_stats.get('total', 0) > 0:
+                        print(f"     {artifact_type}: {type_stats['imported']} new / {type_stats['total']} total")
+                if do_push:
+                    print(f"   Pushed to: {remote}")
+                if do_qdrant:
+                    qdrant_ok = result.get('qdrant', {}).get('ok', False)
+                    print(f"   Qdrant: {'rebuilt' if qdrant_ok else 'failed'}")
+            else:
+                print(f"❌ Profile sync failed: {result.get('error', 'Unknown error')}")
+
+        return 0 if result['ok'] else 1
+
+    except Exception as e:
+        handle_cli_error(e, "Profile sync", getattr(args, 'verbose', False))
+        return 1
+
+
+def _write_prune_receipt(artifact_id: str, artifact_type: str, reason: str,
+                         artifact_summary: str) -> bool:
+    """Write an immutable prune receipt to git notes.
+
+    Receipt is stored at refs/notes/empirica/prune_receipts/<artifact_id>
+    """
+    receipt = {
+        'artifact_id': artifact_id,
+        'artifact_type': artifact_type,
+        'reason': reason,
+        'artifact_summary': artifact_summary,
+        'pruned_at': datetime.now(timezone.utc).isoformat(),
+        'pruned_by': 'empirica-profile-prune',
+    }
+
+    workspace = _get_workspace_root()
+    ref = f'empirica/prune_receipts/{artifact_id}'
+
+    try:
+        # Write receipt as a git note on HEAD
+        receipt_json = json.dumps(receipt, indent=2)
+        result = subprocess.run(
+            ['git', 'notes', f'--ref={ref}', 'add', '-f', '-m', receipt_json, 'HEAD'],
+            capture_output=True, text=True, timeout=10,
+            cwd=workspace
+        )
+        return result.returncode == 0
+    except Exception as e:
+        logger.warning(f"Failed to write prune receipt for {artifact_id}: {e}")
+        return False
+
+
+def _prune_artifact(db, artifact_id: str, artifact_type: str, reason: str) -> Dict[str, Any]:
+    """Remove a single artifact from SQLite and write prune receipt."""
+    table_map = {
+        'finding': 'project_findings',
+        'unknown': 'project_unknowns',
+        'dead_end': 'project_dead_ends',
+        'mistake': 'mistakes_made',
+        'goal': 'goals',
+    }
+
+    table = table_map.get(artifact_type)
+    if not table:
+        return {'ok': False, 'error': f'Unknown artifact type: {artifact_type}'}
+
+    # Fetch artifact summary before deletion
+    cursor = db.conn.cursor()
+    try:
+        cursor.execute(f"SELECT * FROM {table} WHERE id = ?", (artifact_id,))
+        row = cursor.fetchone()
+        if not row:
+            return {'ok': False, 'error': f'Artifact {artifact_id} not found in {table}'}
+
+        # Build summary from row
+        columns = [desc[0] for desc in cursor.description]
+        artifact_data = dict(zip(columns, row))
+        # Use a representative field for summary
+        summary_field = {
+            'finding': 'finding',
+            'unknown': 'unknown',
+            'dead_end': 'approach',
+            'mistake': 'mistake',
+            'goal': 'objective' if 'objective' in columns else 'id',
+        }.get(artifact_type, 'id')
+        artifact_summary = str(artifact_data.get(summary_field, artifact_id))[:200]
+
+        # Write prune receipt BEFORE deletion (so we never lose the audit trail)
+        receipt_written = _write_prune_receipt(artifact_id, artifact_type, reason, artifact_summary)
+
+        # Delete from SQLite
+        cursor.execute(f"DELETE FROM {table} WHERE id = ?", (artifact_id,))
+        db.conn.commit()
+
+        return {
+            'ok': True,
+            'artifact_id': artifact_id,
+            'artifact_type': artifact_type,
+            'summary': artifact_summary,
+            'receipt_written': receipt_written,
+        }
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+
+def _apply_prune_rule(db, rule: str, older_than_days: Optional[int] = None,
+                      dry_run: bool = False) -> Dict[str, Any]:
+    """Apply a mechanical pruning rule.
+
+    Returns list of pruned (or would-be-pruned) artifacts.
+    """
+    cursor = db.conn.cursor()
+    candidates = []
+    now = time.time()
+    age_cutoff = now - (older_than_days * 86400) if older_than_days else None
+
+    if rule == 'stale-resolved-unknowns':
+        query = "SELECT id, unknown, resolved_timestamp FROM project_unknowns WHERE is_resolved = 1"
+        params = []
+        if age_cutoff:
+            query += " AND resolved_timestamp < ?"
+            params.append(age_cutoff)
+        cursor.execute(query, params)
+        for row in cursor.fetchall():
+            candidates.append({
+                'id': row[0], 'type': 'unknown',
+                'summary': str(row[1])[:200],
+                'reason': f'Resolved unknown (stale-resolved-unknowns rule)',
+            })
+
+    elif rule == 'low-impact-findings':
+        query = "SELECT id, finding, impact FROM project_findings WHERE impact < 0.3"
+        params = []
+        if age_cutoff:
+            query += " AND created_timestamp < ?"
+            params.append(age_cutoff)
+        cursor.execute(query, params)
+        for row in cursor.fetchall():
+            candidates.append({
+                'id': row[0], 'type': 'finding',
+                'summary': str(row[1])[:200],
+                'reason': f'Low impact ({row[2]}) finding (low-impact-findings rule)',
+            })
+
+    elif rule == 'old-dead-ends':
+        threshold = age_cutoff or (now - 90 * 86400)  # default 90 days
+        cursor.execute(
+            "SELECT id, approach FROM project_dead_ends WHERE created_timestamp < ?",
+            (threshold,)
+        )
+        for row in cursor.fetchall():
+            candidates.append({
+                'id': row[0], 'type': 'dead_end',
+                'summary': str(row[1])[:200],
+                'reason': 'Old dead end (old-dead-ends rule)',
+            })
+
+    elif rule == 'test-transactions':
+        # Prune findings/unknowns from very short sessions (likely test runs)
+        cursor.execute("""
+            SELECT pf.id, pf.finding, pf.session_id
+            FROM project_findings pf
+            JOIN sessions s ON pf.session_id = s.session_id
+            WHERE s.ai_id = 'test' OR s.ai_id LIKE 'test-%'
+        """)
+        for row in cursor.fetchall():
+            candidates.append({
+                'id': row[0], 'type': 'finding',
+                'summary': str(row[1])[:200],
+                'reason': f'Test session artifact (test-transactions rule)',
+            })
+
+    elif rule == 'falsified-assumptions':
+        # This would need an assumptions table — skip for now if not available
+        return {'ok': True, 'candidates': [], 'note': 'Assumptions table not yet supported for pruning'}
+
+    if dry_run:
+        return {
+            'ok': True,
+            'dry_run': True,
+            'candidates': candidates,
+            'count': len(candidates),
+        }
+
+    # Actually prune
+    pruned = []
+    errors = []
+    for candidate in candidates:
+        result = _prune_artifact(
+            db, candidate['id'], candidate['type'], candidate['reason']
+        )
+        if result['ok']:
+            pruned.append(result)
+        else:
+            errors.append(result)
+
+    return {
+        'ok': len(errors) == 0,
+        'pruned': pruned,
+        'errors': errors,
+        'count': len(pruned),
+    }
+
+
+def handle_profile_prune_command(args):
+    """Handle profile-prune command — transparent artifact pruning."""
+    try:
+        rule = getattr(args, 'rule', None)
+        artifact_id = getattr(args, 'artifact_id', None)
+        artifact_type = getattr(args, 'artifact_type', None)
+        reason = getattr(args, 'reason', None)
+        older_than = getattr(args, 'older_than', None)
+        dry_run = getattr(args, 'dry_run', False)
+        output_format = getattr(args, 'output', 'json')
+
+        if not rule and not artifact_id:
+            result = {
+                "ok": False,
+                "error": "Specify --rule for rule-based pruning or --artifact-id for specific artifact pruning",
+                "available_rules": [
+                    'stale-resolved-unknowns',
+                    'test-transactions',
+                    'low-impact-findings',
+                    'old-dead-ends',
+                ],
+            }
+            print(json.dumps(result, indent=2))
+            return 1
+
+        from empirica.data.session_database import SessionDatabase
+        db = SessionDatabase()
+
+        if artifact_id:
+            if not artifact_type:
+                result = {"ok": False, "error": "--artifact-type required with --artifact-id"}
+                print(json.dumps(result, indent=2))
+                db.close()
+                return 1
+
+            if dry_run:
+                result = {
+                    "ok": True,
+                    "dry_run": True,
+                    "would_prune": {
+                        "artifact_id": artifact_id,
+                        "artifact_type": artifact_type,
+                        "reason": reason or "Manual prune",
+                    }
+                }
+            else:
+                result = _prune_artifact(db, artifact_id, artifact_type, reason or "Manual prune")
+        else:
+            assert rule is not None  # guaranteed by earlier check
+            result = _apply_prune_rule(db, rule, older_than, dry_run)
+
+        db.close()
+
+        if output_format == 'json':
+            print(json.dumps(result, indent=2, default=str))
+        else:
+            if dry_run:
+                count = result.get('count', 0)
+                candidates = result.get('candidates', [])
+                print(f"🔍 Dry run: {count} artifacts would be pruned")
+                for c in candidates[:20]:
+                    print(f"   [{c['type']}] {c['id'][:12]}... — {c['summary'][:60]}")
+                if count > 20:
+                    print(f"   ... and {count - 20} more")
+            elif result.get('ok'):
+                count = result.get('count', 1)
+                print(f"✅ Pruned {count} artifact(s) with receipts in git notes")
+            else:
+                print(f"❌ Prune failed: {result.get('error', 'Unknown error')}")
+
+        return 0 if result.get('ok') else 1
+
+    except Exception as e:
+        handle_cli_error(e, "Profile prune", getattr(args, 'verbose', False))
+        return 1
+
+
+def handle_profile_status_command(args):
+    """Handle profile-status command — unified profile view."""
+    try:
+        output_format = getattr(args, 'output', 'json')
+        sync_config = _load_sync_config()
+        remote = getattr(args, 'remote', None) or sync_config.get('notes_remote', sync_config.get('remote', 'forgejo'))
+
+        from empirica.data.session_database import SessionDatabase
+        db = SessionDatabase()
+        cursor = db.conn.cursor()
+
+        # Artifact counts from SQLite
+        artifact_counts = {}
+        tables = {
+            'findings': 'project_findings',
+            'unknowns': 'project_unknowns',
+            'dead_ends': 'project_dead_ends',
+            'mistakes': 'mistakes_made',
+            'goals': 'goals',
+        }
+        for name, table in tables.items():
+            try:
+                cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                artifact_counts[name] = cursor.fetchone()[0]
+            except Exception:
+                artifact_counts[name] = -1  # table doesn't exist
+
+        # Resolved unknowns count
+        try:
+            cursor.execute("SELECT COUNT(*) FROM project_unknowns WHERE is_resolved = 1")
+            artifact_counts['unknowns_resolved'] = cursor.fetchone()[0]
+        except Exception:
+            artifact_counts['unknowns_resolved'] = 0
+
+        # Session count
+        try:
+            cursor.execute("SELECT COUNT(*) FROM sessions")
+            artifact_counts['sessions'] = cursor.fetchone()[0]
+        except Exception:
+            artifact_counts['sessions'] = 0
+
+        # Transaction count
+        try:
+            cursor.execute("SELECT COUNT(*) FROM epistemic_snapshots WHERE snapshot_type IN ('preflight', 'postflight')")
+            artifact_counts['snapshots'] = cursor.fetchone()[0]
+        except Exception:
+            artifact_counts['snapshots'] = 0
+
+        db.close()
+
+        # Git notes counts (canonical)
+        notes_counts = {}
+        workspace = _get_workspace_root()
+        for ref_name in ['empirica/findings', 'empirica/unknowns', 'empirica/dead_ends',
+                         'empirica/mistakes', 'empirica/goals', 'empirica/sessions']:
+            try:
+                result = subprocess.run(
+                    ['git', 'for-each-ref', f'refs/notes/{ref_name}/'],
+                    capture_output=True, text=True, timeout=10,
+                    cwd=workspace
+                )
+                if result.returncode == 0:
+                    count = len([l for l in result.stdout.strip().split('\n') if l.strip()])
+                    notes_counts[ref_name.split('/')[-1]] = count
+            except Exception:
+                pass
+
+        # Sync state
+        sync_available = False
+        try:
+            result = subprocess.run(
+                ['git', 'remote', 'get-url', remote],
+                capture_output=True, text=True, timeout=5,
+                cwd=workspace
+            )
+            sync_available = result.returncode == 0
+        except Exception:
+            pass
+
+        # Calibration summary
+        calibration = {}
+        try:
+            from pathlib import Path
+            import yaml
+            breadcrumbs_path = Path(workspace) / '.breadcrumbs.yaml'
+            if breadcrumbs_path.exists():
+                with open(breadcrumbs_path) as f:
+                    bc = yaml.safe_load(f) or {}
+                cal = bc.get('calibration', {})
+                if cal:
+                    calibration['observations'] = cal.get('observations', 0)
+                gcal = bc.get('grounded_calibration', {})
+                if gcal:
+                    calibration['grounded_observations'] = gcal.get('total_observations', 0)
+                    calibration['grounded_score'] = gcal.get('latest_score')
+                    calibration['grounded_coverage'] = gcal.get('latest_coverage')
+        except Exception:
+            pass
+
+        # Drift detection: notes vs SQLite
+        drift = {}
+        for artifact_type in ['findings', 'unknowns', 'dead_ends', 'mistakes', 'goals']:
+            notes_count = notes_counts.get(artifact_type, 0)
+            sqlite_count = artifact_counts.get(artifact_type, 0)
+            if notes_count > 0 and sqlite_count >= 0:
+                diff = notes_count - sqlite_count
+                if diff != 0:
+                    drift[artifact_type] = {
+                        'notes': notes_count,
+                        'sqlite': sqlite_count,
+                        'delta': diff,
+                    }
+
+        result = {
+            "ok": True,
+            "artifacts": {
+                "sqlite": artifact_counts,
+                "git_notes": notes_counts,
+            },
+            "drift": drift if drift else None,
+            "sync": {
+                "remote": remote,
+                "available": sync_available,
+                "enabled": sync_config.get('enabled', True),
+            },
+            "calibration": calibration if calibration else None,
+        }
+
+        if output_format == 'json':
+            print(json.dumps(result, indent=2, default=str))
+        else:
+            print("📊 Epistemic Profile Status")
+            print("=" * 50)
+
+            # Artifact counts
+            total_sqlite = sum(v for v in artifact_counts.values() if isinstance(v, int) and v > 0)
+            total_notes = sum(notes_counts.values())
+            print(f"\n  Artifacts (SQLite): {total_sqlite}")
+            for name, count in artifact_counts.items():
+                if count > 0 and name not in ('unknowns_resolved', 'sessions', 'snapshots'):
+                    print(f"    {name}: {count}")
+            if artifact_counts.get('unknowns_resolved', 0) > 0:
+                print(f"    unknowns (resolved): {artifact_counts['unknowns_resolved']}")
+            print(f"    sessions: {artifact_counts.get('sessions', 0)}")
+            print(f"    snapshots: {artifact_counts.get('snapshots', 0)}")
+
+            print(f"\n  Artifacts (Git Notes): {total_notes}")
+            for name, count in notes_counts.items():
+                if count > 0:
+                    print(f"    {name}: {count}")
+
+            # Drift
+            if drift:
+                print(f"\n  ⚠️  Drift detected (notes - sqlite):")
+                for artifact_type, info in drift.items():
+                    print(f"    {artifact_type}: {info['delta']:+d} (notes={info['notes']}, sqlite={info['sqlite']})")
+                print(f"    Run 'empirica profile-sync --import-only' to reconcile")
+
+            # Sync
+            print(f"\n  Sync: {'enabled' if sync_config.get('enabled') else 'disabled'}, "
+                  f"remote={remote} ({'configured' if sync_available else 'NOT configured'})")
+
+            # Calibration
+            if calibration:
+                print(f"\n  Calibration:")
+                if 'observations' in calibration:
+                    print(f"    Self-referential observations: {calibration['observations']}")
+                if 'grounded_score' in calibration:
+                    print(f"    Grounded score: {calibration.get('grounded_score', 'N/A')}")
+                    print(f"    Grounded coverage: {calibration.get('grounded_coverage', 'N/A')}")
+
+        return 0
+
+    except Exception as e:
+        handle_cli_error(e, "Profile status", getattr(args, 'verbose', False))
+        return 1

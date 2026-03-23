@@ -49,6 +49,7 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
                     'Workspace': ['workspace-init', 'workspace-map', 'workspace-list', 'workspace-overview', 'workspace-search', 'engagement-focus', 'ecosystem-check', 'save', 'history'],
                     'Checkpoints': ['checkpoint-create', 'checkpoint-load', 'checkpoint-list', 'checkpoint-diff', 'checkpoint-sign', 'checkpoint-verify', 'checkpoint-signatures'],
                     'Sync': ['sync-config', 'sync-push', 'sync-pull', 'sync-status', 'rebuild', 'artifacts-generate'],
+                    'Profile': ['profile-sync', 'profile-prune', 'profile-status'],
                     'Identity': ['identity-create', 'identity-export', 'identity-list', 'identity-verify'],
                     'Handoffs': ['handoff-create', 'handoff-query'],
                     'Logging': ['finding-log', 'unknown-log', 'unknown-list', 'unknown-resolve', 'deadend-log', 'assumption-log', 'decision-log', 'refdoc-add', 'source-add', 'mistake-log', 'mistake-query', 'act-log', 'investigate-log'],
@@ -114,6 +115,7 @@ from .parsers import (
     add_mcp_parsers,
     add_message_parsers,
     add_memory_parsers,
+    add_profile_parsers,
 )
 from .command_handlers.architecture_commands import (
     handle_assess_component_command,
@@ -244,6 +246,7 @@ def create_argument_parser():
     add_mcp_parsers(subparsers)
     add_message_parsers(subparsers)
     add_memory_parsers(subparsers)
+    add_profile_parsers(subparsers)
 
     return parser
 
@@ -511,6 +514,11 @@ def main(args=None):
             'message-thread': handle_message_thread_command,
             'message-channels': handle_message_channels_command,
             'message-cleanup': handle_message_cleanup_command,
+
+            # Profile management commands
+            'profile-sync': handle_profile_sync_command,
+            'profile-prune': handle_profile_prune_command,
+            'profile-status': handle_profile_status_command,
 
             # Memory management commands
             'memory-prime': handle_memory_prime_command,

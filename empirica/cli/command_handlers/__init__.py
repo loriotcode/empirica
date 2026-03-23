@@ -172,6 +172,11 @@ from .sentinel_commands import (
     handle_sentinel_check_command,
 )
 from .artifacts_commands import handle_artifacts_generate_command
+from .profile_commands import (
+    handle_profile_sync_command,
+    handle_profile_prune_command,
+    handle_profile_status_command,
+)
 from .lesson_commands import (
     handle_lesson_create_command,
     handle_lesson_load_command,
@@ -375,6 +380,11 @@ __all__ = [
     'handle_engagement_focus_command',
     'handle_save_command',
     'handle_history_command',
+
+    # Profile management
+    'handle_profile_sync_command',
+    'handle_profile_prune_command',
+    'handle_profile_status_command',
 
     # Artifact generation
     'handle_artifacts_generate_command',
