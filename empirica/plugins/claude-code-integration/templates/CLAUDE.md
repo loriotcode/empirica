@@ -157,6 +157,34 @@ Context can be lost on compaction. Don't accumulate changes.
 
 ---
 
+## TRANSACTION CONTEXT FIELDS
+
+PREFLIGHT accepts two optional context fields that improve grounded calibration:
+
+**`work_context`** — Project maturity. Affects normalization baselines.
+Values: `greenfield` | `iteration` | `investigation` | `refactor`
+
+**`work_type`** — Nature of the task. Scales evidence weights by source relevance.
+Values: `code` | `infra` | `research` | `release` | `debug` | `config` | `docs` | `data` | `comms` | `design` | `audit`
+
+| Work Type | Primary Evidence (upweighted) | Low-Relevance Evidence (downweighted) |
+|-----------|-------------------------------|---------------------------------------|
+| code | git, tests, code quality | — (baseline) |
+| infra | goal completion | git, tests, code quality |
+| research | artifact counts (findings/unknowns) | git, tests, code quality |
+| debug | test pass delta, artifact counts | git metrics, code quality |
+| docs | git (file changes), goal completion | tests, code quality |
+| comms | goal completion | everything code-related |
+| design | artifact counts, goal completion | git, tests, code quality |
+| audit | artifact counts, goal completion | git (should be zero changes) |
+
+Both fields are optional and backward-compatible. Set them in PREFLIGHT JSON:
+```json
+{"work_type": "infra", "work_context": "iteration", ...}
+```
+
+---
+
 ## CORE COMMANDS
 
 **Transaction-first resolution:** Commands auto-derive session_id from the active transaction.
