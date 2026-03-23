@@ -761,6 +761,47 @@ brew install empirica
 
         return all_ok
 
+    def check_auto_issues(self) -> bool:
+        """Check for unresolved high-severity auto-captured issues. Returns True if clean."""
+        log("\n" + "=" * 60)
+        log("🔎 Checking for unresolved high-severity issues")
+        log("=" * 60)
+
+        if self.dry_run:
+            info("Would run: empirica issue-list --status new --severity high")
+            return True
+
+        try:
+            result = subprocess.run(
+                ["empirica", "issue-list", "--status", "new", "--severity", "high", "--output", "json"],
+                capture_output=True, text=True, timeout=15,
+                cwd=str(self.repo_root),
+            )
+            if result.returncode != 0:
+                warning("Could not check auto-captured issues (command failed). Skipping gate.")
+                return True
+
+            import json
+            data = json.loads(result.stdout)
+            issues = data.get("issues", [])
+            if not issues:
+                success("No unresolved high-severity issues")
+                return True
+
+            log(f"\n{RED}Found {len(issues)} unresolved high-severity issue(s):{RESET}")
+            for issue in issues[:10]:
+                log(f"  [{issue['id'][:8]}] {issue.get('message', '?')[:100]}")
+            if len(issues) > 10:
+                log(f"  ... and {len(issues) - 10} more")
+            return False
+
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            warning("empirica CLI not available. Skipping auto-issue gate.")
+            return True
+        except Exception as e:
+            warning(f"Auto-issue check failed: {e}. Skipping gate.")
+            return True
+
     def run_prepare(self):
         """Prepare release: merge to main, build, test. Does NOT publish.
 
@@ -807,6 +848,14 @@ brew install empirica
                 warning("You are on the 'main' branch with built artifacts.")
                 warning("To abort: git checkout develop && git reset --hard origin/main")
                 info(f"\nOnce fixed, run: python scripts/release.py --publish")
+                sys.exit(1)
+
+            # Gate: no unresolved high-severity auto-captured issues
+            if not self.check_auto_issues():
+                warning("Unresolved high-severity issues found. Fix or resolve before publishing.")
+                warning("Use: empirica issue-list --status new --severity high")
+                warning("Resolve with: empirica issue-resolve --session-id <SID> --issue-id <ID> --resolution '...'")
+                info(f"\nOnce resolved, run: python scripts/release.py --publish")
                 sys.exit(1)
 
             log("\n╔════════════════════════════════════════════════════════════╗")
