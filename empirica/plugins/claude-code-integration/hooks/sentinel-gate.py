@@ -408,6 +408,7 @@ def _find_transaction_file(empirica_dir: Path, suffix: str,
         return exact
 
     # Fallback: scan for suffix-mismatched files matching this session
+    # DIAGNOSTIC: Log when fallback triggers to understand if env vars are actually stripped
     if session_id:
         try:
             for tx_file in sorted(empirica_dir.glob('active_transaction*.json')):
@@ -415,6 +416,13 @@ def _find_transaction_file(empirica_dir: Path, suffix: str,
                     with open(tx_file, 'r') as f:
                         tx_data = json.load(f)
                     if tx_data.get('session_id') == session_id:
+                        # Log this so we know the fallback was needed
+                        import sys
+                        diag = (f"DIAG: suffix-mismatch fallback triggered. "
+                                f"expected='{suffix}', found='{tx_file.name}', "
+                                f"TMUX_PANE={os.environ.get('TMUX_PANE', 'MISSING')}, "
+                                f"pid={os.getpid()}, ppid={os.getppid()}")
+                        print(diag, file=sys.stderr)
                         return tx_file
                 except Exception:
                     continue
