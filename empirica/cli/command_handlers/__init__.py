@@ -176,6 +176,7 @@ from .profile_commands import (
     handle_profile_sync_command,
     handle_profile_prune_command,
     handle_profile_status_command,
+    handle_profile_import_command,
 )
 from .lesson_commands import (
     handle_lesson_create_command,
@@ -385,6 +386,7 @@ __all__ = [
     'handle_profile_sync_command',
     'handle_profile_prune_command',
     'handle_profile_status_command',
+    'handle_profile_import_command',
 
     # Artifact generation
     'handle_artifacts_generate_command',

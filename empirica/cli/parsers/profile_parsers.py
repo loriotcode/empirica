@@ -5,6 +5,7 @@ Commands:
 - profile-sync: Sync epistemic profile (fetch notes, import to SQLite, rebuild Qdrant)
 - profile-prune: Prune low-value artifacts with transparent audit receipts
 - profile-status: Show profile state (artifact counts, sync status, calibration)
+- profile-import: Import epistemic artifacts from AI conversation transcripts
 """
 
 
@@ -102,4 +103,47 @@ def add_profile_parsers(subparsers):
     status_parser.add_argument(
         '--output', choices=['json', 'text'], default='json',
         help='Output format (default: json)'
+    )
+
+    # profile-import
+    import_parser = subparsers.add_parser(
+        'profile-import',
+        help='Import epistemic artifacts from AI conversation transcripts',
+        description='Mine AI conversation transcripts for epistemic artifacts '
+                    '(findings, decisions, dead-ends, mistakes, unknowns). '
+                    'Supports Claude Code local transcripts and Claude.ai exports.',
+    )
+    import_parser.add_argument(
+        '--source', required=True,
+        choices=['claude-code', 'claude-ai'],
+        help='Source platform to import from'
+    )
+    import_parser.add_argument(
+        '--project',
+        help='Claude Code project directory name to import from '
+             '(default: auto-discover from .claude/projects/)'
+    )
+    import_parser.add_argument(
+        '--file',
+        help='Path to Claude.ai export JSON file (required for --source claude-ai)'
+    )
+    import_parser.add_argument(
+        '--session',
+        help='Import a specific session by ID (Claude Code only)'
+    )
+    import_parser.add_argument(
+        '--min-confidence', type=float, default=0.5,
+        help='Minimum extraction confidence to include (0.0-1.0, default: 0.5)'
+    )
+    import_parser.add_argument(
+        '--dry-run', action='store_true',
+        help='Show what would be imported without storing anything'
+    )
+    import_parser.add_argument(
+        '--include-sidechains', action='store_true',
+        help='Include subagent/sidechain conversations (Claude Code only)'
+    )
+    import_parser.add_argument(
+        '--output', choices=['json', 'text'], default='text',
+        help='Output format (default: text)'
     )

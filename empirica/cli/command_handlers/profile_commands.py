@@ -5,6 +5,7 @@ Commands:
 - profile-sync: Full sync pipeline (fetch → import → optional Qdrant rebuild)
 - profile-prune: Transparent artifact pruning with git notes receipts
 - profile-status: Unified profile status view
+- profile-import: Import epistemic artifacts from AI conversation transcripts
 """
 
 import json
@@ -697,4 +698,323 @@ def handle_profile_status_command(args):
 
     except Exception as e:
         handle_cli_error(e, "Profile status", getattr(args, 'verbose', False))
+        return 1
+
+
+def handle_profile_import_command(args):
+    """Handle profile-import command — mine AI transcripts for epistemic artifacts."""
+    try:
+        source = getattr(args, 'source', 'claude-code')
+        project_name = getattr(args, 'project', None)
+        file_path = getattr(args, 'file', None)
+        session_id_filter = getattr(args, 'session', None)
+        min_confidence = getattr(args, 'min_confidence', 0.5)
+        dry_run = getattr(args, 'dry_run', False)
+        include_sidechains = getattr(args, 'include_sidechains', False)
+        output_format = getattr(args, 'output', 'text')
+
+        from empirica.core.canonical.transcript_parser import (
+            TranscriptParser, SessionIndex, ClaudeAIParser
+        )
+        from empirica.core.canonical.artifact_extractor import ArtifactExtractor, ExtractionResult
+
+        all_results = []
+        sessions_scanned = 0
+
+        if source == 'claude-code':
+            session_index = SessionIndex()
+            parser = TranscriptParser()
+
+            # Discover sessions to process
+            if project_name:
+                sessions = session_index.get_sessions(project_name)
+            else:
+                sessions = session_index.get_all_sessions(min_messages=3)
+
+            if session_id_filter:
+                sessions = [s for s in sessions if s.session_id == session_id_filter]
+
+            if not sessions:
+                msg = "No sessions found"
+                if project_name:
+                    msg += f" in project '{project_name}'"
+                if output_format == 'json':
+                    print(json.dumps({"ok": True, "message": msg, "sessions_scanned": 0, "artifacts": 0}))
+                else:
+                    print(f"ℹ️  {msg}")
+                return 0
+
+            if output_format == 'text' and not dry_run:
+                print(f"🔍 Scanning {len(sessions)} session(s)...")
+
+            for session_meta in sessions:
+                if not session_meta.full_path:
+                    continue
+                sessions_scanned += 1
+
+                records = parser.parse_session(session_meta.full_path)
+                if not records:
+                    continue
+
+                turns = list(parser.iter_conversation_turns(
+                    records, include_sidechains=include_sidechains
+                ))
+                if not turns:
+                    continue
+
+                extractor = ArtifactExtractor(min_confidence=min_confidence)
+                result = extractor.extract_all(
+                    turns,
+                    source="claude-code",
+                    session_id=session_meta.session_id,
+                )
+
+                if result.total_artifacts > 0:
+                    all_results.append(result)
+
+                    if output_format == 'text' and not dry_run:
+                        summary = result.summary()
+                        parts = []
+                        for key in ['findings', 'decisions', 'dead_ends', 'mistakes', 'unknowns']:
+                            if summary[key] > 0:
+                                parts.append(f"{key}={summary[key]}")
+                        if parts:
+                            session_label = session_meta.summary or session_meta.session_id[:12]
+                            print(f"   {session_label}: {', '.join(parts)}")
+
+        elif source == 'claude-ai':
+            if not file_path:
+                error = {"ok": False, "error": "--file required for --source claude-ai"}
+                if output_format == 'json':
+                    print(json.dumps(error))
+                else:
+                    print(f"❌ {error['error']}")
+                return 1
+
+            ai_parser = ClaudeAIParser()
+            turns, metadata = ai_parser.parse_export(file_path)
+
+            if not turns:
+                msg = f"No conversations found in {file_path}"
+                if output_format == 'json':
+                    print(json.dumps({"ok": True, "message": msg, "sessions_scanned": 0, "artifacts": 0}))
+                else:
+                    print(f"ℹ️  {msg}")
+                return 0
+
+            sessions_scanned = metadata.get('conversation_count', 1)
+
+            if output_format == 'text' and not dry_run:
+                print(f"🔍 Processing {len(turns)} conversation turns from Claude.ai export...")
+
+            extractor = ArtifactExtractor(min_confidence=min_confidence)
+            result = extractor.extract_all(turns, source="claude-ai")
+
+            if result.total_artifacts > 0:
+                all_results.append(result)
+
+        # Aggregate results
+        totals = {
+            'findings': sum(len(r.findings) for r in all_results),
+            'decisions': sum(len(r.decisions) for r in all_results),
+            'dead_ends': sum(len(r.dead_ends) for r in all_results),
+            'mistakes': sum(len(r.mistakes) for r in all_results),
+            'unknowns': sum(len(r.unknowns) for r in all_results),
+        }
+        total_artifacts = sum(totals.values())
+
+        if dry_run:
+            # Show what would be imported
+            report = {
+                "ok": True,
+                "dry_run": True,
+                "source": source,
+                "sessions_scanned": sessions_scanned,
+                "artifacts_found": totals,
+                "total": total_artifacts,
+                "min_confidence": min_confidence,
+            }
+
+            # Include sample artifacts in dry run
+            samples = {}
+            for r in all_results:
+                if r.findings and 'finding' not in samples:
+                    f = r.findings[0]
+                    samples['finding'] = {'text': f.finding, 'confidence': f.confidence, 'impact': f.impact}
+                if r.decisions and 'decision' not in samples:
+                    d = r.decisions[0]
+                    samples['decision'] = {'choice': d.choice, 'confidence': d.confidence}
+                if r.dead_ends and 'dead_end' not in samples:
+                    de = r.dead_ends[0]
+                    samples['dead_end'] = {'approach': de.approach, 'confidence': de.confidence}
+            if samples:
+                report['samples'] = samples
+
+            if output_format == 'json':
+                print(json.dumps(report, indent=2))
+            else:
+                print(f"\n📋 Dry run: {total_artifacts} artifacts found from {sessions_scanned} session(s)")
+                for artifact_type, count in totals.items():
+                    if count > 0:
+                        print(f"   {artifact_type}: {count}")
+                if samples:
+                    print(f"\n   Sample artifacts:")
+                    for atype, sample in samples.items():
+                        text = sample.get('text', sample.get('choice', sample.get('approach', '')))
+                        print(f"   [{atype}] {text[:80]}... (confidence={sample['confidence']})")
+            return 0
+
+        # Actually store artifacts
+        if total_artifacts == 0:
+            msg = f"No artifacts found above confidence {min_confidence}"
+            if output_format == 'json':
+                print(json.dumps({"ok": True, "message": msg, "sessions_scanned": sessions_scanned, "artifacts": 0}))
+            else:
+                print(f"ℹ️  {msg}")
+            return 0
+
+        from empirica.data.session_database import SessionDatabase
+        from empirica.utils.session_resolver import get_active_project_id
+        import uuid as uuid_mod
+
+        db = SessionDatabase()
+        project_id = get_active_project_id()
+        stored = {'findings': 0, 'unknowns': 0, 'dead_ends': 0, 'mistakes': 0}
+
+        try:
+            cursor = db.conn.cursor()
+            now_ts = datetime.now(timezone.utc).timestamp()
+
+            for result in all_results:
+                for finding in result.findings:
+                    try:
+                        cursor.execute("""
+                            INSERT OR IGNORE INTO project_findings
+                            (id, project_id, session_id, finding, created_timestamp,
+                             finding_data, impact)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            str(uuid_mod.uuid4()),
+                            project_id,
+                            result.session_id,
+                            finding.finding,
+                            now_ts,
+                            json.dumps({
+                                'finding': finding.finding,
+                                'source': result.source,
+                                'extraction_confidence': finding.confidence,
+                                'source_turn': finding.source_turn,
+                            }),
+                            finding.impact,
+                        ))
+                        if cursor.rowcount > 0:
+                            stored['findings'] += 1
+                    except Exception as e:
+                        logger.debug(f"Failed to store finding: {e}")
+
+                for unknown in result.unknowns:
+                    try:
+                        cursor.execute("""
+                            INSERT OR IGNORE INTO project_unknowns
+                            (id, project_id, session_id, unknown, is_resolved,
+                             created_timestamp, unknown_data, impact)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            str(uuid_mod.uuid4()),
+                            project_id,
+                            result.session_id,
+                            unknown.unknown,
+                            False,
+                            now_ts,
+                            json.dumps({
+                                'unknown': unknown.unknown,
+                                'source': result.source,
+                                'extraction_confidence': unknown.confidence,
+                            }),
+                            0.5,
+                        ))
+                        if cursor.rowcount > 0:
+                            stored['unknowns'] += 1
+                    except Exception as e:
+                        logger.debug(f"Failed to store unknown: {e}")
+
+                for dead_end in result.dead_ends:
+                    try:
+                        cursor.execute("""
+                            INSERT OR IGNORE INTO project_dead_ends
+                            (id, project_id, session_id, approach, why_failed,
+                             created_timestamp, dead_end_data)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            str(uuid_mod.uuid4()),
+                            project_id,
+                            result.session_id,
+                            dead_end.approach,
+                            dead_end.why_failed,
+                            now_ts,
+                            json.dumps({
+                                'source': result.source,
+                                'extraction_confidence': dead_end.confidence,
+                            }),
+                        ))
+                        if cursor.rowcount > 0:
+                            stored['dead_ends'] += 1
+                    except Exception as e:
+                        logger.debug(f"Failed to store dead end: {e}")
+
+                for mistake in result.mistakes:
+                    try:
+                        cursor.execute("""
+                            INSERT OR IGNORE INTO mistakes_made
+                            (id, project_id, session_id, mistake, why_wrong,
+                             prevention, created_timestamp, mistake_data)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            str(uuid_mod.uuid4()),
+                            project_id,
+                            result.session_id,
+                            mistake.mistake,
+                            mistake.why_wrong,
+                            mistake.prevention,
+                            now_ts,
+                            json.dumps({
+                                'source': result.source,
+                                'extraction_confidence': mistake.confidence,
+                            }),
+                        ))
+                        if cursor.rowcount > 0:
+                            stored['mistakes'] += 1
+                    except Exception as e:
+                        logger.debug(f"Failed to store mistake: {e}")
+
+            db.conn.commit()
+        finally:
+            db.close()
+
+        total_stored = sum(stored.values())
+        report = {
+            "ok": True,
+            "source": source,
+            "sessions_scanned": sessions_scanned,
+            "artifacts_found": total_artifacts,
+            "artifacts_stored": stored,
+            "total_stored": total_stored,
+            "duplicates_skipped": total_artifacts - total_stored,
+        }
+
+        if output_format == 'json':
+            print(json.dumps(report, indent=2))
+        else:
+            print(f"\n✅ Imported {total_stored} artifacts from {sessions_scanned} session(s)")
+            for artifact_type, count in stored.items():
+                if count > 0:
+                    print(f"   {artifact_type}: {count}")
+            skipped = total_artifacts - total_stored
+            if skipped > 0:
+                print(f"   ({skipped} duplicates skipped)")
+
+        return 0
+
+    except Exception as e:
+        handle_cli_error(e, "Profile import", getattr(args, 'verbose', False))
         return 1
