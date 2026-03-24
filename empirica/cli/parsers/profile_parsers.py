@@ -59,6 +59,7 @@ def add_profile_parsers(subparsers):
             'low-impact-findings',
             'falsified-assumptions',
             'old-dead-ends',
+            'low-confidence-imports',
         ],
         help='Apply a specific mechanical pruning rule'
     )

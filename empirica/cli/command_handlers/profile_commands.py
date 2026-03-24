@@ -413,6 +413,40 @@ def _apply_prune_rule(db, rule: str, older_than_days: Optional[int] = None,
                 'reason': f'Test session artifact (test-transactions rule)',
             })
 
+    elif rule == 'low-confidence-imports':
+        # Prune transcript-imported artifacts with low extraction confidence
+        confidence_threshold = 0.6  # prune anything below this
+        for table, artifact_type, text_col, data_col in [
+            ('project_findings', 'finding', 'finding', 'finding_data'),
+            ('project_unknowns', 'unknown', 'unknown', 'unknown_data'),
+            ('project_dead_ends', 'dead_end', 'approach', 'dead_end_data'),
+            ('mistakes_made', 'mistake', 'mistake', 'mistake_data'),
+        ]:
+            try:
+                query = f"""
+                    SELECT id, {text_col}, {data_col} FROM {table}
+                    WHERE {data_col} LIKE '%"extraction_confidence"%'
+                """
+                params = []
+                if age_cutoff:
+                    query += " AND created_timestamp < ?"
+                    params.append(age_cutoff)
+                cursor.execute(query, params)
+                for row in cursor.fetchall():
+                    try:
+                        data = json.loads(row[2]) if row[2] else {}
+                        conf = data.get('extraction_confidence', 1.0)
+                        if conf < confidence_threshold:
+                            candidates.append({
+                                'id': row[0], 'type': artifact_type,
+                                'summary': str(row[1])[:200],
+                                'reason': f'Low confidence transcript import ({conf:.2f} < {confidence_threshold}) (low-confidence-imports rule)',
+                            })
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+            except Exception:
+                pass
+
     elif rule == 'falsified-assumptions':
         # This would need an assumptions table — skip for now if not available
         return {'ok': True, 'candidates': [], 'note': 'Assumptions table not yet supported for pruning'}
@@ -622,6 +656,40 @@ def handle_profile_status_command(args):
         except Exception:
             pass
 
+        # Transcript import stats
+        import_stats = {'total': 0, 'by_source': {}, 'by_type': {}}
+        try:
+            from empirica.data.session_database import SessionDatabase as _DB2
+            db2 = _DB2()
+            try:
+                c2 = db2.conn.cursor()
+                for table, artifact_type, data_col in [
+                    ('project_findings', 'findings', 'finding_data'),
+                    ('project_unknowns', 'unknowns', 'unknown_data'),
+                    ('project_dead_ends', 'dead_ends', 'dead_end_data'),
+                    ('mistakes_made', 'mistakes', 'mistake_data'),
+                ]:
+                    try:
+                        c2.execute(f"""
+                            SELECT {data_col} FROM {table}
+                            WHERE {data_col} LIKE '%"extraction_confidence"%'
+                        """)
+                        for row in c2.fetchall():
+                            try:
+                                data = json.loads(row[0]) if row[0] else {}
+                                source = data.get('source', 'unknown')
+                                import_stats['total'] += 1
+                                import_stats['by_source'][source] = import_stats['by_source'].get(source, 0) + 1
+                                import_stats['by_type'][artifact_type] = import_stats['by_type'].get(artifact_type, 0) + 1
+                            except (json.JSONDecodeError, TypeError):
+                                pass
+                    except Exception:
+                        pass
+            finally:
+                db2.close()
+        except Exception:
+            pass
+
         # Drift detection: notes vs SQLite
         drift = {}
         for artifact_type in ['findings', 'unknowns', 'dead_ends', 'mistakes', 'goals']:
@@ -642,6 +710,7 @@ def handle_profile_status_command(args):
                 "sqlite": artifact_counts,
                 "git_notes": notes_counts,
             },
+            "transcript_imports": import_stats if import_stats['total'] > 0 else None,
             "drift": drift if drift else None,
             "sync": {
                 "remote": remote,
@@ -673,6 +742,14 @@ def handle_profile_status_command(args):
             for name, count in notes_counts.items():
                 if count > 0:
                     print(f"    {name}: {count}")
+
+            # Transcript imports
+            if import_stats['total'] > 0:
+                print(f"\n  Transcript Imports: {import_stats['total']}")
+                for src, count in import_stats['by_source'].items():
+                    print(f"    source={src}: {count}")
+                for atype, count in import_stats['by_type'].items():
+                    print(f"    {atype}: {count}")
 
             # Drift
             if drift:
@@ -716,7 +793,7 @@ def handle_profile_import_command(args):
         from empirica.core.canonical.transcript_parser import (
             TranscriptParser, SessionIndex, ClaudeAIParser
         )
-        from empirica.core.canonical.artifact_extractor import ArtifactExtractor, ExtractionResult
+        from empirica.core.canonical.artifact_extractor import ArtifactExtractor
 
         all_results = []
         sessions_scanned = 0
