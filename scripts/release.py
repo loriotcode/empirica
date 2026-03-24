@@ -279,11 +279,34 @@ class ReleaseManager:
                 r'^Version:\s*[0-9]+\.[0-9]+\.[0-9]+',
                 f'Version: {self.version}',
             ),
-            # README.md version badge and footer
+            # README.md version badge
             (
                 self.repo_root / "README.md",
                 r'badge/version-[0-9]+\.[0-9]+\.[0-9]+-blue\)\]\(https://github\.com/Nubaeon/empirica/releases/tag/v[0-9]+\.[0-9]+\.[0-9]+\)',
                 f'badge/version-{self.version}-blue)](https://github.com/Nubaeon/empirica/releases/tag/v{self.version})',
+            ),
+            # README.md docker pull/run commands
+            (
+                self.repo_root / "README.md",
+                r'nubaeon/empirica:[0-9]+\.[0-9]+\.[0-9]+-alpine',
+                f'nubaeon/empirica:{self.version}-alpine',
+            ),
+            (
+                self.repo_root / "README.md",
+                r'nubaeon/empirica:[0-9]+\.[0-9]+\.[0-9]+(?!-)',
+                f'nubaeon/empirica:{self.version}',
+            ),
+            # README.md "What's New" header
+            (
+                self.repo_root / "README.md",
+                r"## What's New in [0-9]+\.[0-9]+\.[0-9]+",
+                f"## What's New in {self.version}",
+            ),
+            # README.md footer version
+            (
+                self.repo_root / "README.md",
+                r'\*\*Version:\*\*\s*[0-9]+\.[0-9]+\.[0-9]+',
+                f'**Version:** {self.version}',
             ),
             # Chocolatey install script version
             (

@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.6.21-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.6.21)
+[![Version](https://img.shields.io/badge/version-1.6.23-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.6.23)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -101,13 +101,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.6.21-alpine
+docker pull nubaeon/empirica:1.6.23-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.6.21
+docker pull nubaeon/empirica:1.6.23
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.6.21 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.6.23 /bin/bash
 ```
 </details>
 
@@ -266,12 +266,14 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.6.21
+## What's New in 1.6.23
 
-- **InstanceResolver Fix** — Fixed `UnboundLocalError` affecting users who provide `session_id` explicitly. 46 redundant local re-imports removed across 7 CLI handler files
-- **Windows UTF-8 Subprocess Fix** — `run_empirica_subprocess()` helper forces UTF-8 encoding for Empirica-on-Empirica subprocess calls on Windows. Contributed by [@kars85](https://github.com/kars85)
-- **Bootstrap NoneType Guard** — Fixed `TypeError: '>' not supported between NoneType and float` in drift/delta calculations during `project-bootstrap`. Reported by [@kars85](https://github.com/kars85)
-- **Sentinel Allow List** — Added `gh pr diff` to noetic-safe Bash commands
+- **Release Auto-Issue Gate** — `--prepare` checks for unresolved high-severity auto-captured issues before publish
+- **`setup-claude-code --force` Fix** — Hooks and statusLine now actually refresh on `--force`. Fixes #66
+- **Sentinel Remote Command Classification** — SSH/rsync/scp classified as noetic/praxic based on inner command and transfer direction
+- **Transaction Suffix-Mismatch Fallback** — Sentinel finds transactions across instance suffixes when TMUX_PANE is unavailable in hook context (KNOWN_ISSUES 11.22)
+- **Profile Management CLI** — `profile-sync`, `profile-prune`, `profile-status` for epistemic profile lifecycle
+- **Release Two-Phase Flow** — `--prepare` (merge, build, test) and `--publish` (push to channels) for safer releases
 
 ### Previous Highlights (1.6.11–1.6.21)
 
@@ -310,6 +312,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.6.21
+**Version:** 1.6.23
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*
