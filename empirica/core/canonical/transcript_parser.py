@@ -579,20 +579,26 @@ class TranscriptParser:
 class ClaudeAIParser:
     """Parse Claude.ai conversation exports.
 
-    Claude.ai exports conversations as JSON with this structure:
-    - Array of conversations, each with messages
-    - Messages have role (human/assistant), content, timestamps
-    - No tool_use, no thinking blocks — pure conversation
+    Claude.ai exports are ZIP archives containing:
+    - conversations.json: Array of conversations with chat_messages[]
+    - memories.json: Claude's memory about the user (global + per-project)
+    - projects.json: Project metadata with docs
+    - users.json: User profile
+
+    Messages have content[] blocks (text, tool_use, tool_result).
+    IMPORTANT: Always parse content[] as canonical source — the `text` field
+    is a display-oriented flattening that drops tool blocks and has mismatches
+    in ~13% of messages.
 
     This parser normalizes Claude.ai format into the same ConversationTurn
     interface used by TranscriptParser.
     """
 
     def parse_export(self, file_path: str) -> Tuple[List[ConversationTurn], Dict[str, Any]]:
-        """Parse a Claude.ai export file.
+        """Parse a Claude.ai export (ZIP archive or JSON file).
 
         Args:
-            file_path: Path to the exported JSON file.
+            file_path: Path to the exported ZIP or conversations.json file.
 
         Returns:
             Tuple of (conversation turns, export metadata).
@@ -602,24 +608,33 @@ class ClaudeAIParser:
             logger.warning(f"Export file not found: {file_path}")
             return [], {}
 
-        try:
-            data = json.loads(path.read_text(encoding='utf-8'))
-        except (json.JSONDecodeError, OSError) as e:
-            logger.warning(f"Failed to read export file: {e}")
+        # Handle ZIP archives
+        conversations_data = None
+        memories_data = None
+        projects_data = None
+        if path.suffix == '.zip':
+            conversations_data, memories_data, projects_data = self._extract_zip(path)
+        else:
+            try:
+                conversations_data = json.loads(path.read_text(encoding='utf-8'))
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(f"Failed to read export file: {e}")
+                return [], {}
+
+        if conversations_data is None:
             return [], {}
 
-        # Claude.ai exports can be a list of conversations or a single object
+        # Normalize to list of conversations
         conversations = []
-        if isinstance(data, list):
-            conversations = data
-        elif isinstance(data, dict):
-            # Might be a single conversation or wrapper
-            if "conversations" in data:
-                conversations = data["conversations"]
-            elif "chat_messages" in data:
-                conversations = [data]
+        if isinstance(conversations_data, list):
+            conversations = conversations_data
+        elif isinstance(conversations_data, dict):
+            if "conversations" in conversations_data:
+                conversations = conversations_data["conversations"]
+            elif "chat_messages" in conversations_data:
+                conversations = [conversations_data]
             else:
-                conversations = [data]
+                conversations = [conversations_data]
 
         all_turns = []
         metadata = {
@@ -628,6 +643,14 @@ class ClaudeAIParser:
             "file_path": str(path),
         }
 
+        # Add memories and projects to metadata if available
+        if memories_data:
+            metadata["has_memories"] = True
+            metadata["memories"] = memories_data
+        if projects_data:
+            metadata["has_projects"] = True
+            metadata["project_count"] = len(projects_data) if isinstance(projects_data, list) else 0
+
         for conv in conversations:
             turns = self._parse_conversation(conv)
             all_turns.extend(turns)
@@ -635,11 +658,40 @@ class ClaudeAIParser:
         metadata["total_turns"] = len(all_turns)
         return all_turns, metadata
 
+    def _extract_zip(self, zip_path: Path) -> Tuple[Optional[Any], Optional[Any], Optional[Any]]:
+        """Extract conversations, memories, and projects from a ZIP export."""
+        import zipfile
+        conversations = None
+        memories = None
+        projects = None
+
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as zf:
+                for name in zf.namelist():
+                    basename = Path(name).name
+                    try:
+                        raw = zf.read(name).decode('utf-8')
+                        data = json.loads(raw)
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        continue
+
+                    if basename == 'conversations.json':
+                        conversations = data
+                    elif basename == 'memories.json':
+                        memories = data
+                    elif basename == 'projects.json':
+                        projects = data
+        except zipfile.BadZipFile:
+            logger.warning(f"Invalid ZIP file: {zip_path}")
+        except Exception as e:
+            logger.warning(f"Failed to extract ZIP: {e}")
+
+        return conversations, memories, projects
+
     def _parse_conversation(self, conv: Dict[str, Any]) -> List[ConversationTurn]:
         """Parse a single conversation from Claude.ai export."""
         turns = []
 
-        # Try different message field names (format may vary)
         messages = (
             conv.get("chat_messages")
             or conv.get("messages")
@@ -656,15 +708,12 @@ class ClaudeAIParser:
             if not isinstance(msg, dict):
                 continue
 
-            # Claude.ai uses "human"/"assistant" or "user"/"assistant"
             sender = msg.get("sender", msg.get("role", ""))
             content = self._extract_message_content(msg)
             timestamp = msg.get("created_at", msg.get("timestamp", ""))
+            tool_chains = self._extract_tool_chains(msg)
 
             if sender in ("human", "user"):
-                # Yield previous turn if exists
-                if current_user_msg and turns and turns[-1].user_message == current_user_msg:
-                    pass  # Already yielded
                 current_user_msg = content
                 current_user_ts = timestamp
 
@@ -675,6 +724,7 @@ class ClaudeAIParser:
                     assistant_text=content,
                     timestamp=current_user_ts,
                     model=msg.get("model", ""),
+                    tool_chains=tool_chains,
                 ))
                 turn_index += 1
                 current_user_msg = ""
@@ -682,24 +732,91 @@ class ClaudeAIParser:
         return turns
 
     def _extract_message_content(self, msg: Dict[str, Any]) -> str:
-        """Extract text content from a message, handling various formats."""
-        # Direct text field
-        if "text" in msg and isinstance(msg["text"], str):
-            return msg["text"]
-
-        # Content field (string or list)
-        content = msg.get("content", "")
-        if isinstance(content, str):
-            return content
-
+        """Extract text content from a message using content[] as canonical source."""
+        # Prefer content[] blocks over text field (text has ~13% mismatch rate)
+        content = msg.get("content")
         if isinstance(content, list):
             parts = []
             for block in content:
                 if isinstance(block, str):
                     parts.append(block)
                 elif isinstance(block, dict):
-                    if block.get("type") == "text":
+                    block_type = block.get("type", "")
+                    if block_type == "text":
                         parts.append(block.get("text", ""))
-            return "\n".join(parts)
+                    elif block_type == "tool_use":
+                        # Include tool usage context for extraction
+                        tool_name = block.get("name", "unknown")
+                        tool_input = block.get("input", {})
+                        msg_text = block.get("message", "")
+                        if msg_text:
+                            parts.append(f"[Tool: {tool_name}] {msg_text}")
+                        elif isinstance(tool_input, dict):
+                            # Extract meaningful fields from tool input
+                            for key in ("query", "command", "description"):
+                                if key in tool_input:
+                                    parts.append(f"[Tool: {tool_name}] {tool_input[key]}")
+                                    break
+                    elif block_type == "tool_result":
+                        # Extract text from tool results
+                        inner = block.get("content", [])
+                        if isinstance(inner, list):
+                            for inner_block in inner:
+                                if isinstance(inner_block, dict) and inner_block.get("type") == "text":
+                                    text = inner_block.get("text", "")
+                                    if text and len(text) < 500:
+                                        parts.append(text)
+            if parts:
+                return "\n".join(parts)
+
+        # Fallback to text field
+        if "text" in msg and isinstance(msg["text"], str):
+            return msg["text"]
+
+        if isinstance(content, str):
+            return content
 
         return ""
+
+    def _extract_tool_chains(self, msg: Dict[str, Any]) -> List[ToolChain]:
+        """Extract tool chains from a Claude.ai message's content blocks."""
+        content = msg.get("content")
+        if not isinstance(content, list):
+            return []
+
+        # Build lookup of tool_use blocks by id
+        tool_uses: Dict[str, Dict[str, Any]] = {}
+        tool_results: Dict[str, Dict[str, Any]] = {}
+
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "tool_use":
+                tool_uses[block.get("id", "")] = block
+            elif block.get("type") == "tool_result":
+                tool_results[block.get("tool_use_id", "")] = block
+
+        chains = []
+        for tool_id, use_block in tool_uses.items():
+            result_block = tool_results.get(tool_id)
+            result_text = ""
+            is_error = False
+            if result_block:
+                is_error = result_block.get("is_error", False)
+                inner = result_block.get("content", [])
+                if isinstance(inner, list):
+                    texts = []
+                    for b in inner:
+                        if isinstance(b, dict) and b.get("type") == "text":
+                            texts.append(b.get("text", ""))
+                    result_text = "\n".join(texts)
+
+            chains.append(ToolChain(
+                tool_name=use_block.get("name", "unknown"),
+                tool_input=use_block.get("input", {}),
+                tool_use_id=tool_id,
+                result_content=result_text[:1000] if result_text else "",
+                success=not is_error,
+            ))
+
+        return chains
