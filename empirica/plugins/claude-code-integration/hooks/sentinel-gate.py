@@ -408,7 +408,6 @@ def _find_transaction_file(empirica_dir: Path, suffix: str,
         return exact
 
     # Fallback: scan for suffix-mismatched files matching this session
-    # DIAGNOSTIC: Log when fallback triggers to understand if env vars are actually stripped
     if session_id:
         try:
             for tx_file in sorted(empirica_dir.glob('active_transaction*.json')):
@@ -416,13 +415,6 @@ def _find_transaction_file(empirica_dir: Path, suffix: str,
                     with open(tx_file, 'r') as f:
                         tx_data = json.load(f)
                     if tx_data.get('session_id') == session_id:
-                        # Log this so we know the fallback was needed
-                        import sys
-                        diag = (f"DIAG: suffix-mismatch fallback triggered. "
-                                f"expected='{suffix}', found='{tx_file.name}', "
-                                f"TMUX_PANE={os.environ.get('TMUX_PANE', 'MISSING')}, "
-                                f"pid={os.getpid()}, ppid={os.getppid()}")
-                        print(diag, file=sys.stderr)
                         return tx_file
                 except Exception:
                     continue
@@ -1381,16 +1373,48 @@ def main():
             _aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id_early}.json'
             if not _aw_file.exists():
                 # No active_work file for this claude_session_id — likely a subagent
-                # (or session-init failed, in which case normal gating will handle it)
+                # (or session-init failed / project initialized mid-session)
+                #
+                # TIGHTENED CHECK (fixes #68): Don't just check if active_session exists —
+                # verify its session matches the current transaction. Stale active_session
+                # files from other projects/sessions cause false positive subagent detection.
                 from empirica.utils.session_resolver import InstanceResolver as R
                 _as_suffix = R.instance_suffix()
                 _as_file = Path.home() / '.empirica' / f'active_session{_as_suffix}'
                 if _as_file.exists():
-                    # active_session exists (parent was set up) but no active_work for
-                    # this session_id → confirmed subagent, not a broken session-init
-                    respond("allow", f"Subagent exemption: {tool_name} (no active_work for {claude_session_id_early[:8]})")
-                    sys.exit(0)
-                # Neither exists → likely broken session-init, fall through to normal gating
+                    # Read the active_session to get its empirica_session_id
+                    _is_subagent = False
+                    try:
+                        with open(_as_file, 'r') as _asf:
+                            _as_data = json.load(_asf)
+                        _as_session_id = _as_data.get('empirica_session_id')
+
+                        # Find the current transaction to compare session IDs
+                        _tx_session_match = False
+                        if _as_session_id:
+                            # Check if any active_work file has this session
+                            for _aw_candidate in Path.home().glob('.empirica/active_work_*.json'):
+                                try:
+                                    with open(_aw_candidate, 'r') as _awf:
+                                        _aw_data = json.load(_awf)
+                                    if _aw_data.get('empirica_session_id') == _as_session_id:
+                                        _tx_session_match = True
+                                        break
+                                except Exception:
+                                    continue
+
+                        if _tx_session_match:
+                            # Parent session is active AND has a matching active_work file
+                            # This session doesn't → confirmed subagent
+                            _is_subagent = True
+                    except Exception:
+                        pass  # Can't read active_session → not confident it's a subagent
+
+                    if _is_subagent:
+                        respond("allow", f"Subagent exemption: {tool_name} (no active_work for {claude_session_id_early[:8]})")
+                        sys.exit(0)
+                # Not a confirmed subagent → fall through to normal gating
+                # (covers: broken session-init, mid-session project init, stale files)
         except Exception:
             pass  # Detection failure → continue with normal sentinel logic
 
