@@ -2,51 +2,69 @@
 FastAPI application for `empirica serve` — local daemon for Chrome extension.
 
 Exposes profile operations as REST endpoints on localhost. The extension
-POSTs scraped conversation data here for extraction, and queries profile status.
+extracts artifacts client-side (TypeScript) and POSTs them here for storage.
 
 Security: Localhost-only by default. No authentication required for local use.
 CORS allows chrome-extension:// origins for browser extension access.
+
+API contract matches empirica-extension/src/api/empirica-client.ts:
+- GET  /api/v1/health          → HealthResponse
+- POST /api/v1/artifacts/import → ArtifactImportResponse
+- GET  /api/v1/profile/status  → ProfileStatusResponse
+- POST /api/v1/profile/sync    → SyncResponse
 """
 
 import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
 # ── Request/Response Models ──────────────────────────────────────────
+# These mirror the TypeScript interfaces in empirica-client.ts
 
 class HealthResponse(BaseModel):
+    """Matches extension's HealthResponse interface."""
     ok: bool = True
-    service: str = "empirica-serve"
     version: str = "0.1.0"
+    api_version: str = "v1"
+    ollama: bool = False
+    claude_mem: bool = False
+    qdrant: bool = False
 
 
-class ImportRequest(BaseModel):
-    """Import artifacts from conversation turns sent by the Chrome extension."""
-    turns: list[dict] = Field(..., description="Conversation turns [{role, content, platform}]")
-    url: str = Field(..., description="Source URL of the conversation")
-    min_confidence: float = Field(0.5, ge=0.0, le=1.0)
+class ArtifactPayload(BaseModel):
+    """Single artifact from the extension's extraction pipeline."""
+    type: str = Field(..., description="Artifact type: finding, decision, dead_end, mistake, unknown")
+    content: str = Field(..., description="Artifact content text")
+    confidence: float = Field(0.5, ge=0.0, le=1.0)
+    confidenceTier: Optional[str] = None
+    contentHash: Optional[str] = None
+    metadata: dict = Field(default_factory=dict)
 
 
-class ImportResponse(BaseModel):
+class ArtifactImportRequest(BaseModel):
+    """Matches what EmpiricaClient.importArtifacts() sends."""
+    artifacts: list[ArtifactPayload] = Field(..., description="Pre-extracted artifacts from extension")
+
+
+class ArtifactImportResponse(BaseModel):
+    """Matches extension's ImportResponse interface."""
     ok: bool
-    artifacts_count: int = 0
-    findings: int = 0
-    decisions: int = 0
-    dead_ends: int = 0
-    mistakes: int = 0
-    unknowns: int = 0
-    message: str = ""
+    imported: int = 0
+    duplicates_skipped: int = 0
+    errors: list[str] = Field(default_factory=list)
 
 
 class ProfileStatusResponse(BaseModel):
-    ok: bool
-    artifact_counts: dict = {}
-    sync_state: dict = {}
-    calibration: dict = {}
+    """Matches extension's ProfileStatus interface."""
+    ok: bool = True
+    artifact_counts: dict = Field(default_factory=dict)
+    total_artifacts: int = 0
+    last_sync: Optional[str] = None
 
 
 class SyncResponse(BaseModel):
@@ -81,27 +99,29 @@ def create_serve_app() -> FastAPI:
 
     @app.get("/api/v1/health", response_model=HealthResponse)
     async def health():
-        """Health check endpoint."""
-        return HealthResponse()
+        """Health check — reports available integrations."""
+        return HealthResponse(
+            ollama=_check_ollama(),
+            qdrant=_check_qdrant(),
+        )
 
-    @app.post("/api/v1/import", response_model=ImportResponse)
-    async def import_turns(req: ImportRequest):
-        """Import conversation turns and extract epistemic artifacts.
+    @app.post("/api/v1/artifacts/import", response_model=ArtifactImportResponse)
+    async def import_artifacts(req: ArtifactImportRequest):
+        """Import pre-extracted artifacts from the Chrome extension.
 
-        This is the primary endpoint for the Chrome extension. It receives
-        scraped conversation data, runs the extraction pipeline, and stores
-        artifacts in the local Empirica database.
+        The extension runs extraction client-side (TypeScript). This endpoint
+        receives the results and stores them in the Empirica database.
         """
         try:
-            result = _run_import(req.turns, req.url, req.min_confidence)
-            return ImportResponse(ok=True, **result)
+            result = _store_artifacts(req.artifacts)
+            return ArtifactImportResponse(ok=True, **result)
         except Exception as e:
             logger.error(f"Import failed: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))
 
     @app.get("/api/v1/profile/status", response_model=ProfileStatusResponse)
     async def profile_status():
-        """Get epistemic profile status — artifact counts, sync state, calibration."""
+        """Get epistemic profile status — artifact counts and sync state."""
         try:
             result = _run_profile_status()
             return ProfileStatusResponse(ok=True, **result)
@@ -122,109 +142,120 @@ def create_serve_app() -> FastAPI:
     return app
 
 
-# ── Internal Handlers (wrap existing CLI logic) ──────────────────────
+# ── Internal Handlers ────────────────────────────────────────────────
 
-def _run_import(
-    turns: list[dict],
-    url: str,
-    min_confidence: float,
-) -> dict:
-    """Run artifact extraction on conversation turns.
+def _check_ollama() -> bool:
+    """Check if Ollama is available locally."""
+    try:
+        import urllib.request
+        req = urllib.request.Request("http://localhost:11434/api/tags", method="GET")
+        with urllib.request.urlopen(req, timeout=2):
+            return True
+    except Exception:
+        return False
 
-    Uses the same extraction pipeline as profile-import but operates on
-    pre-scraped turns rather than reading from transcript files.
-    """
-    from empirica.core.canonical.artifact_extractor import extract_artifacts_from_turns
 
-    # Extract artifacts from the turns
-    artifacts = extract_artifacts_from_turns(turns, min_confidence=min_confidence)
+def _check_qdrant() -> bool:
+    """Check if Qdrant is available locally."""
+    try:
+        import urllib.request
+        req = urllib.request.Request("http://localhost:6333/collections", method="GET")
+        with urllib.request.urlopen(req, timeout=2):
+            return True
+    except Exception:
+        return False
 
-    # Store artifacts in the database
+
+def _store_artifacts(artifacts: list[ArtifactPayload]) -> dict:
+    """Store pre-extracted artifacts in the Empirica database."""
+    import uuid
+    from datetime import datetime, timezone
     from empirica.data.session_database import SessionDatabase
 
     db = SessionDatabase()
-    stored = _store_artifacts(db, artifacts, source_url=url)
+    imported = 0
+    duplicates_skipped = 0
+    errors: list[str] = []
 
-    # Count by type
-    counts = {}
-    for a in stored:
-        atype = a.get("type", "unknown")
-        counts[atype] = counts.get(atype, 0) + 1
-
-    return {
-        "artifacts_count": len(stored),
-        "findings": counts.get("finding", 0),
-        "decisions": counts.get("decision", 0),
-        "dead_ends": counts.get("dead_end", 0),
-        "mistakes": counts.get("mistake", 0),
-        "unknowns": counts.get("unknown", 0),
-        "message": f"Extracted {len(stored)} artifacts from {len(turns)} turns",
-    }
-
-
-def _store_artifacts(db, artifacts: list[dict], source_url: str) -> list[dict]:
-    """Store extracted artifacts in the database."""
-    import uuid
-    from datetime import datetime, timezone
-
-    stored = []
     for artifact in artifacts:
         artifact_id = str(uuid.uuid4())
-        artifact_type = artifact.get("type", "finding")
         now = datetime.now(timezone.utc).isoformat()
+        content = artifact.content
+        atype = artifact.type
+        meta = artifact.metadata
+
+        # Dedup by content hash if provided
+        if artifact.contentHash:
+            try:
+                existing = db.fetch_one(
+                    "SELECT id FROM project_findings WHERE finding = ? LIMIT 1",
+                    (content,),
+                )
+                if existing:
+                    duplicates_skipped += 1
+                    continue
+            except Exception:
+                pass  # Table may not have this column, proceed with insert
 
         try:
-            if artifact_type == "finding":
+            if atype == "finding":
                 db.execute(
-                    "INSERT INTO project_findings (id, project_id, session_id, finding, impact, created_at, source_url) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (artifact_id, artifact.get("project_id", "extension-import"), None,
-                     artifact["content"], artifact.get("impact", 0.5), now, source_url)
+                    "INSERT INTO project_findings (id, project_id, session_id, finding, impact, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (artifact_id, "extension-import", None,
+                     content, meta.get("impact", 0.5), now),
                 )
-            elif artifact_type == "decision":
+            elif atype == "decision":
                 db.execute(
-                    "INSERT INTO project_findings (id, project_id, session_id, finding, impact, created_at, source_url) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (artifact_id, artifact.get("project_id", "extension-import"), None,
-                     f"[decision] {artifact['content']}", artifact.get("impact", 0.5), now, source_url)
+                    "INSERT INTO project_findings (id, project_id, session_id, finding, impact, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (artifact_id, "extension-import", None,
+                     f"[decision] {content}", meta.get("impact", 0.5), now),
                 )
-            elif artifact_type == "dead_end":
+            elif atype == "dead_end":
                 db.execute(
                     "INSERT INTO project_dead_ends (id, project_id, session_id, approach, why_failed, created_at) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
-                    (artifact_id, artifact.get("project_id", "extension-import"), None,
-                     artifact["content"], artifact.get("reason", ""), now)
+                    (artifact_id, "extension-import", None,
+                     content, meta.get("whyFailed", ""), now),
                 )
-            elif artifact_type == "mistake":
+            elif atype == "mistake":
                 db.execute(
                     "INSERT INTO mistakes_made (id, project_id, session_id, mistake, why_wrong, prevention, created_at) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (artifact_id, artifact.get("project_id", "extension-import"), None,
-                     artifact["content"], artifact.get("reason", ""), artifact.get("prevention", ""), now)
+                    (artifact_id, "extension-import", None,
+                     content, meta.get("whyFailed", ""), meta.get("prevention", ""), now),
                 )
-            elif artifact_type == "unknown":
+            elif atype == "unknown":
                 db.execute(
                     "INSERT INTO project_unknowns (id, project_id, session_id, unknown, created_at) "
                     "VALUES (?, ?, ?, ?, ?)",
-                    (artifact_id, artifact.get("project_id", "extension-import"), None,
-                     artifact["content"], now)
+                    (artifact_id, "extension-import", None,
+                     content, now),
                 )
+            else:
+                errors.append(f"Unknown artifact type: {atype}")
+                continue
 
-            stored.append({"id": artifact_id, "type": artifact_type, **artifact})
+            imported += 1
         except Exception as e:
-            logger.warning(f"Failed to store artifact {artifact_type}: {e}")
+            errors.append(f"Failed to store {atype}: {e}")
 
-    return stored
+    return {
+        "imported": imported,
+        "duplicates_skipped": duplicates_skipped,
+        "errors": errors,
+    }
 
 
 def _run_profile_status() -> dict:
-    """Get profile status by calling the existing profile status logic."""
+    """Get profile status — artifact counts from database."""
     from empirica.data.session_database import SessionDatabase
 
     db = SessionDatabase()
+    counts: dict[str, int] = {}
+    total = 0
 
-    # Count artifacts by type
-    counts = {}
     for table, label in [
         ("project_findings", "findings"),
         ("project_unknowns", "unknowns"),
@@ -234,14 +265,15 @@ def _run_profile_status() -> dict:
     ]:
         try:
             row = db.fetch_one(f"SELECT COUNT(*) as cnt FROM {table}")
-            counts[label] = row["cnt"] if row else 0
+            count = row["cnt"] if row else 0
+            counts[label] = count
+            total += count
         except Exception:
             counts[label] = 0
 
     return {
         "artifact_counts": counts,
-        "sync_state": {},
-        "calibration": {},
+        "total_artifacts": total,
     }
 
 

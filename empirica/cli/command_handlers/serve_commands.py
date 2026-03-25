@@ -21,7 +21,7 @@ def handle_serve_command(args):
 
     print(f"Starting Empirica serve daemon on http://{host}:{port}")
     print(f"  Health:  http://{host}:{port}/api/v1/health")
-    print(f"  Import:  POST http://{host}:{port}/api/v1/import")
+    print(f"  Import:  POST http://{host}:{port}/api/v1/artifacts/import")
     print(f"  Status:  GET  http://{host}:{port}/api/v1/profile/status")
     print(f"  Sync:    POST http://{host}:{port}/api/v1/profile/sync")
     print()
