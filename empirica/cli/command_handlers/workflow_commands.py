@@ -2460,24 +2460,30 @@ def handle_postflight_submit_command(args):
                         session_findings = []
                         session_unknowns = []
 
-                    # Build memory items
+                    # Build memory items using ACTUAL artifact IDs from SQLite.
+                    # Must use same ID scheme as embed_single_memory_item() to
+                    # avoid creating duplicates. See project_embed.py for rationale.
                     mem_items = []
-                    mid = 2_000_000 + hash(session_id) % 100000  # Offset to avoid collisions
 
                     for f in session_findings:
+                        fid = f.get('finding_id') or str(f.get('id', ''))
+                        if not fid:
+                            continue
                         mem_items.append({
-                            'id': mid,
+                            'id': fid,
                             'text': f.get('finding', ''),
                             'type': 'finding',
                             'session_id': f.get('session_id', session_id),
                             'goal_id': f.get('goal_id'),
                             'timestamp': f.get('created_timestamp'),
                         })
-                        mid += 1
 
                     for u in session_unknowns:
+                        uid = u.get('unknown_id') or str(u.get('id', ''))
+                        if not uid:
+                            continue
                         mem_items.append({
-                            'id': mid,
+                            'id': uid,
                             'text': u.get('unknown', ''),
                             'type': 'unknown',
                             'session_id': u.get('session_id', session_id),
@@ -2485,7 +2491,6 @@ def handle_postflight_submit_command(args):
                             'timestamp': u.get('created_timestamp'),
                             'is_resolved': u.get('is_resolved', False)
                         })
-                        mid += 1
 
                     if mem_items:
                         upsert_memory(project_id, mem_items)
