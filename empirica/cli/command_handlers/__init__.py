@@ -178,6 +178,7 @@ from .profile_commands import (
     handle_profile_status_command,
     handle_profile_import_command,
 )
+from .serve_commands import handle_serve_command
 from .lesson_commands import (
     handle_lesson_create_command,
     handle_lesson_load_command,
@@ -390,6 +391,9 @@ __all__ = [
 
     # Artifact generation
     'handle_artifacts_generate_command',
+
+    # Serve command
+    'handle_serve_command',
 
     # Session-end command
     # 'handle_session_end_command',  # removed - use handoff-create

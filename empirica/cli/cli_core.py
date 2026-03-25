@@ -68,6 +68,7 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
                     'Lessons': ['lesson-create', 'lesson-load', 'lesson-list', 'lesson-search', 'lesson-recommend', 'lesson-path', 'lesson-replay-start', 'lesson-replay-end', 'lesson-stats'],
                     'MCP Server': ['mcp-start', 'mcp-stop', 'mcp-status', 'mcp-test', 'mcp-list-tools', 'mcp-call'],
                     'Memory': ['memory-prime', 'memory-scope', 'memory-value', 'pattern-check', 'session-rollup', 'memory-report'],
+                    'Server': ['serve'],
                 }
                 
                 parts = ['\nAvailable Commands (grouped by category):\n', '=' * 70 + '\n']
@@ -116,6 +117,7 @@ from .parsers import (
     add_message_parsers,
     add_memory_parsers,
     add_profile_parsers,
+    add_serve_parsers,
 )
 from .command_handlers.architecture_commands import (
     handle_assess_component_command,
@@ -247,6 +249,7 @@ def create_argument_parser():
     add_message_parsers(subparsers)
     add_memory_parsers(subparsers)
     add_profile_parsers(subparsers)
+    add_serve_parsers(subparsers)
 
     return parser
 
@@ -520,6 +523,9 @@ def main(args=None):
             'profile-prune': handle_profile_prune_command,
             'profile-status': handle_profile_status_command,
             'profile-import': handle_profile_import_command,
+
+            # Server commands
+            'serve': handle_serve_command,
 
             # Memory management commands
             'memory-prime': handle_memory_prime_command,
