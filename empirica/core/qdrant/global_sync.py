@@ -11,6 +11,7 @@ from empirica.core.qdrant.connection import (
 )
 from empirica.core.qdrant.collections import (
     _global_learnings_collection, _memory_collection,
+    _eidetic_collection, _episodic_collection,
 )
 
 def embed_to_global(
@@ -142,6 +143,121 @@ def search_global(
     except Exception as e:
         logger.debug(f"search_global failed: {e}")
         return []
+
+
+def search_cross_project(
+    query_text: str,
+    exclude_project_id: str = None,
+    collections_to_search: List[str] = None,
+    limit: int = 5,
+    min_points: int = 1,
+) -> List[Dict]:
+    """
+    Search across ALL registered projects' Qdrant collections.
+
+    Unlike search_global() which only queries the global_learnings collection,
+    this iterates all project_*_{collection} collections in Qdrant and returns
+    merged, ranked results.
+
+    Args:
+        query_text: Semantic search query
+        exclude_project_id: Skip this project (usually the current one)
+        collections_to_search: Which collection types to search.
+            Default: ["memory", "eidetic", "episodic"]
+        limit: Max results per project per collection type
+        min_points: Skip collections with fewer points than this
+    Returns:
+        List of results sorted by score, tagged with source project_id
+    """
+    if not _check_qdrant_available():
+        return []
+
+    qvec = _get_embedding_safe(query_text)
+    if qvec is None:
+        return []
+
+    client = _get_qdrant_client()
+    if client is None:
+        return []
+
+    if collections_to_search is None:
+        collections_to_search = ["memory", "eidetic", "episodic"]
+
+    # Discover all project IDs from Qdrant collection names
+    all_collections = [c.name for c in client.get_collections().collections]
+    project_ids = set()
+    for cname in all_collections:
+        if cname.startswith('project_') and '_' in cname[8:]:
+            pid = cname[8:cname.rindex('_')]
+            project_ids.add(pid)
+
+    if exclude_project_id:
+        project_ids.discard(exclude_project_id)
+
+    # Collection name builders
+    collection_builders = {
+        "memory": _memory_collection,
+        "eidetic": _eidetic_collection,
+        "episodic": _episodic_collection,
+    }
+
+    all_results = []
+
+    for pid in project_ids:
+        for coll_type in collections_to_search:
+            builder = collection_builders.get(coll_type)
+            if not builder:
+                continue
+
+            coll_name = builder(pid)
+            if coll_name not in all_collections:
+                continue
+
+            try:
+                info = client.get_collection(coll_name)
+                if info.points_count < min_points:
+                    continue
+
+                hits = client.query_points(
+                    collection_name=coll_name,
+                    query=qvec,
+                    limit=limit,
+                    with_payload=True,
+                )
+
+                for r in hits.points:
+                    payload = r.payload or {}
+                    score = getattr(r, 'score', 0.0) or 0.0
+
+                    result = {
+                        "score": score,
+                        "project_id": pid,
+                        "collection_type": coll_type,
+                        "type": payload.get("type", coll_type),
+                    }
+
+                    # Type-specific fields
+                    if coll_type == "memory":
+                        result["text"] = payload.get("text", "")
+                        result["impact"] = payload.get("impact")
+                        result["session_id"] = payload.get("session_id")
+                    elif coll_type == "eidetic":
+                        result["content"] = payload.get("content", "")
+                        result["confidence"] = payload.get("confidence")
+                        result["domain"] = payload.get("domain")
+                    elif coll_type == "episodic":
+                        result["narrative"] = payload.get("narrative", "")
+                        result["outcome"] = payload.get("outcome")
+
+                    all_results.append(result)
+
+            except Exception as e:
+                logger.debug(f"cross-project search {coll_name} failed: {e}")
+                continue
+
+    # Sort by score descending, return top results
+    all_results.sort(key=lambda x: x["score"], reverse=True)
+    return all_results[:limit * 3]  # Return more results since they span projects
 
 
 def sync_high_impact_to_global(project_id: str, min_impact: float = 0.7) -> int:
