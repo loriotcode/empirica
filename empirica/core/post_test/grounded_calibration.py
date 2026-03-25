@@ -13,6 +13,27 @@ Mirrors BayesianBeliefManager but with:
 The key insight: the existing calibration measures learning (PREFLIGHT→POSTFLIGHT delta),
 not calibration accuracy. This track measures how well POSTFLIGHT self-assessment
 matches what actually happened (objective evidence).
+
+IMPORTANT — Dual-Track Calibration Philosophy:
+
+Track 2 (grounded) is INFORMATIVE, not AUTHORITATIVE. The deterministic evidence
+sources (test results, git metrics, artifact counts, code quality) are proxies —
+useful signals that detect drift patterns, but they cannot fully measure holistic
+epistemic state. An AI's self-assessment captures dimensions (understanding depth,
+conceptual clarity, engagement quality) that no deterministic service can observe.
+
+The two tracks are complementary:
+- Track 1 (self-referential): Measures learning trajectory. The AI knows what it
+  learned, but may have systematic biases in self-reporting.
+- Track 2 (grounded): Detects those biases by comparing self-reports against
+  observable outcomes. But the observables are incomplete — they're a flashlight
+  on a few corners of the epistemic room, not a full map.
+
+When the tracks diverge, that's a signal worth investigating — not an automatic
+override. The AI should examine WHY they diverge and calibrate accordingly, not
+blindly chase grounded scores by deflating vectors.
+
+The holistic_calibration_score is a drift indicator, not a grade.
 """
 
 import json
@@ -454,6 +475,10 @@ class GroundedCalibrationManager:
         timestamp = datetime.now().isoformat()
         lines = [
             "\n# Grounded calibration (auto-updated by Empirica post-test verification)\n",
+            "# NOTE: These scores are drift indicators from deterministic proxies, not\n",
+            "# ground truth. They detect systematic bias patterns over time but cannot\n",
+            "# fully measure holistic epistemic state. Use alongside self-assessment,\n",
+            "# not as a replacement. See dual-track calibration philosophy in docs.\n",
             "grounded_calibration:\n",
             f'  last_updated: "{timestamp}"\n',
             f"  ai_id: {ai_id}\n",

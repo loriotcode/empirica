@@ -566,7 +566,9 @@ def handle_preflight_submit_command(args):
 
                         previous_transaction_feedback["note"] = (
                             "Directional feedback only — be more cautious with overestimate vectors, "
-                            "less cautious with underestimate vectors. Specific values are user-facing only."
+                            "less cautious with underestimate vectors. Specific values are user-facing only. "
+                            "These are drift patterns from deterministic proxies, not ground truth — "
+                            "investigate divergence rather than mechanically adjusting vectors."
                         )
 
                         # Context-shift data is non-gaming (explains WHY calibration drifted)

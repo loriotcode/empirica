@@ -12,6 +12,13 @@ from project.yaml for per-project, per-phase dynamic weighting.
 Ungroundable vectors (no objective signal): engagement.
 Coherence and density are now grounded via code quality metrics (ruff, radon).
 These keep self-referential calibration.
+
+NOTE on proxy limitations: All evidence sources here are deterministic proxies.
+Test pass rates approximate 'know' but miss conceptual understanding depth.
+Git metrics approximate 'do' but miss quality of thought behind changes.
+Artifact counts approximate 'signal' but can't judge relevance of what was logged.
+The calibration gaps computed here are drift indicators — useful for detecting
+systematic bias patterns over time, but not ground truth for any single transaction.
 """
 
 import logging
