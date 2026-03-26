@@ -255,9 +255,27 @@ def search_cross_project(
                 logger.debug(f"cross-project search {coll_name} failed: {e}")
                 continue
 
+    # Deduplicate by content across collection types (same text in memory + eidetic)
+    seen_content = {}
+    deduped = []
+    for r in all_results:
+        text = r.get("text") or r.get("content") or r.get("narrative") or ""
+        key = " ".join(text.strip().lower().split())
+        if key and key in seen_content:
+            # Keep the higher-scoring entry, skip duplicates
+            if r["score"] > seen_content[key]["score"]:
+                deduped.remove(seen_content[key])
+                seen_content[key] = r
+                deduped.append(r)
+            # else: skip this duplicate (equal or lower score)
+        else:
+            if key:
+                seen_content[key] = r
+            deduped.append(r)
+
     # Sort by score descending, return top results
-    all_results.sort(key=lambda x: x["score"], reverse=True)
-    return all_results[:limit * 3]  # Return more results since they span projects
+    deduped.sort(key=lambda x: x["score"], reverse=True)
+    return deduped[:limit * 3]  # Return more results since they span projects
 
 
 def sync_high_impact_to_global(project_id: str, min_impact: float = 0.7) -> int:

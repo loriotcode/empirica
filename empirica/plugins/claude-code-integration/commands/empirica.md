@@ -1,5 +1,5 @@
 ---
-description: "Toggle Empirica tracking: /empirica on | off | status"
+description: "Toggle Empirica tracking on/off, check sentinel status, fix OFF-RECORD statusline. Use when: 'sentinel paused', 'sentinel off', 'turn off empirica', 'pause tracking', 'go off record', 'why is statusline showing off-record', 'empirica status', '/empirica on', '/empirica off'. Controls sentinel_paused file (NOT sentinel_enabled)."
 allowed-tools: ["Bash(empirica *)", "Bash(python3 *)", "Bash(cat *)", "Bash(rm *)", "Read"]
 ---
 

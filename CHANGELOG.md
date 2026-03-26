@@ -5,6 +5,16 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-03-26
+
+### Fixed
+- **`setup-claude-code --force` no longer nukes other plugins' hooks** — Previously cleared ALL hooks in settings.json. Now filters by Empirica plugin path, preserving Railway, Superpowers, and custom hooks
+- **Python version detection** — `_find_python()` now prefers `python3` over versioned `python3.X` binaries, preventing hooks from using `python3.13` which may not exist on all systems
+- **`/empirica` command trigger matching** — Description now includes common phrases ("sentinel paused", "turn off empirica", "off-record statusline") so Claude can associate user intent with the command
+- **Sentinel pipe targets** — Added `base64` to `SAFE_PIPE_TARGETS` so `gh api ... | base64 -d` isn't blocked as praxic
+- **README What's New sync** — Release script now auto-syncs What's New section from CHANGELOG via `sync_readme_whats_new()`
+- **Cross-project search dedup** — Deduplicate results by content across project collections
+
 ## [1.7.0] - 2026-03-26
 
 ### Highlights
