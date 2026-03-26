@@ -394,9 +394,6 @@ def select_profile(
 __all__ = [
     'InvestigationProfile',
     'InvestigationConstraints',
-    'InvestigationStrategy',
-    'InvestigationLearning',
-    'InvestigationTuning',
     'ActionThresholds',
     'ProfileLoader',
     'load_profile',
