@@ -13,7 +13,7 @@ Core features (always on):
 - Noetic tool whitelist (Read, Grep, Glob, etc.)
 - Safe Bash command whitelist (ls, cat, git status, etc.)
 - PREFLIGHT required for praxic actions (epistemic assessment)
-- AUTO-PROCEED: If PREFLIGHT passes gate (know >= 0.70, unc <= 0.35), skip CHECK
+- AUTO-PROCEED: If PREFLIGHT vectors pass dynamic threshold gate, skip CHECK
 - LOW-CONFIDENCE: If PREFLIGHT fails gate, explicit CHECK required
 - Decision parsing (blocks if CHECK returned "investigate")
 
@@ -1897,11 +1897,77 @@ def main():
     # BUT: noetic tools and safe Bash (read-only) are still allowed —
     # investigation work needs to investigate (read DBs, run queries, analyze).
     if decision == 'investigate':
+        # Initialize investigate cool-down counter if not set
+        if tx_file:
+            try:
+                with open(tx_file, 'r') as _init_f:
+                    _init_tx = json.load(_init_f)
+                if 'noetic_since_investigate' not in _init_tx:
+                    _init_tx['noetic_since_investigate'] = 0
+                    import tempfile
+                    _init_tmp = tempfile.NamedTemporaryFile(mode='w', dir=tx_file.parent, delete=False, suffix='.tmp')
+                    json.dump(_init_tx, _init_tmp)
+                    _init_tmp.close()
+                    Path(_init_tmp.name).rename(tx_file)
+            except Exception:
+                pass
+
+        # INVESTIGATE COOL-DOWN: Track noetic tool calls since investigate.
+        # When AI resubmits CHECK after investigate, require evidence of
+        # actual investigation (N noetic tool calls) before allowing it.
+        # Prevents gaming by resubmitting CHECK with inflated vectors
+        # without doing real investigation work.
+        MIN_NOETIC_AFTER_INVESTIGATE = 3
+
         if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME:
+            # Increment noetic counter in transaction file
+            if tx_file:
+                try:
+                    with open(tx_file, 'r') as _inv_f:
+                        _inv_tx = json.load(_inv_f)
+                    _inv_count = _inv_tx.get('noetic_since_investigate', 0) + 1
+                    _inv_tx['noetic_since_investigate'] = _inv_count
+                    import tempfile
+                    _inv_tmp = tempfile.NamedTemporaryFile(mode='w', dir=tx_file.parent, delete=False, suffix='.tmp')
+                    json.dump(_inv_tx, _inv_tmp)
+                    _inv_tmp.close()
+                    Path(_inv_tmp.name).rename(tx_file)
+                except Exception:
+                    pass
             db.close()
             respond("allow", f"Noetic tool during investigation phase: {tool_name}")
             sys.exit(0)
         if tool_name == 'Bash' and is_safe_bash_command(tool_input):
+            command = tool_input.get('command', '')
+            # Block check-submit if insufficient noetic work since investigate
+            if 'check-submit' in command or 'check ' in command:
+                _inv_noetic = 0
+                if tx_file:
+                    try:
+                        with open(tx_file, 'r') as _inv_f:
+                            _inv_noetic = json.load(_inv_f).get('noetic_since_investigate', 0)
+                    except Exception:
+                        pass
+                if _inv_noetic < MIN_NOETIC_AFTER_INVESTIGATE:
+                    db.close()
+                    respond("deny",
+                        f"Previous transaction ended with INVESTIGATE. "
+                        f"Show evidence of investigation (findings) or submit CHECK with proceed decision.")
+                    sys.exit(0)
+            # Increment noetic counter for safe bash (read-only investigation)
+            if tx_file:
+                try:
+                    with open(tx_file, 'r') as _inv_f:
+                        _inv_tx = json.load(_inv_f)
+                    _inv_count = _inv_tx.get('noetic_since_investigate', 0) + 1
+                    _inv_tx['noetic_since_investigate'] = _inv_count
+                    import tempfile
+                    _inv_tmp = tempfile.NamedTemporaryFile(mode='w', dir=tx_file.parent, delete=False, suffix='.tmp')
+                    json.dump(_inv_tx, _inv_tmp)
+                    _inv_tmp.close()
+                    Path(_inv_tmp.name).rename(tx_file)
+                except Exception:
+                    pass
             db.close()
             respond("allow", "Safe Bash during investigation phase (read-only)")
             sys.exit(0)
