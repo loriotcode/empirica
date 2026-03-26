@@ -139,6 +139,7 @@ SAFE_PIPE_TARGETS = (
     'cut', 'tr', 'less', 'more', 'cat', 'xargs echo', 'tee /dev/stderr',
     'python3 -c', 'python -c',  # For simple JSON parsing
     'jq', 'jq ',  # JSON processing (read-only)
+    'base64',  # Data encoding/decoding (read-only)
 )
 
 # Thresholds for CHECK validation.
