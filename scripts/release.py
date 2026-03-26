@@ -574,8 +574,21 @@ class ReleaseManager:
 
         tag = f"v{self.version}"
 
-        # Commit distribution updates
-        self.run_command(["git", "add", "packaging/", "Dockerfile"])
+        # Commit ALL release updates (version sweep, README sync, packaging)
+        # Previously only staged packaging/ and Dockerfile, missing README,
+        # __init__.py, plugin.json, install.sh, and other swept files.
+        self.run_command(["git", "add",
+            "packaging/", "Dockerfile", "Dockerfile.alpine",
+            "README.md",
+            "empirica/__init__.py",
+            "empirica-mcp/pyproject.toml",
+            "empirica/plugins/claude-code-integration/.claude-plugin/plugin.json",
+            "empirica/plugins/claude-code-integration/install.sh",
+            "empirica/cli/command_handlers/setup_claude_code.py",
+            ".empirica-project/PROJECT_CONFIG.yaml",
+            "docs/human/developers/system-prompts/CANONICAL_CORE.md",
+            "scripts/install.py",
+        ])
         self.run_command([
             "git", "commit", "-m",
             f"chore: automated release {self.version}\n\n"
