@@ -121,6 +121,9 @@ Spawning investigation
 
 ### VI. WHEN DO I MEASURE?
 
+For complex multi-step work, load `/epistemic-transaction` — it has full
+transaction planning with vector estimates, goal decomposition, and examples.
+
 ```
 Transaction lifecycle
 ├── Starting measured work → empirica preflight-submit (opens measurement window)
