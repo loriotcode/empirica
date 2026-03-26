@@ -37,15 +37,15 @@ def _find_python() -> str:
 
     candidates = []
 
-    # Check versioned binaries (highest first)
+    # Prefer plain python3 first (portable, standard)
+    if shutil.which("python3"):
+        candidates.append("python3")
+
+    # Then check versioned binaries as fallback (highest first)
     for ver in [13, 12, 11, 10]:
         cmd = f"python3.{ver}"
         if shutil.which(cmd):
             candidates.append(cmd)
-
-    # Check plain python3
-    if shutil.which("python3"):
-        candidates.append("python3")
 
     # Check macOS framework paths
     for ver in [13, 12, 11, 10]:
