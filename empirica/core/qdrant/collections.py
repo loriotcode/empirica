@@ -156,7 +156,12 @@ def recreate_project_collections(project_id: str) -> dict:
     Returns dict with success status for each collection.
     """
     results = {}
-    for coll_fn in [_docs_collection, _memory_collection, _epistemics_collection]:
+    for coll_fn in [
+        _docs_collection, _memory_collection, _epistemics_collection,
+        _eidetic_collection, _episodic_collection, _goals_collection,
+        _calibration_collection, _assumptions_collection, _decisions_collection,
+        _intents_collection,
+    ]:
         name = coll_fn(project_id)
         results[name] = recreate_collection(name)
     return results
