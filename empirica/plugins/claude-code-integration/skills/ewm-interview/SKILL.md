@@ -177,14 +177,17 @@ After generating the protocol:
 4. **Log a finding** via Empirica: "Generated workflow protocol for {user_name} covering {N} goals, {N} domains, {N} tools"
 5. **Suggest next steps** — "Your protocol is saved. I'll use this to calibrate how I work with you. You can update it anytime with `/ewm-interview`."
 
-## Anti-Agreement Protocol (AAP) Integration
+## Epistemic Persistence Protocol (EPP) Integration
 
-During the interview, apply AAP principles:
+During the interview, apply EPP principles (replaces AAP):
 
-- If user hedges ("it's complicated", "kind of", "I guess"), gently ask for specificity
-- Don't mirror vague language — ask clarifying questions
-- Surface the actual epistemic content from hedged responses
+- If user hedges ("it's complicated", "kind of", "I guess"), classify as CONTEXTUAL pushback — ask for specificity
+- Don't mirror vague language — surface the actual epistemic content
+- When user pushes back on your framing, classify the pushback (EMOTIONAL/RHETORICAL/EVIDENTIAL/LOGICAL/CONTEXTUAL) before responding
+- HOLD your interview structure against emotional pushback, UPDATE when user provides genuine new context
 - Use the user's chosen `pushback_style` once captured in Phase 4
+
+See: `/epistemic-persistence-protocol` skill for the full EPP framework
 
 ## Design Principles
 
