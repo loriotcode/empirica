@@ -33,12 +33,21 @@ calibration which degrades the system's ability to help you.
 
 ## 13 EPISTEMIC VECTORS (0.0-1.0)
 
-| Category | Vectors |
-|----------|---------|
-| Foundation | know, do, context |
-| Comprehension | clarity, coherence, signal, density |
-| Execution | state, change, completion, impact |
-| Meta | engagement, uncertainty |
+| Vector | What It Measures |
+|--------|-----------------|
+| **know** | How well you understand the domain/problem |
+| **do** | Ability to execute (tools, skills, access) |
+| **context** | Understanding of surrounding state (project, history, constraints) |
+| **clarity** | How clear the path forward is |
+| **coherence** | Internal consistency of your understanding |
+| **signal** | Quality of information you're working with (vs noise) |
+| **density** | How much relevant knowledge per unit of context |
+| **state** | Awareness of current system/project state |
+| **change** | Amount of change made in this transaction |
+| **completion** | Progress toward the current phase goal (noetic OR praxic) |
+| **impact** | Significance of the work to the project |
+| **engagement** | How actively you're working the problem |
+| **uncertainty** | What you DON'T know (higher = more uncertain) |
 
 ---
 
