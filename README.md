@@ -266,20 +266,25 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.7.0
+## What's New in 1.7.1
 
-- **InstanceResolver Fix** — Fixed `UnboundLocalError` affecting users who provide `session_id` explicitly. 46 redundant local re-imports removed across 7 CLI handler files
-- **Windows UTF-8 Subprocess Fix** — `run_empirica_subprocess()` helper forces UTF-8 encoding for Empirica-on-Empirica subprocess calls on Windows. Contributed by [@kars85](https://github.com/kars85)
-- **Bootstrap NoneType Guard** — Fixed `TypeError: '>' not supported between NoneType and float` in drift/delta calculations during `project-bootstrap`. Reported by [@kars85](https://github.com/kars85)
-- **Sentinel Allow List** — Added `gh pr diff` to noetic-safe Bash commands
+- **`setup-claude-code --force` no longer nukes other plugins' hooks** — Previously cleared ALL hooks in settings.json. Now filters by Empirica plugin path, preserving Railway, Superpowers, and custom hooks
+- **Python version detection** — `_find_python()` now prefers `python3` over versioned `python3.X` binaries, preventing hooks from using `python3.13` which may not exist on all systems
+- **`/empirica` command trigger matching** — Description now includes common phrases ("sentinel paused", "turn off empirica", "off-record statusline") so Claude can associate user intent with the command
+- **Sentinel pipe targets** — Added `base64` to `SAFE_PIPE_TARGETS` so `gh api ... | base64 -d` isn't blocked as praxic
+- **README What's New sync** — Release script now auto-syncs What's New section from CHANGELOG via `sync_readme_whats_new()`
+- **Cross-project search dedup** — Deduplicate results by content across project collections
 
 ### Previous Highlights (1.6.11–1.7.0)
 
-- **Brier Score Calibration** — Replaced MAE with proper Brier score (Murphy 1973). Miscalibration raises thresholds. Anti-gaming: AI gets directional-only feedback
-- **Statusline Redesign** — Threshold indicator, investigating/acting phase, color-coded K/C vectors, learning deltas
-- **Instance Isolation** — `InstanceResolver` unified API, headless/interactive mode split, DB-based file cleanup
-- **Temporal Entity Model** — Codebase entities tracked with temporal validity, auto-extracted from file edits
-- **Windows Support** — Project-embed retrieval, Qdrant collection creation, Ollama retry. Contributed by [@kars85](https://github.com/kars85)
+- **Empirica Constitution** — 12-section governance framework routing situations to mechanisms
+- **Epistemic Persistence Protocol (EPP)** — Calibrated position-holding under pushback, replacing AAP
+- **Lean Core Prompt** — 81% reduction in always-loaded context. `setup-claude-code --lean`
+- **Cross-Project Search** — `--global` searches ALL projects' Qdrant collections
+- **Cross-Project Artifact Writing** — `finding-log --project-id <name>` writes to another project
+- **Plugin Renamed** — `empirica-integration` → `empirica`. Run `setup-claude-code --force`
+- **Brier Score Calibration** — Proper scoring rule with dynamic thresholds
+- **Profile Management** — `profile-sync`, `profile-prune`, `profile-status`
 
 ---
 
