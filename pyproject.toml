@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "empirica"
-version = "1.6.23"
+version = "1.7.0"
 description = "Genuine AI epistemic self-assessment framework - Universal interface for single AI tracking"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -40,7 +40,7 @@ dependencies = [
 
     # HTTP and networking
     "httpx>=0.24",
-    "requests>=2.31.0",         # Required for API adapters
+    "requests>=2.33.0",         # Security: CVE-2026-25645 fix
 
     # Security and cryptography
     "cryptography>=44.0.1",     # Security: CVE-2024-6119, CVE-2024-12797 fixes

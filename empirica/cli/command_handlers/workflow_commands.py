@@ -566,7 +566,9 @@ def handle_preflight_submit_command(args):
 
                         previous_transaction_feedback["note"] = (
                             "Directional feedback only — be more cautious with overestimate vectors, "
-                            "less cautious with underestimate vectors. Specific values are user-facing only."
+                            "less cautious with underestimate vectors. Specific values are user-facing only. "
+                            "These are drift patterns from deterministic proxies, not ground truth — "
+                            "investigate divergence rather than mechanically adjusting vectors."
                         )
 
                         # Context-shift data is non-gaming (explains WHY calibration drifted)
@@ -1432,6 +1434,26 @@ def handle_check_submit_command(args):
                             logger.info(f"Sentinel override: {decision} → {new_decision} (sentinel={sentinel_decision.value})")
                             decision = new_decision
                             sentinel_override = True
+
+                            # UPDATE DB: Sync the overridden decision to the stored reflex.
+                            # The checkpoint was saved BEFORE the sentinel override, so the
+                            # DB has the pre-override decision. The sentinel-gate hook reads
+                            # the DB, so it must reflect the FINAL decision. Without this,
+                            # CHECK returns "proceed" to the AI but sentinel-gate reads
+                            # "investigate" from the DB → tool calls blocked despite proceed.
+                            try:
+                                db2 = _get_db_for_session(session_id)
+                                db2.conn.execute("""
+                                    UPDATE reflexes SET reflex_data = json_set(reflex_data, '$.decision', ?)
+                                    WHERE session_id = ? AND phase = 'CHECK'
+                                    AND transaction_id = ?
+                                    ORDER BY timestamp DESC LIMIT 1
+                                """, (new_decision, session_id, check_transaction_id2))
+                                db2.conn.commit()
+                                db2.close()
+                                logger.info(f"DB synced: CHECK decision updated to '{new_decision}'")
+                            except Exception as e:
+                                logger.warning(f"Failed to sync sentinel override to DB: {e}")
                 elif sentinel_decision and decision_binding:
                     logger.info(f"Autopilot binding active - Sentinel override blocked (sentinel wanted: {sentinel_decision.value})")
 
@@ -2458,24 +2480,30 @@ def handle_postflight_submit_command(args):
                         session_findings = []
                         session_unknowns = []
 
-                    # Build memory items
+                    # Build memory items using ACTUAL artifact IDs from SQLite.
+                    # Must use same ID scheme as embed_single_memory_item() to
+                    # avoid creating duplicates. See project_embed.py for rationale.
                     mem_items = []
-                    mid = 2_000_000 + hash(session_id) % 100000  # Offset to avoid collisions
 
                     for f in session_findings:
+                        fid = f.get('finding_id') or str(f.get('id', ''))
+                        if not fid:
+                            continue
                         mem_items.append({
-                            'id': mid,
+                            'id': fid,
                             'text': f.get('finding', ''),
                             'type': 'finding',
                             'session_id': f.get('session_id', session_id),
                             'goal_id': f.get('goal_id'),
                             'timestamp': f.get('created_timestamp'),
                         })
-                        mid += 1
 
                     for u in session_unknowns:
+                        uid = u.get('unknown_id') or str(u.get('id', ''))
+                        if not uid:
+                            continue
                         mem_items.append({
-                            'id': mid,
+                            'id': uid,
                             'text': u.get('unknown', ''),
                             'type': 'unknown',
                             'session_id': u.get('session_id', session_id),
@@ -2483,7 +2511,6 @@ def handle_postflight_submit_command(args):
                             'timestamp': u.get('created_timestamp'),
                             'is_resolved': u.get('is_resolved', False)
                         })
-                        mid += 1
 
                     if mem_items:
                         upsert_memory(project_id, mem_items)

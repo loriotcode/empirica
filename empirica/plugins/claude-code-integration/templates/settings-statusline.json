@@ -2,7 +2,7 @@
   "_comment": "Add this statusLine block to your ~/.claude/settings.json",
   "statusLine": {
     "type": "command",
-    "command": "python3 ~/.claude/plugins/local/empirica-integration/scripts/statusline_empirica.py",
+    "command": "python3 ~/.claude/plugins/local/empirica/scripts/statusline_empirica.py",
     "refresh_ms": 5000
   }
 }

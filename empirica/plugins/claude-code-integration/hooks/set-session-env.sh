@@ -1,6 +1,6 @@
 #!/bin/bash
 # Set EMPIRICA_SESSION_ID to latest active claude-code session
-# Source this in your shell: source ~/.claude/plugins/local/empirica-integration/hooks/set-session-env.sh
+# Source this in your shell: source ~/.claude/plugins/local/empirica/hooks/set-session-env.sh
 
 # Try to get latest active claude-code* session
 SESSION_ID=$(empirica sessions-list --output json 2>/dev/null | python3 -c "

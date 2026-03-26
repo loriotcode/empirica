@@ -54,23 +54,63 @@ class BreadcrumbRepository(BaseRepository):
         union = len(words1 | words2)
         return intersection / union if union > 0 else 0.0
 
-    def _find_similar_finding(
-        self,
-        project_id: str,
-        finding: str,
-        threshold: float = 0.85
-    ) -> Optional[str]:
-        """Check if a similar finding already exists (deduplication)."""
+    def _content_hash(self, text: str) -> str:
+        """MD5 hash of normalized text for exact content deduplication."""
+        import hashlib
+        normalized = " ".join(text.strip().lower().split())
+        return hashlib.md5(normalized.encode()).hexdigest()
+
+    def _find_duplicate_finding(self, project_id: str, finding: str) -> Optional[str]:
+        """Check if a finding with identical content already exists."""
+        content_hash = self._content_hash(finding)
         cursor = self._execute("""
             SELECT id, finding FROM project_findings
             WHERE project_id = ?
             ORDER BY created_timestamp DESC
-            LIMIT 50
         """, (project_id,))
 
         for row in cursor.fetchall():
             existing_id, existing_text = row
-            if self._text_similarity(finding, existing_text) >= threshold:
+            if self._content_hash(existing_text) == content_hash:
+                return existing_id
+        return None
+
+    def _find_duplicate_unknown(self, project_id: str, unknown: str) -> Optional[str]:
+        """Check if an unknown with identical content already exists."""
+        content_hash = self._content_hash(unknown)
+        cursor = self._execute("""
+            SELECT id, unknown FROM project_unknowns
+            WHERE project_id = ?
+            ORDER BY created_timestamp DESC
+        """, (project_id,))
+
+        for row in cursor.fetchall():
+            existing_id, existing_text = row
+            if self._content_hash(existing_text) == content_hash:
+                return existing_id
+        return None
+
+    def _find_duplicate_dead_end(self, project_id: str, approach: str, why_failed: str) -> Optional[str]:
+        """Check if a dead end with identical content already exists.
+
+        Normalizes each field individually before combining to avoid
+        whitespace differences around the || separator.
+        """
+        def _norm(t: str) -> str:
+            return " ".join((t or "").strip().lower().split())
+
+        combined = f"{_norm(approach)}||{_norm(why_failed)}"
+        target_hash = self._content_hash(combined)
+        cursor = self._execute("""
+            SELECT id, approach, why_failed FROM project_dead_ends
+            WHERE project_id = ?
+            ORDER BY created_timestamp DESC
+        """, (project_id,))
+
+        for row in cursor.fetchall():
+            existing_id, existing_approach, existing_why = row
+            existing_combined = f"{_norm(existing_approach)}||{_norm(existing_why)}"
+            if self._content_hash(existing_combined) == target_hash:
                 return existing_id
         return None
 
@@ -98,10 +138,10 @@ class BreadcrumbRepository(BaseRepository):
         Returns:
             finding_id - new ID if created, existing ID if duplicate found
         """
-        # Check for similar existing finding (deduplication)
-        existing_id = self._find_similar_finding(project_id, finding)
+        # Check for duplicate existing finding (full content match)
+        existing_id = self._find_duplicate_finding(project_id, finding)
         if existing_id:
-            logger.info(f"📝 Finding deduplicated (similar exists): {finding[:50]}...")
+            logger.info(f"📝 Finding deduplicated (duplicate exists): {finding[:50]}...")
             return existing_id
 
         finding_id = str(uuid.uuid4())
@@ -161,7 +201,16 @@ class BreadcrumbRepository(BaseRepository):
             transaction_id: Optional epistemic transaction ID (auto-derived if not provided).
             entity_type: Entity type (project, organization, contact, engagement).
             entity_id: Entity UUID.
+
+        Returns:
+            unknown_id - new ID if created, existing ID if duplicate found
         """
+        # Check for duplicate existing unknown (full content match)
+        existing_id = self._find_duplicate_unknown(project_id, unknown)
+        if existing_id:
+            logger.info(f"📝 Unknown deduplicated (duplicate exists): {unknown[:50]}...")
+            return existing_id
+
         unknown_id = str(uuid.uuid4())
 
         if impact is None:
@@ -245,7 +294,16 @@ class BreadcrumbRepository(BaseRepository):
             transaction_id: Optional epistemic transaction ID (auto-derived if not provided).
             entity_type: Entity type (project, organization, contact, engagement).
             entity_id: Entity UUID.
+
+        Returns:
+            dead_end_id - new ID if created, existing ID if duplicate found
         """
+        # Check for duplicate existing dead end (full content match)
+        existing_id = self._find_duplicate_dead_end(project_id, approach, why_failed)
+        if existing_id:
+            logger.info(f"📝 Dead end deduplicated (duplicate exists): {approach[:50]}...")
+            return existing_id
+
         dead_end_id = str(uuid.uuid4())
 
         if not entity_type:

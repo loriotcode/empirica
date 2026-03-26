@@ -49,7 +49,7 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
                     'Workspace': ['workspace-init', 'workspace-map', 'workspace-list', 'workspace-overview', 'workspace-search', 'engagement-focus', 'ecosystem-check', 'save', 'history'],
                     'Checkpoints': ['checkpoint-create', 'checkpoint-load', 'checkpoint-list', 'checkpoint-diff', 'checkpoint-sign', 'checkpoint-verify', 'checkpoint-signatures'],
                     'Sync': ['sync-config', 'sync-push', 'sync-pull', 'sync-status', 'rebuild', 'artifacts-generate'],
-                    'Profile': ['profile-sync', 'profile-prune', 'profile-status'],
+                    'Profile': ['profile-sync', 'profile-prune', 'profile-status', 'profile-import'],
                     'Identity': ['identity-create', 'identity-export', 'identity-list', 'identity-verify'],
                     'Handoffs': ['handoff-create', 'handoff-query'],
                     'Logging': ['finding-log', 'unknown-log', 'unknown-list', 'unknown-resolve', 'deadend-log', 'assumption-log', 'decision-log', 'refdoc-add', 'source-add', 'mistake-log', 'mistake-query', 'act-log', 'investigate-log'],
@@ -68,6 +68,7 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
                     'Lessons': ['lesson-create', 'lesson-load', 'lesson-list', 'lesson-search', 'lesson-recommend', 'lesson-path', 'lesson-replay-start', 'lesson-replay-end', 'lesson-stats'],
                     'MCP Server': ['mcp-start', 'mcp-stop', 'mcp-status', 'mcp-test', 'mcp-list-tools', 'mcp-call'],
                     'Memory': ['memory-prime', 'memory-scope', 'memory-value', 'pattern-check', 'session-rollup', 'memory-report'],
+                    'Server': ['serve'],
                 }
                 
                 parts = ['\nAvailable Commands (grouped by category):\n', '=' * 70 + '\n']
@@ -116,6 +117,7 @@ from .parsers import (
     add_message_parsers,
     add_memory_parsers,
     add_profile_parsers,
+    add_serve_parsers,
 )
 from .command_handlers.architecture_commands import (
     handle_assess_component_command,
@@ -247,6 +249,7 @@ def create_argument_parser():
     add_message_parsers(subparsers)
     add_memory_parsers(subparsers)
     add_profile_parsers(subparsers)
+    add_serve_parsers(subparsers)
 
     return parser
 
@@ -519,6 +522,10 @@ def main(args=None):
             'profile-sync': handle_profile_sync_command,
             'profile-prune': handle_profile_prune_command,
             'profile-status': handle_profile_status_command,
+            'profile-import': handle_profile_import_command,
+
+            # Server commands
+            'serve': handle_serve_command,
 
             # Memory management commands
             'memory-prime': handle_memory_prime_command,

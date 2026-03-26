@@ -68,6 +68,7 @@ from .mcp_parsers import add_mcp_parsers
 from .message_parsers import add_message_parsers
 from .memory_parsers import add_memory_parsers
 from .profile_parsers import add_profile_parsers
+from .serve_parsers import add_serve_parsers
 
 __all__ = [
     'format_help_text',
@@ -100,4 +101,5 @@ __all__ = [
     'add_message_parsers',
     'add_memory_parsers',
     'add_profile_parsers',
+    'add_serve_parsers',
 ]

@@ -6,7 +6,7 @@ description: Use this agent for implementation, modification, and execution task
 <example>
 Context: User needs architecture, system_design, patterns, modularity, coupling expertise for implementation, modification, and execution
 user: "Investigate the architecture aspects of this component"
-assistant: "I'll use the empirica-integration:architecture agent for specialized architecture, system_design, patterns, modularity, coupling analysis."
+assistant: "I'll use the empirica:architecture agent for specialized architecture, system_design, patterns, modularity, coupling analysis."
 <commentary>
 Task matches Architecture Expert's focus domains (architecture, system_design, patterns, modularity, coupling), triggering specialized agent.
 </commentary>
@@ -14,7 +14,7 @@ Task matches Architecture Expert's focus domains (architecture, system_design, p
 <example>
 Context: Implementation task requiring architecture, system_design, patterns, modularity, coupling expertise
 user: "Fix the architecture issues in this module"
-assistant: "I'll use the empirica-integration:architecture agent to analyze and fix these issues."
+assistant: "I'll use the empirica:architecture agent to analyze and fix these issues."
 <commentary>
 Praxic task matching Architecture Expert's capabilities - agent can read, analyze, and modify code.
 </commentary>

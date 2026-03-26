@@ -69,6 +69,7 @@ from empirica.core.qdrant.epistemics_store import (  # noqa: F401
 from empirica.core.qdrant.global_sync import (  # noqa: F401
     embed_to_global,
     search_global,
+    search_cross_project,
     sync_high_impact_to_global,
     embed_dead_end_with_branch_context,
     search_similar_dead_ends,

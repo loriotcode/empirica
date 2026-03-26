@@ -1,6 +1,6 @@
 {
   "_comment": "Add these hooks to ~/.claude/settings.json - replace PLUGIN_DIR with actual path",
-  "_example_path": "~/.claude/plugins/local/empirica-integration",
+  "_example_path": "~/.claude/plugins/local/empirica",
 
   "hooks": {
     "PreToolUse": [

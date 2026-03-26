@@ -59,7 +59,7 @@ SessionStart Hook (source=compact):
 
 The plugin is already installed and enabled in Claude Code settings:
 ```
-~/.claude/plugins/local/empirica-integration/
+~/.claude/plugins/local/empirica/
 ```
 
 ---
@@ -75,13 +75,13 @@ empirica session-create --ai-id claude-code-verbose-fix --output json
 ### 2. Set Environment Variable (Recommended)
 ```bash
 # Auto-detect and set latest session
-source ~/.claude/plugins/local/empirica-integration/hooks/set-session-env.sh
+source ~/.claude/plugins/local/empirica/hooks/set-session-env.sh
 
 # OR manually set specific session
 export EMPIRICA_SESSION_ID=<your-session-id>
 
 # Add to your .bashrc or .zshrc for persistence:
-echo 'source ~/.claude/plugins/local/empirica-integration/hooks/set-session-env.sh' >> ~/.bashrc
+echo 'source ~/.claude/plugins/local/empirica/hooks/set-session-env.sh' >> ~/.bashrc
 ```
 
 ### 3. Use Empirica Workflow
@@ -121,14 +121,14 @@ empirica postflight-submit -  # Final checkpoint
 ```bash
 # Simulate hook input
 echo '{"session_id":"abc123","trigger":"manual"}' | \
-  python3 ~/.claude/plugins/local/empirica-integration/hooks/pre-compact.py
+  python3 ~/.claude/plugins/local/empirica/hooks/pre-compact.py
 ```
 
 **Test PostCompact hook:**
 ```bash
 # Simulate hook input
 echo '{"session_id":"abc123","source":"compact"}' | \
-  python3 ~/.claude/plugins/local/empirica-integration/hooks/post-compact.py
+  python3 ~/.claude/plugins/local/empirica/hooks/post-compact.py
 ```
 
 ---
@@ -241,12 +241,12 @@ export EMPIRICA_SESSION_ID=$(empirica sessions-list --limit 1 --output json | jq
 
 **Check plugin is loaded:**
 ```bash
-ls -la ~/.claude/plugins/local/empirica-integration/
+ls -la ~/.claude/plugins/local/empirica/
 ```
 
 **Check hooks.json syntax:**
 ```bash
-cat ~/.claude/plugins/local/empirica-integration/hooks/hooks.json | jq .
+cat ~/.claude/plugins/local/empirica/hooks/hooks.json | jq .
 ```
 
 ### No EMPIRICA_SESSION_ID

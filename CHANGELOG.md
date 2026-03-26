@@ -5,6 +5,50 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-03-26
+
+### Highlights
+
+Empirica 1.7.0 introduces **epistemic governance** — a constitutional decision framework that routes AI decisions to the right mechanism, calibrated position-holding under pushback, and an 81% reduction in always-loaded context through skill-based architecture.
+
+### Added — Governance & Skills
+- **Empirica Constitutional Decision Tree** — 12-section governance framework routing situations to mechanisms (search, measurement, interaction, escalation). Replaces front-loaded instructions with a decision tree Claude loads on demand
+- **Epistemic Persistence Protocol (EPP)** — Calibrated position-holding under user pushback, replacing the binary Anti-Agreement Protocol. Classifies pushback into 5 categories (emotional, rhetorical, evidential, logical, contextual), gates position updates on evidence strength
+- **Lean Core System Prompt** — 1,191 tokens (81% reduction from 6,292). Keeps identity, vectors, transaction discipline. Everything else loads via skills on demand. Experimental — opt-in for 1.7.0
+- **SessionStart skill nudges** — Constitution, EPP, and epistemic-transaction skills surfaced at session start (~30 tokens each)
+- **EWM Business Interview** — Non-technical user onboarding with pre-loaded company context, Phase 7 narrative validation (from user feedback)
+
+### Added — Cross-Project Intelligence
+- **Cross-project Qdrant search** — `--global` flag now searches ALL registered projects' memory, eidetic, and episodic collections, not just global_learnings. Discovers project IDs from collection names, merges and ranks results by score
+- **Cross-project artifact writing** — `--project-id <name>` on finding-log and unknown-log resolves target project's DB via workspace.db and writes directly. No project-switch needed
+- **Sentinel remote command classification** — SSH inner commands classified noetic/praxic using SAFE_BASH_PREFIXES. rsync/scp classified by transfer direction. Docker inspection commands safe
+
+### Added — Profile & Parser
+- **ClaudeAIParser rewrite** — Handles real Claude.ai export format (ZIP with conversations.json). Parses content[] blocks as canonical source, not text field
+- **Profile management CLI** — `profile-sync`, `profile-prune`, `profile-status` with git notes as portable format
+- **ProfileImporter** — Git-notes-to-SQLite import with INSERT OR IGNORE deduplication
+
+### Changed
+- **Plugin renamed** — `empirica-integration` → `empirica`. All 47 references updated across 25 files. Agent names: `empirica:security`, `empirica:architecture`, etc. Migration: `setup-claude-code --force` removes old directory and orphaned cache
+- **Investigate cool-down** — Requires 3 noetic tool calls before CHECK resubmission after `investigate` decision. Prevents vector inflation gaming. Self-reported by Claude
+- **Sentinel error messages** — Now include actual CLI commands to unblock (e.g., "Command: empirica preflight-submit -")
+- **Calibration philosophy** — Dual-track calibration documented as complementary, not hierarchical. Grounded evidence is informative, not authoritative
+
+### Fixed
+- **CHECK/Sentinel split-brain** — CHECK saved pre-override decision to DB while sentinel-gate read it. AI saw "proceed" but Sentinel blocked with "investigate". Fixed by syncing override to DB after sentinel decision
+- **Sentinel subagent false positive** (#68) — Stale `active_session_tmux_*` files caused false subagent detection when `active_work` was missing. Tightened to verify parent session is actually active
+- **Transaction suffix-mismatch** (#11.22) — Hooks without TMUX_PANE now scan for matching transaction files by session_id
+- **Qdrant duplicate embeddings** — Three embed paths (project-embed, rebuild, POSTFLIGHT auto-embed) used sequential integer IDs instead of artifact UUIDs. Fixed all three to use md5-hashed UUIDs matching embed_single_memory_item
+- **recreate_project_collections** — Missing `_intents_collection` (10th of 10 types)
+- **Stale `__all__` exports** — Removed 3 undefined names from profile_loader.py
+- **`setup-claude-code --force`** — Now actually clears hooks and statusLine before reinstall
+- **README version** — Badge, docker commands, What's New, and footer now use version-agnostic regex in release script
+- **requests dep** — Bumped floor to >=2.33.0 (CVE-2026-25645)
+
+### Security
+- 6 dependency CVEs audited: requests updated, werkzeug+pillow already pinned, pyasn1/pygments/pyjwt transitive
+- Threshold values removed from sentinel-gate docstring to reduce AI information leakage
+
 ## [1.6.23] - 2026-03-23
 
 ### Added

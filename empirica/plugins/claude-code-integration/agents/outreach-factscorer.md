@@ -6,7 +6,7 @@ description: Use this agent for investigation, analysis, and exploration tasks r
 <example>
 Context: User needs fact_verification, source_citation, confidence_scoring, outreach expertise for investigation, analysis, and exploration
 user: "Investigate the fact_verification aspects of this component"
-assistant: "I'll use the empirica-integration:outreach-factscorer agent for specialized fact_verification, source_citation, confidence_scoring, outreach analysis."
+assistant: "I'll use the empirica:outreach-factscorer agent for specialized fact_verification, source_citation, confidence_scoring, outreach analysis."
 <commentary>
 Task matches Epistemic Fact Scorer's focus domains (fact_verification, source_citation, confidence_scoring, outreach), triggering specialized agent.
 </commentary>
@@ -14,7 +14,7 @@ Task matches Epistemic Fact Scorer's focus domains (fact_verification, source_ci
 <example>
 Context: Investigation requiring fact_verification, source_citation, confidence_scoring, outreach analysis
 user: "What are the fact_verification concerns here?"
-assistant: "I'll use the empirica-integration:outreach-factscorer agent for focused investigation."
+assistant: "I'll use the empirica:outreach-factscorer agent for focused investigation."
 <commentary>
 Noetic investigation matching Epistemic Fact Scorer's focus domains - read-only deep analysis.
 </commentary>

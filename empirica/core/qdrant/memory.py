@@ -170,7 +170,11 @@ def upsert_memory(project_id: str, items: List[Dict]) -> int:
                 point_id = raw_id
             points.append(PointStruct(id=point_id, vector=vector, payload=payload))
         if points:
-            client.upsert(collection_name=coll, points=points)
+            # Batch upserts to stay under Qdrant's payload size limit (32MB)
+            batch_size = 200
+            for i in range(0, len(points), batch_size):
+                batch = points[i:i + batch_size]
+                client.upsert(collection_name=coll, points=batch)
         return len(points)
     except Exception as e:
         logger.warning(f"Failed to upsert memory: {e}")

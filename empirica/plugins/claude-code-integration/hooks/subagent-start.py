@@ -6,7 +6,7 @@ Triggered by Claude Code SubagentStart event. Creates a child session
 linked via parent_session_id, enabling epistemic lineage tracking.
 
 Input (stdin JSON from Claude Code):
-  - agent_name: str - The agent identifier (e.g., "empirica-integration:security")
+  - agent_name: str - The agent identifier (e.g., "empirica:security")
   - agent_type: str - The agent type
   - session_id: str - Claude Code's internal session ID (not Empirica's)
 
@@ -103,7 +103,7 @@ def get_budget_allocation(parent_session_id: str, agent_name: str) -> dict:
         allocations = json.loads(alloc_json) if alloc_json else []
 
         # Find domain allocation for this agent
-        # Agent name format: "empirica-integration:security" -> domain "security"
+        # Agent name format: "empirica:security" -> domain "security"
         agent_domain = agent_name.split(":")[-1] if ":" in agent_name else "general"
 
         domain_alloc = None

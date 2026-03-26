@@ -19,6 +19,12 @@ Praxic phase (after CHECK):
 
 Each evidence source is independent and failure-tolerant. The collector
 returns whatever evidence it can gather.
+
+All evidence gathered here consists of deterministic proxies — observable signals
+that correlate with epistemic state but cannot fully measure it. These are useful
+for detecting systematic calibration drift over many transactions, not for judging
+any single transaction's epistemic accuracy. See grounded_calibration.py module
+docstring for the full dual-track calibration philosophy.
 """
 
 import json

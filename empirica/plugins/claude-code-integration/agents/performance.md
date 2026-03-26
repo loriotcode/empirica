@@ -6,7 +6,7 @@ description: Use this agent for implementation, modification, and execution task
 <example>
 Context: User needs performance, optimization, latency, throughput, memory expertise for implementation, modification, and execution
 user: "Investigate the performance aspects of this component"
-assistant: "I'll use the empirica-integration:performance agent for specialized performance, optimization, latency, throughput, memory analysis."
+assistant: "I'll use the empirica:performance agent for specialized performance, optimization, latency, throughput, memory analysis."
 <commentary>
 Task matches Performance Optimizer's focus domains (performance, optimization, latency, throughput, memory), triggering specialized agent.
 </commentary>
@@ -14,7 +14,7 @@ Task matches Performance Optimizer's focus domains (performance, optimization, l
 <example>
 Context: Implementation task requiring performance, optimization, latency, throughput, memory expertise
 user: "Fix the performance issues in this module"
-assistant: "I'll use the empirica-integration:performance agent to analyze and fix these issues."
+assistant: "I'll use the empirica:performance agent to analyze and fix these issues."
 <commentary>
 Praxic task matching Performance Optimizer's capabilities - agent can read, analyze, and modify code.
 </commentary>

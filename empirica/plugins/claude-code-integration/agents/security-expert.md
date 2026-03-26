@@ -6,7 +6,7 @@ description: Use this agent for implementation, modification, and execution task
 <example>
 Context: User needs security, authentication, authorization, encryption, vulnerabilities expertise for implementation, modification, and execution
 user: "Investigate the security aspects of this component"
-assistant: "I'll use the empirica-integration:security-expert agent for specialized security, authentication, authorization, encryption, vulnerabilities analysis."
+assistant: "I'll use the empirica:security-expert agent for specialized security, authentication, authorization, encryption, vulnerabilities analysis."
 <commentary>
 Task matches Security Expert's focus domains (security, authentication, authorization, encryption, vulnerabilities), triggering specialized agent.
 </commentary>
@@ -14,7 +14,7 @@ Task matches Security Expert's focus domains (security, authentication, authoriz
 <example>
 Context: Implementation task requiring security, authentication, authorization, encryption, vulnerabilities expertise
 user: "Fix the security issues in this module"
-assistant: "I'll use the empirica-integration:security-expert agent to analyze and fix these issues."
+assistant: "I'll use the empirica:security-expert agent to analyze and fix these issues."
 <commentary>
 Praxic task matching Security Expert's capabilities - agent can read, analyze, and modify code.
 </commentary>

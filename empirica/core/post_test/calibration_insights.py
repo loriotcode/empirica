@@ -9,6 +9,12 @@ Patterns detected:
 - evidence_gap: Vector has low evidence count across records
 - phase_mismatch: Large gap in one phase but not the other
 - volatile: Gap direction flips frequently (noisy evidence or inconsistent self-assessment)
+
+These insights are INFORMATIVE — they surface drift patterns for the AI to
+investigate, not commands to mechanically adjust vectors. A chronic overestimate
+pattern may reflect genuine proxy limitations (e.g., deep understanding not
+captured by test pass rates) rather than AI miscalibration. The AI should
+examine each insight critically rather than treat it as an error to correct.
 """
 
 import logging

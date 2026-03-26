@@ -124,7 +124,7 @@ def build_description(persona: Dict, phase: str, agent_name: str) -> str:
     examples.append(f"""<example>
 Context: User needs {domain_str} expertise for {phase_desc}
 user: "Investigate the {domains[0] if domains else 'system'} aspects of this component"
-assistant: "I'll use the empirica-integration:{agent_name} agent for specialized {domain_str} analysis."
+assistant: "I'll use the empirica:{agent_name} agent for specialized {domain_str} analysis."
 <commentary>
 Task matches {name}'s focus domains ({domain_str}), triggering specialized agent.
 </commentary>
@@ -135,7 +135,7 @@ Task matches {name}'s focus domains ({domain_str}), triggering specialized agent
         examples.append(f"""<example>
 Context: Implementation task requiring {domain_str} expertise
 user: "Fix the {domains[0] if domains else 'code'} issues in this module"
-assistant: "I'll use the empirica-integration:{agent_name} agent to analyze and fix these issues."
+assistant: "I'll use the empirica:{agent_name} agent to analyze and fix these issues."
 <commentary>
 Praxic task matching {name}'s capabilities - agent can read, analyze, and modify code.
 </commentary>
@@ -144,7 +144,7 @@ Praxic task matching {name}'s capabilities - agent can read, analyze, and modify
         examples.append(f"""<example>
 Context: Investigation requiring {domain_str} analysis
 user: "What are the {domains[0] if domains else 'potential'} concerns here?"
-assistant: "I'll use the empirica-integration:{agent_name} agent for focused investigation."
+assistant: "I'll use the empirica:{agent_name} agent for focused investigation."
 <commentary>
 Noetic investigation matching {name}'s focus domains - read-only deep analysis.
 </commentary>

@@ -13,7 +13,7 @@ Core features (always on):
 - Noetic tool whitelist (Read, Grep, Glob, etc.)
 - Safe Bash command whitelist (ls, cat, git status, etc.)
 - PREFLIGHT required for praxic actions (epistemic assessment)
-- AUTO-PROCEED: If PREFLIGHT passes gate (know >= 0.70, unc <= 0.35), skip CHECK
+- AUTO-PROCEED: If PREFLIGHT vectors pass dynamic threshold gate, skip CHECK
 - LOW-CONFIDENCE: If PREFLIGHT fails gate, explicit CHECK required
 - Decision parsing (blocks if CHECK returned "investigate")
 
@@ -390,6 +390,54 @@ _autonomy_nudge = ""  # Module-level: set during increment, read by respond
 _goalless_nudge = ""  # Module-level: set when no goals detected, read by respond
 
 
+def _find_transaction_file(empirica_dir: Path, suffix: str,
+                           session_id: Optional[str] = None) -> Optional[Path]:
+    """Find the active transaction file, with suffix-mismatch fallback.
+
+    Primary: exact file matching the current instance suffix.
+    Fallback: when exact file doesn't exist (e.g., hook context where
+    TMUX_PANE is not inherited), scan for any active_transaction_*.json
+    matching the given session_id.
+
+    Safe because it's scoped by session_id — no cross-instance talk.
+    See: docs/architecture/instance_isolation/KNOWN_ISSUES.md (11.21)
+    """
+    # Primary: exact suffix match
+    exact = empirica_dir / f'active_transaction{suffix}.json'
+    if exact.exists():
+        return exact
+
+    # Fallback: scan for suffix-mismatched files matching this session
+    if session_id:
+        try:
+            for tx_file in sorted(empirica_dir.glob('active_transaction*.json')):
+                try:
+                    with open(tx_file, 'r') as f:
+                        tx_data = json.load(f)
+                    if tx_data.get('session_id') == session_id:
+                        return tx_file
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+    return None
+
+
+def _resolve_empirica_session_id(claude_session_id: Optional[str]) -> Optional[str]:
+    """Resolve empirica session_id from claude_session_id via active_work file."""
+    if not claude_session_id:
+        return None
+    try:
+        aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
+        if aw_file.exists():
+            with open(aw_file, 'r') as f:
+                return json.load(f).get('empirica_session_id')
+    except Exception:
+        pass
+    return None
+
+
 def _try_increment_tool_count(claude_session_id: Optional[str] = None,
                               tool_name: Optional[str] = None,
                               tool_input: Optional[dict] = None) -> tuple:
@@ -407,6 +455,7 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
 
     from empirica.utils.session_resolver import InstanceResolver as R
     suffix = R.instance_suffix()
+    empirica_session_id = _resolve_empirica_session_id(claude_session_id)
 
     # Find the transaction file via active_work → project_path → .empirica/
     tx_path = None
@@ -419,9 +468,8 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
                 with open(aw_file, 'r') as f:
                     pp = json.load(f).get('project_path')
                 if pp:
-                    candidate = Path(pp) / '.empirica' / f'active_transaction{suffix}.json'
-                    if candidate.exists():
-                        tx_path = candidate
+                    tx_path = _find_transaction_file(
+                        Path(pp) / '.empirica', suffix, empirica_session_id)
             except Exception:
                 pass
 
@@ -429,15 +477,13 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
     if not tx_path:
         pp = get_active_project_path(claude_session_id)
         if pp:
-            candidate = Path(pp) / '.empirica' / f'active_transaction{suffix}.json'
-            if candidate.exists():
-                tx_path = candidate
+            tx_path = _find_transaction_file(
+                Path(pp) / '.empirica', suffix, empirica_session_id)
 
     # Try 3: global fallback
     if not tx_path:
-        candidate = Path.home() / '.empirica' / f'active_transaction{suffix}.json'
-        if candidate.exists():
-            tx_path = candidate
+        tx_path = _find_transaction_file(
+            Path.home() / '.empirica', suffix, empirica_session_id)
 
     if not tx_path:
         return 0, 0
@@ -1327,16 +1373,48 @@ def main():
             _aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id_early}.json'
             if not _aw_file.exists():
                 # No active_work file for this claude_session_id — likely a subagent
-                # (or session-init failed, in which case normal gating will handle it)
+                # (or session-init failed / project initialized mid-session)
+                #
+                # TIGHTENED CHECK (fixes #68): Don't just check if active_session exists —
+                # verify its session matches the current transaction. Stale active_session
+                # files from other projects/sessions cause false positive subagent detection.
                 from empirica.utils.session_resolver import InstanceResolver as R
                 _as_suffix = R.instance_suffix()
                 _as_file = Path.home() / '.empirica' / f'active_session{_as_suffix}'
                 if _as_file.exists():
-                    # active_session exists (parent was set up) but no active_work for
-                    # this session_id → confirmed subagent, not a broken session-init
-                    respond("allow", f"Subagent exemption: {tool_name} (no active_work for {claude_session_id_early[:8]})")
-                    sys.exit(0)
-                # Neither exists → likely broken session-init, fall through to normal gating
+                    # Read the active_session to get its empirica_session_id
+                    _is_subagent = False
+                    try:
+                        with open(_as_file, 'r') as _asf:
+                            _as_data = json.load(_asf)
+                        _as_session_id = _as_data.get('empirica_session_id')
+
+                        # Find the current transaction to compare session IDs
+                        _tx_session_match = False
+                        if _as_session_id:
+                            # Check if any active_work file has this session
+                            for _aw_candidate in Path.home().glob('.empirica/active_work_*.json'):
+                                try:
+                                    with open(_aw_candidate, 'r') as _awf:
+                                        _aw_data = json.load(_awf)
+                                    if _aw_data.get('empirica_session_id') == _as_session_id:
+                                        _tx_session_match = True
+                                        break
+                                except Exception:
+                                    continue
+
+                        if _tx_session_match:
+                            # Parent session is active AND has a matching active_work file
+                            # This session doesn't → confirmed subagent
+                            _is_subagent = True
+                    except Exception:
+                        pass  # Can't read active_session → not confident it's a subagent
+
+                    if _is_subagent:
+                        respond("allow", f"Subagent exemption: {tool_name} (no active_work for {claude_session_id_early[:8]})")
+                        sys.exit(0)
+                # Not a confirmed subagent → fall through to normal gating
+                # (covers: broken session-init, mid-session project init, stale files)
         except Exception:
             pass  # Detection failure → continue with normal sentinel logic
 
@@ -1409,13 +1487,15 @@ def main():
 
     # Read active transaction first (transactions can span compaction boundaries)
     # The transaction file's session_id is authoritative when a transaction is open
+    # Uses _find_transaction_file() for suffix-mismatch resilience (KNOWN_ISSUES 11.21)
     current_transaction_id = None
     tx_session_id = None
     if empirica_root:
         from empirica.utils.session_resolver import InstanceResolver as R
         suffix = R.instance_suffix()
-        tx_file = empirica_root / f'active_transaction{suffix}.json'
-        if tx_file.exists():
+        empirica_session_id = _resolve_empirica_session_id(claude_session_id)
+        tx_file = _find_transaction_file(empirica_root, suffix, empirica_session_id)
+        if tx_file:
             try:
                 with open(tx_file, 'r') as f:
                     tx_data = json.load(f)
@@ -1451,7 +1531,7 @@ def main():
                         respond("allow", "Noetic tool (transaction closed)")
                         sys.exit(0)
                     # Praxic tool with closed transaction → correct error message
-                    respond("deny", "Epistemic loop closed (POSTFLIGHT completed). Run new PREFLIGHT to start next goal.")
+                    respond("deny", "Epistemic loop closed (POSTFLIGHT completed). Run new PREFLIGHT to start next goal. Command: empirica preflight-submit - (JSON with vectors on stdin)")
                     sys.exit(0)
             except Exception:
                 pass
@@ -1571,13 +1651,13 @@ def main():
     # Nudge is appended to permissionDecisionReason on allow — not a deny.
     global _goalless_nudge
     try:
-        # Read tool_call_count from transaction file (already loaded above)
+        # Read tool_call_count from transaction file (uses suffix-mismatch fallback)
         _gl_count = 0
         if empirica_root:
-            from empirica.utils.session_resolver import InstanceResolver as R
-            _gl_suffix = R.instance_suffix()
-            _gl_tx_file = empirica_root / f'active_transaction{_gl_suffix}.json'
-            if _gl_tx_file.exists():
+            _gl_tx_file = _find_transaction_file(
+                empirica_root, suffix,
+                _resolve_empirica_session_id(claude_session_id))
+            if _gl_tx_file:
                 with open(_gl_tx_file, 'r') as _gl_f:
                     _gl_tx = json.load(_gl_f)
                 _gl_count = _gl_tx.get('tool_call_count', 0)
@@ -1692,7 +1772,7 @@ def main():
                         sys.exit(0)
 
                 db.close()
-                respond("deny", f"Epistemic loop closed (POSTFLIGHT completed). Run new PREFLIGHT to start next goal.")
+                respond("deny", f"Epistemic loop closed (POSTFLIGHT completed). Run new PREFLIGHT to start next goal. Command: empirica preflight-submit - (JSON with vectors on stdin)")
                 sys.exit(0)
         except (ValueError, TypeError):
             pass  # If timestamps can't be compared, continue with other checks
@@ -1764,7 +1844,7 @@ def main():
     # NOTE: db kept open - reused for anti-gaming check below (single connection per invocation)
 
     if not check_row:
-        respond("deny", "No valid CHECK found. Run CHECK after investigation to proceed.")
+        respond("deny", "No valid CHECK found. Run CHECK after investigation to proceed. Command: empirica check-submit - (JSON with vectors on stdin)")
         sys.exit(0)
 
     know, uncertainty, reflex_data, check_timestamp = check_row
@@ -1817,11 +1897,77 @@ def main():
     # BUT: noetic tools and safe Bash (read-only) are still allowed —
     # investigation work needs to investigate (read DBs, run queries, analyze).
     if decision == 'investigate':
+        # Initialize investigate cool-down counter if not set
+        if tx_file:
+            try:
+                with open(tx_file, 'r') as _init_f:
+                    _init_tx = json.load(_init_f)
+                if 'noetic_since_investigate' not in _init_tx:
+                    _init_tx['noetic_since_investigate'] = 0
+                    import tempfile
+                    _init_tmp = tempfile.NamedTemporaryFile(mode='w', dir=tx_file.parent, delete=False, suffix='.tmp')
+                    json.dump(_init_tx, _init_tmp)
+                    _init_tmp.close()
+                    Path(_init_tmp.name).rename(tx_file)
+            except Exception:
+                pass
+
+        # INVESTIGATE COOL-DOWN: Track noetic tool calls since investigate.
+        # When AI resubmits CHECK after investigate, require evidence of
+        # actual investigation (N noetic tool calls) before allowing it.
+        # Prevents gaming by resubmitting CHECK with inflated vectors
+        # without doing real investigation work.
+        MIN_NOETIC_AFTER_INVESTIGATE = 3
+
         if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME:
+            # Increment noetic counter in transaction file
+            if tx_file:
+                try:
+                    with open(tx_file, 'r') as _inv_f:
+                        _inv_tx = json.load(_inv_f)
+                    _inv_count = _inv_tx.get('noetic_since_investigate', 0) + 1
+                    _inv_tx['noetic_since_investigate'] = _inv_count
+                    import tempfile
+                    _inv_tmp = tempfile.NamedTemporaryFile(mode='w', dir=tx_file.parent, delete=False, suffix='.tmp')
+                    json.dump(_inv_tx, _inv_tmp)
+                    _inv_tmp.close()
+                    Path(_inv_tmp.name).rename(tx_file)
+                except Exception:
+                    pass
             db.close()
             respond("allow", f"Noetic tool during investigation phase: {tool_name}")
             sys.exit(0)
         if tool_name == 'Bash' and is_safe_bash_command(tool_input):
+            command = tool_input.get('command', '')
+            # Block check-submit if insufficient noetic work since investigate
+            if 'check-submit' in command or 'check ' in command:
+                _inv_noetic = 0
+                if tx_file:
+                    try:
+                        with open(tx_file, 'r') as _inv_f:
+                            _inv_noetic = json.load(_inv_f).get('noetic_since_investigate', 0)
+                    except Exception:
+                        pass
+                if _inv_noetic < MIN_NOETIC_AFTER_INVESTIGATE:
+                    db.close()
+                    respond("deny",
+                        f"Previous transaction ended with INVESTIGATE. "
+                        f"Show evidence of investigation (findings) or submit CHECK with proceed decision.")
+                    sys.exit(0)
+            # Increment noetic counter for safe bash (read-only investigation)
+            if tx_file:
+                try:
+                    with open(tx_file, 'r') as _inv_f:
+                        _inv_tx = json.load(_inv_f)
+                    _inv_count = _inv_tx.get('noetic_since_investigate', 0) + 1
+                    _inv_tx['noetic_since_investigate'] = _inv_count
+                    import tempfile
+                    _inv_tmp = tempfile.NamedTemporaryFile(mode='w', dir=tx_file.parent, delete=False, suffix='.tmp')
+                    json.dump(_inv_tx, _inv_tmp)
+                    _inv_tmp.close()
+                    Path(_inv_tmp.name).rename(tx_file)
+                except Exception:
+                    pass
             db.close()
             respond("allow", "Safe Bash during investigation phase (read-only)")
             sys.exit(0)

@@ -111,65 +111,78 @@ def _embed_project_from_db(project_id: str, db_path: str, project_root: str) -> 
 
         db.close()
 
-        # Build memory items for upsert
+        # Build memory items using ACTUAL artifact IDs from SQLite.
+        # Must match embed_single_memory_item() ID scheme (string UUIDs →
+        # md5 hash in upsert_memory). See project_embed.py for full rationale.
         mem_items: List[Dict] = []
-        mid = 1_000_000
 
         for f in findings:
+            fid = f.get('finding_id') or str(f.get('id', ''))
+            if not fid:
+                continue
             mem_items.append({
-                'id': mid, 'text': f.get('finding', ''), 'type': 'finding',
+                'id': fid, 'text': f.get('finding', ''), 'type': 'finding',
                 'goal_id': f.get('goal_id'), 'subtask_id': f.get('subtask_id'),
                 'session_id': f.get('session_id'), 'timestamp': f.get('created_timestamp'),
                 'subject': f.get('subject'),
             })
-            mid += 1
 
         for u in unknowns:
+            uid = u.get('unknown_id') or str(u.get('id', ''))
+            if not uid:
+                continue
             mem_items.append({
-                'id': mid, 'text': u.get('unknown', ''), 'type': 'unknown',
+                'id': uid, 'text': u.get('unknown', ''), 'type': 'unknown',
                 'goal_id': u.get('goal_id'), 'subtask_id': u.get('subtask_id'),
                 'session_id': u.get('session_id'), 'timestamp': u.get('created_timestamp'),
                 'subject': u.get('subject'), 'is_resolved': u.get('is_resolved', False),
             })
-            mid += 1
 
         for m in mistakes:
+            mid_str = str(m.get('id', ''))
+            if not mid_str:
+                continue
             text = f"{m.get('mistake', '')} Prevention: {m.get('prevention', '')}"
             mem_items.append({
-                'id': mid, 'text': text, 'type': 'mistake',
+                'id': f"mistake_{mid_str}", 'text': text, 'type': 'mistake',
                 'session_id': m.get('session_id'), 'timestamp': m.get('created_timestamp'),
             })
-            mid += 1
 
         for d in dead_ends:
+            did = d.get('dead_end_id') or str(d.get('id', ''))
+            if not did:
+                continue
             text = f"DEAD END: {d.get('approach', '')} Why failed: {d.get('why_failed', '')}"
             mem_items.append({
-                'id': mid, 'text': text, 'type': 'dead_end',
+                'id': did, 'text': text, 'type': 'dead_end',
                 'session_id': d.get('session_id'), 'goal_id': d.get('goal_id'),
                 'subtask_id': d.get('subtask_id'), 'timestamp': d.get('created_timestamp'),
             })
-            mid += 1
 
         for lesson in lessons:
+            lid = str(lesson.get('id', ''))
+            if not lid:
+                continue
             text = f"LESSON: {lesson.get('name', '')} - {lesson.get('description', '')} Domain: {lesson.get('domain', '')}"
             mem_items.append({
-                'id': mid, 'text': text, 'type': 'lesson',
+                'id': f"lesson_{lid}", 'text': text, 'type': 'lesson',
                 'lesson_id': lesson.get('id'), 'domain': lesson.get('domain'),
                 'tags': lesson.get('tags'), 'timestamp': lesson.get('created_timestamp'),
             })
-            mid += 1
 
         for snap in snapshots:
             context = snap.get('context_summary', '')
             if context:
+                sid = snap.get('snapshot_id') or str(snap.get('id', ''))
+                if not sid:
+                    continue
                 text = f"SESSION NARRATIVE: {context}"
                 mem_items.append({
-                    'id': mid, 'text': text, 'type': 'episodic',
+                    'id': f"snap_{sid}", 'text': text, 'type': 'episodic',
                     'session_id': snap.get('session_id'),
                     'snapshot_id': snap.get('snapshot_id'),
                     'timestamp': snap.get('timestamp'),
                 })
-                mid += 1
 
         upsert_memory(project_id, mem_items)
 

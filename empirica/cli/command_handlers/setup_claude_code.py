@@ -3,7 +3,7 @@
 Setup Claude Code Command - Configure Claude Code integration for Empirica
 
 This command configures:
-- Plugin files in ~/.claude/plugins/local/empirica-integration/
+- Plugin files in ~/.claude/plugins/local/empirica/
 - CLAUDE.md system prompt in ~/.claude/CLAUDE.md
 - Hooks in ~/.claude/settings.json (sentinel, compact, session lifecycle)
 - MCP server in ~/.claude/mcp.json
@@ -27,8 +27,8 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_NAME = "empirica-integration"
-PLUGIN_VERSION = "1.6.22"
+PLUGIN_NAME = "empirica"
+PLUGIN_VERSION = "1.6.23"
 
 
 def _find_python() -> str:
@@ -130,6 +130,7 @@ def handle_setup_claude_code_command(args):
         force = getattr(args, 'force', False)
         skip_mcp = getattr(args, 'skip_mcp', False)
         skip_claude_md = getattr(args, 'skip_claude_md', False)
+        use_lean = getattr(args, 'lean', False)
 
         # Find bundled plugins
         source_dir = _get_plugin_source_dir()
@@ -189,6 +190,18 @@ def handle_setup_claude_code_command(args):
         if output_format != 'json':
             print("\n📦 Installing plugin files...")
 
+        # Migration: remove old empirica-integration directory if it exists (renamed to empirica in 1.7.0)
+        old_plugin_dir = plugin_dir.parent / "empirica-integration"
+        if old_plugin_dir.exists() and old_plugin_dir != plugin_dir:
+            shutil.rmtree(old_plugin_dir)
+            if output_format != 'json':
+                print("   🔄 Migrated: removed old empirica-integration plugin directory")
+
+        # Also clean orphaned cache (prevents duplicate hook execution)
+        old_cache_dir = Path.home() / '.claude' / 'plugins' / 'cache' / 'local' / 'empirica-integration'
+        if old_cache_dir.exists():
+            shutil.rmtree(old_cache_dir)
+
         # Always sync plugin files — hooks and scripts must track the installed version.
         # Previous behavior skipped this if directory existed, causing stale scripts.
         if plugin_dir.exists():
@@ -221,7 +234,14 @@ def handle_setup_claude_code_command(args):
             if output_format != 'json':
                 print("\n📝 Installing Empirica system prompt...")
 
-            claude_md_src = plugin_dir / "templates" / "CLAUDE.md"
+            # Select prompt template: lean (skills on demand) or full (traditional)
+            if use_lean:
+                claude_md_src = plugin_dir / "templates" / "empirica-system-prompt-lean.md"
+                prompt_label = "lean core (skills on demand)"
+            else:
+                claude_md_src = plugin_dir / "templates" / "CLAUDE.md"
+                prompt_label = "full (traditional)"
+
             claude_md_dst = claude_dir / "CLAUDE.md"
             empirica_prompt_dst = claude_dir / "empirica-system-prompt.md"
             include_line = "@~/.claude/empirica-system-prompt.md"
@@ -230,7 +250,7 @@ def handle_setup_claude_code_command(args):
                 # Always write Empirica prompt to separate file (safe to overwrite)
                 shutil.copy2(claude_md_src, empirica_prompt_dst)
                 if output_format != 'json':
-                    print("   ✓ Empirica prompt written to ~/.claude/empirica-system-prompt.md")
+                    print(f"   ✓ Empirica prompt ({prompt_label}) written to ~/.claude/empirica-system-prompt.md")
 
                 if claude_md_dst.exists():
                     # Check if include reference already exists

@@ -6,7 +6,7 @@ description: Use this agent for implementation, modification, and execution task
 <example>
 Context: User needs usability, accessibility, user_flow, error_messages, response_times expertise for implementation, modification, and execution
 user: "Investigate the usability aspects of this component"
-assistant: "I'll use the empirica-integration:ux agent for specialized usability, accessibility, user_flow, error_messages, response_times analysis."
+assistant: "I'll use the empirica:ux agent for specialized usability, accessibility, user_flow, error_messages, response_times analysis."
 <commentary>
 Task matches UX Specialist's focus domains (usability, accessibility, user_flow, error_messages, response_times), triggering specialized agent.
 </commentary>
@@ -14,7 +14,7 @@ Task matches UX Specialist's focus domains (usability, accessibility, user_flow,
 <example>
 Context: Implementation task requiring usability, accessibility, user_flow, error_messages, response_times expertise
 user: "Fix the usability issues in this module"
-assistant: "I'll use the empirica-integration:ux agent to analyze and fix these issues."
+assistant: "I'll use the empirica:ux agent to analyze and fix these issues."
 <commentary>
 Praxic task matching UX Specialist's capabilities - agent can read, analyze, and modify code.
 </commentary>

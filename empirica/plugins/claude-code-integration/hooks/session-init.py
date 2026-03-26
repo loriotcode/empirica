@@ -693,6 +693,10 @@ EOF
 ```
 
 **After PREFLIGHT:** Before any Edit/Write/Bash, run CHECK to validate readiness.
+
+**Operational governance:** Load `/empirica-constitution` when you hit a routing decision you're not sure about (which mechanism, which project, how to interact).
+**Complex work:** Load `/epistemic-transaction` when planning multi-step work, decomposing tasks into goals, or structuring transaction sequences.
+**Position-holding:** Load `/epistemic-persistence-protocol` when holding or updating a position under user pushback.
 """
 
     output = {
