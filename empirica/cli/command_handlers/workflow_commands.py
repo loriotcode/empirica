@@ -1434,6 +1434,26 @@ def handle_check_submit_command(args):
                             logger.info(f"Sentinel override: {decision} → {new_decision} (sentinel={sentinel_decision.value})")
                             decision = new_decision
                             sentinel_override = True
+
+                            # UPDATE DB: Sync the overridden decision to the stored reflex.
+                            # The checkpoint was saved BEFORE the sentinel override, so the
+                            # DB has the pre-override decision. The sentinel-gate hook reads
+                            # the DB, so it must reflect the FINAL decision. Without this,
+                            # CHECK returns "proceed" to the AI but sentinel-gate reads
+                            # "investigate" from the DB → tool calls blocked despite proceed.
+                            try:
+                                db2 = _get_db_for_session(session_id)
+                                db2.conn.execute("""
+                                    UPDATE reflexes SET reflex_data = json_set(reflex_data, '$.decision', ?)
+                                    WHERE session_id = ? AND phase = 'CHECK'
+                                    AND transaction_id = ?
+                                    ORDER BY timestamp DESC LIMIT 1
+                                """, (new_decision, session_id, check_transaction_id2))
+                                db2.conn.commit()
+                                db2.close()
+                                logger.info(f"DB synced: CHECK decision updated to '{new_decision}'")
+                            except Exception as e:
+                                logger.warning(f"Failed to sync sentinel override to DB: {e}")
                 elif sentinel_decision and decision_binding:
                     logger.info(f"Autopilot binding active - Sentinel override blocked (sentinel wanted: {sentinel_decision.value})")
 
