@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.6.21-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.6.21)
+[![Version](https://img.shields.io/badge/version-1.7.0-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.0)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -101,13 +101,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.6.21-alpine
+docker pull nubaeon/empirica:1.7.0-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.6.21
+docker pull nubaeon/empirica:1.7.0
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.6.21 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.7.0 /bin/bash
 ```
 </details>
 
@@ -266,14 +266,14 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.6.21
+## What's New in 1.7.0
 
 - **InstanceResolver Fix** — Fixed `UnboundLocalError` affecting users who provide `session_id` explicitly. 46 redundant local re-imports removed across 7 CLI handler files
 - **Windows UTF-8 Subprocess Fix** — `run_empirica_subprocess()` helper forces UTF-8 encoding for Empirica-on-Empirica subprocess calls on Windows. Contributed by [@kars85](https://github.com/kars85)
 - **Bootstrap NoneType Guard** — Fixed `TypeError: '>' not supported between NoneType and float` in drift/delta calculations during `project-bootstrap`. Reported by [@kars85](https://github.com/kars85)
 - **Sentinel Allow List** — Added `gh pr diff` to noetic-safe Bash commands
 
-### Previous Highlights (1.6.11–1.6.21)
+### Previous Highlights (1.6.11–1.7.0)
 
 - **Brier Score Calibration** — Replaced MAE with proper Brier score (Murphy 1973). Miscalibration raises thresholds. Anti-gaming: AI gets directional-only feedback
 - **Statusline Redesign** — Threshold indicator, investigating/acting phase, color-coded K/C vectors, learning deltas
@@ -310,6 +310,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.6.21
+**Version:** 1.7.0
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*
