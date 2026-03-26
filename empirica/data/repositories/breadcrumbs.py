@@ -91,9 +91,16 @@ class BreadcrumbRepository(BaseRepository):
         return None
 
     def _find_duplicate_dead_end(self, project_id: str, approach: str, why_failed: str) -> Optional[str]:
-        """Check if a dead end with identical content already exists."""
-        combined = f"{approach}||{why_failed}"
-        content_hash = self._content_hash(combined)
+        """Check if a dead end with identical content already exists.
+
+        Normalizes each field individually before combining to avoid
+        whitespace differences around the || separator.
+        """
+        def _norm(t: str) -> str:
+            return " ".join((t or "").strip().lower().split())
+
+        combined = f"{_norm(approach)}||{_norm(why_failed)}"
+        target_hash = self._content_hash(combined)
         cursor = self._execute("""
             SELECT id, approach, why_failed FROM project_dead_ends
             WHERE project_id = ?
@@ -102,8 +109,8 @@ class BreadcrumbRepository(BaseRepository):
 
         for row in cursor.fetchall():
             existing_id, existing_approach, existing_why = row
-            existing_combined = f"{existing_approach}||{existing_why}"
-            if self._content_hash(existing_combined) == content_hash:
+            existing_combined = f"{_norm(existing_approach)}||{_norm(existing_why)}"
+            if self._content_hash(existing_combined) == target_hash:
                 return existing_id
         return None
 
