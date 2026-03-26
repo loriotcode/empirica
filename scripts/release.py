@@ -400,6 +400,68 @@ class ReleaseManager:
 
         info(f"Sweep complete: {updated} files updated")
 
+    def sync_readme_whats_new(self):
+        """Sync README 'What's New' section from CHANGELOG.
+
+        Extracts the latest release entry from CHANGELOG.md and replaces
+        the What's New section in README.md. This ensures the README
+        always reflects the current release content, not just the version number.
+        """
+        log("\n" + "="*60)
+        log("📝 Syncing README What's New from CHANGELOG")
+        log("="*60)
+
+        changelog_path = self.repo_root / "CHANGELOG.md"
+        readme_path = self.repo_root / "README.md"
+
+        if not changelog_path.exists() or not readme_path.exists():
+            warning("CHANGELOG.md or README.md not found, skipping What's New sync")
+            return
+
+        # Extract latest CHANGELOG entry (between first ## and second ##)
+        changelog = changelog_path.read_text()
+        entries = re.split(r'^## ', changelog, flags=re.MULTILINE)
+        if len(entries) < 2:
+            warning("Could not parse CHANGELOG entries")
+            return
+
+        # entries[0] is the header, entries[1] is the latest release
+        latest_entry = entries[1].strip()
+        # Extract just the Added/Changed/Fixed bullets (skip the header line and ### Highlights)
+        lines = latest_entry.split('\n')
+        # Skip the version/date header line
+        content_lines = lines[1:]
+
+        # Build a condensed What's New from the CHANGELOG
+        # Extract key items from ### Added, ### Changed, ### Fixed sections
+        whats_new_items = []
+        for line in content_lines:
+            line = line.strip()
+            if line.startswith('- **') and len(whats_new_items) < 10:
+                whats_new_items.append(line)
+
+        if not whats_new_items:
+            warning("No bullet items found in latest CHANGELOG entry")
+            return
+
+        # Build the new What's New section
+        new_whats_new = f"## What's New in {self.version}\n\n"
+        new_whats_new += '\n'.join(whats_new_items[:8])  # Top 8 items
+
+        # Replace in README
+        readme = readme_path.read_text()
+        # Match from "## What's New in X.Y.Z" to the next "### Previous Highlights"
+        pattern = r"## What's New in [^\n]+\n\n(?:- \*\*[^\n]+\n)+"
+        if re.search(pattern, readme):
+            readme = re.sub(pattern, new_whats_new + '\n', readme)
+            if not self.dry_run:
+                readme_path.write_text(readme)
+                success(f"README What's New synced from CHANGELOG ({len(whats_new_items)} items)")
+            else:
+                info(f"Would sync README What's New ({len(whats_new_items)} items)")
+        else:
+            warning("Could not find What's New section pattern in README")
+
     def run_command(self, cmd: list[str], check: bool = True, cwd: Optional[str] = None) -> subprocess.CompletedProcess:
         """Run a shell command"""
         cmd_str = " ".join(cmd)
@@ -827,6 +889,9 @@ brew install empirica
             self.update_version_strings()
             if self.old_version:
                 self.sweep_version(self.old_version)
+
+            # Sync README What's New from CHANGELOG
+            self.sync_readme_whats_new()
 
             # Build packages
             self.build_package()
