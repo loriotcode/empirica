@@ -1531,7 +1531,7 @@ def main():
                         respond("allow", "Noetic tool (transaction closed)")
                         sys.exit(0)
                     # Praxic tool with closed transaction → correct error message
-                    respond("deny", "Epistemic loop closed (POSTFLIGHT completed). Run new PREFLIGHT to start next goal.")
+                    respond("deny", "Epistemic loop closed (POSTFLIGHT completed). Run new PREFLIGHT to start next goal. Command: empirica preflight-submit - (JSON with vectors on stdin)")
                     sys.exit(0)
             except Exception:
                 pass
@@ -1772,7 +1772,7 @@ def main():
                         sys.exit(0)
 
                 db.close()
-                respond("deny", f"Epistemic loop closed (POSTFLIGHT completed). Run new PREFLIGHT to start next goal.")
+                respond("deny", f"Epistemic loop closed (POSTFLIGHT completed). Run new PREFLIGHT to start next goal. Command: empirica preflight-submit - (JSON with vectors on stdin)")
                 sys.exit(0)
         except (ValueError, TypeError):
             pass  # If timestamps can't be compared, continue with other checks
@@ -1844,7 +1844,7 @@ def main():
     # NOTE: db kept open - reused for anti-gaming check below (single connection per invocation)
 
     if not check_row:
-        respond("deny", "No valid CHECK found. Run CHECK after investigation to proceed.")
+        respond("deny", "No valid CHECK found. Run CHECK after investigation to proceed. Command: empirica check-submit - (JSON with vectors on stdin)")
         sys.exit(0)
 
     know, uncertainty, reflex_data, check_timestamp = check_row
