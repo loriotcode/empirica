@@ -1,7 +1,7 @@
 #!/bin/bash
 # Chrome MCP health cron wrapper
 # Runs chrome_health_check.py and sends desktop notification if dead/degraded.
-# Install: crontab -e → */10 * * * * ~/.claude/plugins/local/empirica-integration/scripts/chrome_health_cron.sh
+# Install: crontab -e → */10 * * * * ~/.claude/plugins/local/empirica/scripts/chrome_health_cron.sh
 #
 # Requires: notify-send (libnotify) for desktop notifications
 

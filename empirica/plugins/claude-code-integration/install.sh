@@ -1,5 +1,5 @@
 #!/bin/bash
-# empirica-integration installer - one-line install for Claude Code
+# empirica installer - one-line install for Claude Code
 # Usage: curl -fsSL https://raw.githubusercontent.com/Nubaeon/empirica/main/claude-code-integration/install.sh | bash
 #
 # This script installs empirica via pip and delegates plugin setup to
@@ -15,7 +15,7 @@
 
 set -e
 
-PLUGIN_VERSION="1.6.21"
+PLUGIN_VERSION="1.6.23"
 MIN_PYTHON_MAJOR=3
 MIN_PYTHON_MINOR=10
 
@@ -119,7 +119,7 @@ echo "⚙️  Setting up Claude Code integration..."
 echo ""
 
 # setup-claude-code handles everything:
-# - Plugin files to ~/.claude/plugins/local/empirica-integration/
+# - Plugin files to ~/.claude/plugins/local/empirica/
 # - CLAUDE.md system prompt
 # - Hook configuration (Sentinel, compact, session lifecycle)
 # - MCP server setup

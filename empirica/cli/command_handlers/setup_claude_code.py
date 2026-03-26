@@ -3,7 +3,7 @@
 Setup Claude Code Command - Configure Claude Code integration for Empirica
 
 This command configures:
-- Plugin files in ~/.claude/plugins/local/empirica-integration/
+- Plugin files in ~/.claude/plugins/local/empirica/
 - CLAUDE.md system prompt in ~/.claude/CLAUDE.md
 - Hooks in ~/.claude/settings.json (sentinel, compact, session lifecycle)
 - MCP server in ~/.claude/mcp.json
@@ -27,8 +27,8 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_NAME = "empirica-integration"
-PLUGIN_VERSION = "1.6.22"
+PLUGIN_NAME = "empirica"
+PLUGIN_VERSION = "1.6.23"
 
 
 def _find_python() -> str:
@@ -188,6 +188,18 @@ def handle_setup_claude_code_command(args):
         # ==================== INSTALL PLUGIN FILES ====================
         if output_format != 'json':
             print("\n📦 Installing plugin files...")
+
+        # Migration: remove old empirica-integration directory if it exists (renamed to empirica in 1.7.0)
+        old_plugin_dir = plugin_dir.parent / "empirica-integration"
+        if old_plugin_dir.exists() and old_plugin_dir != plugin_dir:
+            shutil.rmtree(old_plugin_dir)
+            if output_format != 'json':
+                print("   🔄 Migrated: removed old empirica-integration plugin directory")
+
+        # Also clean orphaned cache (prevents duplicate hook execution)
+        old_cache_dir = Path.home() / '.claude' / 'plugins' / 'cache' / 'local' / 'empirica-integration'
+        if old_cache_dir.exists():
+            shutil.rmtree(old_cache_dir)
 
         # Always sync plugin files — hooks and scripts must track the installed version.
         # Previous behavior skipped this if directory existed, causing stale scripts.

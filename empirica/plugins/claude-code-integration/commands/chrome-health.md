@@ -15,7 +15,7 @@ This command detects dead connections and sets up periodic monitoring.
 Run the health check script and report results:
 
 ```bash
-python3 ~/.claude/plugins/local/empirica-integration/scripts/chrome_health_check.py
+python3 ~/.claude/plugins/local/empirica/scripts/chrome_health_check.py
 ```
 
 **Interpret the output:**
@@ -41,7 +41,7 @@ Set up a recurring health check using CronCreate. This polls every 10 minutes wh
 2. Create the monitoring job:
    - Use `CronCreate` with cron `"*/10 * * * *"` and prompt:
      ```
-     Run the Chrome MCP health check silently. Execute: python3 ~/.claude/plugins/local/empirica-integration/scripts/chrome_health_check.py
+     Run the Chrome MCP health check silently. Execute: python3 ~/.claude/plugins/local/empirica/scripts/chrome_health_check.py
      If the status is "dead" or "degraded", warn me immediately with the details and recovery steps.
      If the status is "healthy", say nothing — just continue silently.
      ```

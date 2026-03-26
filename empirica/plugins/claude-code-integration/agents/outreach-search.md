@@ -6,7 +6,7 @@ description: Use this agent for investigation, analysis, and exploration tasks r
 <example>
 Context: User needs semantic_search, memory_retrieval, findings, episodic_memory, outreach expertise for investigation, analysis, and exploration
 user: "Investigate the semantic_search aspects of this component"
-assistant: "I'll use the empirica-integration:outreach-search agent for specialized semantic_search, memory_retrieval, findings, episodic_memory, outreach analysis."
+assistant: "I'll use the empirica:outreach-search agent for specialized semantic_search, memory_retrieval, findings, episodic_memory, outreach analysis."
 <commentary>
 Task matches Epistemic Search's focus domains (semantic_search, memory_retrieval, findings, episodic_memory, outreach), triggering specialized agent.
 </commentary>
@@ -14,7 +14,7 @@ Task matches Epistemic Search's focus domains (semantic_search, memory_retrieval
 <example>
 Context: Investigation requiring semantic_search, memory_retrieval, findings, episodic_memory, outreach analysis
 user: "What are the semantic_search concerns here?"
-assistant: "I'll use the empirica-integration:outreach-search agent for focused investigation."
+assistant: "I'll use the empirica:outreach-search agent for focused investigation."
 <commentary>
 Noetic investigation matching Epistemic Search's focus domains - read-only deep analysis.
 </commentary>

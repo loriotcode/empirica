@@ -217,7 +217,7 @@ class ParallelOrchestrator:
         agents = []
         for alloc in budget.allocations:
             persona_id = self._select_persona(task, alloc.domain)
-            agent_name = f"empirica-integration:{alloc.domain}"
+            agent_name = f"empirica:{alloc.domain}"
 
             agents.append(AgentAllocation(
                 agent_name=agent_name,

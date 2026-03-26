@@ -1,6 +1,6 @@
 # Empirica Integration Plugin - Distribution Guide
 
-This guide covers three ways to distribute the empirica-integration plugin.
+This guide covers three ways to distribute the empirica plugin.
 
 ---
 
@@ -24,8 +24,8 @@ This guide covers three ways to distribute the empirica-integration plugin.
 
 3. **Add plugin to external_plugins:**
    ```bash
-   mkdir -p external_plugins/empirica-integration
-   cp -r /path/to/this/plugin/* external_plugins/empirica-integration/
+   mkdir -p external_plugins/empirica
+   cp -r /path/to/this/plugin/* external_plugins/empirica/
    ```
 
 4. **Update marketplace.json:**
@@ -33,21 +33,21 @@ This guide covers three ways to distribute the empirica-integration plugin.
    Edit `.claude-plugin/marketplace.json` and add entry:
    ```json
    {
-     "name": "empirica-integration",
+     "name": "empirica",
      "description": "Epistemic continuity across memory compacting - automatic calibration integration",
      "version": "1.0.0",
      "author": {
        "name": "Empirica Team",
        "email": "your-email@example.com"
      },
-     "source": "./external_plugins/empirica-integration",
+     "source": "./external_plugins/empirica",
      "category": "productivity",
      "homepage": "https://github.com/YOUR-ORG/empirica"
    }
    ```
 
 5. **Create Pull Request:**
-   - Title: `Add empirica-integration plugin`
+   - Title: `Add empirica plugin`
    - Description: Explain what the plugin does, benefits, testing done
    - Include screenshots/examples if possible
 
@@ -74,16 +74,16 @@ This guide covers three ways to distribute the empirica-integration plugin.
 1. **Create new repository:**
    ```bash
    # On GitHub/GitLab
-   Create repo: empirica-integration-plugin
+   Create repo: empirica-plugin
    ```
 
 2. **Initialize and push:**
    ```bash
-   cd /tmp/empirica-integration-dist
+   cd /tmp/empirica-dist
    git init
    git add .
    git commit -m "Initial commit: Empirica integration plugin"
-   git remote add origin https://github.com/YOUR-ORG/empirica-integration-plugin.git
+   git remote add origin https://github.com/YOUR-ORG/empirica-plugin.git
    git push -u origin main
    ```
 
@@ -100,13 +100,13 @@ This guide covers three ways to distribute the empirica-integration plugin.
    ```bash
    # In Claude Code
    /plugin > Add Marketplace
-   # Enter: https://github.com/YOUR-ORG/empirica-integration-plugin.git
+   # Enter: https://github.com/YOUR-ORG/empirica-plugin.git
    ```
 
    Or manual install from git:
    ```bash
-   git clone https://github.com/YOUR-ORG/empirica-integration-plugin.git
-   cp -r empirica-integration-plugin ~/.claude/plugins/local/empirica-integration
+   git clone https://github.com/YOUR-ORG/empirica-plugin.git
+   cp -r empirica-plugin ~/.claude/plugins/local/empirica
    # Follow manual installation steps in INSTALL.md
    ```
 
@@ -127,7 +127,7 @@ This guide covers three ways to distribute the empirica-integration plugin.
    ```bash
    cd /path/to/empirica
    mkdir -p plugins/claude-code-integration
-   cp -r /tmp/empirica-integration-dist/* plugins/claude-code-integration/
+   cp -r /tmp/empirica-dist/* plugins/claude-code-integration/
    ```
 
 2. **Create installation script:**
@@ -135,10 +135,10 @@ This guide covers three ways to distribute the empirica-integration plugin.
    Create `scripts/install_claude_plugin.sh`:
    ```bash
    #!/bin/bash
-   # Install empirica-integration plugin for Claude Code
+   # Install empirica plugin for Claude Code
 
    PLUGIN_SOURCE="$(dirname "$0")/../plugins/claude-code-integration"
-   PLUGIN_DEST="$HOME/.claude/plugins/local/empirica-integration"
+   PLUGIN_DEST="$HOME/.claude/plugins/local/empirica"
 
    echo "Installing Empirica integration plugin..."
    mkdir -p "$HOME/.claude/plugins/local"
@@ -194,7 +194,7 @@ def post_install():
     claude_dir = Path.home() / '.claude'
     if claude_dir.exists():
         plugin_src = Path(__file__).parent / 'plugins/claude-code-integration'
-        plugin_dst = claude_dir / 'plugins/local/empirica-integration'
+        plugin_dst = claude_dir / 'plugins/local/empirica'
 
         if not plugin_dst.exists():
             plugin_dst.parent.mkdir(parents=True, exist_ok=True)

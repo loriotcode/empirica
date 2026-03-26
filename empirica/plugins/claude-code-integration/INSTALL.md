@@ -8,21 +8,21 @@ Once available in the marketplace:
 
 ```bash
 # In Claude Code
-/plugin install empirica-integration@claude-plugins-official
+/plugin install empirica@claude-plugins-official
 ```
 
 ### Manual Installation from Git
 
 1. **Clone or download this repository:**
    ```bash
-   git clone https://github.com/YOUR-ORG/empirica-integration-plugin.git
+   git clone https://github.com/YOUR-ORG/empirica-plugin.git
    # OR download and extract ZIP
    ```
 
 2. **Copy to Claude Code plugins directory:**
    ```bash
    mkdir -p ~/.claude/plugins/local
-   cp -r empirica-integration-plugin ~/.claude/plugins/local/empirica-integration
+   cp -r empirica-plugin ~/.claude/plugins/local/empirica
    ```
 
 3. **Register the local marketplace** (if not already done):
@@ -55,14 +55,14 @@ Once available in the marketplace:
      },
      "plugins": [
        {
-         "name": "empirica-integration",
+         "name": "empirica",
          "description": "Epistemic continuity across memory compacting",
          "version": "1.0.0",
          "author": {
            "name": "Empirica Team",
            "email": "support@anthropic.com"
          },
-         "source": "./empirica-integration",
+         "source": "./empirica",
          "category": "productivity"
        }
      ]
@@ -76,10 +76,10 @@ Once available in the marketplace:
    {
      "version": 2,
      "plugins": {
-       "empirica-integration@local": [
+       "empirica@local": [
          {
            "scope": "user",
-           "installPath": "/home/YOUR-USERNAME/.claude/plugins/local/empirica-integration",
+           "installPath": "/home/YOUR-USERNAME/.claude/plugins/local/empirica",
            "version": "1.0.0",
            "installedAt": "2025-12-28T00:00:00.000Z",
            "lastUpdated": "2025-12-28T00:00:00.000Z",
@@ -96,7 +96,7 @@ Once available in the marketplace:
    ```json
    {
      "enabledPlugins": {
-       "empirica-integration@local": true
+       "empirica@local": true
      }
    }
    ```
@@ -115,7 +115,7 @@ After restart, verify with:
 /plugin
 ```
 
-Should show `empirica-integration@local` as installed.
+Should show `empirica@local` as installed.
 
 ## Usage
 
@@ -135,5 +135,5 @@ See main [README.md](./README.md) for troubleshooting guide.
 
 1. Remove from `~/.claude/settings.json` enabledPlugins
 2. Remove from `~/.claude/plugins/installed_plugins.json`
-3. Delete directory: `rm -rf ~/.claude/plugins/local/empirica-integration`
+3. Delete directory: `rm -rf ~/.claude/plugins/local/empirica`
 4. Restart Claude Code

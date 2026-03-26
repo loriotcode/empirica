@@ -29,7 +29,7 @@ from pathlib import Path
 # ============================================================================
 
 AGENT_DOMAINS = {
-    "empirica-integration:security": {
+    "empirica:security": {
         "keywords": [
             "security", "auth", "authentication", "authorization",
             "encrypt", "vulnerability", "xss", "csrf", "injection",
@@ -38,7 +38,7 @@ AGENT_DOMAINS = {
         ],
         "description": "Security analysis and hardening",
     },
-    "empirica-integration:architecture": {
+    "empirica:architecture": {
         "keywords": [
             "architecture", "design pattern", "refactor",
             "modular", "coupling", "cohesion", "abstraction",
@@ -48,7 +48,7 @@ AGENT_DOMAINS = {
         ],
         "description": "Architecture analysis and system design",
     },
-    "empirica-integration:performance": {
+    "empirica:performance": {
         "keywords": [
             "performance", "optimiz", "latency", "throughput",
             "memory", "cpu", "cache", "profil", "slow",
@@ -56,7 +56,7 @@ AGENT_DOMAINS = {
         ],
         "description": "Performance analysis and optimization",
     },
-    "empirica-integration:ux": {
+    "empirica:ux": {
         "keywords": [
             "usability", "accessibility", "user flow", "ux",
             "error message", "response time", "wcag", "a11y",
@@ -343,7 +343,7 @@ def build_routing_advice(task, vectors, session_id):
             "This looks like an investigation task. "
             "Use `mcp__empirica__investigate` for systematic investigation "
             "with epistemic tracking, or spawn a domain-specific agent "
-            "(empirica-integration:architecture, security, performance, ux) "
+            "(empirica:architecture, security, performance, ux) "
             "for focused analysis."
         )
 

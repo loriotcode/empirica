@@ -6,7 +6,7 @@ description: Use this agent for investigation, analysis, and exploration tasks r
 <example>
 Context: User needs user_queries, topic_identification, quick_assessment, outreach expertise for investigation, analysis, and exploration
 user: "Investigate the user_queries aspects of this component"
-assistant: "I'll use the empirica-integration:outreach-scout agent for specialized user_queries, topic_identification, quick_assessment, outreach analysis."
+assistant: "I'll use the empirica:outreach-scout agent for specialized user_queries, topic_identification, quick_assessment, outreach analysis."
 <commentary>
 Task matches Epistemic Scout's focus domains (user_queries, topic_identification, quick_assessment, outreach), triggering specialized agent.
 </commentary>
@@ -14,7 +14,7 @@ Task matches Epistemic Scout's focus domains (user_queries, topic_identification
 <example>
 Context: Investigation requiring user_queries, topic_identification, quick_assessment, outreach analysis
 user: "What are the user_queries concerns here?"
-assistant: "I'll use the empirica-integration:outreach-scout agent for focused investigation."
+assistant: "I'll use the empirica:outreach-scout agent for focused investigation."
 <commentary>
 Noetic investigation matching Epistemic Scout's focus domains - read-only deep analysis.
 </commentary>

@@ -21,7 +21,7 @@ def add_onboarding_parsers(subparsers):
         description="""
 Configure Claude Code integration for Empirica. This command:
 
-1. Installs the empirica-integration plugin to ~/.claude/plugins/local/
+1. Installs the empirica plugin to ~/.claude/plugins/local/
 2. Configures CLAUDE.md system prompt in ~/.claude/
 3. Sets up hooks in settings.json:
    - Sentinel gate (blocks praxic tools until CHECK passes)
