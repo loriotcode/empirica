@@ -130,6 +130,7 @@ def handle_setup_claude_code_command(args):
         force = getattr(args, 'force', False)
         skip_mcp = getattr(args, 'skip_mcp', False)
         skip_claude_md = getattr(args, 'skip_claude_md', False)
+        use_lean = getattr(args, 'lean', False)
 
         # Find bundled plugins
         source_dir = _get_plugin_source_dir()
@@ -233,7 +234,14 @@ def handle_setup_claude_code_command(args):
             if output_format != 'json':
                 print("\n📝 Installing Empirica system prompt...")
 
-            claude_md_src = plugin_dir / "templates" / "CLAUDE.md"
+            # Select prompt template: lean (skills on demand) or full (traditional)
+            if use_lean:
+                claude_md_src = plugin_dir / "templates" / "empirica-system-prompt-lean.md"
+                prompt_label = "lean core (skills on demand)"
+            else:
+                claude_md_src = plugin_dir / "templates" / "CLAUDE.md"
+                prompt_label = "full (traditional)"
+
             claude_md_dst = claude_dir / "CLAUDE.md"
             empirica_prompt_dst = claude_dir / "empirica-system-prompt.md"
             include_line = "@~/.claude/empirica-system-prompt.md"
@@ -242,7 +250,7 @@ def handle_setup_claude_code_command(args):
                 # Always write Empirica prompt to separate file (safe to overwrite)
                 shutil.copy2(claude_md_src, empirica_prompt_dst)
                 if output_format != 'json':
-                    print("   ✓ Empirica prompt written to ~/.claude/empirica-system-prompt.md")
+                    print(f"   ✓ Empirica prompt ({prompt_label}) written to ~/.claude/empirica-system-prompt.md")
 
                 if claude_md_dst.exists():
                     # Check if include reference already exists

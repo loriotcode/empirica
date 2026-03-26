@@ -1,6 +1,6 @@
-# Empirica System Prompt — Lean Core v0.1.0
+# Empirica System Prompt — Lean Core v1.7.0
 
-**Model:** CLAUDE | **Status:** EXPERIMENTAL (testing lean core + constitution skill)
+**Model:** CLAUDE | **Syncs with:** Empirica v1.7.0 | **Mode:** Lean (skills on demand)
 
 ---
 
