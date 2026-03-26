@@ -290,12 +290,42 @@ def handle_setup_claude_code_command(args):
         if output_format != 'json':
             print("   ✓ Plugin enabled")
 
-        # --force: clear hooks and statusLine so everything gets rewritten from current definitions
+        # --force: clear ONLY Empirica hooks, preserve other plugins' hooks
+        # Previously this did settings['hooks'] = {} which nuked ALL hooks
+        # including Railway, Superpowers, and custom hooks. Now filters by
+        # plugin path to only remove Empirica's entries.
         if force:
-            settings['hooks'] = {}
+            plugin_path_patterns = [
+                f'plugins/local/{PLUGIN_NAME}/',      # Current name
+                'plugins/local/empirica-integration/', # Legacy name
+                'plugins/local/empirica/',             # Short name
+            ]
+            for event in list(settings.get('hooks', {}).keys()):
+                original_count = len(settings['hooks'][event])
+                settings['hooks'][event] = [
+                    hook for hook in settings['hooks'][event]
+                    if not any(
+                        pattern in str(hook)
+                        for pattern in plugin_path_patterns
+                    )
+                ]
+                removed = original_count - len(settings['hooks'][event])
+                if removed > 0:
+                    logger.debug(f"--force: removed {removed} Empirica hooks from {event}")
+                # Clean up empty event lists
+                if not settings['hooks'][event]:
+                    del settings['hooks'][event]
+
             settings.pop('statusLine', None)
             if output_format != 'json':
-                print("   --force: clearing existing hooks and statusLine for reinstall")
+                print("   --force: cleared Empirica hooks and statusLine (other plugins preserved)")
+
+            # Also clean up legacy plugin name from enabledPlugins
+            legacy_key = "empirica-integration@local"
+            if legacy_key in settings.get('enabledPlugins', {}):
+                del settings['enabledPlugins'][legacy_key]
+                if output_format != 'json':
+                    print("   --force: removed legacy empirica-integration@local from enabledPlugins")
 
         # Configure StatusLine
         # Claude Code pipes session JSON to statusline stdin — do NOT redirect stdin
