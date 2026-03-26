@@ -16,6 +16,85 @@ from .project_commands import get_workspace_db_path
 logger = logging.getLogger(__name__)
 
 
+def _is_uuid(s: str) -> bool:
+    """Check if a string looks like a UUID."""
+    import re
+    return bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', s, re.I))
+
+
+def _resolve_db_for_artifact(project_id: Optional[str]):
+    """Resolve the correct SessionDatabase for artifact writing.
+
+    If project_id is a project name (not UUID), attempts cross-project
+    write by resolving the target project's DB. Falls back to local DB.
+
+    Returns (db, resolved_project_id) tuple.
+    """
+    from empirica.data.session_database import SessionDatabase
+
+    if project_id and not _is_uuid(project_id):
+        cross_db = _get_db_for_project(project_id)
+        if cross_db:
+            # Resolve the name to UUID in the target DB
+            resolved = cross_db.resolve_project_id(project_id)
+            logger.info(f"Cross-project write: targeting '{project_id}' → {resolved[:8] if resolved else '?'}...")
+            return cross_db, resolved
+        else:
+            logger.warning(f"Could not resolve project '{project_id}' for cross-project write, using local DB")
+
+    return SessionDatabase(), project_id
+
+
+def _get_db_for_project(project_name_or_id: str):
+    """Get SessionDatabase for a specific project by name or UUID.
+
+    Resolves project → trajectory_path (from workspace.db) → sessions.db.
+    Used for cross-project artifact writing without project-switch.
+
+    Args:
+        project_name_or_id: Project name (e.g., "empirica-cortex") or UUID
+
+    Returns:
+        SessionDatabase instance connected to the target project's DB,
+        or None if the project can't be resolved.
+    """
+    from empirica.data.session_database import SessionDatabase
+    import sqlite3
+
+    workspace_db = get_workspace_db_path()
+    if not workspace_db.exists():
+        return None
+
+    try:
+        conn = sqlite3.connect(str(workspace_db))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Try by name first, then by UUID
+        cursor.execute(
+            "SELECT trajectory_path FROM global_projects WHERE name = ? OR id = ?",
+            (project_name_or_id, project_name_or_id)
+        )
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row or not row['trajectory_path']:
+            return None
+
+        project_path = Path(row['trajectory_path'])
+        db_path = project_path / '.empirica' / 'sessions' / 'sessions.db'
+
+        if not db_path.exists():
+            logger.warning(f"Cross-project DB not found: {db_path}")
+            return None
+
+        return SessionDatabase(db_path=str(db_path))
+
+    except Exception as e:
+        logger.warning(f"Failed to resolve project DB for '{project_name_or_id}': {e}")
+        return None
+
+
 def _create_entity_artifact_link(
     artifact_type: str,
     artifact_id: str,
@@ -238,17 +317,17 @@ def handle_finding_log_command(args):
         subject = config_data.get('subject') if config_data else getattr(args, 'subject', None)
         if subject is None:
             subject = get_current_subject()  # Auto-detect from directory
-        
+
         # Show project context (quiet mode - single line)
         if output_format != 'json':
             from empirica.cli.cli_utils import print_project_context
             print_project_context(quiet=True)
-        
-        db = SessionDatabase()
 
-        # Auto-resolve project_id if not provided
+        # Cross-project artifact writing: if --project-id is a name, resolve target DB
+        db, project_id = _resolve_db_for_artifact(project_id)
+
+        # Auto-resolve project_id if not provided (from session record)
         if not project_id:
-            # Try to get project from session record
             cursor = db.conn.cursor()
             cursor.execute("""
                 SELECT project_id FROM sessions WHERE session_id = ?
@@ -582,17 +661,17 @@ def handle_unknown_log_command(args):
         subject = config_data.get('subject') if config_data else getattr(args, 'subject', None)
         if subject is None:
             subject = get_current_subject()  # Auto-detect from directory
-        
+
         # Show project context (quiet mode - single line)
         if output_format != 'json':
             from empirica.cli.cli_utils import print_project_context
             print_project_context(quiet=True)
-        
-        db = SessionDatabase()
 
-        # Auto-resolve project_id if not provided
+        # Cross-project artifact writing: if --project-id is a name, resolve target DB
+        db, project_id = _resolve_db_for_artifact(project_id)
+
+        # Auto-resolve project_id if not provided (from session record)
         if not project_id:
-            # Try to get project from session record
             cursor = db.conn.cursor()
             cursor.execute("""
                 SELECT project_id FROM sessions WHERE session_id = ?
