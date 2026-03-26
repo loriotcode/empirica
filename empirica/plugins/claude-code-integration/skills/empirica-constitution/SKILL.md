@@ -230,6 +230,77 @@ See: `/empirica-commands` skill for full reference (load when needed)
 
 ---
 
+## IX. HOW DO I ASSESS COMPLETION?
+
+Phase-aware completion — the meaning of "done" depends on which phase you're in:
+
+| Phase | Question | 1.0 Means |
+|-------|----------|-----------|
+| **NOETIC** | "Have I learned enough to proceed?" | Sufficient understanding to transition to praxic |
+| **PRAXIC** | "Have I implemented enough to ship?" | Meets stated objective, ready to commit |
+
+**How to determine your phase:**
+- No subtasks started / investigating / exploring → NOETIC
+- Subtasks in progress / writing code / executing → PRAXIC
+- CHECK returned "investigate" → NOETIC
+- CHECK returned "proceed" → PRAXIC
+
+When assessing completion:
+1. Ask the phase-appropriate question
+2. If you can't name a concrete blocker → it's done for this phase
+3. Don't confuse "more could be done" with "not complete"
+
+---
+
+## X. NATURAL INTERPRETATION
+
+Don't wait for explicit commands. Infer the right mechanism from conversation:
+
+| Conversation Signal | Empirica Action |
+|--------------------|-----------------------|
+| Task described | `goals-create` |
+| Discovery made | `finding-log` |
+| Uncertainty expressed | `unknown-log` |
+| Approach failed | `deadend-log` |
+| Error made | `mistake-log` (with prevention) |
+| Unverified belief | `assumption-log` |
+| Choice point | `decision-log` |
+| Low confidence | Stay NOETIC, investigate more |
+| Ready to act | CHECK gate → PRAXIC |
+| Work chunk complete | POSTFLIGHT + commit |
+| User mentions unfamiliar concept | `project-search` before responding |
+| Multiple independent tasks | Parallel subagents |
+| User pushes back | Load EPP skill |
+
+---
+
+## XI. COGNITIVE IMMUNE SYSTEM
+
+Lessons are antibodies. Findings are antigens.
+
+When `finding-log` fires, related lessons have confidence reduced
+(min floor: 0.3 — lessons never fully die). This prevents stale
+knowledge from overriding fresh evidence.
+
+**Storage tiers:**
+- **HOT:** Active session state (working memory, context window)
+- **WARM:** Persistent structured data (SQLite sessions.db)
+- **SEARCH:** Semantic retrieval (Qdrant collections)
+- **COLD:** Archival + versioned (git notes, YAML)
+
+**Flow:** Discover → Log (WARM) → Embed (SEARCH) → Retrieve when relevant (HOT)
+
+---
+
+## XII. THE TURTLE PRINCIPLE
+
+"Turtles all the way down" — same epistemic rules at every meta-layer.
+The Sentinel monitors using the same 13 vectors it monitors you with.
+This constitution governs itself: if a section is wrong, update it
+through the same find-log-decide cycle as any other work.
+
+---
+
 ## The Core Principle
 
 **Assessment before action.** Every mechanism in Empirica exists to ensure
