@@ -288,7 +288,15 @@ def compute_dynamic_thresholds(
             # reliability > 0 → inflate proportionally, capped at max_inflation
             # Scale factor: reliability is typically 0.0-0.25 range,
             # we want max_inflation at high reliability (~0.15+)
-            inflation = min(decomp.reliability * (max_infl / 0.15), max_infl)
+            raw_inflation = min(decomp.reliability * (max_infl / 0.15), max_infl)
+
+            # Cold-start damper: with few data points, reliability estimates are
+            # noisy. Scale inflation by confidence in the estimate to prevent the
+            # "death spiral" where high inflation from noisy data blocks CHECK,
+            # preventing new data from being collected to correct the estimate.
+            # Ramp: 5 txns = 25% confidence, 10 = 50%, 20+ = 100%
+            confidence = min(1.0, decomp.n_predictions / 20.0)
+            inflation = raw_inflation * confidence
 
             # Apply inflation: raise know threshold, lower uncertainty tolerance
             know_adjusted = know_base + inflation

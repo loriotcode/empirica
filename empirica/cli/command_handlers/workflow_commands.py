@@ -1317,6 +1317,12 @@ def handle_check_submit_command(args):
             # Override: investigation plateaued with adequate baseline
             computed_decision = "proceed"
             logger.info(f"CHECK decision override: proceed due to diminishing returns ({diminishing_returns['reason']})")
+        elif round_num >= 5 and know >= 0.60 and uncertainty <= 0.40:
+            # Hard cap: 5+ rounds with reasonable vectors → proceed
+            # Prevents cold-start death spiral where threshold inflation blocks
+            # CHECK indefinitely despite honest, adequate investigation
+            computed_decision = "proceed"
+            logger.info(f"CHECK decision override: proceed due to max investigate rounds (round={round_num}, know={know:.2f}, uncertainty={uncertainty:.2f})")
         else:
             computed_decision = "investigate"
 
