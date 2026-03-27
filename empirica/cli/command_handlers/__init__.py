@@ -93,6 +93,7 @@ from .artifact_log_commands import (
     handle_decision_log_command,
     handle_refdoc_add_command,
     handle_source_add_command,
+    handle_source_list_command,
     handle_engagement_focus_command,
 )
 from .workspace_search import handle_workspace_search_command
@@ -301,6 +302,7 @@ __all__ = [
     'handle_decision_log_command',
     'handle_refdoc_add_command',
     'handle_source_add_command',
+    'handle_source_list_command',
     'handle_training_export_command',
     'handle_project_search_command',
     'handle_project_embed_command',

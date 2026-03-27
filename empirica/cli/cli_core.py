@@ -400,6 +400,7 @@ def main(args=None):
             'decision-log': handle_decision_log_command,
             'refdoc-add': handle_refdoc_add_command,
             'source-add': handle_source_add_command,
+            'source-list': handle_source_list_command,
 
             # Training data export
             'training-export': handle_training_export_command,

@@ -1760,3 +1760,120 @@ def handle_source_add_command(args):
         handle_cli_error(e, "Source add", getattr(args, 'verbose', False))
         return None
 
+
+def handle_source_list_command(args):
+    """Handle source-list command — list epistemic sources for a project."""
+    try:
+        from empirica.data.session_database import SessionDatabase
+
+        project_id = getattr(args, 'project_id', None)
+        source_type_filter = getattr(args, 'source_type', None)
+        direction_filter = getattr(args, 'direction', 'all')
+        output_format = getattr(args, 'output', 'human')
+
+        db = SessionDatabase()
+
+        # Auto-resolve project_id
+        if not project_id:
+            try:
+                project_path = R.project_path()
+                if project_path:
+                    project_id = R.project_id_from_db(project_path)
+            except Exception:
+                pass
+
+        if not project_id:
+            print(json.dumps({"ok": False, "error": "Could not resolve project_id"}))
+            db.close()
+            return 1
+
+        # Query epistemic_sources table
+        sources = []
+        try:
+            query = """
+                SELECT id, source_type, title, description, confidence,
+                       epistemic_layer, source_url, discovered_at, source_metadata
+                FROM epistemic_sources
+                WHERE project_id = ?
+            """
+            params = [project_id]
+
+            if source_type_filter:
+                query += " AND source_type = ?"
+                params.append(source_type_filter)
+
+            if direction_filter != 'all':
+                query += " AND epistemic_layer = ?"
+                params.append(direction_filter)
+
+            query += " ORDER BY discovered_at DESC"
+
+            cursor = db.conn.cursor()
+            cursor.execute(query, params)
+            for row in cursor.fetchall():
+                r = dict(row) if hasattr(row, 'keys') else {
+                    'id': row[0], 'source_type': row[1], 'title': row[2],
+                    'description': row[3], 'confidence': row[4],
+                    'direction': row[5], 'url': row[6],
+                    'discovered_at': row[7], 'metadata': row[8]
+                }
+                r['source'] = 'epistemic_sources'
+                sources.append(r)
+        except Exception as e:
+            logger.debug(f"epistemic_sources query failed (table may not exist): {e}")
+
+        # Also query legacy project_reference_docs
+        try:
+            refdocs = db.get_project_reference_docs(project_id)
+            for rd in refdocs:
+                # Skip if already in epistemic_sources (by doc_path match)
+                doc_path = rd.get('doc_path', '')
+                if any(s.get('url') == doc_path or s.get('source_url') == doc_path for s in sources):
+                    continue
+                sources.append({
+                    'id': rd.get('id', ''),
+                    'source_type': rd.get('doc_type', 'document'),
+                    'title': doc_path.split('/')[-1] if doc_path else 'unknown',
+                    'description': rd.get('description', ''),
+                    'confidence': None,
+                    'direction': 'noetic',
+                    'url': doc_path,
+                    'discovered_at': None,
+                    'source': 'refdoc_legacy',
+                })
+        except Exception as e:
+            logger.debug(f"refdoc query failed: {e}")
+
+        db.close()
+
+        if output_format == 'json':
+            print(json.dumps({
+                "ok": True,
+                "project_id": project_id,
+                "count": len(sources),
+                "sources": sources,
+            }, indent=2))
+        else:
+            print(f"\n📚 Epistemic Sources ({len(sources)} total)")
+            print("=" * 60)
+            for s in sources:
+                direction = s.get('direction') or s.get('epistemic_layer', '?')
+                emoji = "📥" if direction == 'noetic' else "📤"
+                conf = f" [{s['confidence']:.1f}]" if s.get('confidence') else ""
+                source_tag = f" ({s['source']})" if s.get('source') == 'refdoc_legacy' else ""
+                print(f"  {emoji} {s.get('title', '?')}{conf}{source_tag}")
+                print(f"     Type: {s.get('source_type', '?')} | Direction: {direction}")
+                url = s.get('url') or s.get('source_url', '')
+                if url:
+                    print(f"     Path: {url}")
+                desc = s.get('description', '')
+                if desc:
+                    print(f"     Desc: {desc[:80]}")
+                print()
+
+        return 0
+
+    except Exception as e:
+        handle_cli_error(e, "Source list", getattr(args, 'verbose', False))
+        return None
+
