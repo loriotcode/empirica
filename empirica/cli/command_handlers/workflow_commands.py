@@ -1658,6 +1658,13 @@ def handle_check_submit_command(args):
             except Exception as e:
                 logger.debug(f"Codebase context injection skipped: {e}")
 
+            # PROCEED ADVISORY: Remind about commit cadence and artifact breadth
+            if decision == "proceed":
+                result["praxic_reminders"] = {
+                    "commit": "Commit before POSTFLIGHT — uncommitted edits are invisible to grounded calibration (change/state/do will ground near-zero).",
+                    "artifacts": "Log the full breadth: assumption-log (beliefs), decision-log (choices), deadend-log (failures), mistake-log (errors) — not just findings.",
+                }
+
             # AUTO-POSTFLIGHT REMOVED (2026-03-02):
             # Previously CHECK auto-triggered POSTFLIGHT when completion >= 0.7 AND impact >= 0.5.
             # This was wrong: CHECK is a noetic→praxic gate, not a completion event.
@@ -2309,6 +2316,7 @@ def handle_postflight_submit_command(args):
                     work_context=postflight_work_context,
                     work_type=postflight_work_type,
                     per_vector_weights=tier2_weights,
+                    transaction_id=postflight_transaction_id,
                 )
 
                 if grounded_verification:
@@ -2638,6 +2646,83 @@ def handle_postflight_submit_command(args):
                 "calibration": grounded_verification,
                 "sentinel": sentinel_decision.value if sentinel_decision else None,
             }
+
+            # RETROSPECTIVE: Artifact breadth and commit discipline feedback
+            try:
+                retro_db = _get_db_for_session(session_id)
+                retro_cursor = retro_db.conn.cursor()
+                tx_id = postflight_transaction_id
+
+                # Count artifact types logged in this transaction
+                artifact_counts = {}
+                for table, label in [
+                    ("project_findings", "findings"),
+                    ("project_unknowns", "unknowns"),
+                    ("project_dead_ends", "dead_ends"),
+                    ("mistakes_made", "mistakes"),
+                ]:
+                    try:
+                        if tx_id:
+                            retro_cursor.execute(
+                                f"SELECT COUNT(*) FROM {table} WHERE session_id = ? AND transaction_id = ?",
+                                (session_id, tx_id))
+                        else:
+                            retro_cursor.execute(
+                                f"SELECT COUNT(*) FROM {table} WHERE session_id = ?",
+                                (session_id,))
+                        artifact_counts[label] = retro_cursor.fetchone()[0]
+                    except Exception:
+                        artifact_counts[label] = 0
+
+                # Check assumptions and decisions separately (different table structure)
+                for table, label in [("assumptions", "assumptions"), ("decisions", "decisions")]:
+                    try:
+                        if tx_id:
+                            retro_cursor.execute(
+                                f"SELECT COUNT(*) FROM {table} WHERE session_id = ? AND transaction_id = ?",
+                                (session_id, tx_id))
+                        else:
+                            retro_cursor.execute(
+                                f"SELECT COUNT(*) FROM {table} WHERE session_id = ?",
+                                (session_id,))
+                        artifact_counts[label] = retro_cursor.fetchone()[0]
+                    except Exception:
+                        artifact_counts[label] = 0
+
+                # Check for uncommitted git changes
+                has_uncommitted = False
+                try:
+                    _git_result = subprocess.run(
+                        ["git", "status", "--porcelain"],
+                        capture_output=True, text=True, timeout=5)
+                    if _git_result.returncode == 0 and _git_result.stdout.strip():
+                        has_uncommitted = True
+                except Exception:
+                    pass
+
+                # Build feedback
+                retrospective = {"artifact_counts": artifact_counts}
+
+                types_used = [k for k, v in artifact_counts.items() if v > 0]
+                types_missing = [k for k, v in artifact_counts.items() if v == 0]
+
+                if len(types_used) <= 1 and sum(artifact_counts.values()) > 0:
+                    retrospective["breadth_note"] = (
+                        f"Only {', '.join(types_used) or 'no'} artifacts logged. "
+                        f"Missing: {', '.join(types_missing)}. "
+                        "Were there assumptions, decisions, dead-ends, or mistakes worth capturing?"
+                    )
+
+                if has_uncommitted:
+                    retrospective["commit_warning"] = (
+                        "Uncommitted changes detected. Grounded calibration for change/state/do "
+                        "will be based on committed work only — uncommitted edits are invisible."
+                    )
+
+                result["retrospective"] = retrospective
+                retro_db.close()
+            except Exception as e:
+                logger.debug(f"Retrospective feedback failed (non-fatal): {e}")
 
             # NOTE: Statusline cache was removed (2026-02-06). Statusline reads directly from DB.
 

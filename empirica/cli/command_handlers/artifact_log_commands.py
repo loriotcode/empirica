@@ -1766,6 +1766,7 @@ def handle_source_add_command(args):
 
 def handle_source_list_command(args):
     """Handle source-list command — list epistemic sources for a project."""
+    db = None
     try:
         from empirica.data.session_database import SessionDatabase
 
@@ -1787,7 +1788,6 @@ def handle_source_list_command(args):
 
         if not project_id:
             print(json.dumps({"ok": False, "error": "Could not resolve project_id"}))
-            db.close()
             return 1
 
         # Query epistemic_sources table
@@ -1847,8 +1847,6 @@ def handle_source_list_command(args):
         except Exception as e:
             logger.debug(f"refdoc query failed: {e}")
 
-        db.close()
-
         if output_format == 'json':
             print(json.dumps({
                 "ok": True,
@@ -1879,4 +1877,7 @@ def handle_source_list_command(args):
     except Exception as e:
         handle_cli_error(e, "Source list", getattr(args, 'verbose', False))
         return None
+    finally:
+        if db is not None:
+            db.close()
 

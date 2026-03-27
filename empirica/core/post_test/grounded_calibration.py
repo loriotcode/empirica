@@ -605,6 +605,7 @@ def _run_single_phase_verification(
     work_type: Optional[str] = None,
     preflight_timestamp: Optional[float] = None,
     per_vector_weights: Optional[Dict[str, float]] = None,
+    transaction_id: Optional[str] = None,
 ) -> Optional[Dict]:
     """Run grounded verification for a single phase (noetic, praxic, or combined)."""
     collector = PostTestCollector(
@@ -616,6 +617,7 @@ def _run_single_phase_verification(
         evidence_profile=evidence_profile,
         work_context=work_context,
         preflight_timestamp=preflight_timestamp,
+        transaction_id=transaction_id,
     )
     bundle = collector.collect_all()
 
@@ -719,6 +721,7 @@ def run_grounded_verification(
     work_context: Optional[str] = None,
     work_type: Optional[str] = None,
     per_vector_weights: Optional[Dict[str, Dict[str, float]]] = None,
+    transaction_id: Optional[str] = None,
 ) -> Optional[Dict]:
     """
     Full grounded verification pipeline.
@@ -769,6 +772,7 @@ def run_grounded_verification(
                     work_type=work_type,
                     preflight_timestamp=preflight_ts,
                     per_vector_weights=noetic_weights,
+                    transaction_id=transaction_id,
                 )
                 if noetic_result:
                     results["noetic"] = noetic_result
@@ -786,6 +790,7 @@ def run_grounded_verification(
                     work_type=work_type,
                     preflight_timestamp=preflight_ts,
                     per_vector_weights=praxic_weights,
+                    transaction_id=transaction_id,
                 )
                 if praxic_result:
                     results["praxic"] = praxic_result
@@ -802,6 +807,7 @@ def run_grounded_verification(
                 work_context=work_context,
                 work_type=work_type,
                 per_vector_weights=combined_weights,
+                transaction_id=transaction_id,
             )
             if combined_result:
                 results["combined"] = combined_result
