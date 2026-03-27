@@ -141,12 +141,14 @@ class PostTestCollector:
                  check_timestamp: Optional[float] = None,
                  evidence_profile: Optional[str] = None,
                  work_context: Optional[str] = None,
-                 preflight_timestamp: Optional[float] = None):
+                 preflight_timestamp: Optional[float] = None,
+                 transaction_id: Optional[str] = None):
         self.session_id = session_id
         self.project_id = project_id
         self.phase = phase  # "noetic", "praxic", or "combined"
         self.check_timestamp = check_timestamp  # CHECK boundary timestamp
         self.preflight_timestamp = preflight_timestamp  # Transaction start
+        self.transaction_id = transaction_id  # Scopes evidence to this transaction
         self.evidence_profile = evidence_profile
         self.work_context = work_context  # greenfield|iteration|investigation|refactor
         self._db = db
@@ -167,6 +169,20 @@ class PostTestCollector:
             self._db.close()
             self._db = None
             self._owns_db = False
+
+    def _tx_filter(self, table_alias: str = "") -> tuple:
+        """Build transaction-scoped WHERE clause and params.
+
+        Priority: transaction_id > preflight_timestamp > session_id only.
+        Returns (sql_fragment, params_tuple) to append to a WHERE clause.
+        The sql_fragment always starts with "AND".
+        """
+        prefix = f"{table_alias}." if table_alias else ""
+        if self.transaction_id:
+            return (f"AND {prefix}transaction_id = ?", (self.transaction_id,))
+        if self.preflight_timestamp:
+            return (f"AND {prefix}created_timestamp >= ?", (self.preflight_timestamp,))
+        return ("", ())
 
     def _get_session_goal_ids(self) -> List[str]:
         """Get goal IDs for this session (cached)."""
@@ -434,10 +450,11 @@ class PostTestCollector:
         cursor = db.conn.cursor()
 
         # Investigation depth: unknowns surfaced (more = better epistemic honesty)
-        cursor.execute("""
+        tx_sql, tx_params = self._tx_filter()
+        cursor.execute(f"""
             SELECT COUNT(*) FROM project_unknowns
-            WHERE session_id = ?
-        """, (self.session_id,))
+            WHERE session_id = ? {tx_sql}
+        """, (self.session_id, *tx_params))
         unknowns_surfaced = cursor.fetchone()[0]
 
         if unknowns_surfaced > 0:
@@ -455,10 +472,10 @@ class PostTestCollector:
 
         # Dead-end avoidance: dead-ends logged before CHECK proceed
         if self.check_timestamp:
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT COUNT(*) FROM project_dead_ends
-                WHERE session_id = ? AND created_timestamp <= ?
-            """, (self.session_id, self.check_timestamp))
+                WHERE session_id = ? AND created_timestamp <= ? {tx_sql}
+            """, (self.session_id, self.check_timestamp, *tx_params))
             pre_check_dead_ends = cursor.fetchone()[0]
 
             if pre_check_dead_ends > 0:
@@ -476,16 +493,16 @@ class PostTestCollector:
 
         # Findings logged during investigation (pre-CHECK)
         if self.check_timestamp:
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT COUNT(*) FROM project_findings
-                WHERE session_id = ? AND created_timestamp <= ?
-            """, (self.session_id, self.check_timestamp))
+                WHERE session_id = ? AND created_timestamp <= ? {tx_sql}
+            """, (self.session_id, self.check_timestamp, *tx_params))
             pre_check_findings = cursor.fetchone()[0]
         else:
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT COUNT(*) FROM project_findings
-                WHERE session_id = ?
-            """, (self.session_id,))
+                WHERE session_id = ? {tx_sql}
+            """, (self.session_id, *tx_params))
             pre_check_findings = cursor.fetchone()[0]
 
         if pre_check_findings > 0:
@@ -502,11 +519,12 @@ class PostTestCollector:
             ))
 
         # CHECK iteration count: more investigate rounds = thorough but uncertain
-        cursor.execute("""
+        tx_ref_sql, tx_ref_params = self._tx_filter()
+        cursor.execute(f"""
             SELECT reflex_data FROM reflexes
-            WHERE session_id = ? AND phase = 'CHECK'
+            WHERE session_id = ? AND phase = 'CHECK' {tx_ref_sql}
             ORDER BY timestamp ASC
-        """, (self.session_id,))
+        """, (self.session_id, *tx_ref_params))
         check_rows = cursor.fetchall()
 
         investigate_count = 0
@@ -549,15 +567,25 @@ class PostTestCollector:
         db = self._get_db()
         cursor = db.conn.cursor()
 
-        # Subtask completion ratio for goals in this session
-        cursor.execute("""
-            SELECT
-                COUNT(*) as total,
-                SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) as completed
-            FROM subtasks s
-            JOIN goals g ON s.goal_id = g.id
-            WHERE g.session_id = ?
-        """, (self.session_id,))
+        # Subtask completion ratio — scoped to transaction's goals if available
+        if self.transaction_id:
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) as completed
+                FROM subtasks s
+                JOIN goals g ON s.goal_id = g.id
+                WHERE g.transaction_id = ?
+            """, (self.transaction_id,))
+        else:
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) as completed
+                FROM subtasks s
+                JOIN goals g ON s.goal_id = g.id
+                WHERE g.session_id = ?
+            """, (self.session_id,))
         row = cursor.fetchone()
 
         if row and row[0] > 0:
@@ -600,18 +628,20 @@ class PostTestCollector:
                     metadata={"session_id": self.session_id},
                 ))
 
-        # Token estimation accuracy (estimated vs actual)
-        cursor.execute("""
+        # Token estimation accuracy — scoped to transaction's goals if available
+        goal_scope_col = "g.transaction_id" if self.transaction_id else "g.session_id"
+        goal_scope_val = self.transaction_id or self.session_id
+        cursor.execute(f"""
             SELECT
                 SUM(s.estimated_tokens) as est,
                 SUM(s.actual_tokens) as actual
             FROM subtasks s
             JOIN goals g ON s.goal_id = g.id
-            WHERE g.session_id = ?
+            WHERE {goal_scope_col} = ?
               AND s.estimated_tokens IS NOT NULL
               AND s.actual_tokens IS NOT NULL
               AND s.estimated_tokens > 0
-        """, (self.session_id,))
+        """, (goal_scope_val,))
         row = cursor.fetchone()
 
         if row and row[0] and row[1] and row[0] > 0:
@@ -632,18 +662,23 @@ class PostTestCollector:
         return items
 
     def _collect_artifact_metrics(self) -> List[EvidenceItem]:
-        """Collect scope-weighted noetic artifact counts for this session.
+        """Collect scope-weighted noetic artifact counts for this transaction.
 
         Artifacts linked to session goals count at full weight.
         Unscoped artifacts (no goal_id — typically future research or general
         observations) count at UNSCOPED_ARTIFACT_WEIGHT to avoid artificially
         depressing KNOW grounding when forward-looking unknowns are captured.
+
+        Transaction-scoped: filters by transaction_id when available,
+        falls back to preflight_timestamp, then session_id only.
         """
         items = []
         db = self._get_db()
         cursor = db.conn.cursor()
         goal_ids = self._get_session_goal_ids()
         has_goals = len(goal_ids) > 0
+        tx_sql, tx_params = self._tx_filter()
+        tx_sql_u, tx_params_u = self._tx_filter("u")
 
         # --- Scope-weighted unknowns ---
         # Unknowns linked to COMPLETED goals are intentionally deferred —
@@ -662,7 +697,8 @@ class PostTestCollector:
                 WHERE u.session_id = ?
                   AND u.goal_id IN ({placeholders})
                   AND NOT (u.is_resolved = 0 AND g.status = 'completed')
-            """, (self.session_id, *goal_ids))
+                  {tx_sql_u}
+            """, (self.session_id, *goal_ids, *tx_params_u))
             row = cursor.fetchone()
             scoped_total = row[0] if row else 0
             scoped_resolved = row[1] or 0 if row else 0
@@ -676,7 +712,8 @@ class PostTestCollector:
                 WHERE session_id = ?
                   AND (goal_id IS NULL OR goal_id = ''
                        OR goal_id NOT IN ({placeholders}))
-            """, (self.session_id, *goal_ids))
+                  {tx_sql}
+            """, (self.session_id, *goal_ids, *tx_params))
             row = cursor.fetchone()
             unscoped_total = row[0] if row else 0
             unscoped_resolved = row[1] or 0 if row else 0
@@ -686,13 +723,13 @@ class PostTestCollector:
             unknowns_weighted_resolved = scoped_resolved + (unscoped_resolved * w)
         else:
             # No goals in session — all artifacts count equally (no scope info)
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT
                     COUNT(*) as total,
                     SUM(CASE WHEN is_resolved = 1 THEN 1 ELSE 0 END) as resolved
                 FROM project_unknowns
-                WHERE session_id = ?
-            """, (self.session_id,))
+                WHERE session_id = ? {tx_sql}
+            """, (self.session_id, *tx_params))
             row = cursor.fetchone()
             unknowns_weighted_total = row[0] if row else 0
             unknowns_weighted_resolved = row[1] or 0 if row else 0
@@ -708,17 +745,17 @@ class PostTestCollector:
                     SUM(CASE WHEN goal_id IS NULL OR goal_id = ''
                              OR goal_id NOT IN ({placeholders}) THEN 1 ELSE 0 END)
                 FROM project_findings
-                WHERE session_id = ?
-            """, (*goal_ids, *goal_ids, self.session_id))
+                WHERE session_id = ? {tx_sql}
+            """, (*goal_ids, *goal_ids, self.session_id, *tx_params))
             row = cursor.fetchone()
             scoped_findings = row[0] or 0 if row else 0
             unscoped_findings = row[1] or 0 if row else 0
             findings_count = scoped_findings + (unscoped_findings * UNSCOPED_ARTIFACT_WEIGHT)
         else:
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT COUNT(*) FROM project_findings
-                WHERE session_id = ?
-            """, (self.session_id,))
+                WHERE session_id = ? {tx_sql}
+            """, (self.session_id, *tx_params))
             findings_count = cursor.fetchone()[0]
             scoped_findings = 0
             unscoped_findings = findings_count
@@ -732,24 +769,24 @@ class PostTestCollector:
                     SUM(CASE WHEN goal_id IS NULL OR goal_id = ''
                              OR goal_id NOT IN ({placeholders}) THEN 1 ELSE 0 END)
                 FROM project_dead_ends
-                WHERE session_id = ?
-            """, (*goal_ids, *goal_ids, self.session_id))
+                WHERE session_id = ? {tx_sql}
+            """, (*goal_ids, *goal_ids, self.session_id, *tx_params))
             row = cursor.fetchone()
             scoped_dead_ends = row[0] or 0 if row else 0
             unscoped_dead_ends = row[1] or 0 if row else 0
             dead_ends_count = scoped_dead_ends + (unscoped_dead_ends * UNSCOPED_ARTIFACT_WEIGHT)
         else:
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT COUNT(*) FROM project_dead_ends
-                WHERE session_id = ?
-            """, (self.session_id,))
+                WHERE session_id = ? {tx_sql}
+            """, (self.session_id, *tx_params))
             dead_ends_count = cursor.fetchone()[0]
 
         # Mistakes count (not scope-weighted — all mistakes are relevant)
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT COUNT(*) FROM mistakes_made
-            WHERE session_id = ?
-        """, (self.session_id,))
+            WHERE session_id = ? {tx_sql}
+        """, (self.session_id, *tx_params))
         mistakes_count = cursor.fetchone()[0]
 
         # Unknown resolution ratio → know proxy (scope-weighted)
@@ -836,15 +873,16 @@ class PostTestCollector:
         db = self._get_db()
         cursor = db.conn.cursor()
 
+        tx_sql, tx_params = self._tx_filter()
         try:
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT
                     COUNT(*) as total,
                     SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved,
                     SUM(CASE WHEN severity = 'blocker' OR severity = 'high' THEN 1 ELSE 0 END) as severe
                 FROM auto_captured_issues
-                WHERE session_id = ?
-            """, (self.session_id,))
+                WHERE session_id = ? {tx_sql}
+            """, (self.session_id, *tx_params))
             row = cursor.fetchone()
         except Exception:
             return items
@@ -1255,17 +1293,18 @@ class PostTestCollector:
             return True
 
     def _collect_sentinel_metrics(self) -> List[EvidenceItem]:
-        """Collect sentinel gate decisions for this session."""
+        """Collect sentinel gate decisions for this transaction."""
         items = []
         db = self._get_db()
         cursor = db.conn.cursor()
+        tx_sql, tx_params = self._tx_filter()
 
         # CHECK phase decisions
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT reflex_data FROM reflexes
-            WHERE session_id = ? AND phase = 'CHECK'
+            WHERE session_id = ? AND phase = 'CHECK' {tx_sql}
             ORDER BY timestamp DESC
-        """, (self.session_id,))
+        """, (self.session_id, *tx_params))
         rows = cursor.fetchall()
 
         if rows:
