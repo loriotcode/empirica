@@ -155,13 +155,27 @@ class BreadcrumbRepository(BaseRepository):
         if not entity_id and entity_type == 'project':
             entity_id = project_id
 
+        # Auto-extract source file references from finding text
+        source_refs = {}
+        try:
+            from empirica.utils.finding_refs import parse_file_references, parse_doc_references
+            file_refs = parse_file_references(finding)
+            doc_refs = parse_doc_references(finding)
+            if file_refs:
+                source_refs["files"] = file_refs
+            if doc_refs:
+                source_refs["docs"] = doc_refs
+        except Exception:
+            pass
+
         finding_data = {
             "finding": finding,
             "goal_id": goal_id,
             "subtask_id": subtask_id,
             "impact": impact,
             "transaction_id": transaction_id,
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            "source_refs": source_refs if source_refs else None,
         }
 
         self._execute("""
@@ -221,13 +235,24 @@ class BreadcrumbRepository(BaseRepository):
         if not entity_id and entity_type == 'project':
             entity_id = project_id
 
+        # Auto-extract source file references from unknown text
+        source_refs = {}
+        try:
+            from empirica.utils.finding_refs import parse_file_references
+            file_refs = parse_file_references(unknown)
+            if file_refs:
+                source_refs["files"] = file_refs
+        except Exception:
+            pass
+
         unknown_data = {
             "unknown": unknown,
             "goal_id": goal_id,
             "subtask_id": subtask_id,
             "impact": impact,
             "transaction_id": transaction_id,
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            "source_refs": source_refs if source_refs else None,
         }
 
         self._execute("""
@@ -311,6 +336,17 @@ class BreadcrumbRepository(BaseRepository):
         if not entity_id and entity_type == 'project':
             entity_id = project_id
 
+        # Auto-extract source file references from approach/why_failed text
+        source_refs = {}
+        try:
+            from empirica.utils.finding_refs import parse_file_references
+            combined_text = f"{approach} {why_failed}"
+            file_refs = parse_file_references(combined_text)
+            if file_refs:
+                source_refs["files"] = file_refs
+        except Exception:
+            pass
+
         dead_end_data = {
             "approach": approach,
             "why_failed": why_failed,
@@ -318,7 +354,8 @@ class BreadcrumbRepository(BaseRepository):
             "subtask_id": subtask_id,
             "impact": impact,
             "transaction_id": transaction_id,
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            "source_refs": source_refs if source_refs else None,
         }
 
         self._execute("""

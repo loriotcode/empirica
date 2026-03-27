@@ -156,6 +156,16 @@ def upsert_memory(project_id: str, items: List[Dict]) -> int:
             if vector is None:
                 continue
             text = it.get("text", "")
+            # Extract source file refs for provenance in search results
+            source_files = None
+            try:
+                from empirica.utils.finding_refs import parse_file_references
+                file_refs = parse_file_references(text)
+                if file_refs:
+                    source_files = [r["file"] for r in file_refs]
+            except Exception:
+                pass
+
             payload = {
                 "type": it.get("type", "unknown"),
                 "text": text[:500] if text else None,
@@ -168,6 +178,7 @@ def upsert_memory(project_id: str, items: List[Dict]) -> int:
                 "impact": it.get("impact"),
                 "is_resolved": it.get("is_resolved"),
                 "resolved_by": it.get("resolved_by"),
+                "source_files": source_files,
             }
             raw_id = it["id"]
             if isinstance(raw_id, str):
