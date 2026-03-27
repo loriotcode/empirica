@@ -308,7 +308,14 @@ def handle_finding_log_command(args):
 
         # Cross-project writes don't require an active transaction —
         # use current session for provenance, or allow sessionless write
-        is_cross_project = bool(project_id) and not _is_uuid(project_id)
+        is_cross_project = False
+        if project_id:
+            try:
+                current_path = R.project_path()
+                current_project_id = R.project_id_from_db(current_path) if current_path else None
+                is_cross_project = current_project_id is None or project_id != current_project_id
+            except Exception:
+                is_cross_project = True  # Can't resolve current → assume cross-project
         if not session_id and is_cross_project:
             session_id = "cross-project"  # Synthetic provenance marker
 
