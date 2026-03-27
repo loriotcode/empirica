@@ -134,8 +134,18 @@ def resolve_project_id(project_id_or_name: str, db=None) -> str:
         close_db = False
 
     try:
-        # Use SessionDatabase's resolve_project_id method
+        # Use SessionDatabase's resolve_project_id method (local DB)
         resolved_id = db.resolve_project_id(project_id_or_name)
+
+        # Fallback: check workspace.db for cross-project resolution
+        if not resolved_id:
+            try:
+                from empirica.utils.session_resolver import InstanceResolver as R
+                project_info = R.resolve_workspace_project(project_id_or_name)
+                if project_info:
+                    resolved_id = project_info.get('project_id') or project_info.get('id')
+            except Exception:
+                pass
 
         if not resolved_id:
             print(f"❌ Error: Project '{project_id_or_name}' not found", file=sys.stderr)

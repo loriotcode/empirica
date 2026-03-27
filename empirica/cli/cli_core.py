@@ -264,7 +264,15 @@ def main(args=None):
     if not parsed_args.command:
         parser.print_help()
         sys.exit(1)
-    
+
+    # Normalize --project-id: resolve names to UUIDs via workspace.db
+    if hasattr(parsed_args, 'project_id') and parsed_args.project_id:
+        try:
+            from empirica.cli.utils.project_resolver import resolve_project_id
+            parsed_args.project_id = resolve_project_id(parsed_args.project_id)
+        except (SystemExit, Exception):
+            pass  # Let downstream handlers deal with invalid project IDs
+
     # Enable verbose output if requested
     verbose = getattr(parsed_args, 'verbose', False)
     if verbose:
