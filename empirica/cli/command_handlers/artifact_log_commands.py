@@ -1334,8 +1334,30 @@ def handle_assumption_log_command(args):
         except Exception:
             pass
 
-        # Store to Qdrant
-        assumption_id = str(uuid.uuid4())
+        # Store to SQLite (durable)
+        from empirica.data.session_database import SessionDatabase as _AsDB
+        assumption_id = None
+        try:
+            _as_db = _AsDB()
+            assumption_id = _as_db.log_assumption(
+                project_id=project_id,
+                session_id=session_id,
+                assumption=assumption,
+                confidence=confidence,
+                domain=domain,
+                goal_id=goal_id,
+                transaction_id=transaction_id,
+                entity_type=resolved_entity_type,
+                entity_id=resolved_entity_id,
+            )
+            _as_db.close()
+        except Exception as e:
+            logger.debug(f"SQLite assumption write failed (non-fatal): {e}")
+
+        if not assumption_id:
+            assumption_id = str(uuid.uuid4())
+
+        # Store to Qdrant (semantic search)
         embedded = False
         try:
             from empirica.core.qdrant.vector_store import embed_assumption, _check_qdrant_available
@@ -1492,8 +1514,32 @@ def handle_decision_log_command(args):
         except Exception:
             pass
 
-        # Store to Qdrant
-        decision_id = str(uuid.uuid4())
+        # Store to SQLite (durable)
+        from empirica.data.session_database import SessionDatabase as _DecDB
+        decision_id = None
+        try:
+            _dec_db = _DecDB()
+            decision_id = _dec_db.log_decision(
+                project_id=project_id,
+                session_id=session_id,
+                choice=choice,
+                rationale=rationale,
+                alternatives=json.dumps(alternatives_list) if alternatives_list else None,
+                confidence=confidence,
+                reversibility=reversibility,
+                goal_id=goal_id,
+                transaction_id=transaction_id,
+                entity_type=resolved_entity_type,
+                entity_id=resolved_entity_id,
+            )
+            _dec_db.close()
+        except Exception as e:
+            logger.debug(f"SQLite decision write failed (non-fatal): {e}")
+
+        if not decision_id:
+            decision_id = str(uuid.uuid4())
+
+        # Store to Qdrant (semantic search)
         embedded = False
         try:
             from empirica.core.qdrant.vector_store import embed_decision, _check_qdrant_available

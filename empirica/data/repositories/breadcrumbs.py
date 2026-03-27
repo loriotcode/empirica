@@ -714,3 +714,85 @@ class BreadcrumbRepository(BaseRepository):
 
         cursor = self._execute(query, (project_id,))
         return [dict(row) for row in cursor.fetchall()]
+
+    # =========================================================================
+    # Assumptions (epistemic intent layer)
+    # =========================================================================
+
+    def log_assumption(
+        self,
+        project_id: str,
+        session_id: str,
+        assumption: str,
+        confidence: float = 0.5,
+        domain: Optional[str] = None,
+        goal_id: Optional[str] = None,
+        transaction_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
+    ) -> str:
+        """Log an unverified belief to the assumptions table."""
+        assumption_id = str(uuid.uuid4())
+
+        if not entity_type:
+            entity_type = 'project'
+        if not entity_id and entity_type == 'project':
+            entity_id = project_id
+
+        self._execute("""
+            INSERT INTO assumptions (
+                id, assumption, confidence, status,
+                entity_type, entity_id, project_id, session_id,
+                transaction_id, goal_id, created_timestamp
+            ) VALUES (?, ?, ?, 'unverified', ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            assumption_id, assumption, confidence,
+            entity_type, entity_id, project_id, session_id,
+            transaction_id, goal_id, time.time()
+        ))
+
+        self.commit()
+        return assumption_id
+
+    # =========================================================================
+    # Decisions (epistemic intent layer)
+    # =========================================================================
+
+    def log_decision(
+        self,
+        project_id: str,
+        session_id: str,
+        choice: str,
+        rationale: str,
+        alternatives: Optional[str] = None,
+        confidence: float = 0.7,
+        reversibility: str = 'exploratory',
+        goal_id: Optional[str] = None,
+        transaction_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
+    ) -> str:
+        """Log a decision choice point to the decisions table."""
+        decision_id = str(uuid.uuid4())
+
+        if not entity_type:
+            entity_type = 'project'
+        if not entity_id and entity_type == 'project':
+            entity_id = project_id
+
+        self._execute("""
+            INSERT INTO decisions (
+                id, choice, alternatives, rationale,
+                confidence_at_decision, reversibility,
+                entity_type, entity_id, project_id, session_id,
+                transaction_id, goal_id, created_timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            decision_id, choice, alternatives, rationale,
+            confidence, reversibility,
+            entity_type, entity_id, project_id, session_id,
+            transaction_id, goal_id, time.time()
+        ))
+
+        self.commit()
+        return decision_id

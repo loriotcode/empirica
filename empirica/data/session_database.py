@@ -2541,6 +2541,46 @@ class SessionDatabase:
         """
         return self.breadcrumbs.get_mistakes(session_id, goal_id, limit)
 
+    def log_assumption(
+        self,
+        project_id: str,
+        session_id: str,
+        assumption: str,
+        confidence: float = 0.5,
+        domain: Optional[str] = None,
+        goal_id: Optional[str] = None,
+        transaction_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
+    ) -> str:
+        """Log an unverified belief (delegates to BreadcrumbRepository)."""
+        return self.breadcrumbs.log_assumption(
+            project_id, session_id, assumption, confidence,
+            domain=domain, goal_id=goal_id, transaction_id=transaction_id,
+            entity_type=entity_type, entity_id=entity_id)
+
+    def log_decision(
+        self,
+        project_id: str,
+        session_id: str,
+        choice: str,
+        rationale: str,
+        alternatives: Optional[str] = None,
+        confidence: float = 0.7,
+        reversibility: str = 'exploratory',
+        goal_id: Optional[str] = None,
+        transaction_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
+    ) -> str:
+        """Log a decision choice point (delegates to BreadcrumbRepository)."""
+        return self.breadcrumbs.log_decision(
+            project_id, session_id, choice, rationale,
+            alternatives=alternatives, confidence=confidence,
+            reversibility=reversibility, goal_id=goal_id,
+            transaction_id=transaction_id,
+            entity_type=entity_type, entity_id=entity_id)
+
     def log_token_saving(
         self,
         session_id: str,
