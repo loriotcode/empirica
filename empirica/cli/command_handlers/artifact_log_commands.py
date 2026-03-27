@@ -81,8 +81,12 @@ def _get_db_for_project(project_name_or_id: str):
         if not row or not row['trajectory_path']:
             return None
 
-        project_path = Path(row['trajectory_path'])
-        db_path = project_path / '.empirica' / 'sessions' / 'sessions.db'
+        trajectory_path = row['trajectory_path']
+        # trajectory_path may point to .empirica/ dir or project root
+        if trajectory_path.endswith('.empirica'):
+            db_path = Path(trajectory_path) / 'sessions' / 'sessions.db'
+        else:
+            db_path = Path(trajectory_path) / '.empirica' / 'sessions' / 'sessions.db'
 
         if not db_path.exists():
             logger.warning(f"Cross-project DB not found: {db_path}")
@@ -304,7 +308,7 @@ def handle_finding_log_command(args):
 
         # Cross-project writes don't require an active transaction —
         # use current session for provenance, or allow sessionless write
-        is_cross_project = bool(project_id) and project_id != R.project_id()
+        is_cross_project = bool(project_id) and not _is_uuid(project_id)
         if not session_id and is_cross_project:
             session_id = "cross-project"  # Synthetic provenance marker
 
@@ -652,7 +656,7 @@ def handle_unknown_log_command(args):
             session_id = R.session_id()
 
         # Cross-project writes don't require an active transaction
-        is_cross_project = bool(project_id) and project_id != R.project_id()
+        is_cross_project = bool(project_id) and not _is_uuid(project_id)
         if not session_id and is_cross_project:
             session_id = "cross-project"
 
@@ -1076,7 +1080,7 @@ def handle_deadend_log_command(args):
             session_id = R.session_id()
 
         # Cross-project writes don't require an active transaction
-        is_cross_project = bool(project_id) and project_id != R.project_id()
+        is_cross_project = bool(project_id) and not _is_uuid(project_id)
         if not session_id and is_cross_project:
             session_id = "cross-project"
 
