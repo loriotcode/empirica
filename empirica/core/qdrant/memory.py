@@ -6,7 +6,7 @@ from typing import Dict, List
 
 from empirica.core.qdrant.connection import (
     _check_qdrant_available, _get_qdrant_imports, _get_qdrant_client,
-    _get_embedding_safe, _get_vector_size, _rest_search, logger,
+    _get_embedding_safe, _get_embeddings_batch, _get_vector_size, _rest_search, logger,
 )
 from empirica.core.qdrant.collections import (
     _docs_collection, _memory_collection, _eidetic_collection, _episodic_collection,
@@ -140,13 +140,22 @@ def upsert_memory(project_id: str, items: List[Dict]) -> int:
         if client is None:
             return 0
         coll = _memory_collection(project_id)
+
+        # Batch embed texts (chunked to avoid API payload limits)
+        import hashlib
+        texts = [it.get("text", "") for it in items]
+        embed_batch_size = 50
+        vectors = []
+        for i in range(0, len(texts), embed_batch_size):
+            batch_texts = texts[i:i + embed_batch_size]
+            batch_vectors = _get_embeddings_batch(batch_texts)
+            vectors.extend(batch_vectors)
+
         points = []
-        for it in items:
-            text = it.get("text", "")
-            vector = _get_embedding_safe(text)
+        for it, vector in zip(items, vectors):
             if vector is None:
                 continue
-            # Store full metadata for epistemic lineage tracking
+            text = it.get("text", "")
             payload = {
                 "type": it.get("type", "unknown"),
                 "text": text[:500] if text else None,
@@ -160,11 +169,8 @@ def upsert_memory(project_id: str, items: List[Dict]) -> int:
                 "is_resolved": it.get("is_resolved"),
                 "resolved_by": it.get("resolved_by"),
             }
-            # Use consistent ID derivation: md5 hash for string IDs (UUIDs),
-            # raw integer for numeric IDs — matches embed_single_memory_item
             raw_id = it["id"]
             if isinstance(raw_id, str):
-                import hashlib
                 point_id = int(hashlib.md5(raw_id.encode()).hexdigest()[:15], 16)
             else:
                 point_id = raw_id

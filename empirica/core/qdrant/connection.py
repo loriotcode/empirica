@@ -57,6 +57,17 @@ def _get_embedding_safe(text: str) -> Optional[List[float]]:
         return None
 
 
+def _get_embeddings_batch(texts: List[str]) -> List[Optional[List[float]]]:
+    """Batch embed multiple texts. Returns list of vectors (None for failures)."""
+    try:
+        from .embeddings import get_embedding_provider
+        provider = get_embedding_provider()
+        return provider.batch_embed(texts)
+    except Exception as e:
+        logger.debug(f"Batch embedding failed, falling back to sequential: {e}")
+        return [_get_embedding_safe(t) for t in texts]
+
+
 def _get_vector_size() -> int:
     """Get vector size from embeddings provider. Defaults to 1024 on error (matches qwen3-embedding)."""
     try:
