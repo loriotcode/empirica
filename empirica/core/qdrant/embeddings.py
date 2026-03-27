@@ -349,6 +349,47 @@ class EmbeddingsProvider:
                 logger.warning(f"Ollama embedding failed: {e} - falling back to local hash")
                 return self._embed_local_hash(text)
 
+    def batch_embed(self, texts: List[str], max_chars: int = 1200) -> List[Optional[List[float]]]:
+        """Batch embed multiple texts. Returns list of vectors (None for failures)."""
+        if self.provider == "ollama":
+            return self._batch_embed_ollama(texts, max_chars)
+        # Fallback: sequential for non-Ollama providers
+        return [self.embed(t) for t in texts]
+
+    def _batch_embed_ollama(self, texts: List[str], max_chars: int = 1200) -> List[Optional[List[float]]]:
+        """Batch embed using Ollama /api/embed endpoint (accepts input list)."""
+        import requests
+
+        url = f"{self.ollama_url}/api/embed"
+        prepared = [self._prepare_ollama_prompt(t, max_chars=max_chars) for t in texts]
+
+        try:
+            resp = requests.post(url, json={
+                "model": self.model,
+                "input": prepared,
+            }, timeout=120)
+            resp.raise_for_status()
+            data = resp.json()
+            embeddings = data.get("embeddings", [])
+
+            if len(embeddings) != len(texts):
+                logger.warning(f"Batch embed: expected {len(texts)} vectors, got {len(embeddings)}")
+                # Pad with None for missing
+                while len(embeddings) < len(texts):
+                    embeddings.append(None)
+
+            # Validate dimensions on first non-empty result
+            for emb in embeddings:
+                if emb and self._vector_size is None:
+                    self._vector_size = len(emb)
+                    logger.info(f"Ollama {self.model} vector size: {self._vector_size}")
+                    break
+
+            return embeddings
+        except Exception as e:
+            logger.warning(f"Batch embed failed: {e} — falling back to sequential")
+            return [self.embed(t) for t in texts]
+
     def _embed_jina(self, text: str) -> List[float]:
         """Embed using Jina AI API (jina-embeddings-v3, etc.)."""
         import requests
@@ -460,6 +501,14 @@ def get_embedding(text: str) -> List[float]:
     if _provider_singleton is None:
         _provider_singleton = EmbeddingsProvider()
     return _provider_singleton.embed(text)
+
+
+def get_embedding_provider() -> EmbeddingsProvider:
+    """Get the singleton embeddings provider instance."""
+    global _provider_singleton
+    if _provider_singleton is None:
+        _provider_singleton = EmbeddingsProvider()
+    return _provider_singleton
 
 
 def get_vector_size() -> int:

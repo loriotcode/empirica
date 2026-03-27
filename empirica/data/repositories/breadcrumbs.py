@@ -155,13 +155,27 @@ class BreadcrumbRepository(BaseRepository):
         if not entity_id and entity_type == 'project':
             entity_id = project_id
 
+        # Auto-extract source file references from finding text
+        source_refs = {}
+        try:
+            from empirica.utils.finding_refs import parse_file_references, parse_doc_references
+            file_refs = parse_file_references(finding)
+            doc_refs = parse_doc_references(finding)
+            if file_refs:
+                source_refs["files"] = file_refs
+            if doc_refs:
+                source_refs["docs"] = doc_refs
+        except Exception:
+            pass
+
         finding_data = {
             "finding": finding,
             "goal_id": goal_id,
             "subtask_id": subtask_id,
             "impact": impact,
             "transaction_id": transaction_id,
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            "source_refs": source_refs if source_refs else None,
         }
 
         self._execute("""
@@ -221,13 +235,24 @@ class BreadcrumbRepository(BaseRepository):
         if not entity_id and entity_type == 'project':
             entity_id = project_id
 
+        # Auto-extract source file references from unknown text
+        source_refs = {}
+        try:
+            from empirica.utils.finding_refs import parse_file_references
+            file_refs = parse_file_references(unknown)
+            if file_refs:
+                source_refs["files"] = file_refs
+        except Exception:
+            pass
+
         unknown_data = {
             "unknown": unknown,
             "goal_id": goal_id,
             "subtask_id": subtask_id,
             "impact": impact,
             "transaction_id": transaction_id,
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            "source_refs": source_refs if source_refs else None,
         }
 
         self._execute("""
@@ -311,6 +336,17 @@ class BreadcrumbRepository(BaseRepository):
         if not entity_id and entity_type == 'project':
             entity_id = project_id
 
+        # Auto-extract source file references from approach/why_failed text
+        source_refs = {}
+        try:
+            from empirica.utils.finding_refs import parse_file_references
+            combined_text = f"{approach} {why_failed}"
+            file_refs = parse_file_references(combined_text)
+            if file_refs:
+                source_refs["files"] = file_refs
+        except Exception:
+            pass
+
         dead_end_data = {
             "approach": approach,
             "why_failed": why_failed,
@@ -318,7 +354,8 @@ class BreadcrumbRepository(BaseRepository):
             "subtask_id": subtask_id,
             "impact": impact,
             "transaction_id": transaction_id,
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            "source_refs": source_refs if source_refs else None,
         }
 
         self._execute("""
@@ -677,3 +714,85 @@ class BreadcrumbRepository(BaseRepository):
 
         cursor = self._execute(query, (project_id,))
         return [dict(row) for row in cursor.fetchall()]
+
+    # =========================================================================
+    # Assumptions (epistemic intent layer)
+    # =========================================================================
+
+    def log_assumption(
+        self,
+        project_id: str,
+        session_id: str,
+        assumption: str,
+        confidence: float = 0.5,
+        domain: Optional[str] = None,
+        goal_id: Optional[str] = None,
+        transaction_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
+    ) -> str:
+        """Log an unverified belief to the assumptions table."""
+        assumption_id = str(uuid.uuid4())
+
+        if not entity_type:
+            entity_type = 'project'
+        if not entity_id and entity_type == 'project':
+            entity_id = project_id
+
+        self._execute("""
+            INSERT INTO assumptions (
+                id, assumption, confidence, status,
+                entity_type, entity_id, project_id, session_id,
+                transaction_id, goal_id, created_timestamp
+            ) VALUES (?, ?, ?, 'unverified', ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            assumption_id, assumption, confidence,
+            entity_type, entity_id, project_id, session_id,
+            transaction_id, goal_id, time.time()
+        ))
+
+        self.commit()
+        return assumption_id
+
+    # =========================================================================
+    # Decisions (epistemic intent layer)
+    # =========================================================================
+
+    def log_decision(
+        self,
+        project_id: str,
+        session_id: str,
+        choice: str,
+        rationale: str,
+        alternatives: Optional[str] = None,
+        confidence: float = 0.7,
+        reversibility: str = 'exploratory',
+        goal_id: Optional[str] = None,
+        transaction_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
+    ) -> str:
+        """Log a decision choice point to the decisions table."""
+        decision_id = str(uuid.uuid4())
+
+        if not entity_type:
+            entity_type = 'project'
+        if not entity_id and entity_type == 'project':
+            entity_id = project_id
+
+        self._execute("""
+            INSERT INTO decisions (
+                id, choice, alternatives, rationale,
+                confidence_at_decision, reversibility,
+                entity_type, entity_id, project_id, session_id,
+                transaction_id, goal_id, created_timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            decision_id, choice, alternatives, rationale,
+            confidence, reversibility,
+            entity_type, entity_id, project_id, session_id,
+            transaction_id, goal_id, time.time()
+        ))
+
+        self.commit()
+        return decision_id

@@ -217,9 +217,21 @@ def handle_goals_create_command(args):
             if isinstance(success_criteria_list, str):
                 success_criteria_list = [success_criteria_list]
 
+        # Cross-project goal creation
+        target_project_id = None
+        if config_data:
+            target_project_id = config_data.get('project_id')
+        elif hasattr(args, 'project_id') and args.project_id:
+            target_project_id = args.project_id
+
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
             session_id = R.session_id()
+
+        # Cross-project writes don't require an active transaction
+        is_cross_project = bool(target_project_id)
+        if not session_id and is_cross_project:
+            session_id = "cross-project"
 
         # Validate required fields
         if not session_id or not objective:
@@ -262,8 +274,18 @@ def handle_goals_create_command(args):
             # Make a default success criterion if none provided
             success_criteria_list = ["Goal completion achieved"]
         
-        # Use the actual Goal repository
-        goal_repo = GoalRepository()
+        # Use the actual Goal repository — target project's DB if cross-project
+        goal_repo_db_path = None
+        if is_cross_project and target_project_id:
+            from empirica.cli.command_handlers.artifact_log_commands import _get_db_for_project
+            cross_db = _get_db_for_project(target_project_id)
+            if cross_db:
+                resolved_pid = cross_db.resolve_project_id(target_project_id)
+                if resolved_pid:
+                    target_project_id = resolved_pid
+                    goal_repo_db_path = cross_db.db_path
+                cross_db.close()
+        goal_repo = GoalRepository(db_path=goal_repo_db_path)
         
         # Create real SuccessCriterion objects
         success_criteria_objects = []

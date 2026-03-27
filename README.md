@@ -71,6 +71,14 @@ empirica setup-claude-code
 
 Then just start working. The hooks, Sentinel, system prompt, statusline, and MCP server are all configured automatically. See [Claude Code Setup](docs/human/developers/CLAUDE_CODE_SETUP.md) for details.
 
+**Already have Claude Code configured?** Use `--force` to replace your default Claude Code settings with Empirica's epistemic hooks. Without `--force`, setup only writes files that don't already exist — so if you've already used Claude Code, the default internals stay in place and Empirica's hooks won't activate.
+
+```bash
+empirica setup-claude-code --force
+```
+
+`--force` replaces hooks in `settings.json` but **only removes Empirica's own hooks** — hooks from other plugins (Railway, Superpowers, etc.) are preserved.
+
 ### Alternative Installation Methods
 
 <details>

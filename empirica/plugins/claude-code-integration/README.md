@@ -1,334 +1,191 @@
-# Empirica Integration Plugin for Claude Code
+# Empirica Plugin for Claude Code
 
-**Epistemic Continuity Across Memory Compacting**
+Epistemic measurement, noetic firewall, and grounded calibration for Claude Code.
 
-This plugin automatically captures and restores epistemic state when Claude Code compacts conversations, preventing metacognitive drift from context loss.
+This plugin makes Claude Code measurably more reliable by tracking what the AI knows, preventing action before understanding, and calibrating self-assessment against objective evidence.
+
+## Installation
+
+```bash
+pip install empirica
+empirica setup-claude-code        # First install
+empirica setup-claude-code --force # Reset/update (preserves non-Empirica hooks)
+```
+
+`--force` replaces existing hooks with Empirica's but preserves hooks from other plugins (Railway, Superpowers, etc.). Use it after upgrading or if the default Claude Code settings are still in place.
 
 ---
 
-## What It Does
+## What Gets Installed
 
-When your conversation gets compacted (context window full):
+| Component | Count | Location |
+|-----------|-------|----------|
+| Hooks | 18 | `~/.claude/plugins/local/empirica/hooks/` |
+| Skills | 7 | `~/.claude/plugins/local/empirica/skills/` |
+| Commands | 2 | `~/.claude/plugins/local/empirica/commands/` |
+| Agents | 9 | `~/.claude/plugins/local/empirica/agents/` |
+| Statusline | 1 | `scripts/statusline_empirica.py` |
+| System Prompt | 1 | `~/.claude/empirica-system-prompt.md` |
 
-**Before Compact (PreCompact Hook):**
-- Automatically saves current epistemic state as ref-doc
-- Captures: vectors, reasoning, findings/unknowns counts
-- Creates anchor point for drift detection
+---
 
-**After Compact (SessionStart Hook):**
-- Loads project bootstrap (ground truth from SQLite + git)
-- Loads pre-compact ref-doc
-- Presents evidence for reassessment
-- Enables drift detection
+## Hooks
+
+Hooks fire automatically on Claude Code events. No manual invocation needed.
+
+### Core Transaction Lifecycle
+
+| Hook | Event | What It Does |
+|------|-------|-------------|
+| **sentinel-gate** | PreToolUse | Noetic firewall — blocks praxic tools (Edit, Write, Bash) until CHECK returns `proceed`. Classifies tools as noetic/praxic, enforces investigate cool-down, tracks tool call counts for autonomy calibration |
+| **session-init** | SessionStart | Auto-creates Empirica session, runs `project-bootstrap`, loads calibration from `.breadcrumbs.yaml`, injects context for new/resumed/post-compact sessions |
+| **session-end-postflight** | SessionEnd | Auto-captures POSTFLIGHT if transaction is open, prevents lost measurement data |
+| **transaction-enforcer** | Stop | Warns if session ends with open transaction (PREFLIGHT without POSTFLIGHT) |
+
+### Context Preservation
+
+| Hook | Event | What It Does |
+|------|-------|-------------|
+| **pre-compact** | PreCompact | Captures epistemic state before context compaction — vectors, recent findings, git context, active transaction state |
+| **post-compact** | PostCompact | Restores context after compaction — loads bootstrap, calibration, last task, continues open transaction |
+
+### Evidence Collection
+
+| Hook | Event | What It Does |
+|------|-------|-------------|
+| **tool-router** | PostToolUse | Routes tool results to appropriate handlers — currently drives entity extraction |
+| **entity-extractor** | PostToolUse | Extracts code entities (functions, classes, imports) from file edits into the codebase model |
+| **context-shift-tracker** | UserPromptSubmit | Classifies user prompts as solicited (AI-asked) vs unsolicited (human-initiated redirect) for calibration |
+| **tool-failure** | PostToolUseFailure | Auto-logs dead-ends from tool failures — captures the failed approach and error for future avoidance |
+| **curate-snapshots** | SessionEnd | Prunes pre-compact snapshots using importance-weighted algorithm (impact + completion scoring) |
+
+### Subagent Governance
+
+| Hook | Event | What It Does |
+|------|-------|-------------|
+| **subagent-start** | SubagentStart | Creates linked Empirica session for sub-agents, validates attention budget |
+| **subagent-stop** | SubagentStop | Rolls up epistemic findings from sub-agent transcripts to parent session, adds delegated tool call counts |
+| **task-completed** | TaskCompleted | Bridges Claude Code tasks to Empirica goals — blocks task completion if transaction is open |
+
+### Integration
+
+| Hook | Event | What It Does |
+|------|-------|-------------|
+| **ewm-protocol-loader** | SessionStart | Loads user's workflow protocol (`~/.empirica/workflow-protocol.yaml`) for personalized AI collaboration |
+| **elicitation** | Elicitation | Tracks AI-initiated questions as objective uncertainty measurements |
+| **elicitation-result** | ElicitationResult | Auto-logs user answers as findings or decisions |
+
+---
+
+## Skills
+
+Skills load on demand when the AI detects a relevant situation. Invoke with `/skill-name`.
+
+| Skill | Trigger | What It Does |
+|-------|---------|-------------|
+| **empirica-constitution** | Routing uncertainty, session start | 12-section governance decision tree — routes situations to the right Empirica mechanism |
+| **epistemic-persistence-protocol** | Disagreement, pushback | Calibrated position-holding under pushback — classifies pushback type, selects HOLD/SOFTEN/UPDATE/REFRAME response |
+| **epistemic-transaction** | Complex work, planning | Guides task decomposition into measured transactions — PREFLIGHT through POSTFLIGHT |
+| **code-audit** | `/code-audit`, quality review | Structured noetic investigation of code quality — runs ruff, radon, pyright, produces Empirica artifacts |
+| **code-docs-align** | `/code-docs-align`, doc accuracy | Verifies documentation matches code reality — bridges code-audit and docs-assess |
+| **ewm-interview** | `/ewm-interview`, workflow setup | Interviews users to create personalized AI collaboration protocol (workflow-protocol.yaml) |
+| **render** | `/render`, diagram rendering | Generates DiagramSpec JSON for ASCII art diagrams, renders via mdview to SVG |
+
+---
+
+## Commands
+
+Slash commands available to the user.
+
+| Command | What It Does |
+|---------|-------------|
+| `/empirica on\|off\|status` | Toggle epistemic tracking on/off per terminal instance. Controls sentinel enforcement without ending the session |
+| `/chrome-health` | Check Chrome MCP connection health and set up monitoring |
+
+---
+
+## Agents
+
+Specialized sub-agents with epistemic profiles and calibrated confidence thresholds.
+
+| Agent | Domain | Type |
+|-------|--------|------|
+| **architecture** | System design, patterns, modularity | Implementation |
+| **security** / **security-expert** | Auth, encryption, vulnerabilities | Implementation |
+| **performance** | Optimization, latency, throughput | Implementation |
+| **ux** / **ux-specialist** | Usability, accessibility, user flows | Implementation |
+| **outreach-scout** | Topic identification, quick assessment | Investigation |
+| **outreach-search** | Semantic search, memory retrieval | Investigation |
+| **outreach-factscorer** | Fact verification, confidence scoring | Investigation |
+
+---
+
+## Statusline
+
+Real-time epistemic state in your terminal:
+
+```
+[empirica] P:87% U:15% | G:3 | POST K:92% C:88% | delta +K+D
+```
+
+Shows: postflight confidence, uncertainty, active goals, grounded calibration scores, and learning deltas.
+
+---
+
+## Configuration
+
+### Sentinel Control
+
+```bash
+# File-based (dynamic, no restart needed)
+echo "false" > ~/.empirica/sentinel_enabled   # Disable sentinel gating
+echo "true" > ~/.empirica/sentinel_enabled    # Re-enable
+
+# Or use the command
+/empirica off   # Pause tracking for this terminal
+/empirica on    # Resume
+```
+
+### Lean Core Prompt
+
+81% reduction in always-loaded context. Loads skills on demand:
+
+```bash
+empirica setup-claude-code --lean
+```
+
+### EWM Protocol
+
+Personalized AI collaboration preferences:
+
+```bash
+/ewm-interview   # Interactive interview → generates workflow-protocol.yaml
+```
 
 ---
 
 ## How It Works
 
-### The Problem
 ```
-Session before compact: 185k tokens, rich context
-          ↓ COMPACT ↓
-Session after compact: 5k token summary, context loss
-          ⚠️ EPISTEMIC DRIFT ⚠️
+You: "Fix the auth bug"
+
+1. SessionStart hook → creates session, loads context
+2. AI runs PREFLIGHT → baseline vectors
+3. AI investigates (reads, searches) → sentinel allows noetic tools
+4. AI tries to edit → sentinel BLOCKS (no CHECK yet)
+5. AI runs CHECK → sentinel evaluates vectors → "proceed"
+6. AI edits, commits → sentinel allows praxic tools
+7. AI runs POSTFLIGHT → captures learning delta
+8. Post-test collector → gathers objective evidence (git, tests, artifacts)
+9. Grounded calibration → compares self-assessment vs evidence
+10. Bayesian update → corrects future calibration biases
 ```
-
-### The Solution
-```
-PreCompact Hook:
-  └─ Saves epistemic snapshot
-     └─ Saves: .empirica/ref-docs/pre_summary_<timestamp>.json
-
-COMPACT HAPPENS
-
-SessionStart Hook (source=compact):
-  └─ Loads bootstrap + pre-summary ref-doc
-     └─ Presents: Evidence for comparison
-     └─ Drift detected via grounded calibration pipeline
-```
-
----
-
-## Installation
-
-### Prerequisites
-- Empirica installed: `pip install empirica`
-- Active Empirica session (created with `empirica session-create`)
-
-### Enable Plugin
-
-The plugin is already installed and enabled in Claude Code settings:
-```
-~/.claude/plugins/local/empirica/
-```
-
----
-
-## Quick Start
-
-### 1. Create Empirica Session
-```bash
-# Create session for current work
-empirica session-create --ai-id claude-code-verbose-fix --output json
-```
-
-### 2. Set Environment Variable (Recommended)
-```bash
-# Auto-detect and set latest session
-source ~/.claude/plugins/local/empirica/hooks/set-session-env.sh
-
-# OR manually set specific session
-export EMPIRICA_SESSION_ID=<your-session-id>
-
-# Add to your .bashrc or .zshrc for persistence:
-echo 'source ~/.claude/plugins/local/empirica/hooks/set-session-env.sh' >> ~/.bashrc
-```
-
-### 3. Use Empirica Workflow
-
-**Run epistemic transactions to create checkpoints:**
-```bash
-# Required for hooks to save snapshots
-empirica preflight-submit -  # JSON via stdin
-empirica check -              # Optional mid-work gate
-empirica postflight-submit -  # Final checkpoint
-```
-
-**Work normally:**
-- Plugin hooks run automatically on `/compact` or auto-compact
-- PreCompact saves epistemic snapshot
-- SessionStart loads bootstrap + snapshot
-- No manual intervention needed
-
----
-
-## How Auto-Detection Works
-
-**Hooks auto-detect session using this priority:**
-
-1. **Environment variable:** `$EMPIRICA_SESSION_ID` (highest priority)
-2. **Session resolver:** Latest active `claude-code*` session via alias system
-3. **Fallback:** Exits silently if no session found
-
-**Supported AI ID patterns:**
-- `claude-code-verbose-fix` ✅
-- `claude-code` ✅
-- `claude-code-<anything>` ✅
-
-### Manual Testing
-
-**Test PreCompact hook:**
-```bash
-# Simulate hook input
-echo '{"session_id":"abc123","trigger":"manual"}' | \
-  python3 ~/.claude/plugins/local/empirica/hooks/pre-compact.py
-```
-
-**Test PostCompact hook:**
-```bash
-# Simulate hook input
-echo '{"session_id":"abc123","source":"compact"}' | \
-  python3 ~/.claude/plugins/local/empirica/hooks/post-compact.py
-```
-
----
-
-## Hook Behavior
-
-### PreCompact Hook
-
-**Triggers:**
-- `/compact` (manual)
-- Auto-compact (context >90% full)
-
-**Actions:**
-1. Reads `EMPIRICA_SESSION_ID` env var
-2. Saves epistemic snapshot as ref-doc
-3. Prints confirmation to stderr (visible to user)
-
-**Output (stdout):**
-```json
-{
-  "ok": true,
-  "trigger": "auto",
-  "empirica_session_id": "uuid",
-  "snapshot_saved": true,
-  "snapshot_path": ".empirica/ref-docs/pre_summary_2025-12-25T14-30-00.json"
-}
-```
-
-### SessionStart Hook (Post-Compact)
-
-**Triggers:**
-- SessionStart with `source: "compact"`
-
-**Actions:**
-1. Reads `EMPIRICA_SESSION_ID` env var
-2. Loads bootstrap + pre-summary ref-doc
-3. Prints evidence to stderr (visible to user)
-
-**Output (stdout):**
-```json
-{
-  "ok": true,
-  "empirica_session_id": "uuid",
-  "pre_summary": {
-    "timestamp": "2025-12-25T14-30-00",
-    "vectors": {"know": 0.75, "uncertainty": 0.35}
-  },
-  "bootstrap": {
-    "findings_count": 12,
-    "unknowns_count": 8,
-    "goals_count": 2,
-    "incomplete_goals": 1
-  },
-  "inject_context": true
-}
-```
-
----
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `EMPIRICA_SESSION_ID` | Yes | Active Empirica session UUID |
-| `CLAUDE_PLUGIN_ROOT` | Auto | Plugin directory (set by Claude Code) |
-
-**How to set:**
-```bash
-# At session start
-export EMPIRICA_SESSION_ID=$(empirica session-create --ai-id claude-code --output json | jq -r '.session_id')
-
-# Or use existing session
-export EMPIRICA_SESSION_ID=$(empirica sessions-list --limit 1 --output json | jq -r '.[0].session_id')
-```
-
----
-
-## What You'll See
-
-### Before Compact
-```
-📸 Empirica: Pre-compact snapshot saved
-   Session: ae16acaf...
-   Trigger: auto
-   Snapshot: pre_summary_2025-12-25T14-30-00.json
-```
-
-### After Compact
-```
-🔄 Empirica: Post-compact context loaded
-
-📚 Bootstrap Evidence (Ground Truth):
-   Findings: 12
-   Unknowns: 8
-   Goals: 2 (1 incomplete)
-
-📊 Your Pre-Compact State:
-   Captured: 2025-12-25T14-30-00
-   Vectors: 0.75 KNOW, 0.35 UNCERTAINTY
-
-💡 Recommendation: Run CHECK or PREFLIGHT to reassess based on bootstrap evidence.
-   System will compare to detect drift.
-```
-
----
-
-## Troubleshooting
-
-### Plugin Not Running
-
-**Check plugin is loaded:**
-```bash
-ls -la ~/.claude/plugins/local/empirica/
-```
-
-**Check hooks.json syntax:**
-```bash
-cat ~/.claude/plugins/local/empirica/hooks/hooks.json | jq .
-```
-
-### No EMPIRICA_SESSION_ID
-
-**Error:**
-```json
-{"ok": true, "skipped": true, "reason": "No active Empirica session detected"}
-```
-
-**Fix:**
-```bash
-export EMPIRICA_SESSION_ID=<your-session-id>
-```
-
-### Hook Timeout
-
-If hooks take >30s, increase timeout in `hooks.json`:
-```json
-{
-  "type": "command",
-  "command": "...",
-  "timeout": 60  // Increase to 60s
-}
-```
-
----
-
-## Technical Details
-
-### Hook Flow
-
-```
-PreCompact (before compact):
-├─ Read hook input from stdin (Claude Code provides session_id, trigger)
-├─ Check EMPIRICA_SESSION_ID env var
-├─ Save epistemic snapshot as: .empirica/ref-docs/pre_summary_<timestamp>.json
-└─ Exit 0 (success) or 2 (blocking error)
-
-SessionStart (after compact, source=compact):
-├─ Read hook input from stdin (Claude Code provides session_id, source)
-├─ Check EMPIRICA_SESSION_ID env var
-├─ Load: Bootstrap + pre-summary ref-doc
-├─ Present evidence in stderr (user-visible)
-├─ Drift detected via grounded calibration pipeline
-└─ Exit 0 (success) or 1 (non-blocking error)
-```
-
-### Why This Matters
-
-**Without this plugin:**
-- Compact → Context loss
-- AI forgets findings, unknowns, goals
-- Work is repeated, epistemic drift accumulates
-
-**With this plugin:**
-- Compact → Anchor captured
-- Bootstrap restores ground truth
-- Drift detected and corrected
-- Epistemic continuity maintained
-
----
-
-## MIT License
-
-Empirica is MIT licensed. Anyone can use this plugin, even without Empirica.
-
-The hook pattern (PreCompact → SessionStart) is useful for ANY tool that needs:
-- State preservation across compacts
-- Context restoration
-- Drift detection
-- Session continuity
 
 ---
 
 ## Further Reading
 
-- Empirica docs: `~/.empirica/core-docs/`
-- Calibration pipeline: `empirica calibration-report --grounded`
-- Claude Code hooks: Claude Code documentation
-
----
-
-**Status:** ✅ Active (hooks wire to Empirica grounded calibration pipeline)
-**Tested:** Manual simulation (integration test pending)
-**Impact:** Solves 5 months of memory compacting issues
+- [CLI Reference](docs/human/developers/CLI_COMMANDS_UNIFIED.md)
+- [Architecture](docs/architecture/)
+- [Training & Guides](https://getempirica.com)
+- [Upgrade Guide](docs/guides/UPGRADE_TO_1.7.md)

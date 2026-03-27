@@ -81,8 +81,12 @@ def _get_db_for_project(project_name_or_id: str):
         if not row or not row['trajectory_path']:
             return None
 
-        project_path = Path(row['trajectory_path'])
-        db_path = project_path / '.empirica' / 'sessions' / 'sessions.db'
+        trajectory_path = row['trajectory_path']
+        # trajectory_path may point to .empirica/ dir or project root
+        if trajectory_path.endswith('.empirica'):
+            db_path = Path(trajectory_path) / 'sessions' / 'sessions.db'
+        else:
+            db_path = Path(trajectory_path) / '.empirica' / 'sessions' / 'sessions.db'
 
         if not db_path.exists():
             logger.warning(f"Cross-project DB not found: {db_path}")
@@ -300,8 +304,20 @@ def handle_finding_log_command(args):
 
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
-
             session_id = R.session_id()
+
+        # Cross-project writes don't require an active transaction —
+        # use current session for provenance, or allow sessionless write
+        is_cross_project = False
+        if project_id:
+            try:
+                current_path = R.project_path()
+                current_project_id = R.project_id_from_db(current_path) if current_path else None
+                is_cross_project = current_project_id is None or project_id != current_project_id
+            except Exception:
+                is_cross_project = True  # Can't resolve current → assume cross-project
+        if not session_id and is_cross_project:
+            session_id = "cross-project"  # Synthetic provenance marker
 
         # Validate required fields
         if not session_id or not finding:
@@ -644,8 +660,12 @@ def handle_unknown_log_command(args):
 
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
-
             session_id = R.session_id()
+
+        # Cross-project writes don't require an active transaction
+        is_cross_project = bool(project_id) and not _is_uuid(project_id)
+        if not session_id and is_cross_project:
+            session_id = "cross-project"
 
         # Validate required fields
         if not session_id or not unknown:
@@ -1064,8 +1084,12 @@ def handle_deadend_log_command(args):
 
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
-
             session_id = R.session_id()
+
+        # Cross-project writes don't require an active transaction
+        is_cross_project = bool(project_id) and not _is_uuid(project_id)
+        if not session_id and is_cross_project:
+            session_id = "cross-project"
 
         # Validate required fields
         if not session_id or not approach or not why_failed:
@@ -1310,8 +1334,49 @@ def handle_assumption_log_command(args):
         except Exception:
             pass
 
-        # Store to Qdrant
-        assumption_id = str(uuid.uuid4())
+        # Store to SQLite (durable)
+        from empirica.data.session_database import SessionDatabase as _AsDB
+        assumption_id = None
+        try:
+            _as_db = _AsDB()
+            assumption_id = _as_db.log_assumption(
+                project_id=project_id,
+                session_id=session_id,
+                assumption=assumption,
+                confidence=confidence,
+                domain=domain,
+                goal_id=goal_id,
+                transaction_id=transaction_id,
+                entity_type=resolved_entity_type,
+                entity_id=resolved_entity_id,
+            )
+            _as_db.close()
+        except Exception as e:
+            logger.debug(f"SQLite assumption write failed (non-fatal): {e}")
+
+        if not assumption_id:
+            assumption_id = str(uuid.uuid4())
+
+        # GIT NOTES: Store assumption in git notes for sync
+        ai_id = 'claude-code'
+        git_stored = False
+        try:
+            from empirica.core.canonical.empirica_git.assumption_store import GitAssumptionStore
+            git_store = GitAssumptionStore()
+            git_stored = git_store.store_assumption(
+                assumption_id=assumption_id,
+                project_id=project_id,
+                session_id=session_id,
+                ai_id=ai_id,
+                assumption=assumption,
+                confidence=confidence,
+                domain=domain,
+                goal_id=goal_id,
+            )
+        except Exception as git_err:
+            logger.debug(f"Git notes storage failed (non-fatal): {git_err}")
+
+        # Store to Qdrant (semantic search)
         embedded = False
         try:
             from empirica.core.qdrant.vector_store import embed_assumption, _check_qdrant_available
@@ -1354,7 +1419,8 @@ def handle_assumption_log_command(args):
             "confidence": confidence,
             "status": "unverified",
             "embedded": embedded,
-            "message": "Assumption logged" + (" (Qdrant)" if embedded else " (Qdrant unavailable)"),
+            "git_stored": git_stored,
+            "message": "Assumption logged",
         }
 
         if output_format == 'json':
@@ -1468,8 +1534,53 @@ def handle_decision_log_command(args):
         except Exception:
             pass
 
-        # Store to Qdrant
-        decision_id = str(uuid.uuid4())
+        # Store to SQLite (durable)
+        from empirica.data.session_database import SessionDatabase as _DecDB
+        decision_id = None
+        try:
+            _dec_db = _DecDB()
+            decision_id = _dec_db.log_decision(
+                project_id=project_id,
+                session_id=session_id,
+                choice=choice,
+                rationale=rationale,
+                alternatives=json.dumps(alternatives_list) if alternatives_list else None,
+                confidence=confidence,
+                reversibility=reversibility,
+                goal_id=goal_id,
+                transaction_id=transaction_id,
+                entity_type=resolved_entity_type,
+                entity_id=resolved_entity_id,
+            )
+            _dec_db.close()
+        except Exception as e:
+            logger.debug(f"SQLite decision write failed (non-fatal): {e}")
+
+        if not decision_id:
+            decision_id = str(uuid.uuid4())
+
+        # GIT NOTES: Store decision in git notes for sync
+        ai_id = 'claude-code'
+        git_stored = False
+        try:
+            from empirica.core.canonical.empirica_git.decision_store import GitDecisionStore
+            git_store = GitDecisionStore()
+            git_stored = git_store.store_decision(
+                decision_id=decision_id,
+                project_id=project_id,
+                session_id=session_id,
+                ai_id=ai_id,
+                choice=choice,
+                rationale=rationale,
+                alternatives=json.dumps(alternatives_list) if alternatives_list else None,
+                confidence=confidence,
+                reversibility=reversibility,
+                goal_id=goal_id,
+            )
+        except Exception as git_err:
+            logger.debug(f"Git notes storage failed (non-fatal): {git_err}")
+
+        # Store to Qdrant (semantic search)
         embedded = False
         try:
             from empirica.core.qdrant.vector_store import embed_decision, _check_qdrant_available
@@ -1536,7 +1647,10 @@ def handle_decision_log_command(args):
 
 
 def handle_refdoc_add_command(args):
-    """Handle refdoc-add command"""
+    """Handle refdoc-add command (DEPRECATED — use source-add instead)"""
+    import sys as _sys
+    print("⚠️  refdoc-add is deprecated. Use 'empirica source-add' instead.", file=_sys.stderr)
+    print("   Example: empirica source-add --title 'My Doc' --path ./doc.md --noetic", file=_sys.stderr)
     try:
         from empirica.data.session_database import SessionDatabase
         from empirica.cli.utils.project_resolver import resolve_project_id
@@ -1735,4 +1849,122 @@ def handle_source_add_command(args):
     except Exception as e:
         handle_cli_error(e, "Source add", getattr(args, 'verbose', False))
         return None
+
+
+def handle_source_list_command(args):
+    """Handle source-list command — list epistemic sources for a project."""
+    db = None
+    try:
+        from empirica.data.session_database import SessionDatabase
+
+        project_id = getattr(args, 'project_id', None)
+        source_type_filter = getattr(args, 'source_type', None)
+        direction_filter = getattr(args, 'direction', 'all')
+        output_format = getattr(args, 'output', 'human')
+
+        db = SessionDatabase()
+
+        # Auto-resolve project_id
+        if not project_id:
+            try:
+                project_path = R.project_path()
+                if project_path:
+                    project_id = R.project_id_from_db(project_path)
+            except Exception:
+                pass
+
+        if not project_id:
+            print(json.dumps({"ok": False, "error": "Could not resolve project_id"}))
+            return 1
+
+        # Query epistemic_sources table
+        sources = []
+        try:
+            query = """
+                SELECT id, source_type, title, description, confidence,
+                       epistemic_layer, source_url, discovered_at, source_metadata
+                FROM epistemic_sources
+                WHERE project_id = ?
+            """
+            params = [project_id]
+
+            if source_type_filter:
+                query += " AND source_type = ?"
+                params.append(source_type_filter)
+
+            if direction_filter != 'all':
+                query += " AND epistemic_layer = ?"
+                params.append(direction_filter)
+
+            query += " ORDER BY discovered_at DESC"
+
+            cursor = db.conn.cursor()
+            cursor.execute(query, params)
+            for row in cursor.fetchall():
+                r = dict(row) if hasattr(row, 'keys') else {
+                    'id': row[0], 'source_type': row[1], 'title': row[2],
+                    'description': row[3], 'confidence': row[4],
+                    'direction': row[5], 'url': row[6],
+                    'discovered_at': row[7], 'metadata': row[8]
+                }
+                r['source'] = 'epistemic_sources'
+                sources.append(r)
+        except Exception as e:
+            logger.debug(f"epistemic_sources query failed (table may not exist): {e}")
+
+        # Also query legacy project_reference_docs
+        try:
+            refdocs = db.get_project_reference_docs(project_id)
+            for rd in refdocs:
+                # Skip if already in epistemic_sources (by doc_path match)
+                doc_path = rd.get('doc_path', '')
+                if any(s.get('url') == doc_path or s.get('source_url') == doc_path for s in sources):
+                    continue
+                sources.append({
+                    'id': rd.get('id', ''),
+                    'source_type': rd.get('doc_type', 'document'),
+                    'title': doc_path.split('/')[-1] if doc_path else 'unknown',
+                    'description': rd.get('description', ''),
+                    'confidence': None,
+                    'direction': 'noetic',
+                    'url': doc_path,
+                    'discovered_at': None,
+                    'source': 'refdoc_legacy',
+                })
+        except Exception as e:
+            logger.debug(f"refdoc query failed: {e}")
+
+        if output_format == 'json':
+            print(json.dumps({
+                "ok": True,
+                "project_id": project_id,
+                "count": len(sources),
+                "sources": sources,
+            }, indent=2))
+        else:
+            print(f"\n📚 Epistemic Sources ({len(sources)} total)")
+            print("=" * 60)
+            for s in sources:
+                direction = s.get('direction') or s.get('epistemic_layer', '?')
+                emoji = "📥" if direction == 'noetic' else "📤"
+                conf = f" [{s['confidence']:.1f}]" if s.get('confidence') else ""
+                source_tag = f" ({s['source']})" if s.get('source') == 'refdoc_legacy' else ""
+                print(f"  {emoji} {s.get('title', '?')}{conf}{source_tag}")
+                print(f"     Type: {s.get('source_type', '?')} | Direction: {direction}")
+                url = s.get('url') or s.get('source_url', '')
+                if url:
+                    print(f"     Path: {url}")
+                desc = s.get('description', '')
+                if desc:
+                    print(f"     Desc: {desc[:80]}")
+                print()
+
+        return 0
+
+    except Exception as e:
+        handle_cli_error(e, "Source list", getattr(args, 'verbose', False))
+        return None
+    finally:
+        if db is not None:
+            db.close()
 

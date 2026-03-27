@@ -619,6 +619,18 @@ def add_checkpoint_parsers(subparsers):
     source_add_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     source_add_parser.add_argument('--verbose', action='store_true', help='Verbose output')
 
+    # Source list command
+    source_list_parser = subparsers.add_parser(
+        'source-list',
+        help='List epistemic sources for a project'
+    )
+    source_list_parser.add_argument('--project-id', help='Project UUID or name (auto-derived from context)')
+    source_list_parser.add_argument('--type', dest='source_type', help='Filter by source type (document, code, web, api, etc.)')
+    source_list_parser.add_argument('--direction', choices=['noetic', 'praxic', 'all'], default='all',
+        help='Filter by direction (noetic=evidence IN, praxic=output OUT)')
+    source_list_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
+    source_list_parser.add_argument('--verbose', action='store_true', help='Show detailed info')
+
     # Training data export
     training_export_parser = subparsers.add_parser(
         'training-export',
@@ -654,6 +666,7 @@ def add_checkpoint_parsers(subparsers):
 
     # LEGACY: Flag-based arguments (backward compatible)
     goals_create_parser.add_argument('--session-id', help='Session ID (auto-derived from active transaction)')
+    goals_create_parser.add_argument('--project-id', help='Target project UUID or name (for cross-project goal creation)')
     goals_create_parser.add_argument('--ai-id', default='empirica_cli', help='AI identifier (legacy)')
     goals_create_parser.add_argument('--objective', help='Goal objective text (legacy)')
     goals_create_parser.add_argument('--scope-breadth', type=float, default=0.3, help='Goal breadth (0.0-1.0, how wide the goal spans)')

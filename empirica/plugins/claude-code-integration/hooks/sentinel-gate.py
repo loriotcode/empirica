@@ -1304,6 +1304,88 @@ def is_safe_pipe_chain(command: str) -> bool:
     return True
 
 
+# --- Confidence Gate for Remote Commands ---
+# Lightweight threshold check for praxic remote work (SSH writes, scp uploads).
+# Replaces full PREFLIGHT/POSTFLIGHT for remote infra where grounded verification
+# can't see the evidence. Thresholds match confidence_gate.py in empirica-autonomy.
+
+_CONFIDENCE_GATE_THRESHOLDS = {
+    'remote_infra': {'know_min': 0.70, 'uncertainty_max': 0.25},
+}
+
+
+def _is_praxic_remote_command(command: str) -> bool:
+    """Check if a command is a praxic (write) remote command.
+
+    Returns True for SSH commands that modify remote state.
+    Read-only remote commands are already handled by is_safe_remote_command().
+    """
+    cmd = command.lstrip()
+    if not cmd.startswith(('ssh ', 'scp ', 'rsync ')):
+        return False
+    # If is_safe_remote_command says it's noetic, it's not praxic
+    if is_safe_remote_command(cmd):
+        return False
+    # It's a remote command that's NOT read-only → praxic remote
+    return True
+
+
+def _confidence_gate_remote(claude_session_id: str = None) -> str:
+    """Apply ConfidenceGate threshold check using latest vectors.
+
+    Reads the most recent PREFLIGHT or CHECK vectors from the session DB.
+    Returns a description string if gate passes, or empty string if fails.
+    """
+    thresholds = _CONFIDENCE_GATE_THRESHOLDS['remote_infra']
+
+    # Find vectors from the most recent assessment in this session
+    try:
+        empirica_session_id = _resolve_empirica_session_id(claude_session_id)
+        if not empirica_session_id:
+            return ''
+
+        pp = get_active_project_path(claude_session_id)
+        if not pp:
+            return ''
+
+        db_path = Path(pp) / '.empirica' / 'sessions.db'
+        if not db_path.exists():
+            # Try home fallback
+            db_path = Path.home() / '.empirica' / 'sessions.db'
+        if not db_path.exists():
+            return ''
+
+        import sqlite3
+        db = sqlite3.connect(str(db_path))
+        cursor = db.cursor()
+
+        # Get latest vectors from PREFLIGHT or CHECK
+        cursor.execute("""
+            SELECT phase,
+                   json_extract(reflex_data, '$.vectors.know') as know,
+                   json_extract(reflex_data, '$.vectors.uncertainty') as uncertainty
+            FROM reflexes
+            WHERE session_id = ? AND phase IN ('PREFLIGHT', 'CHECK')
+            ORDER BY timestamp DESC LIMIT 1
+        """, (empirica_session_id,))
+        row = cursor.fetchone()
+        db.close()
+
+        if not row:
+            return ''
+
+        phase, know, uncertainty = row
+        know = float(know) if know else 0.0
+        uncertainty = float(uncertainty) if uncertainty else 1.0
+
+        if know >= thresholds['know_min'] and uncertainty <= thresholds['uncertainty_max']:
+            return f"know={know:.2f}>={thresholds['know_min']}, unc={uncertainty:.2f}<={thresholds['uncertainty_max']}, from {phase}"
+        return ''
+
+    except Exception:
+        return ''  # Fail-closed: if we can't read vectors, require normal gating
+
+
 def main():
     try:
         hook_input = json.loads(sys.stdin.read() or '{}')
@@ -1347,6 +1429,20 @@ def main():
     if tool_name in ('Write', 'Edit') and is_plan_file(tool_input):
         respond("allow", f"Plan file write (noetic): {tool_name}")
         sys.exit(0)
+
+    # Rule 2c: CONFIDENCE GATE for praxic remote commands (SSH writes, scp uploads, etc.)
+    # Remote infra work doesn't produce local evidence for grounded verification,
+    # so full PREFLIGHT/POSTFLIGHT is meaningless. Instead, apply lightweight
+    # threshold check against latest vectors. No transaction overhead.
+    if tool_name == 'Bash' and tool_input:
+        command = tool_input.get('command', '')
+        if command and _is_praxic_remote_command(command):
+            gate_result = _confidence_gate_remote(hook_input.get('session_id'))
+            if gate_result:
+                respond("allow", f"ConfidenceGate: remote infra ({gate_result})")
+                sys.exit(0)
+            # If gate fails, fall through to normal praxic gating
+            # (user needs PREFLIGHT or higher confidence)
 
     # Rule 3: Everything else is PRAXIC - requires CHECK authorization
     # This includes: Edit, Write, NotebookEdit, unsafe Bash, unknown tools

@@ -48,9 +48,9 @@ Run this after 'brew install empirica' or 'pip install empirica'.
         help='Skip CLAUDE.md installation (keep existing system prompt)'
     )
     setup_cc_parser.add_argument(
-        '--lean',
+        '--full-prompt',
         action='store_true',
-        help='Use lean core system prompt (81%% smaller, loads skills on demand via constitution)'
+        help='Use full system prompt instead of lean core default (lean loads skills on demand)'
     )
     setup_cc_parser.add_argument(
         '--output',

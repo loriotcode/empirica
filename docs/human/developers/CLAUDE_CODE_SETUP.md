@@ -17,7 +17,7 @@ This guide sets up Empirica for Claude Code users on Linux, macOS, or Windows.
 | Statusline | Real-time epistemic status display | Plugin scripts/ |
 | MCP config | MCP server configuration | `~/.claude/mcp.json` |
 
-The plugin (v1.6.21) now bundles everything in one package:
+The plugin (v1.7.1) now bundles everything in one package:
 - **Sentinel gate** - Noetic firewall that gates praxic tools until CHECK passes
 - **Session hooks** - Auto-creates sessions, bootstraps projects, captures POSTFLIGHT
 - **Statusline script** - Shows epistemic state in terminal
@@ -68,7 +68,7 @@ pip install empirica-mcp
 Verify:
 ```bash
 empirica --version
-# Should show: 1.6.6 (or later)
+# Should show: 1.7.1 (or later)
 ```
 
 ---
@@ -79,7 +79,7 @@ The full system prompt teaches Claude how to use Empirica with calibration data,
 
 **Option A: Copy from plugin (recommended after Step 4):**
 ```bash
-cp ~/.claude/plugins/local/empirica-integration/templates/CLAUDE.md ~/.claude/CLAUDE.md
+cp ~/.claude/plugins/local/empirica/templates/CLAUDE.md ~/.claude/CLAUDE.md
 ```
 
 **Option B: Copy from source:**
@@ -135,7 +135,7 @@ Add to `~/.claude/settings.json` (after installing the plugin in Step 4):
 {
   "statusLine": {
     "type": "command",
-    "command": "python3 ~/.claude/plugins/local/empirica-integration/scripts/statusline_empirica.py",
+    "command": "python3 ~/.claude/plugins/local/empirica/scripts/statusline_empirica.py",
     "refresh_ms": 5000
   }
 }
@@ -143,7 +143,7 @@ Add to `~/.claude/settings.json` (after installing the plugin in Step 4):
 
 Or use the template from the plugin:
 ```bash
-cat ~/.claude/plugins/local/empirica-integration/templates/settings-statusline.json
+cat ~/.claude/plugins/local/empirica/templates/settings-statusline.json
 # Merge this into your settings.json
 ```
 
@@ -166,7 +166,7 @@ cat ~/.claude/plugins/local/empirica-integration/templates/settings-statusline.j
 
 ## Step 4: Install Empirica Plugin (Recommended)
 
-The plugin (v1.6.21) enforces the epistemic transaction workflow and preserves epistemic state automatically.
+The plugin (v1.7.1) enforces the epistemic transaction workflow and preserves epistemic state automatically.
 
 **What it includes:**
 - **Noetic firewall** (`sentinel-gate.py`): Gates praxic tools (Edit/Write/Bash) until CHECK passes
@@ -188,20 +188,20 @@ The plugin (v1.6.21) enforces the epistemic transaction workflow and preserves e
 mkdir -p ~/.claude/plugins/local
 
 # From Empirica source (if cloned)
-cp -r /path/to/empirica/plugins/claude-code-integration ~/.claude/plugins/local/empirica-integration
+cp -r /path/to/empirica/plugins/claude-code-integration ~/.claude/plugins/local/empirica
 
 # Or if installed via pip:
 EMPIRICA_PATH=$(pip show empirica | grep Location | cut -d' ' -f2)
-cp -r "$EMPIRICA_PATH/empirica/../plugins/claude-code-integration" ~/.claude/plugins/local/empirica-integration
+cp -r "$EMPIRICA_PATH/empirica/../plugins/claude-code-integration" ~/.claude/plugins/local/empirica
 ```
 
 2. **Copy templates to Claude config:**
 ```bash
 # System prompt
-cp ~/.claude/plugins/local/empirica-integration/templates/CLAUDE.md ~/.claude/CLAUDE.md
+cp ~/.claude/plugins/local/empirica/templates/CLAUDE.md ~/.claude/CLAUDE.md
 
 # MCP server config (merge with existing if you have one)
-cp ~/.claude/plugins/local/empirica-integration/templates/mcp.json ~/.claude/mcp.json
+cp ~/.claude/plugins/local/empirica/templates/mcp.json ~/.claude/mcp.json
 ```
 
 3. **Register local marketplace** (create `~/.claude/plugins/known_marketplaces.json`):
@@ -222,11 +222,11 @@ cp ~/.claude/plugins/local/empirica-integration/templates/mcp.json ~/.claude/mcp
 {
   "version": 2,
   "plugins": {
-    "empirica-integration@local": [
+    "empirica@local": [
       {
         "scope": "user",
-        "installPath": "~/.claude/plugins/local/empirica-integration",
-        "version": "1.6.21",
+        "installPath": "~/.claude/plugins/local/empirica",
+        "version": "1.7.1",
         "isLocal": true
       }
     ]
@@ -238,7 +238,7 @@ cp ~/.claude/plugins/local/empirica-integration/templates/mcp.json ~/.claude/mcp
 ```json
 {
   "enabledPlugins": {
-    "empirica-integration@local": true
+    "empirica@local": true
   }
 }
 ```
@@ -253,62 +253,62 @@ The Sentinel gate (noetic firewall) requires PreToolUse hooks. Add to `~/.claude
     "PreToolUse": [
       {
         "matcher": "Edit|Write",
-        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica-integration/hooks/sentinel-gate.py", "timeout": 10}]
+        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica/hooks/sentinel-gate.py", "timeout": 10}]
       },
       {
         "matcher": "Bash",
-        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica-integration/hooks/sentinel-gate.py", "timeout": 10}]
+        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica/hooks/sentinel-gate.py", "timeout": 10}]
       }
     ],
     "UserPromptSubmit": [
       {
         "matcher": ".*",
-        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica-integration/hooks/tool-router.py", "timeout": 5}]
+        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica/hooks/tool-router.py", "timeout": 5}]
       }
     ],
     "PreCompact": [
       {
         "matcher": "auto|manual",
-        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica-integration/hooks/pre-compact.py", "timeout": 30}]
+        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica/hooks/pre-compact.py", "timeout": 30}]
       }
     ],
     "SessionStart": [
       {
         "matcher": "compact|resume",
-        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica-integration/hooks/post-compact.py", "timeout": 30}]
+        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica/hooks/post-compact.py", "timeout": 30}]
       },
       {
         "matcher": "startup",
         "hooks": [
-          {"type": "command", "command": "python3 ~/.claude/plugins/local/empirica-integration/hooks/session-init.py", "timeout": 30},
-          {"type": "command", "command": "python3 ~/.claude/plugins/local/empirica-integration/hooks/ewm-protocol-loader.py", "timeout": 10, "allowFailure": true}
+          {"type": "command", "command": "python3 ~/.claude/plugins/local/empirica/hooks/session-init.py", "timeout": 30},
+          {"type": "command", "command": "python3 ~/.claude/plugins/local/empirica/hooks/ewm-protocol-loader.py", "timeout": 10, "allowFailure": true}
         ]
       }
     ],
     "Stop": [
       {
         "matcher": ".*",
-        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica-integration/hooks/transaction-enforcer.py", "timeout": 5, "allowFailure": true}]
+        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica/hooks/transaction-enforcer.py", "timeout": 5, "allowFailure": true}]
       }
     ],
     "SubagentStart": [
       {
         "matcher": ".*",
-        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica-integration/hooks/subagent-start.py", "timeout": 10, "allowFailure": true}]
+        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica/hooks/subagent-start.py", "timeout": 10, "allowFailure": true}]
       }
     ],
     "SubagentStop": [
       {
         "matcher": ".*",
-        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica-integration/hooks/subagent-stop.py", "timeout": 15, "allowFailure": true}]
+        "hooks": [{"type": "command", "command": "python3 ~/.claude/plugins/local/empirica/hooks/subagent-stop.py", "timeout": 15, "allowFailure": true}]
       }
     ],
     "SessionEnd": [
       {
         "matcher": ".*",
         "hooks": [
-          {"type": "command", "command": "python3 ~/.claude/plugins/local/empirica-integration/hooks/session-end-postflight.py", "timeout": 20},
-          {"type": "command", "command": "python3 ~/.claude/plugins/local/empirica-integration/hooks/curate-snapshots.py --output json", "timeout": 15, "allowFailure": true}
+          {"type": "command", "command": "python3 ~/.claude/plugins/local/empirica/hooks/session-end-postflight.py", "timeout": 20},
+          {"type": "command", "command": "python3 ~/.claude/plugins/local/empirica/hooks/curate-snapshots.py --output json", "timeout": 15, "allowFailure": true}
         ]
       }
     ]
