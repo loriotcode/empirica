@@ -1560,7 +1560,10 @@ def handle_decision_log_command(args):
 
 
 def handle_refdoc_add_command(args):
-    """Handle refdoc-add command"""
+    """Handle refdoc-add command (DEPRECATED — use source-add instead)"""
+    import sys as _sys
+    print("⚠️  refdoc-add is deprecated. Use 'empirica source-add' instead.", file=_sys.stderr)
+    print("   Example: empirica source-add --title 'My Doc' --path ./doc.md --noetic", file=_sys.stderr)
     try:
         from empirica.data.session_database import SessionDatabase
         from empirica.cli.utils.project_resolver import resolve_project_id
