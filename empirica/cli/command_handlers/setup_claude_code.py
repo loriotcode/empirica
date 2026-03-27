@@ -130,7 +130,7 @@ def handle_setup_claude_code_command(args):
         force = getattr(args, 'force', False)
         skip_mcp = getattr(args, 'skip_mcp', False)
         skip_claude_md = getattr(args, 'skip_claude_md', False)
-        use_lean = getattr(args, 'lean', False)
+        use_full = getattr(args, 'full_prompt', False)
 
         # Find bundled plugins
         source_dir = _get_plugin_source_dir()
@@ -234,13 +234,13 @@ def handle_setup_claude_code_command(args):
             if output_format != 'json':
                 print("\n📝 Installing Empirica system prompt...")
 
-            # Select prompt template: lean (skills on demand) or full (traditional)
-            if use_lean:
-                claude_md_src = plugin_dir / "templates" / "empirica-system-prompt-lean.md"
-                prompt_label = "lean core (skills on demand)"
-            else:
+            # Select prompt template: lean (default) or full (traditional, opt-in)
+            if use_full:
                 claude_md_src = plugin_dir / "templates" / "CLAUDE.md"
                 prompt_label = "full (traditional)"
+            else:
+                claude_md_src = plugin_dir / "templates" / "empirica-system-prompt-lean.md"
+                prompt_label = "lean core (skills on demand)"
 
             claude_md_dst = claude_dir / "CLAUDE.md"
             empirica_prompt_dst = claude_dir / "empirica-system-prompt.md"
