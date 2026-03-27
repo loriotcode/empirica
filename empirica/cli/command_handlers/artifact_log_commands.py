@@ -1357,6 +1357,25 @@ def handle_assumption_log_command(args):
         if not assumption_id:
             assumption_id = str(uuid.uuid4())
 
+        # GIT NOTES: Store assumption in git notes for sync
+        ai_id = 'claude-code'
+        git_stored = False
+        try:
+            from empirica.core.canonical.empirica_git.assumption_store import GitAssumptionStore
+            git_store = GitAssumptionStore()
+            git_stored = git_store.store_assumption(
+                assumption_id=assumption_id,
+                project_id=project_id,
+                session_id=session_id,
+                ai_id=ai_id,
+                assumption=assumption,
+                confidence=confidence,
+                domain=domain,
+                goal_id=goal_id,
+            )
+        except Exception as git_err:
+            logger.debug(f"Git notes storage failed (non-fatal): {git_err}")
+
         # Store to Qdrant (semantic search)
         embedded = False
         try:
@@ -1400,7 +1419,8 @@ def handle_assumption_log_command(args):
             "confidence": confidence,
             "status": "unverified",
             "embedded": embedded,
-            "message": "Assumption logged" + (" (Qdrant)" if embedded else " (Qdrant unavailable)"),
+            "git_stored": git_stored,
+            "message": "Assumption logged",
         }
 
         if output_format == 'json':
@@ -1538,6 +1558,27 @@ def handle_decision_log_command(args):
 
         if not decision_id:
             decision_id = str(uuid.uuid4())
+
+        # GIT NOTES: Store decision in git notes for sync
+        ai_id = 'claude-code'
+        git_stored = False
+        try:
+            from empirica.core.canonical.empirica_git.decision_store import GitDecisionStore
+            git_store = GitDecisionStore()
+            git_stored = git_store.store_decision(
+                decision_id=decision_id,
+                project_id=project_id,
+                session_id=session_id,
+                ai_id=ai_id,
+                choice=choice,
+                rationale=rationale,
+                alternatives=json.dumps(alternatives_list) if alternatives_list else None,
+                confidence=confidence,
+                reversibility=reversibility,
+                goal_id=goal_id,
+            )
+        except Exception as git_err:
+            logger.debug(f"Git notes storage failed (non-fatal): {git_err}")
 
         # Store to Qdrant (semantic search)
         embedded = False
