@@ -300,8 +300,13 @@ def handle_finding_log_command(args):
 
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
-
             session_id = R.session_id()
+
+        # Cross-project writes don't require an active transaction —
+        # use current session for provenance, or allow sessionless write
+        is_cross_project = bool(project_id) and project_id != R.project_id()
+        if not session_id and is_cross_project:
+            session_id = "cross-project"  # Synthetic provenance marker
 
         # Validate required fields
         if not session_id or not finding:
@@ -644,8 +649,12 @@ def handle_unknown_log_command(args):
 
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
-
             session_id = R.session_id()
+
+        # Cross-project writes don't require an active transaction
+        is_cross_project = bool(project_id) and project_id != R.project_id()
+        if not session_id and is_cross_project:
+            session_id = "cross-project"
 
         # Validate required fields
         if not session_id or not unknown:
@@ -1064,8 +1073,12 @@ def handle_deadend_log_command(args):
 
         # UNIFIED: Auto-derive session_id if not provided (works for both modes)
         if not session_id:
-
             session_id = R.session_id()
+
+        # Cross-project writes don't require an active transaction
+        is_cross_project = bool(project_id) and project_id != R.project_id()
+        if not session_id and is_cross_project:
+            session_id = "cross-project"
 
         # Validate required fields
         if not session_id or not approach or not why_failed:

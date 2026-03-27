@@ -654,6 +654,7 @@ def add_checkpoint_parsers(subparsers):
 
     # LEGACY: Flag-based arguments (backward compatible)
     goals_create_parser.add_argument('--session-id', help='Session ID (auto-derived from active transaction)')
+    goals_create_parser.add_argument('--project-id', help='Target project UUID or name (for cross-project goal creation)')
     goals_create_parser.add_argument('--ai-id', default='empirica_cli', help='AI identifier (legacy)')
     goals_create_parser.add_argument('--objective', help='Goal objective text (legacy)')
     goals_create_parser.add_argument('--scope-breadth', type=float, default=0.3, help='Goal breadth (0.0-1.0, how wide the goal spans)')
