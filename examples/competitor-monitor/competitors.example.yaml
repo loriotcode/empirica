@@ -1,0 +1,28 @@
+# Competitor Monitor Configuration
+# Copy to competitors.yaml and customize for your business
+
+business:
+  name: "Your Business Name"
+  focus: "Brief description of what you sell and your market"
+  care_about:
+    - pricing changes
+    - new features or products
+    - hiring signals (team growth)
+    - funding announcements
+    - messaging or positioning changes
+
+competitors:
+  - name: "Competitor A"
+    url: "https://example-competitor.com"
+    pages:
+      - "/pricing"
+      - "/features"
+      - "/about"
+    notes: "Our main competitor in the SMB segment"
+
+  - name: "Competitor B"
+    url: "https://another-competitor.com"
+    pages:
+      - "/pricing"
+      - "/"
+    notes: "Newer entrant, watch for feature launches"
