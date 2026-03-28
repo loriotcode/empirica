@@ -1,6 +1,7 @@
-# Archive and dev folders
+# Archive, dev, and drafts folders
 _archive/
 _dev/
+drafts/
 
 # Python
 __pycache__/
