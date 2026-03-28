@@ -2654,6 +2654,7 @@ def handle_postflight_submit_command(args):
             }
 
             # RETROSPECTIVE: Artifact breadth and commit discipline feedback
+            import subprocess
             try:
                 retro_db = _get_db_for_session(session_id)
                 retro_cursor = retro_db.conn.cursor()
