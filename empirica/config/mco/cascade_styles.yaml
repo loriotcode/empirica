@@ -109,7 +109,7 @@ profiles:
       safety_ceiling_know: 0.90              # Never require > 90% know
       safety_ceiling_uncertainty: 0.15       # Never require < 15% uncertainty
       # Maximum inflation from Brier reliability component
-      max_inflation: 0.20                    # At worst, gates tighten by 20% beyond baseline
+      max_inflation: 0.05                    # At worst, gates tighten by 20% beyond baseline
       # Minimum trajectory points before enabling dynamic thresholds
       min_transactions: 5
       # Lookback window for Brier computation
@@ -176,7 +176,7 @@ profiles:
     calibration:
       safety_ceiling_know: 0.85              # Exploratory: slightly lower ceiling
       safety_ceiling_uncertainty: 0.20       # More tolerance for uncertainty
-      max_inflation: 0.15                    # Less aggressive tightening
+      max_inflation: 0.05                    # Less aggressive tightening
       min_transactions: 5
       lookback: 20
 
@@ -241,7 +241,7 @@ profiles:
     calibration:
       safety_ceiling_know: 0.95              # Rigorous: highest ceiling
       safety_ceiling_uncertainty: 0.10       # Very low uncertainty tolerance
-      max_inflation: 0.25                    # Aggressive tightening for miscalibration
+      max_inflation: 0.05                    # Aggressive tightening for miscalibration
       min_transactions: 3                    # Fewer points needed (strict from start)
       lookback: 30                           # Longer history window
 
@@ -306,7 +306,7 @@ profiles:
     calibration:
       safety_ceiling_know: 0.85              # Rapid: moderate ceiling
       safety_ceiling_uncertainty: 0.25       # High tolerance
-      max_inflation: 0.10                    # Minimal tightening (speed over safety)
+      max_inflation: 0.05                    # Minimal tightening (speed over safety)
       min_transactions: 10                   # More data needed before adjusting
       lookback: 10                           # Short history (recent matters more)
 
@@ -371,7 +371,7 @@ profiles:
     calibration:
       safety_ceiling_know: 0.90
       safety_ceiling_uncertainty: 0.15
-      max_inflation: 0.20
+      max_inflation: 0.05
       min_transactions: 5
       lookback: 20
 
@@ -436,7 +436,7 @@ profiles:
     calibration:
       safety_ceiling_know: 0.90
       safety_ceiling_uncertainty: 0.15
-      max_inflation: 0.25                    # Aggressive tightening for novices
+      max_inflation: 0.05                    # Aggressive tightening for novices
       min_transactions: 3                    # Start correcting early
       lookback: 15
 
