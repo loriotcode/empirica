@@ -82,19 +82,6 @@ empirica setup-claude-code --force
 ### Alternative Installation Methods
 
 <details>
-<summary>One-Line Installer</summary>
-
-```bash
-# Linux / macOS
-curl -fsSL https://raw.githubusercontent.com/Nubaeon/empirica/main/scripts/install.py | python3 -
-
-# Windows (PowerShell)
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Nubaeon/empirica/main/scripts/install.py" -OutFile "install.py"
-python install.py
-```
-</details>
-
-<details>
 <summary>Homebrew (macOS)</summary>
 
 ```bash
