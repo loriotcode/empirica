@@ -44,7 +44,7 @@ _FALLBACK_CEILINGS = {
     "ready_know_threshold": 0.90,
     "ready_uncertainty_threshold": 0.15,
 }
-_FALLBACK_MAX_INFLATION = 0.20
+_FALLBACK_MAX_INFLATION = 0.05
 _FALLBACK_MIN_TRANSACTIONS = 5
 _FALLBACK_LOOKBACK = 20
 
@@ -286,8 +286,10 @@ def compute_dynamic_thresholds(
             # Threshold inflation driven by RELIABILITY component only
             # reliability = 0 → no inflation (well calibrated)
             # reliability > 0 → inflate proportionally, capped at max_inflation
-            # Scale factor: reliability is typically 0.0-0.25 range,
-            # we want max_inflation at high reliability (~0.15+)
+            # Design: inflation is INFORMATIVE, not punitive. Small increments
+            # (max 0.05) are enough for the AI to notice calibration cost.
+            # The AI makes the holistic judgment — this is a measurement system,
+            # not a rules-based gate. Max threshold = base + 0.05 = 0.75.
             raw_inflation = min(decomp.reliability * (max_infl / 0.15), max_infl)
 
             # Cold-start damper: with few data points, reliability estimates are
