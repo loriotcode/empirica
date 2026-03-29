@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.7.2-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.2)
+[![Version](https://img.shields.io/badge/version-1.7.3-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.3)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -261,7 +261,7 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.7.2
+## What's New in 1.7.3
 
 - **`setup-claude-code --force` no longer nukes other plugins' hooks** — Previously cleared ALL hooks in settings.json. Now filters by Empirica plugin path, preserving Railway, Superpowers, and custom hooks
 - **Python version detection** — `_find_python()` now prefers `python3` over versioned `python3.X` binaries, preventing hooks from using `python3.13` which may not exist on all systems
