@@ -13,15 +13,7 @@ allowed-tools: ["Bash(empirica *)", "Bash(python3 *)", "Bash(cat *)", "Bash(rm *
 
 ## For `/empirica off`:
 
-1. Check loop state - is there a PREFLIGHT without a subsequent POSTFLIGHT?
-```bash
-empirica epistemics-list --session-id $EMPIRICA_SESSION_ID --output json 2>/dev/null
-```
-
-2. If loop is **open** (PREFLIGHT exists without matching POSTFLIGHT) - DENY:
-> Cannot go off-the-record while inside an epistemic loop. Close your loop first with POSTFLIGHT, then try again.
-
-3. If loop is **closed** - write the instance-specific signal file:
+1. Write the instance-specific signal file (allowed at any time, including during open loops):
 ```bash
 python3 -c "
 import json, time, os

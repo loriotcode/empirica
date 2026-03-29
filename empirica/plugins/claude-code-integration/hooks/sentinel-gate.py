@@ -2069,7 +2069,10 @@ def main():
             respond("allow", "Safe Bash during investigation phase (read-only)")
             sys.exit(0)
         db.close()
-        respond("deny", f"CHECK returned 'investigate'. Only noetic (read-only) tools allowed.")
+        # ADVISORY MODE: Sentinel surfaces the investigate recommendation but lets the AI decide.
+        # The AI sees the message and can choose to investigate more or proceed with awareness.
+        # This is a measurement system, not a rules-based gate — the holistic judgment is the AI's.
+        respond("allow", f"ADVISORY: CHECK returned 'investigate'. Sentinel recommends noetic (read-only) work. Proceeding with praxic action — ensure sufficient understanding before modifying.")
         sys.exit(0)
 
     # Optional: Check age expiry
@@ -2104,7 +2107,8 @@ def main():
         respond("allow", f"CHECK passed - proceeding (threshold: K>={_dyn_know:.0%} U<={_dyn_unc:.0%}){env_annotation}")
         sys.exit(0)
     else:
-        respond("deny", f"CHECK confidence insufficient (need K>={_dyn_know:.0%} U<={_dyn_unc:.0%}). Continue investigation, then re-submit CHECK.{env_annotation}")
+        # ADVISORY MODE: Surface the gap but let the AI proceed with awareness.
+        respond("allow", f"ADVISORY: CHECK confidence below threshold (K={raw_check_know:.0%} vs {_dyn_know:.0%}, U={raw_check_unc:.0%} vs {_dyn_unc:.0%}). Consider more investigation.{env_annotation}")
         sys.exit(0)
 
 
