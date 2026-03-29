@@ -22,6 +22,174 @@ def _is_uuid(s: str) -> bool:
     return bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', s, re.I))
 
 
+def _parse_config_input(args):
+    """Parse config from stdin, file, or None. Shared across all artifact handlers."""
+    import os
+    import sys
+    from empirica.cli.cli_utils import parse_json_safely
+
+    config_data = None
+    if hasattr(args, 'config') and args.config:
+        if args.config == '-':
+            config_data = parse_json_safely(sys.stdin.read())
+        else:
+            if not os.path.exists(args.config):
+                print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
+                sys.exit(1)
+            with open(args.config, 'r') as f:
+                config_data = parse_json_safely(f.read())
+    return config_data
+
+
+def _resolve_artifact_context(config_data, args, required_fields=None):
+    """Resolve common context needed by all artifact handlers.
+
+    Consolidates session resolution, project resolution, entity params,
+    transaction ID, goal auto-link, ai_id lookup, and subject detection
+    into a single call. Each handler previously did this independently.
+
+    Returns dict with: session_id, project_id, goal_id, transaction_id,
+    entity_type, entity_id, via, ai_id, subject, output_format, db.
+    Caller is responsible for closing db.
+    """
+    import sys
+    from empirica.data.session_database import SessionDatabase
+
+    # Extract common fields from config or args
+    output_format = 'json' if config_data else getattr(args, 'output', 'json')
+    session_id = (config_data or {}).get('session_id') or getattr(args, 'session_id', None)
+    project_id = (config_data or {}).get('project_id') or getattr(args, 'project_id', None)
+    goal_id = (config_data or {}).get('goal_id') or getattr(args, 'goal_id', None)
+    subtask_id = (config_data or {}).get('subtask_id') or getattr(args, 'subtask_id', None)
+    impact = (config_data or {}).get('impact') or getattr(args, 'impact', None)
+
+    # Entity scoping
+    entity_type, entity_id, via = _extract_entity_params(config_data, args)
+
+    # Session auto-derive
+    if not session_id:
+        session_id = R.session_id()
+
+    # Cross-project detection + synthetic provenance
+    is_cross_project = False
+    if project_id:
+        try:
+            current_path = R.project_path()
+            current_project_id = R.project_id_from_db(current_path) if current_path else None
+            is_cross_project = current_project_id is None or project_id != current_project_id
+        except Exception:
+            is_cross_project = True
+    if not session_id and is_cross_project:
+        session_id = "cross-project"
+
+    # Validate required fields
+    if required_fields:
+        missing = [f for f in required_fields if not ((config_data or {}).get(f) or getattr(args, f, None))]
+        if not session_id or missing:
+            print(json.dumps({
+                "ok": False,
+                "error": f"Missing required: {', '.join(['session_id'] + missing) if not session_id else ', '.join(missing)}",
+                "hint": "Either run PREFLIGHT first, or provide --session-id explicitly"
+            }))
+            sys.exit(1)
+
+    # Subject auto-detect
+    subject = (config_data or {}).get('subject') or getattr(args, 'subject', None)
+    if subject is None:
+        try:
+            from empirica.config.project_config_loader import get_current_subject
+            subject = get_current_subject()
+        except Exception:
+            pass
+
+    # Resolve DB (cross-project aware)
+    db, project_id = _resolve_db_for_artifact(project_id)
+
+    # Project ID resolution cascade
+    if not project_id and session_id:
+        try:
+            cursor = db.conn.cursor()
+            cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
+            row = cursor.fetchone()
+            if row and row['project_id']:
+                project_id = row['project_id']
+        except Exception:
+            pass
+
+    if not project_id:
+        try:
+            ctx = R.context()
+            if ctx and ctx.get('project_id'):
+                project_id = ctx['project_id']
+        except Exception:
+            pass
+
+    if not project_id:
+        try:
+            from empirica.cli.utils.project_resolver import resolve_project_id
+            project_id = resolve_project_id(project_id, db)
+        except Exception:
+            pass
+
+    if not project_id and session_id:
+        import hashlib
+        project_id = hashlib.md5(f"session-{session_id}".encode()).hexdigest()
+
+    # Goal auto-link
+    if not goal_id and session_id:
+        try:
+            cursor = db.conn.cursor()
+            cursor.execute(
+                "SELECT id FROM goals WHERE session_id = ? AND is_completed = 0 ORDER BY created_timestamp DESC LIMIT 1",
+                (session_id,))
+            row = cursor.fetchone()
+            if row:
+                goal_id = row['id'] if hasattr(row, 'keys') else row[0]
+        except Exception:
+            pass
+
+    # Transaction ID
+    transaction_id = None
+    try:
+        transaction_id = R.transaction_id()
+    except Exception:
+        pass
+
+    # AI ID from session
+    ai_id = 'claude-code'
+    try:
+        cursor = db.conn.cursor()
+        cursor.execute("SELECT ai_id FROM sessions WHERE session_id = ?", (session_id,))
+        row = cursor.fetchone()
+        if row:
+            val = row['ai_id'] if hasattr(row, 'keys') else row[0]
+            if val:
+                ai_id = val
+    except Exception:
+        pass
+
+    # Entity defaults
+    resolved_entity_type = entity_type or 'project'
+    resolved_entity_id = entity_id or (project_id if resolved_entity_type == 'project' else None)
+
+    return {
+        'session_id': session_id,
+        'project_id': project_id,
+        'goal_id': goal_id,
+        'subtask_id': subtask_id,
+        'impact': impact,
+        'subject': subject,
+        'output_format': output_format,
+        'entity_type': resolved_entity_type,
+        'entity_id': resolved_entity_id,
+        'via': via,
+        'transaction_id': transaction_id,
+        'ai_id': ai_id,
+        'db': db,
+        'is_cross_project': is_cross_project,
+    }
+
+
 def _resolve_db_for_artifact(project_id: Optional[str]):
     """Resolve the correct SessionDatabase for artifact writing.
 
@@ -1257,124 +1425,49 @@ def handle_deadend_log_command(args):
 
 
 def handle_assumption_log_command(args):
-    """Handle assumption-log command — log unverified assumptions to Qdrant."""
+    """Handle assumption-log command — log unverified assumptions."""
+    db = None
     try:
-        import os
-        import sys
         import time
-        import uuid
-        from empirica.cli.cli_utils import parse_json_safely
 
-        # AI-FIRST MODE: Check if config file provided
-        config_data = None
-        if hasattr(args, 'config') and args.config:
-            if args.config == '-':
-                config_data = parse_json_safely(sys.stdin.read())
-            else:
-                if not os.path.exists(args.config):
-                    print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
-                    sys.exit(1)
-                with open(args.config, 'r') as f:
-                    config_data = parse_json_safely(f.read())
+        config_data = _parse_config_input(args)
+        ctx = _resolve_artifact_context(config_data, args, required_fields=['assumption'])
+        db = ctx['db']
 
-        if config_data:
-            project_id = config_data.get('project_id')
-            session_id = config_data.get('session_id')
-            assumption = config_data.get('assumption')
-            confidence = config_data.get('confidence', 0.5)
-            domain = config_data.get('domain')
-            goal_id = config_data.get('goal_id')
-            output_format = 'json'
-        else:
-            project_id = getattr(args, 'project_id', None)
-            session_id = getattr(args, 'session_id', None)
-            assumption = getattr(args, 'assumption', None)
-            confidence = getattr(args, 'confidence', 0.5)
-            domain = getattr(args, 'domain', None)
-            goal_id = getattr(args, 'goal_id', None)
-            output_format = getattr(args, 'output', 'json')
-
-        # Entity scoping (cross-entity provenance)
-        entity_type, entity_id, via = _extract_entity_params(config_data, args)
-
-        # Auto-derive session_id
-        if not session_id:
-
-            session_id = R.session_id()
-
-        if not assumption:
-            print(json.dumps({"ok": False, "error": "Assumption text is required (--assumption or config)"}))
-            sys.exit(1)
-
-        # Auto-resolve project_id
-        if not project_id:
-            from empirica.data.session_database import SessionDatabase
-            db = SessionDatabase()
-            if session_id:
-                cursor = db.conn.cursor()
-                cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
-                row = cursor.fetchone()
-                if row and row['project_id']:
-                    project_id = row['project_id']
-            db.close()
-
-        if not project_id:
-            print(json.dumps({"ok": False, "error": "Could not resolve project_id"}))
-            sys.exit(1)
-
-        # Default entity scope
-        resolved_entity_type = entity_type or 'project'
-        resolved_entity_id = entity_id or (project_id if resolved_entity_type == 'project' else None)
-
-        # Auto-derive transaction_id
-        transaction_id = None
-        try:
-
-            transaction_id = R.transaction_id()
-        except Exception:
-            pass
+        # Extract assumption-specific fields
+        assumption = (config_data or {}).get('assumption') or getattr(args, 'assumption', None)
+        confidence = (config_data or {}).get('confidence', 0.5) or getattr(args, 'confidence', 0.5)
+        domain = (config_data or {}).get('domain') or getattr(args, 'domain', None)
 
         # Store to SQLite (durable)
-        from empirica.data.session_database import SessionDatabase as _AsDB
-        assumption_id = None
-        try:
-            _as_db = _AsDB()
-            assumption_id = _as_db.log_assumption(
-                project_id=project_id,
-                session_id=session_id,
-                assumption=assumption,
-                confidence=confidence,
-                domain=domain,
-                goal_id=goal_id,
-                transaction_id=transaction_id,
-                entity_type=resolved_entity_type,
-                entity_id=resolved_entity_id,
-            )
-            _as_db.close()
-        except Exception as e:
-            logger.debug(f"SQLite assumption write failed (non-fatal): {e}")
+        assumption_id = db.log_assumption(
+            project_id=ctx['project_id'],
+            session_id=ctx['session_id'],
+            assumption=assumption,
+            confidence=confidence,
+            domain=domain,
+            goal_id=ctx['goal_id'],
+            transaction_id=ctx['transaction_id'],
+            entity_type=ctx['entity_type'],
+            entity_id=ctx['entity_id'],
+        )
 
-        if not assumption_id:
-            assumption_id = str(uuid.uuid4())
-
-        # GIT NOTES: Store assumption in git notes for sync
-        ai_id = 'claude-code'
+        # GIT NOTES: Store in git notes for sync
         git_stored = False
         try:
             from empirica.core.canonical.empirica_git.assumption_store import GitAssumptionStore
-            git_store = GitAssumptionStore()
-            git_stored = git_store.store_assumption(
+            git_stored = GitAssumptionStore().store_assumption(
                 assumption_id=assumption_id,
-                project_id=project_id,
-                session_id=session_id,
-                ai_id=ai_id,
+                project_id=ctx['project_id'],
+                session_id=ctx['session_id'],
+                ai_id=ctx['ai_id'],
                 assumption=assumption,
                 confidence=confidence,
                 domain=domain,
-                goal_id=goal_id,
+                goal_id=ctx['goal_id'],
             )
-        except Exception as git_err:
-            logger.debug(f"Git notes storage failed (non-fatal): {git_err}")
+        except Exception as e:
+            logger.debug(f"Git notes storage failed (non-fatal): {e}")
 
         # Store to Qdrant (semantic search)
         embedded = False
@@ -1382,15 +1475,15 @@ def handle_assumption_log_command(args):
             from empirica.core.qdrant.vector_store import embed_assumption, _check_qdrant_available
             if _check_qdrant_available():
                 embed_assumption(
-                    project_id=project_id,
+                    project_id=ctx['project_id'],
                     assumption_id=assumption_id,
                     assumption=assumption,
                     confidence=confidence,
                     status="unverified",
-                    entity_type=resolved_entity_type,
-                    entity_id=resolved_entity_id,
-                    session_id=session_id,
-                    transaction_id=transaction_id,
+                    entity_type=ctx['entity_type'],
+                    entity_id=ctx['entity_id'],
+                    session_id=ctx['session_id'],
+                    transaction_id=ctx['transaction_id'],
                     domain=domain,
                     timestamp=time.time(),
                 )
@@ -1398,23 +1491,20 @@ def handle_assumption_log_command(args):
         except Exception as e:
             logger.debug(f"Qdrant embed failed (non-fatal): {e}")
 
-        # ENTITY CROSS-LINK: If entity is not project, create workspace.db link
-        if entity_type and entity_type != 'project' and entity_id:
+        # Entity cross-link
+        if ctx['via'] and ctx['entity_type'] != 'project' and ctx['entity_id']:
             _create_entity_artifact_link(
-                artifact_type='assumption',
-                artifact_id=assumption_id,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                discovered_via=via,
-                transaction_id=transaction_id,
+                artifact_type='assumption', artifact_id=assumption_id,
+                entity_type=ctx['entity_type'], entity_id=ctx['entity_id'],
+                discovered_via=ctx['via'], transaction_id=ctx['transaction_id'],
             )
 
         result = {
             "ok": True,
             "assumption_id": assumption_id,
-            "project_id": project_id,
-            "entity_type": resolved_entity_type,
-            "entity_id": resolved_entity_id,
+            "project_id": ctx['project_id'],
+            "entity_type": ctx['entity_type'],
+            "entity_id": ctx['entity_id'],
             "assumption": assumption,
             "confidence": confidence,
             "status": "unverified",
@@ -1423,7 +1513,7 @@ def handle_assumption_log_command(args):
             "message": "Assumption logged",
         }
 
-        if output_format == 'json':
+        if ctx['output_format'] == 'json':
             print(json.dumps(result, indent=2))
         else:
             print(f"Assumption logged: {assumption_id[:8]}...")
@@ -1436,6 +1526,9 @@ def handle_assumption_log_command(args):
     except Exception as e:
         handle_cli_error(e, "Assumption log", getattr(args, 'verbose', False))
         return None
+    finally:
+        if db is not None:
+            db.close()
 
 
 def handle_decision_log_command(args):
