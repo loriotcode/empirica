@@ -428,187 +428,57 @@ def handle_engagement_focus_command(args):
 
 def handle_finding_log_command(args):
     """Handle finding-log command - AI-first with config file support"""
+    db = None
     try:
-        import os
-        import sys
-        from empirica.data.session_database import SessionDatabase
-        from empirica.cli.utils.project_resolver import resolve_project_id
-        from empirica.cli.cli_utils import parse_json_safely
+        config_data = _parse_config_input(args)
+        ctx = _resolve_artifact_context(config_data, args, required_fields=['finding'])
+        db = ctx['db']
 
-        # AI-FIRST MODE: Check if config file provided
-        config_data = None
-        if hasattr(args, 'config') and args.config:
-            if args.config == '-':
-                config_data = parse_json_safely(sys.stdin.read())
-            else:
-                if not os.path.exists(args.config):
-                    print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
-                    sys.exit(1)
-                with open(args.config, 'r') as f:
-                    config_data = parse_json_safely(f.read())
+        # Extract finding-specific fields
+        finding = (config_data or {}).get('finding') or getattr(args, 'finding', None)
 
-        # Extract parameters from config or fall back to legacy flags
-        if config_data:
-            # AI-FIRST MODE
-            project_id = config_data.get('project_id')
-            session_id = config_data.get('session_id')  # Optional - auto-derives from transaction
-            finding = config_data.get('finding')
-            goal_id = config_data.get('goal_id')
-            subtask_id = config_data.get('subtask_id')
-            impact = config_data.get('impact')  # Optional - auto-derives if None
-            output_format = 'json'
-        else:
-            # LEGACY MODE
-            session_id = args.session_id
-            finding = args.finding
-            project_id = args.project_id
-            goal_id = getattr(args, 'goal_id', None)
-            subtask_id = getattr(args, 'subtask_id', None)
-            impact = getattr(args, 'impact', None)  # Optional - auto-derives if None
-            output_format = getattr(args, 'output', 'json')
-
-        # Entity scoping (cross-entity provenance)
-        entity_type, entity_id, via = _extract_entity_params(config_data, args)
-
-        # UNIFIED: Auto-derive session_id if not provided (works for both modes)
-        if not session_id:
-            session_id = R.session_id()
-
-        # Cross-project writes don't require an active transaction —
-        # use current session for provenance, or allow sessionless write
-        is_cross_project = False
-        if project_id:
-            try:
-                current_path = R.project_path()
-                current_project_id = R.project_id_from_db(current_path) if current_path else None
-                is_cross_project = current_project_id is None or project_id != current_project_id
-            except Exception:
-                is_cross_project = True  # Can't resolve current → assume cross-project
-        if not session_id and is_cross_project:
-            session_id = "cross-project"  # Synthetic provenance marker
-
-        # Validate required fields
-        if not session_id or not finding:
-            print(json.dumps({
-                "ok": False,
-                "error": "No active transaction and --session-id not provided",
-                "hint": "Either run PREFLIGHT first, or provide --session-id explicitly"
-            }))
-            sys.exit(1)
-
-        # Auto-detect subject from current directory
-        from empirica.config.project_config_loader import get_current_subject
-        subject = config_data.get('subject') if config_data else getattr(args, 'subject', None)
-        if subject is None:
-            subject = get_current_subject()  # Auto-detect from directory
-
-        # Show project context (quiet mode - single line)
-        if output_format != 'json':
+        # Show project context (quiet mode)
+        if ctx['output_format'] != 'json':
             from empirica.cli.cli_utils import print_project_context
             print_project_context(quiet=True)
 
-        # Cross-project artifact writing: if --project-id is a name, resolve target DB
-        db, project_id = _resolve_db_for_artifact(project_id)
-
-        # Auto-resolve project_id if not provided (from session record)
-        if not project_id:
-            cursor = db.conn.cursor()
-            cursor.execute("""
-                SELECT project_id FROM sessions WHERE session_id = ?
-            """, (session_id,))
-            row = cursor.fetchone()
-            if row and row['project_id']:
-                project_id = row['project_id']
-                logger.info(f"Auto-resolved project_id from session: {project_id[:8]}...")
-            else:
-                # Fallback: try to resolve from unified context (NOT CWD)
-                try:
-        
-                    context = R.context()
-                    project_path = context.get('project_path')
-                    if project_path:
-                        import yaml
-                        from pathlib import Path
-                        project_yaml = Path(project_path) / '.empirica' / 'project.yaml'
-                        if project_yaml.exists():
-                            with open(project_yaml) as f:
-                                project_config = yaml.safe_load(f)
-                                project_id = project_config.get('project_id')
-                                if project_id:
-                                    logger.info(f"Auto-resolved project_id from context: {project_id[:8]}...")
-                except Exception:
-                    pass
-
-        # Resolve project name to UUID if still not resolved
-        if project_id:
-            project_id = resolve_project_id(project_id, db)
-        else:
-            # Last resort: create a generic project ID based on session if no project context available
-            import hashlib
-            project_id = hashlib.md5(f"session-{session_id}".encode()).hexdigest()
-            logger.warning(f"Using fallback project_id derived from session: {project_id[:8]}...")
-
-        # At this point, project_id should be resolved
-
-        # SESSION-BASED AUTO-LINKING: If goal_id not provided, check for active goal in session
-        if not goal_id:
-            cursor = db.conn.cursor()
-            cursor.execute("""
-                SELECT id FROM goals
-                WHERE session_id = ? AND is_completed = 0
-                ORDER BY created_timestamp DESC
-                LIMIT 1
-            """, (session_id,))
-            active_goal = cursor.fetchone()
-            if active_goal:
-                goal_id = active_goal['id']
-                # Note: subtask_id remains None unless explicitly provided
-
-        # Auto-derive active transaction_id
-        transaction_id = None
-        try:
-
-            transaction_id = R.transaction_id()
-        except Exception:
-            pass
-
-        # PROJECT-SCOPED: All findings are project-scoped (session_id preserved for provenance)
+        # Store to SQLite (durable)
         finding_id = db.log_finding(
-            project_id=project_id,
-            session_id=session_id,
+            project_id=ctx['project_id'],
+            session_id=ctx['session_id'],
             finding=finding,
-            goal_id=goal_id,
-            subtask_id=subtask_id,
-            subject=subject,
-            impact=impact,
-            transaction_id=transaction_id,
-            entity_type=entity_type,
-            entity_id=entity_id
+            goal_id=ctx['goal_id'],
+            subtask_id=ctx['subtask_id'],
+            subject=ctx['subject'],
+            impact=ctx['impact'],
+            transaction_id=ctx['transaction_id'],
+            entity_type=ctx['entity_type'],
+            entity_id=ctx['entity_id']
         )
 
-        # ENTITY CROSS-LINK: If entity is not project, create workspace.db link
-        if entity_type and entity_type != 'project' and entity_id:
+        # Entity cross-link
+        if ctx['via'] and ctx['entity_type'] != 'project' and ctx['entity_id']:
             _create_entity_artifact_link(
-                artifact_type='finding',
-                artifact_id=finding_id,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                discovered_via=via,
-                transaction_id=transaction_id,
+                artifact_type='finding', artifact_id=finding_id,
+                entity_type=ctx['entity_type'], entity_id=ctx['entity_id'],
+                discovered_via=ctx['via'], transaction_id=ctx['transaction_id'],
             )
 
-        # Get ai_id from session for git notes
-        ai_id = 'claude-code'  # Default
-        try:
-            cursor = db.conn.cursor()
-            cursor.execute("SELECT ai_id FROM sessions WHERE session_id = ?", (session_id,))
-            row = cursor.fetchone()
-            if row and row['ai_id']:
-                ai_id = row['ai_id']
-        except Exception:
-            pass
+        # Aliases for readability in unique logic below
+        project_id = ctx['project_id']
+        session_id = ctx['session_id']
+        ai_id = ctx['ai_id']
+        goal_id = ctx['goal_id']
+        subtask_id = ctx['subtask_id']
+        subject = ctx['subject']
+        impact = ctx['impact']
+        output_format = ctx['output_format']
+        entity_type = ctx['entity_type']
+        entity_id = ctx['entity_id']
+        via = ctx['via']
 
         db.close()
+        db = None  # Prevent double-close in finally
 
         # GIT NOTES: Store finding in git notes for sync (canonical source)
         git_stored = False
@@ -782,180 +652,64 @@ def handle_finding_log_command(args):
     except Exception as e:
         handle_cli_error(e, "Finding log", getattr(args, 'verbose', False))
         return None
+    finally:
+        if db is not None:
+            db.close()
 
 
 def handle_unknown_log_command(args):
     """Handle unknown-log command - AI-first with config file support"""
+    db = None
     try:
-        import os
-        import sys
-        from empirica.data.session_database import SessionDatabase
-        from empirica.cli.utils.project_resolver import resolve_project_id
-        from empirica.cli.cli_utils import parse_json_safely
+        config_data = _parse_config_input(args)
+        ctx = _resolve_artifact_context(config_data, args, required_fields=['unknown'])
+        db = ctx['db']
 
-        # AI-FIRST MODE: Check if config file provided
-        config_data = None
-        if hasattr(args, 'config') and args.config:
-            if args.config == '-':
-                config_data = parse_json_safely(sys.stdin.read())
-            else:
-                if not os.path.exists(args.config):
-                    print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
-                    sys.exit(1)
-                with open(args.config, 'r') as f:
-                    config_data = parse_json_safely(f.read())
+        # Extract unknown-specific fields
+        unknown = (config_data or {}).get('unknown') or getattr(args, 'unknown', None)
 
-        # Extract parameters from config or fall back to legacy flags
-        if config_data:
-            project_id = config_data.get('project_id')
-            session_id = config_data.get('session_id')
-            unknown = config_data.get('unknown')
-            goal_id = config_data.get('goal_id')
-            subtask_id = config_data.get('subtask_id')
-            impact = config_data.get('impact')  # Optional - auto-derives if None
-            output_format = 'json'
-        else:
-            session_id = args.session_id
-            unknown = args.unknown
-            project_id = args.project_id
-            goal_id = getattr(args, 'goal_id', None)
-            subtask_id = getattr(args, 'subtask_id', None)
-            impact = getattr(args, 'impact', None)  # Optional - auto-derives if None
-            output_format = getattr(args, 'output', 'json')
-
-        # Entity scoping (cross-entity provenance)
-        entity_type, entity_id, via = _extract_entity_params(config_data, args)
-
-        # UNIFIED: Auto-derive session_id if not provided (works for both modes)
-        if not session_id:
-            session_id = R.session_id()
-
-        # Cross-project writes don't require an active transaction
-        is_cross_project = bool(project_id) and not _is_uuid(project_id)
-        if not session_id and is_cross_project:
-            session_id = "cross-project"
-
-        # Validate required fields
-        if not session_id or not unknown:
-            print(json.dumps({
-                "ok": False,
-                "error": "No active transaction and --session-id not provided",
-                "hint": "Either run PREFLIGHT first, or provide --session-id explicitly"
-            }))
-            sys.exit(1)
-
-        # Auto-detect subject from current directory
-        from empirica.config.project_config_loader import get_current_subject
-        subject = config_data.get('subject') if config_data else getattr(args, 'subject', None)
-        if subject is None:
-            subject = get_current_subject()  # Auto-detect from directory
-
-        # Show project context (quiet mode - single line)
-        if output_format != 'json':
+        # Show project context (quiet mode)
+        if ctx['output_format'] != 'json':
             from empirica.cli.cli_utils import print_project_context
             print_project_context(quiet=True)
 
-        # Cross-project artifact writing: if --project-id is a name, resolve target DB
-        db, project_id = _resolve_db_for_artifact(project_id)
-
-        # Auto-resolve project_id if not provided (from session record)
-        if not project_id:
-            cursor = db.conn.cursor()
-            cursor.execute("""
-                SELECT project_id FROM sessions WHERE session_id = ?
-            """, (session_id,))
-            row = cursor.fetchone()
-            if row and row['project_id']:
-                project_id = row['project_id']
-                logger.info(f"Auto-resolved project_id from session: {project_id[:8]}...")
-            else:
-                # Fallback: try to resolve from unified context (NOT CWD)
-                try:
-        
-                    context = R.context()
-                    project_path = context.get('project_path')
-                    if project_path:
-                        import yaml
-                        from pathlib import Path
-                        project_yaml = Path(project_path) / '.empirica' / 'project.yaml'
-                        if project_yaml.exists():
-                            with open(project_yaml) as f:
-                                project_config = yaml.safe_load(f)
-                                project_id = project_config.get('project_id')
-                                if project_id:
-                                    logger.info(f"Auto-resolved project_id from context: {project_id[:8]}...")
-                except Exception:
-                    pass
-
-        # Resolve project name to UUID if still not resolved
-        if project_id:
-            project_id = resolve_project_id(project_id, db)
-        else:
-            # Last resort: create a generic project ID based on session if no project context available
-            import hashlib
-            project_id = hashlib.md5(f"session-{session_id}".encode()).hexdigest()
-            logger.warning(f"Using fallback project_id derived from session: {project_id[:8]}...")
-
-        # At this point, project_id should be resolved
-
-        # SESSION-BASED AUTO-LINKING: If goal_id not provided, check for active goal in session
-        if not goal_id:
-            cursor = db.conn.cursor()
-            cursor.execute("""
-                SELECT id FROM goals
-                WHERE session_id = ? AND is_completed = 0
-                ORDER BY created_timestamp DESC
-                LIMIT 1
-            """, (session_id,))
-            active_goal = cursor.fetchone()
-            if active_goal:
-                goal_id = active_goal['id']
-
-        # Auto-derive active transaction_id
-        transaction_id = None
-        try:
-
-            transaction_id = R.transaction_id()
-        except Exception:
-            pass
-
-        # PROJECT-SCOPED: All unknowns are project-scoped (session_id preserved for provenance)
+        # Store to SQLite (durable)
         unknown_id = db.log_unknown(
-            project_id=project_id,
-            session_id=session_id,
+            project_id=ctx['project_id'],
+            session_id=ctx['session_id'],
             unknown=unknown,
-            goal_id=goal_id,
-            subtask_id=subtask_id,
-            subject=subject,
-            impact=impact,
-            transaction_id=transaction_id,
-            entity_type=entity_type,
-            entity_id=entity_id
+            goal_id=ctx['goal_id'],
+            subtask_id=ctx['subtask_id'],
+            subject=ctx['subject'],
+            impact=ctx['impact'],
+            transaction_id=ctx['transaction_id'],
+            entity_type=ctx['entity_type'],
+            entity_id=ctx['entity_id']
         )
 
-        # ENTITY CROSS-LINK: If entity is not project, create workspace.db link
-        if entity_type and entity_type != 'project' and entity_id:
+        # Entity cross-link
+        if ctx['via'] and ctx['entity_type'] != 'project' and ctx['entity_id']:
             _create_entity_artifact_link(
                 artifact_type='unknown',
                 artifact_id=unknown_id,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                discovered_via=via,
-                transaction_id=transaction_id,
+                entity_type=ctx['entity_type'],
+                entity_id=ctx['entity_id'],
+                discovered_via=ctx['via'],
+                transaction_id=ctx['transaction_id'],
             )
 
-        # Get ai_id from session for git notes
-        ai_id = 'claude-code'  # Default
-        try:
-            cursor = db.conn.cursor()
-            cursor.execute("SELECT ai_id FROM sessions WHERE session_id = ?", (session_id,))
-            row = cursor.fetchone()
-            if row and row['ai_id']:
-                ai_id = row['ai_id']
-        except Exception:
-            pass
+        # Aliases for readability in unique logic below
+        project_id = ctx['project_id']
+        session_id = ctx['session_id']
+        ai_id = ctx['ai_id']
+        goal_id = ctx['goal_id']
+        subtask_id = ctx['subtask_id']
+        subject = ctx['subject']
+        impact = ctx['impact']
+        output_format = ctx['output_format']
 
         db.close()
+        db = None  # Prevent double-close in finally
 
         # GIT NOTES: Store unknown in git notes for sync (canonical source)
         git_stored = False
@@ -1006,6 +760,9 @@ def handle_unknown_log_command(args):
             "unknown_id": unknown_id,
             "project_id": project_id if project_id else None,
             "session_id": session_id,
+            "entity_type": ctx['entity_type'],
+            "entity_id": ctx['entity_id'],
+            "via": ctx['via'],
             "git_stored": git_stored,  # Git notes for sync
             "embedded": embedded,
             "message": "Unknown logged to project scope"
@@ -1028,6 +785,9 @@ def handle_unknown_log_command(args):
     except Exception as e:
         handle_cli_error(e, "Unknown log", getattr(args, 'verbose', False))
         return None
+    finally:
+        if db is not None:
+            db.close()
 
 
 def handle_unknown_resolve_command(args):
@@ -1208,174 +968,52 @@ def handle_unknown_list_command(args):
 
 def handle_deadend_log_command(args):
     """Handle deadend-log command - AI-first with config file support"""
+    db = None
     try:
-        import os
-        import sys
-        from empirica.data.session_database import SessionDatabase
-        from empirica.cli.utils.project_resolver import resolve_project_id
-        from empirica.cli.cli_utils import parse_json_safely
+        config_data = _parse_config_input(args)
+        ctx = _resolve_artifact_context(config_data, args, required_fields=['approach', 'why_failed'])
+        db = ctx['db']
 
-        # AI-FIRST MODE: Check if config file provided
-        config_data = None
-        if hasattr(args, 'config') and args.config:
-            if args.config == '-':
-                config_data = parse_json_safely(sys.stdin.read())
-            else:
-                if not os.path.exists(args.config):
-                    print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
-                    sys.exit(1)
-                with open(args.config, 'r') as f:
-                    config_data = parse_json_safely(f.read())
+        # Extract deadend-specific fields
+        approach = (config_data or {}).get('approach') or getattr(args, 'approach', None)
+        why_failed = (config_data or {}).get('why_failed') or getattr(args, 'why_failed', None)
 
-        # Extract parameters from config or fall back to legacy flags
-        if config_data:
-            project_id = config_data.get('project_id')
-            session_id = config_data.get('session_id')  # Optional - auto-derives from transaction
-            approach = config_data.get('approach')
-            why_failed = config_data.get('why_failed')
-            goal_id = config_data.get('goal_id')
-            subtask_id = config_data.get('subtask_id')
-            impact = config_data.get('impact')  # Optional - auto-derives if None
-            output_format = 'json'
-        else:
-            session_id = args.session_id
-            approach = args.approach
-            why_failed = args.why_failed
-            project_id = args.project_id
-            goal_id = getattr(args, 'goal_id', None)
-            subtask_id = getattr(args, 'subtask_id', None)
-            impact = getattr(args, 'impact', None)  # Optional - auto-derives if None
-            output_format = getattr(args, 'output', 'json')
-
-        # Entity scoping (cross-entity provenance)
-        entity_type, entity_id, via = _extract_entity_params(config_data, args)
-
-        # UNIFIED: Auto-derive session_id if not provided (works for both modes)
-        if not session_id:
-            session_id = R.session_id()
-
-        # Cross-project writes don't require an active transaction
-        is_cross_project = bool(project_id) and not _is_uuid(project_id)
-        if not session_id and is_cross_project:
-            session_id = "cross-project"
-
-        # Validate required fields
-        if not session_id or not approach or not why_failed:
-            print(json.dumps({
-                "ok": False,
-                "error": "No active transaction and --session-id not provided",
-                "hint": "Either run PREFLIGHT first, or provide --session-id explicitly"
-            }))
-            sys.exit(1)
-
-        # Auto-detect subject from current directory
-        from empirica.config.project_config_loader import get_current_subject
-        subject = config_data.get('subject') if config_data else getattr(args, 'subject', None)
-        if subject is None:
-            subject = get_current_subject()  # Auto-detect from directory
-
-        db = SessionDatabase()
-
-        # Auto-resolve project_id if not provided
-        if not project_id:
-            # Try to get project from session record
-            cursor = db.conn.cursor()
-            cursor.execute("""
-                SELECT project_id FROM sessions WHERE session_id = ?
-            """, (session_id,))
-            row = cursor.fetchone()
-            if row and row['project_id']:
-                project_id = row['project_id']
-                logger.info(f"Auto-resolved project_id from session: {project_id[:8]}...")
-            else:
-                # Fallback: try to resolve from unified context (NOT CWD)
-                try:
-        
-                    context = R.context()
-                    project_path = context.get('project_path')
-                    if project_path:
-                        import yaml
-                        from pathlib import Path
-                        project_yaml = Path(project_path) / '.empirica' / 'project.yaml'
-                        if project_yaml.exists():
-                            with open(project_yaml) as f:
-                                project_config = yaml.safe_load(f)
-                                project_id = project_config.get('project_id')
-                                if project_id:
-                                    logger.info(f"Auto-resolved project_id from context: {project_id[:8]}...")
-                except Exception:
-                    pass
-
-        # Resolve project name to UUID if still not resolved
-        if project_id:
-            project_id = resolve_project_id(project_id, db)
-        else:
-            # Last resort: create a generic project ID based on session if no project context available
-            import hashlib
-            project_id = hashlib.md5(f"session-{session_id}".encode()).hexdigest()
-            logger.warning(f"Using fallback project_id derived from session: {project_id[:8]}...")
-
-        # At this point, project_id should be resolved
-
-        # SESSION-BASED AUTO-LINKING: If goal_id not provided, check for active goal in session
-        if not goal_id:
-            cursor = db.conn.cursor()
-            cursor.execute("""
-                SELECT id FROM goals
-                WHERE session_id = ? AND is_completed = 0
-                ORDER BY created_timestamp DESC
-                LIMIT 1
-            """, (session_id,))
-            active_goal = cursor.fetchone()
-            if active_goal:
-                goal_id = active_goal['id']
-
-        # Auto-derive active transaction_id
-        transaction_id = None
-        try:
-
-            transaction_id = R.transaction_id()
-        except Exception:
-            pass
-
-        # PROJECT-SCOPED: All dead ends are project-scoped (session_id preserved for provenance)
+        # Store to SQLite (durable)
         dead_end_id = db.log_dead_end(
-            project_id=project_id,
-            session_id=session_id,
+            project_id=ctx['project_id'],
+            session_id=ctx['session_id'],
             approach=approach,
             why_failed=why_failed,
-            goal_id=goal_id,
-            subtask_id=subtask_id,
-            subject=subject,
-            impact=impact,
-            transaction_id=transaction_id,
-            entity_type=entity_type,
-            entity_id=entity_id
+            goal_id=ctx['goal_id'],
+            subtask_id=ctx['subtask_id'],
+            subject=ctx['subject'],
+            impact=ctx['impact'],
+            transaction_id=ctx['transaction_id'],
+            entity_type=ctx['entity_type'],
+            entity_id=ctx['entity_id']
         )
 
-        # ENTITY CROSS-LINK: If entity is not project, create workspace.db link
-        if entity_type and entity_type != 'project' and entity_id:
+        # Entity cross-link
+        if ctx['via'] and ctx['entity_type'] != 'project' and ctx['entity_id']:
             _create_entity_artifact_link(
                 artifact_type='dead_end',
                 artifact_id=dead_end_id,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                discovered_via=via,
-                transaction_id=transaction_id,
+                entity_type=ctx['entity_type'],
+                entity_id=ctx['entity_id'],
+                discovered_via=ctx['via'],
+                transaction_id=ctx['transaction_id'],
             )
 
-        # Get ai_id from session for git notes
-        ai_id = 'claude-code'  # Default
-        try:
-            cursor = db.conn.cursor()
-            cursor.execute("SELECT ai_id FROM sessions WHERE session_id = ?", (session_id,))
-            row = cursor.fetchone()
-            if row and row['ai_id']:
-                ai_id = row['ai_id']
-        except Exception:
-            pass
+        # Aliases for readability in unique logic below
+        project_id = ctx['project_id']
+        session_id = ctx['session_id']
+        ai_id = ctx['ai_id']
+        goal_id = ctx['goal_id']
+        subtask_id = ctx['subtask_id']
+        output_format = ctx['output_format']
 
         db.close()
+        db = None  # Prevent double-close in finally
 
         # GIT NOTES: Store dead end in git notes for sync (canonical source)
         git_stored = False
@@ -1403,6 +1041,10 @@ def handle_deadend_log_command(args):
             "ok": True,
             "dead_end_id": dead_end_id,
             "project_id": project_id if project_id else None,
+            "session_id": session_id,
+            "entity_type": ctx['entity_type'],
+            "entity_id": ctx['entity_id'],
+            "via": ctx['via'],
             "git_stored": git_stored,
             "message": "Dead end logged to project scope"
         }
@@ -1422,6 +1064,9 @@ def handle_deadend_log_command(args):
     except Exception as e:
         handle_cli_error(e, "Dead end log", getattr(args, 'verbose', False))
         return None
+    finally:
+        if db is not None:
+            db.close()
 
 
 def handle_assumption_log_command(args):
@@ -1532,66 +1177,26 @@ def handle_assumption_log_command(args):
 
 
 def handle_decision_log_command(args):
-    """Handle decision-log command — log decisions with alternatives to Qdrant."""
+    """Handle decision-log command — log decisions with alternatives."""
+    db = None
     try:
-        import os
-        import sys
         import time
-        import uuid
-        from empirica.cli.cli_utils import parse_json_safely
 
-        # AI-FIRST MODE: Check if config file provided
-        config_data = None
-        if hasattr(args, 'config') and args.config:
-            if args.config == '-':
-                config_data = parse_json_safely(sys.stdin.read())
-            else:
-                if not os.path.exists(args.config):
-                    print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
-                    sys.exit(1)
-                with open(args.config, 'r') as f:
-                    config_data = parse_json_safely(f.read())
+        config_data = _parse_config_input(args)
+        ctx = _resolve_artifact_context(config_data, args, required_fields=['choice'])
+        db = ctx['db']
 
-        if config_data:
-            project_id = config_data.get('project_id')
-            session_id = config_data.get('session_id')
-            choice = config_data.get('choice')
-            alternatives = config_data.get('alternatives', '')
-            rationale = config_data.get('rationale', '')
-            confidence = config_data.get('confidence', 0.7)
-            reversibility = config_data.get('reversibility', 'exploratory')
-            domain = config_data.get('domain')
-            goal_id = config_data.get('goal_id')
-            output_format = 'json'
-        else:
-            project_id = getattr(args, 'project_id', None)
-            session_id = getattr(args, 'session_id', None)
-            choice = getattr(args, 'choice', None)
-            alternatives = getattr(args, 'alternatives', '')
-            rationale = getattr(args, 'rationale', '')
-            confidence = getattr(args, 'confidence', 0.7)
-            reversibility = getattr(args, 'reversibility', 'exploratory')
-            domain = getattr(args, 'domain', None)
-            goal_id = getattr(args, 'goal_id', None)
-            output_format = getattr(args, 'output', 'json')
+        # Extract decision-specific fields
+        choice = (config_data or {}).get('choice') or getattr(args, 'choice', None)
+        rationale = (config_data or {}).get('rationale', '') or getattr(args, 'rationale', '')
+        alternatives = (config_data or {}).get('alternatives', '') or getattr(args, 'alternatives', '')
+        confidence = (config_data or {}).get('confidence', 0.7) if config_data else getattr(args, 'confidence', 0.7)
+        reversibility = (config_data or {}).get('reversibility', 'exploratory') or getattr(args, 'reversibility', 'exploratory')
 
-        # Entity scoping (cross-entity provenance)
-        entity_type, entity_id, via = _extract_entity_params(config_data, args)
-
-        # Auto-derive session_id
-        if not session_id:
-
-            session_id = R.session_id()
-
-        if not choice:
-            print(json.dumps({"ok": False, "error": "Choice text is required (--choice or config)"}))
-            sys.exit(1)
-
-        # Parse alternatives if comma-separated string
+        # Parse alternatives (comma-separated or JSON list)
         if isinstance(alternatives, str) and alternatives:
             try:
-                import json as json_mod
-                alternatives_list = json_mod.loads(alternatives)
+                alternatives_list = json.loads(alternatives)
             except (json.JSONDecodeError, ValueError):
                 alternatives_list = [a.strip() for a in alternatives.split(',') if a.strip()]
         elif isinstance(alternatives, list):
@@ -1599,130 +1204,88 @@ def handle_decision_log_command(args):
         else:
             alternatives_list = []
 
-        # Auto-resolve project_id
-        if not project_id:
-            from empirica.data.session_database import SessionDatabase
-            db = SessionDatabase()
-            if session_id:
-                cursor = db.conn.cursor()
-                cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
-                row = cursor.fetchone()
-                if row and row['project_id']:
-                    project_id = row['project_id']
-            db.close()
-
-        if not project_id:
-            print(json.dumps({"ok": False, "error": "Could not resolve project_id"}))
-            sys.exit(1)
-
-        # Default entity scope
-        resolved_entity_type = entity_type or 'project'
-        resolved_entity_id = entity_id or (project_id if resolved_entity_type == 'project' else None)
-
-        # Auto-derive transaction_id
-        transaction_id = None
-        try:
-
-            transaction_id = R.transaction_id()
-        except Exception:
-            pass
-
         # Store to SQLite (durable)
-        from empirica.data.session_database import SessionDatabase as _DecDB
-        decision_id = None
-        try:
-            _dec_db = _DecDB()
-            decision_id = _dec_db.log_decision(
-                project_id=project_id,
-                session_id=session_id,
-                choice=choice,
-                rationale=rationale,
-                alternatives=json.dumps(alternatives_list) if alternatives_list else None,
-                confidence=confidence,
-                reversibility=reversibility,
-                goal_id=goal_id,
-                transaction_id=transaction_id,
-                entity_type=resolved_entity_type,
-                entity_id=resolved_entity_id,
-            )
-            _dec_db.close()
-        except Exception as e:
-            logger.debug(f"SQLite decision write failed (non-fatal): {e}")
+        decision_id = db.log_decision(
+            project_id=ctx['project_id'],
+            session_id=ctx['session_id'],
+            choice=choice,
+            rationale=rationale,
+            alternatives=json.dumps(alternatives_list) if alternatives_list else None,
+            confidence=confidence,
+            reversibility=reversibility,
+            goal_id=ctx['goal_id'],
+            transaction_id=ctx['transaction_id'],
+            entity_type=ctx['entity_type'],
+            entity_id=ctx['entity_id'],
+        )
 
-        if not decision_id:
-            decision_id = str(uuid.uuid4())
-
-        # GIT NOTES: Store decision in git notes for sync
-        ai_id = 'claude-code'
+        # GIT NOTES
         git_stored = False
         try:
             from empirica.core.canonical.empirica_git.decision_store import GitDecisionStore
-            git_store = GitDecisionStore()
-            git_stored = git_store.store_decision(
+            git_stored = GitDecisionStore().store_decision(
                 decision_id=decision_id,
-                project_id=project_id,
-                session_id=session_id,
-                ai_id=ai_id,
+                project_id=ctx['project_id'],
+                session_id=ctx['session_id'],
+                ai_id=ctx['ai_id'],
                 choice=choice,
                 rationale=rationale,
                 alternatives=json.dumps(alternatives_list) if alternatives_list else None,
                 confidence=confidence,
                 reversibility=reversibility,
-                goal_id=goal_id,
+                goal_id=ctx['goal_id'],
             )
-        except Exception as git_err:
-            logger.debug(f"Git notes storage failed (non-fatal): {git_err}")
+        except Exception as e:
+            logger.debug(f"Git notes storage failed (non-fatal): {e}")
 
-        # Store to Qdrant (semantic search)
+        # Qdrant (semantic search)
         embedded = False
         try:
             from empirica.core.qdrant.vector_store import embed_decision, _check_qdrant_available
             if _check_qdrant_available():
                 embed_decision(
-                    project_id=project_id,
+                    project_id=ctx['project_id'],
                     decision_id=decision_id,
                     choice=choice,
                     alternatives=json.dumps(alternatives_list),
                     rationale=rationale,
                     confidence_at_decision=confidence,
                     reversibility=reversibility,
-                    entity_type=resolved_entity_type,
-                    entity_id=resolved_entity_id,
-                    session_id=session_id,
-                    transaction_id=transaction_id,
+                    entity_type=ctx['entity_type'],
+                    entity_id=ctx['entity_id'],
+                    session_id=ctx['session_id'],
+                    transaction_id=ctx['transaction_id'],
                     timestamp=time.time(),
                 )
                 embedded = True
         except Exception as e:
             logger.debug(f"Qdrant embed failed (non-fatal): {e}")
 
-        # ENTITY CROSS-LINK: If entity is not project, create workspace.db link
-        if entity_type and entity_type != 'project' and entity_id:
+        # Entity cross-link
+        if ctx['via'] and ctx['entity_type'] != 'project' and ctx['entity_id']:
             _create_entity_artifact_link(
-                artifact_type='decision',
-                artifact_id=decision_id,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                discovered_via=via,
-                transaction_id=transaction_id,
+                artifact_type='decision', artifact_id=decision_id,
+                entity_type=ctx['entity_type'], entity_id=ctx['entity_id'],
+                discovered_via=ctx['via'], transaction_id=ctx['transaction_id'],
             )
 
         result = {
             "ok": True,
             "decision_id": decision_id,
-            "project_id": project_id,
-            "entity_type": resolved_entity_type,
-            "entity_id": resolved_entity_id,
+            "project_id": ctx['project_id'],
+            "entity_type": ctx['entity_type'],
+            "entity_id": ctx['entity_id'],
             "choice": choice,
             "alternatives": alternatives_list,
             "rationale": rationale,
             "confidence": confidence,
             "reversibility": reversibility,
             "embedded": embedded,
-            "message": "Decision logged" + (" (Qdrant)" if embedded else " (Qdrant unavailable)"),
+            "git_stored": git_stored,
+            "message": "Decision logged",
         }
 
-        if output_format == 'json':
+        if ctx['output_format'] == 'json':
             print(json.dumps(result, indent=2))
         else:
             print(f"Decision logged: {decision_id[:8]}...")
@@ -1736,6 +1299,10 @@ def handle_decision_log_command(args):
 
     except Exception as e:
         handle_cli_error(e, "Decision log", getattr(args, 'verbose', False))
+        return None
+    finally:
+        if db is not None:
+            db.close()
         return None
 
 
