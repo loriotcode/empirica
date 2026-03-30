@@ -930,6 +930,22 @@ def format_deltas(deltas: dict) -> str:
         return f"{Colors.WHITE}△{Colors.RESET}"
 
 
+def format_context_window(stdin_context: dict) -> str:
+    """Format context window usage from Claude Code stdin data."""
+    ctx = stdin_context.get('context_window', {})
+    used_pct = ctx.get('used_percentage', 0)
+    if not used_pct:
+        return ""
+    # Color: green < 50%, yellow 50-80%, red > 80%
+    if used_pct >= 80:
+        color = Colors.RED
+    elif used_pct >= 50:
+        color = Colors.YELLOW
+    else:
+        color = Colors.GREEN
+    return f"{color}{int(used_pct)}%ctx{Colors.RESET}"
+
+
 def format_statusline(
     session: dict,
     phase: str,
@@ -941,6 +957,7 @@ def format_statusline(
     open_counts: Optional[dict] = None,
     project_name: Optional[str] = None,
     threshold_info: Optional[tuple] = None,
+    stdin_context: Optional[dict] = None,
 ) -> str:
     """Format the statusline based on mode."""
 
@@ -999,6 +1016,12 @@ def format_statusline(
             delta_str = format_deltas(deltas)
             if delta_str:
                 parts.append(f"Δ {delta_str}")
+
+        # Context window usage (from Claude Code stdin)
+        if stdin_context:
+            ctx_str = format_context_window(stdin_context)
+            if ctx_str:
+                parts.append(ctx_str)
 
         return ' │ '.join(parts)
 
@@ -1416,6 +1439,7 @@ def main():
             session, phase, vectors, deltas, mode,
             gate_decision=gate_decision, goal=goal, open_counts=open_counts,
             project_name=project_name, threshold_info=threshold_info,
+            stdin_context=stdin_context,
         )
         print(output)
 
