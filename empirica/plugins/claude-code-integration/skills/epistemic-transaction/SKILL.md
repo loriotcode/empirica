@@ -371,6 +371,15 @@ empirica decision-log --choice "Use middleware factory pattern" \
 
 ### 4e. POSTFLIGHT — Close the Measurement Window
 
+**BEFORE running POSTFLIGHT, always:**
+1. Log all remaining epistemic artifacts (findings, unknowns, decisions, dead-ends, mistakes)
+2. Resolve any unknowns that were answered during the transaction
+3. Complete any goals that were finished
+4. Ask the user: "Any artifacts to log before I close the transaction?"
+
+POSTFLIGHT without artifact sweep = lost data. The measurement window closes
+and unlogged work becomes invisible to calibration. Always log first, then close.
+
 ```bash
 empirica postflight-submit - << 'EOF'
 {
