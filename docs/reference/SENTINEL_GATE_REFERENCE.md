@@ -203,9 +203,11 @@ The Sentinel evaluates **raw (uncorrected) vectors** from PREFLIGHT/CHECK. Calib
 
 ### Tool Count Tracking
 
-Every `PreToolUse` event increments `tool_call_count` in the active transaction file. Counts are split:
+Every `PreToolUse` event increments `tool_call_count` in the **hook counters file** (`hook_counters_{suffix}.json`), separate from the transaction lifecycle file. Counts are split:
 - `noetic_tool_calls`: Tools classified as noetic (NOETIC_TOOLS, safe Bash, plan files)
 - `praxic_tool_calls`: Everything else
+
+The hook counters file is hook-owned (sentinel, context-shift-tracker, subagent-stop write to it). POSTFLIGHT reads the counters, then deletes the file. This separation prevents race conditions between hooks and POSTFLIGHT on the transaction status field.
 
 Phase-split counts feed into phase-weighted calibration at POSTFLIGHT.
 

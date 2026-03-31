@@ -93,12 +93,15 @@ backward-compatible aliases but all callers have been migrated to `InstanceResol
 
 ### 5. Transaction Files — PER-PROJECT
 
-**Location:** `{project}/.empirica/active_transaction_{suffix}.json`
+**Location:** `{project}/.empirica/active_transaction_{suffix}.json` (lifecycle)
+**Also:** `{project}/.empirica/hook_counters_{suffix}.json` (hook counters)
 **Key:** Sanitized instance suffix (`_x11_77639996`, `_tmux_0`)
-**Written by:** PREFLIGHT (opens), POSTFLIGHT (closes)
+**Written by:** Transaction file: PREFLIGHT (opens), POSTFLIGHT (closes). Hook counters: sentinel-gate, context-shift-tracker, subagent-stop (read by POSTFLIGHT, then deleted).
 
 **Suffix sanitization:** `:` → `_`, `%` removed. e.g. `x11:77639996` → `_x11_77639996`.
 All readers and writers use `_get_instance_suffix()` for consistency.
+
+**Separation rationale (v1.7.4):** Hooks doing read-modify-write on the transaction file could race with POSTFLIGHT's status=closed write. Splitting into two files gives single-writer semantics per file.
 
 ---
 

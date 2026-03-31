@@ -472,6 +472,28 @@ def clear_active_transaction(claude_session_id: str = None) -> None
 
 ---
 
+### Hook Counters API (v1.7.4+)
+
+Hook counters are stored separately from the transaction lifecycle to prevent race conditions. Hooks (sentinel, context-shift-tracker, subagent-stop) write counters here; POSTFLIGHT reads then deletes.
+
+**File location:** `{project_path}/.empirica/hook_counters{suffix}.json`
+
+#### `read_hook_counters(claude_session_id=None)`
+
+Read the hook counters file. Returns dict or None.
+
+#### `write_hook_counters(data, claude_session_id=None)`
+
+Atomically write the hook counters file. Returns True on success.
+
+#### `clear_hook_counters(claude_session_id=None)`
+
+Delete the hook counters file (called by POSTFLIGHT after reading).
+
+**InstanceResolver methods:** `R.counters_read()`, `R.counters_write(data)`, `R.counters_clear()`
+
+---
+
 ## Project Identifier Resolution
 
 ### `resolve_project_identifier(identifier)`
@@ -553,7 +575,8 @@ Also mirrored in `plugins/.../lib/project_resolver.py` for hooks that can't impo
 | `~/.empirica/tty_sessions/{tty_key}.json` | TTY → session mapping | TTY device |
 | `~/.empirica/instance_projects/{instance_id}.json` | Instance → project mapping | instance_id |
 | `~/.empirica/active_work_{claude_session_id}.json` | Claude session → Empirica context | Claude UUID |
-| `{project}/.empirica/active_transaction_{suffix}.json` | Transaction state | Instance |
+| `{project}/.empirica/active_transaction_{suffix}.json` | Transaction lifecycle (workflow-owned) | Instance |
+| `{project}/.empirica/hook_counters_{suffix}.json` | Hook counters (hook-owned, deleted by POSTFLIGHT) | Instance |
 
 ---
 

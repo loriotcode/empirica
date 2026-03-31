@@ -291,7 +291,7 @@ EOF
 ```
 
 **Side Effects:**
-- Closes epistemic transaction (removes active_transaction file)
+- Closes epistemic transaction (sets status=closed, deletes hook_counters file)
 - Computes learning deltas (POSTFLIGHT - PREFLIGHT)
 - Updates Bayesian beliefs for calibration
 - Creates epistemic snapshot for session replay
