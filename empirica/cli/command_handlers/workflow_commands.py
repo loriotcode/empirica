@@ -185,6 +185,83 @@ def _auto_bootstrap(session_id: str) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+def _parse_workflow_input(args, phase: str):
+    """Parse and validate workflow input from config file, stdin, or CLI flags.
+
+    Shared across PREFLIGHT, CHECK, and POSTFLIGHT handlers.
+    Returns (config_data, output_format) where config_data is parsed JSON
+    or None if using legacy CLI flags.
+    """
+    import sys
+    import os
+
+    config_data = None
+
+    # AI-FIRST MODE: Check if config file provided or stdin piped
+    if hasattr(args, 'config') and args.config:
+        if args.config == '-':
+            config_data = parse_json_safely(sys.stdin.read())
+        else:
+            if not os.path.exists(args.config):
+                print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
+                sys.exit(1)
+            with open(args.config, 'r') as f:
+                config_data = parse_json_safely(f.read())
+    elif not sys.stdin.isatty():
+        config_data = parse_json_safely(sys.stdin.read())
+
+    if config_data:
+        # Merge CLI session_id as fallback
+        if not config_data.get('session_id') and getattr(args, 'session_id', None):
+            config_data['session_id'] = args.session_id
+        # Auto-resolve session_id from active session
+        if not config_data.get('session_id'):
+            try:
+                auto_sid = R.session_id()
+                if auto_sid:
+                    config_data['session_id'] = auto_sid
+                    logger.debug(f"{phase}: Auto-derived session_id: {auto_sid[:8]}...")
+            except Exception:
+                pass
+        return config_data, 'json'
+
+    return None, getattr(args, 'output', 'json')
+
+
+def _resolve_and_validate_session(session_id: str, phase: str) -> str:
+    """Resolve partial session IDs to full UUIDs with consistent error handling.
+
+    Shared across PREFLIGHT, CHECK, and POSTFLIGHT.
+    Returns the resolved session_id or exits with error JSON.
+    """
+    import sys
+
+    try:
+        return R.resolve_session(session_id)
+    except ValueError as e:
+        print(json.dumps({
+            "ok": False,
+            "error": f"Invalid session_id: {e}",
+            "hint": "Use full UUID, partial UUID (8+ chars), or 'latest'"
+        }))
+        sys.exit(1)
+
+
+def _invoke_sentinel_hook(phase: str, session_id: str, checkpoint_data: dict):
+    """Invoke Sentinel post-checkpoint hook if enabled.
+
+    Returns SentinelDecision or None.
+    """
+    if SentinelHooks.is_enabled():
+        return SentinelHooks.post_checkpoint_hook(
+            session_id=session_id,
+            ai_id=None,
+            phase=phase,
+            checkpoint_data=checkpoint_data
+        )
+    return None
+
+
 def handle_preflight_submit_command(args):
     """Handle preflight-submit command - AI-first with config file support"""
     try:
@@ -195,37 +272,10 @@ def handle_preflight_submit_command(args):
         from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
         from empirica.data.session_database import SessionDatabase
 
-        # AI-FIRST MODE: Check if config file provided or stdin piped
-        config_data = None
-        if hasattr(args, 'config') and args.config:
-            # Read config from file or stdin
-            if args.config == '-':
-                config_data = parse_json_safely(sys.stdin.read())
-            else:
-                if not os.path.exists(args.config):
-                    print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
-                    sys.exit(1)
-                with open(args.config, 'r') as f:
-                    config_data = parse_json_safely(f.read())
-        elif not sys.stdin.isatty():
-            # Auto-detect piped stdin (no `-` argument needed)
-            config_data = parse_json_safely(sys.stdin.read())
+        # Parse input (shared helper)
+        config_data, output_format = _parse_workflow_input(args, "PREFLIGHT")
 
-        # Extract parameters from config or fall back to legacy flags
         if config_data:
-            # AI-FIRST MODE: Use config file with Pydantic validation
-            # Merge CLI flags with JSON config (CLI flags as fallback)
-            if not config_data.get('session_id') and getattr(args, 'session_id', None):
-                config_data['session_id'] = args.session_id
-            # Auto-resolve session_id from active session if not provided
-            if not config_data.get('session_id'):
-                try:
-                    auto_sid = R.session_id()
-                    if auto_sid:
-                        config_data['session_id'] = auto_sid
-                        logger.debug(f"PREFLIGHT: Auto-derived session_id: {auto_sid[:8]}...")
-                except Exception:
-                    pass
             validated, error = safe_validate(config_data, PreflightInput)
             if error:
                 print(json.dumps({
@@ -234,25 +284,20 @@ def handle_preflight_submit_command(args):
                     "hint": "Required: session_id (str), vectors (dict with know, uncertainty)"
                 }))
                 sys.exit(1)
-
             session_id = validated.session_id
             vectors = validated.vectors
             reasoning = validated.reasoning or ''
             task_context = validated.task_context or ''
             work_context = getattr(validated, 'work_context', None)
             work_type = getattr(validated, 'work_type', None)
-            output_format = 'json'  # AI-first always uses JSON output
         else:
-            # LEGACY MODE: Use CLI flags
             session_id = args.session_id
             vectors = parse_json_safely(args.vectors) if isinstance(args.vectors, str) else args.vectors
             reasoning = args.reasoning
-            task_context = getattr(args, 'task_context', '') or ''  # For pattern retrieval
-            work_context = None  # Legacy mode doesn't support work_context
-            work_type = None  # Legacy mode doesn't support work_type
-            output_format = getattr(args, 'output', 'json')  # Default to JSON
+            task_context = getattr(args, 'task_context', '') or ''
+            work_context = None
+            work_type = None
 
-            # Validate required fields for legacy mode
             if not session_id or not vectors:
                 print(json.dumps({
                     "ok": False,
@@ -261,7 +306,6 @@ def handle_preflight_submit_command(args):
                 }))
                 sys.exit(1)
 
-            # Validate vectors with Pydantic in legacy mode too
             legacy_data = {'session_id': session_id, 'vectors': vectors, 'reasoning': reasoning}
             validated, error = safe_validate(legacy_data, PreflightInput)
             if error:
@@ -271,22 +315,10 @@ def handle_preflight_submit_command(args):
                     "hint": "Vectors must include 'know' and 'uncertainty' (0.0-1.0)"
                 }))
                 sys.exit(1)
-            vectors = validated.vectors  # Use validated vectors
+            vectors = validated.vectors
 
-        # Resolve partial session IDs to full UUIDs
-        try:
-            session_id = R.resolve_session(session_id)
-        except ValueError as e:
-            print(json.dumps({
-                "ok": False,
-                "error": f"Invalid session_id: {e}",
-                "hint": "Use full UUID, partial UUID (8+ chars), or 'latest'"
-            }))
-            sys.exit(1)
-
-        # Extract all numeric values from vectors (handle both simple and nested formats)
-        extracted_vectors = _extract_all_vectors(vectors)
-        vectors = extracted_vectors
+        session_id = _resolve_and_validate_session(session_id, "PREFLIGHT")
+        vectors = _extract_all_vectors(vectors)
 
         # CHECK FOR UNCLOSED TRANSACTION — warn but don't block
         # Auto-closing would poison vector states (fabricated POSTFLIGHT vectors)
@@ -432,18 +464,11 @@ def handle_preflight_submit_command(args):
                 logger.debug(f"Active transaction file write failed (non-fatal): {e}")
 
             # SENTINEL HOOK: Evaluate checkpoint for routing decisions
-            sentinel_decision = None
-            if SentinelHooks.is_enabled():
-                sentinel_decision = SentinelHooks.post_checkpoint_hook(
-                    session_id=session_id,
-                    ai_id=None,  # Will be fetched from session
-                    phase="PREFLIGHT",
-                    checkpoint_data={
-                        "vectors": vectors,
-                        "reasoning": reasoning,
-                        "checkpoint_id": checkpoint_id
-                    }
-                )
+            sentinel_decision = _invoke_sentinel_hook("PREFLIGHT", session_id, {
+                "vectors": vectors,
+                "reasoning": reasoning,
+                "checkpoint_id": checkpoint_id
+            })
 
             # JUST create transaction record for historical tracking (this remains)
             db = _get_db_for_session(session_id)
@@ -1014,55 +1039,33 @@ def handle_check_submit_command(args):
         import os
         import json
         from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
-        
-        # AI-FIRST MODE: Check if config provided
-        config_data = None
-        if hasattr(args, 'config') and args.config:
-            if args.config == '-':
-                config_data = parse_json_safely(sys.stdin.read())
-            else:
-                if not os.path.exists(args.config):
-                    import json
-                    print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
-                    sys.exit(1)
-                with open(args.config, 'r') as f:
-                    config_data = parse_json_safely(f.read())
-        
-        # Parse arguments from config or CLI
+
+        # Parse input (shared helper)
+        config_data, output_format = _parse_workflow_input(args, "CHECK")
+
         if config_data:
-            # Merge CLI flags with JSON config (CLI flags as fallback)
             session_id = config_data.get('session_id') or getattr(args, 'session_id', None)
             vectors = config_data.get('vectors')
             decision = config_data.get('decision')
             reasoning = config_data.get('reasoning', '')
-            approach = config_data.get('approach', reasoning)  # Fallback to reasoning
-            output_format = config_data.get('output', 'json')  # Default to JSON for AI-first
+            approach = config_data.get('approach', reasoning)
         else:
             session_id = args.session_id
             vectors = parse_json_safely(args.vectors) if isinstance(args.vectors, str) else args.vectors
             decision = args.decision
             reasoning = args.reasoning
-            approach = getattr(args, 'approach', reasoning)  # Fallback to reasoning
+            approach = getattr(args, 'approach', reasoning)
             output_format = getattr(args, 'output', 'human')
-        cycle = getattr(args, 'cycle', 1)  # Default to 1 if not provided
+        cycle = getattr(args, 'cycle', 1)
 
-        # Auto-resolve session_id from active transaction if not provided
+        # Auto-resolve session_id (shared helper handles config-mode auto-derive)
         if not session_id:
             try:
                 session_id = R.session_id()
             except Exception:
                 pass
 
-        # Resolve partial session IDs to full UUIDs
-        try:
-            session_id = R.resolve_session(session_id)
-        except ValueError as e:
-            print(json.dumps({
-                "ok": False,
-                "error": f"Invalid session_id: {e}",
-                "hint": "Use full UUID, partial UUID (8+ chars), or 'latest'"
-            }))
-            sys.exit(1)
+        session_id = _resolve_and_validate_session(session_id, "CHECK")
 
         # BOOTSTRAP GATE: Ensure project context is loaded before CHECK
         # Without bootstrap, CHECK vectors are hollow (same bug as PREFLIGHT-before-bootstrap)
@@ -1404,64 +1407,51 @@ def handle_check_submit_command(args):
                 logger.warning(f"CHECK phase hooks error: {e}")
 
             # SENTINEL HOOK: Evaluate checkpoint for routing decisions
-            # CHECK phase is especially important for Sentinel - it gates noetic→praxic transition
-            sentinel_decision = None
             sentinel_override = False
-            if SentinelHooks.is_enabled():
-                sentinel_decision = SentinelHooks.post_checkpoint_hook(
-                    session_id=session_id,
-                    ai_id=None,
-                    phase="CHECK",
-                    checkpoint_data={
-                        "vectors": vectors,
-                        "decision": decision,
-                        "reasoning": reasoning,
-                        "confidence": confidence,
-                        "gaps": gaps,
-                        "cycle": cycle,
-                        "round": round_num,
-                        "checkpoint_id": checkpoint_id
-                    }
-                )
+            sentinel_decision = _invoke_sentinel_hook("CHECK", session_id, {
+                "vectors": vectors,
+                "decision": decision,
+                "reasoning": reasoning,
+                "confidence": confidence,
+                "gaps": gaps,
+                "cycle": cycle,
+                "round": round_num,
+                "checkpoint_id": checkpoint_id
+            })
 
-                # SENTINEL OVERRIDE: Feed Sentinel decision back to override AI decision
-                # NOTE: When autopilot is binding, autopilot takes precedence over Sentinel
-                if sentinel_decision and not decision_binding:
-                    sentinel_map = {
-                        SentinelDecision.PROCEED: "proceed",
-                        SentinelDecision.INVESTIGATE: "investigate",
-                        SentinelDecision.BRANCH: "investigate",  # Branch implies more investigation needed
-                        SentinelDecision.HALT: "investigate",  # Halt = stop and reassess
-                        SentinelDecision.REVISE: "investigate",  # Revise = need more work
-                    }
-                    if sentinel_decision in sentinel_map:
-                        new_decision = sentinel_map[sentinel_decision]
-                        if new_decision != decision:
-                            logger.info(f"Sentinel override: {decision} → {new_decision} (sentinel={sentinel_decision.value})")
-                            decision = new_decision
-                            sentinel_override = True
+            # SENTINEL OVERRIDE: Feed Sentinel decision back to override AI decision
+            # NOTE: When autopilot is binding, autopilot takes precedence over Sentinel
+            if sentinel_decision and not decision_binding:
+                sentinel_map = {
+                    SentinelDecision.PROCEED: "proceed",
+                    SentinelDecision.INVESTIGATE: "investigate",
+                    SentinelDecision.BRANCH: "investigate",
+                    SentinelDecision.HALT: "investigate",
+                    SentinelDecision.REVISE: "investigate",
+                }
+                if sentinel_decision in sentinel_map:
+                    new_decision = sentinel_map[sentinel_decision]
+                    if new_decision != decision:
+                        logger.info(f"Sentinel override: {decision} → {new_decision} (sentinel={sentinel_decision.value})")
+                        decision = new_decision
+                        sentinel_override = True
 
-                            # UPDATE DB: Sync the overridden decision to the stored reflex.
-                            # The checkpoint was saved BEFORE the sentinel override, so the
-                            # DB has the pre-override decision. The sentinel-gate hook reads
-                            # the DB, so it must reflect the FINAL decision. Without this,
-                            # CHECK returns "proceed" to the AI but sentinel-gate reads
-                            # "investigate" from the DB → tool calls blocked despite proceed.
-                            try:
-                                db2 = _get_db_for_session(session_id)
-                                db2.conn.execute("""
-                                    UPDATE reflexes SET reflex_data = json_set(reflex_data, '$.decision', ?)
-                                    WHERE session_id = ? AND phase = 'CHECK'
-                                    AND transaction_id = ?
-                                    ORDER BY timestamp DESC LIMIT 1
-                                """, (new_decision, session_id, check_transaction_id2))
-                                db2.conn.commit()
-                                db2.close()
-                                logger.info(f"DB synced: CHECK decision updated to '{new_decision}'")
-                            except Exception as e:
-                                logger.warning(f"Failed to sync sentinel override to DB: {e}")
-                elif sentinel_decision and decision_binding:
-                    logger.info(f"Autopilot binding active - Sentinel override blocked (sentinel wanted: {sentinel_decision.value})")
+                        # UPDATE DB: Sync the overridden decision to the stored reflex
+                        try:
+                            db2 = _get_db_for_session(session_id)
+                            db2.conn.execute("""
+                                UPDATE reflexes SET reflex_data = json_set(reflex_data, '$.decision', ?)
+                                WHERE session_id = ? AND phase = 'CHECK'
+                                AND transaction_id = ?
+                                ORDER BY timestamp DESC LIMIT 1
+                            """, (new_decision, session_id, check_transaction_id2))
+                            db2.conn.commit()
+                            db2.close()
+                            logger.info(f"DB synced: CHECK decision updated to '{new_decision}'")
+                        except Exception as e:
+                            logger.warning(f"Failed to sync sentinel override to DB: {e}")
+            elif sentinel_decision and decision_binding:
+                logger.info(f"Autopilot binding active - Sentinel override blocked (sentinel wanted: {sentinel_decision.value})")
 
             # AUTO-CHECKPOINT: Create git checkpoint if uncertainty > 0.5 (risky decision)
             # This preserves context if AI needs to investigate further
@@ -1833,41 +1823,14 @@ def handle_postflight_submit_command(args):
         from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
         from empirica.data.session_database import SessionDatabase
 
-        # AI-FIRST MODE: Check if config file provided or stdin piped
-        config_data = None
-        if hasattr(args, 'config') and args.config:
-            if args.config == '-':
-                config_data = parse_json_safely(sys.stdin.read())
-            else:
-                if not os.path.exists(args.config):
-                    print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
-                    sys.exit(1)
-                with open(args.config, 'r') as f:
-                    config_data = parse_json_safely(f.read())
-        elif not sys.stdin.isatty():
-            # Auto-detect piped stdin (no `-` argument needed)
-            config_data = parse_json_safely(sys.stdin.read())
+        # Parse input (shared helper)
+        config_data, output_format = _parse_workflow_input(args, "POSTFLIGHT")
 
-        # Extract parameters from config or fall back to legacy flags
         if config_data:
-            # AI-FIRST MODE
-            # Merge CLI flags with JSON config (CLI flags as fallback)
             session_id = config_data.get('session_id') or getattr(args, 'session_id', None)
             vectors = config_data.get('vectors')
             reasoning = config_data.get('reasoning', '')
-            output_format = 'json'
 
-            # Auto-resolve session_id from active transaction if not provided
-            # (matches check-submit behavior — postflight closes an existing tx)
-            if not session_id:
-                try:
-                    session_id = R.session_id()
-                    if session_id:
-                        logger.debug(f"POSTFLIGHT: Auto-derived session_id: {session_id[:8]}...")
-                except Exception:
-                    pass
-
-            # Validate required fields
             if not session_id or not vectors:
                 print(json.dumps({
                     "ok": False,
@@ -1879,20 +1842,17 @@ def handle_postflight_submit_command(args):
                 }))
                 sys.exit(1)
         else:
-            # LEGACY MODE
             session_id = args.session_id
             vectors = parse_json_safely(args.vectors) if isinstance(args.vectors, str) else args.vectors
             reasoning = args.reasoning
             output_format = getattr(args, 'output', 'json')
 
-            # Auto-resolve session_id from active transaction if not provided
             if not session_id:
                 try:
                     session_id = R.session_id()
                 except Exception:
                     pass
 
-            # Validate required fields for legacy mode
             if not session_id or not vectors:
                 print(json.dumps({
                     "ok": False,
@@ -1902,8 +1862,6 @@ def handle_postflight_submit_command(args):
                 sys.exit(1)
 
         # TRANSACTION CONTINUITY FIX: Override session_id from active transaction
-        # The transaction file stores the session_id from PREFLIGHT time, which is the
-        # correct session even if the conversation summary has a stale session_id
         try:
             tx_data = R.transaction_read()
             if tx_data and tx_data.get('session_id'):
@@ -1914,24 +1872,11 @@ def handle_postflight_submit_command(args):
         except Exception as e:
             logger.debug(f"Transaction session lookup failed (using provided session_id): {e}")
 
-        # Validate vectors
         if not isinstance(vectors, dict):
             raise ValueError("Vectors must be a dictionary")
 
-        # Resolve partial session IDs to full UUIDs
-        try:
-            session_id = R.resolve_session(session_id)
-        except ValueError as e:
-            print(json.dumps({
-                "ok": False,
-                "error": f"Invalid session_id: {e}",
-                "hint": "Use full UUID, partial UUID (8+ chars), or 'latest'"
-            }))
-            sys.exit(1)
-
-        # Extract all numeric values from vectors (handle both simple and nested formats)
-        extracted_vectors = _extract_all_vectors(vectors)
-        vectors = extracted_vectors
+        session_id = _resolve_and_validate_session(session_id, "POSTFLIGHT")
+        vectors = _extract_all_vectors(vectors)
 
         # TRANSACTION CONTINUITY: Get the original session_id where PREFLIGHT was run
         # This handles the case where context compacted and session_id changed mid-transaction
@@ -2180,23 +2125,15 @@ def handle_postflight_submit_command(args):
             )
 
             # SENTINEL HOOK: Evaluate checkpoint for routing decisions
-            # POSTFLIGHT is final assessment - Sentinel can flag trajectory issues or recommend handoff
-            sentinel_decision = None
-            if SentinelHooks.is_enabled():
-                sentinel_decision = SentinelHooks.post_checkpoint_hook(
-                    session_id=session_id,
-                    ai_id=None,
-                    phase="POSTFLIGHT",
-                    checkpoint_data={
-                        "vectors": vectors,
-                        "reasoning": reasoning,
-                        "postflight_confidence": postflight_confidence,
-                        "internal_consistency": internal_consistency,
-                        "deltas": deltas,
-                        "trajectory_issues": trajectory_issues,
-                        "checkpoint_id": checkpoint_id
-                    }
-                )
+            sentinel_decision = _invoke_sentinel_hook("POSTFLIGHT", session_id, {
+                "vectors": vectors,
+                "reasoning": reasoning,
+                "postflight_confidence": postflight_confidence,
+                "internal_consistency": internal_consistency,
+                "deltas": deltas,
+                "trajectory_issues": trajectory_issues,
+                "checkpoint_id": checkpoint_id
+            })
 
             # NOTE: Removed auto-checkpoint after POSTFLIGHT
             # POSTFLIGHT already writes to all 3 storage layers (SQLite + Git Notes + JSON)
