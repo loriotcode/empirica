@@ -1254,28 +1254,40 @@ class PostTestCollector:
         return items
 
     def _get_transaction_edited_files(self) -> List[str]:
-        """Read edited_files list from the active transaction JSON.
+        """Read edited_files list from the hook counters JSON.
 
         The Sentinel's _try_increment_tool_count appends file_path for
-        every Edit/Write tool call to the transaction file.
+        every Edit/Write tool call to the hook_counters file (since v1.7.4).
+        Falls back to reading from active_transaction for backward compat.
         """
         from empirica.utils.session_resolver import InstanceResolver as R
 
         suffix = R.instance_suffix()
-
-        # Try project .empirica/ first, then global
-        search_paths = []
         project_root = self._resolve_project_root()
-        if project_root:
-            search_paths.append(Path(project_root) / '.empirica' / f'active_transaction{suffix}.json')
-        search_paths.append(Path.home() / '.empirica' / f'active_transaction{suffix}.json')
 
-        for tx_path in search_paths:
+        # Try hook_counters file first (v1.7.4+), then fall back to transaction file
+        search_dirs = []
+        if project_root:
+            search_dirs.append(Path(project_root) / '.empirica')
+        search_dirs.append(Path.home() / '.empirica')
+
+        for empirica_dir in search_dirs:
+            # Primary: hook_counters file (hook-owned since v1.7.4)
+            counters_path = empirica_dir / f'hook_counters{suffix}.json'
+            if counters_path.exists():
+                try:
+                    with open(counters_path, 'r') as f:
+                        return json.load(f).get('edited_files', [])
+                except Exception:
+                    pass
+            # Fallback: active_transaction (pre-v1.7.4 compat)
+            tx_path = empirica_dir / f'active_transaction{suffix}.json'
             if tx_path.exists():
                 try:
                     with open(tx_path, 'r') as f:
                         tx = json.load(f)
-                    return tx.get('edited_files', [])
+                    if 'edited_files' in tx:
+                        return tx.get('edited_files', [])
                 except Exception:
                     pass
         return []

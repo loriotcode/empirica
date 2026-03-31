@@ -156,6 +156,23 @@ class InstanceResolver:
         """Increment the tool call counter in the active transaction."""
         return increment_transaction_tool_count(claude_session_id)
 
+    # --- Hook Counters (separate from transaction lifecycle) ---
+
+    @staticmethod
+    def counters_read(claude_session_id: str = None) -> 'Optional[dict]':
+        """Read the hook counters file."""
+        return read_hook_counters(claude_session_id)
+
+    @staticmethod
+    def counters_write(data: dict, claude_session_id: str = None) -> bool:
+        """Atomically write the hook counters file."""
+        return write_hook_counters(data, claude_session_id)
+
+    @staticmethod
+    def counters_clear(claude_session_id: str = None) -> None:
+        """Delete the hook counters file."""
+        clear_hook_counters(claude_session_id)
+
     # --- TTY Session ---
 
     @staticmethod
@@ -1559,6 +1576,70 @@ def clear_active_transaction(claude_session_id: str = None) -> None:
     if global_candidate.exists():
         try:
             global_candidate.unlink()
+        except Exception:
+            pass
+
+
+def _hook_counters_path(project_path: str = None, suffix: str = None) -> 'Path':
+    """Compute the path to the hook counters file.
+
+    Co-located with the transaction file — same directory, same suffix.
+    Hooks write counters here; POSTFLIGHT reads then deletes.
+    """
+    from pathlib import Path
+    if suffix is None:
+        suffix = _get_instance_suffix()
+    if project_path:
+        return Path(project_path) / '.empirica' / f'hook_counters{suffix}.json'
+    return Path.home() / '.empirica' / f'hook_counters{suffix}.json'
+
+
+def read_hook_counters(claude_session_id: str = None) -> Optional[dict]:
+    """Read the hook counters file. Returns None if it doesn't exist."""
+    project_path = get_active_project_path(claude_session_id)
+    path = _hook_counters_path(project_path)
+    if not path.exists():
+        return None
+    try:
+        with open(path, 'r') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def write_hook_counters(data: dict, claude_session_id: str = None) -> bool:
+    """Atomically write the hook counters file.
+
+    Called by hooks (sentinel, context-shift-tracker, subagent-stop).
+    """
+    import os
+    import tempfile
+
+    project_path = get_active_project_path(claude_session_id)
+    path = _hook_counters_path(project_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=str(path.parent))
+    try:
+        with os.fdopen(tmp_fd, 'w') as tmp_f:
+            json.dump(data, tmp_f, indent=2)
+        os.rename(tmp_path, str(path))
+        return True
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        return False
+
+
+def clear_hook_counters(claude_session_id: str = None) -> None:
+    """Delete the hook counters file (called by POSTFLIGHT after reading)."""
+    project_path = get_active_project_path(claude_session_id)
+    path = _hook_counters_path(project_path)
+    if path.exists():
+        try:
+            path.unlink()
         except Exception:
             pass
 

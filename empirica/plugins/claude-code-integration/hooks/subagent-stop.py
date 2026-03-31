@@ -96,11 +96,14 @@ def count_transcript_tool_calls(transcript_path: str) -> int:
 
 
 def add_delegated_work_to_parent(tool_call_count: int) -> bool:
-    """Add subagent's tool call count to the parent's active transaction.
+    """Add subagent's tool call count to the parent's hook counters file.
 
     This ensures the autonomy calibration loop accounts for delegated work.
     Without this, spawning subagents would be a blind spot — the parent's
     transaction would appear shorter than the actual work done.
+
+    Writes to hook_counters file (hook-owned), not the transaction file
+    (workflow-owned), to avoid race conditions with POSTFLIGHT.
 
     Returns True if the update succeeded.
     """
@@ -108,6 +111,7 @@ def add_delegated_work_to_parent(tool_call_count: int) -> bool:
         return False
 
     try:
+        import os
         import tempfile
         from empirica.utils.session_resolver import InstanceResolver as R
 
@@ -119,6 +123,7 @@ def add_delegated_work_to_parent(tool_call_count: int) -> bool:
         else:
             tx_path = Path.home() / '.empirica' / f'active_transaction{suffix}.json'
 
+        # Check transaction is open (read-only)
         if not tx_path.exists():
             return False
 
@@ -128,20 +133,27 @@ def add_delegated_work_to_parent(tool_call_count: int) -> bool:
         if tx_data.get('status') != 'open':
             return False
 
-        # Add delegated work to the parent's count
-        tx_data['tool_call_count'] = tx_data.get('tool_call_count', 0) + tool_call_count
-        tx_data['delegated_tool_calls'] = tx_data.get('delegated_tool_calls', 0) + tool_call_count
+        # Read-modify-write the hook counters file
+        counters_path = tx_path.parent / f'hook_counters{suffix}.json'
+        counters = {}
+        if counters_path.exists():
+            try:
+                with open(counters_path, 'r') as f:
+                    counters = json.load(f)
+            except Exception:
+                counters = {}
 
-        # Atomic write
-        fd, tmp = tempfile.mkstemp(dir=str(tx_path.parent))
+        counters['tool_call_count'] = counters.get('tool_call_count', 0) + tool_call_count
+        counters['delegated_tool_calls'] = counters.get('delegated_tool_calls', 0) + tool_call_count
+
+        # Atomic write to counters file
+        fd, tmp = tempfile.mkstemp(dir=str(counters_path.parent))
         try:
-            import os
             with os.fdopen(fd, 'w') as tf:
-                json.dump(tx_data, tf, indent=2)
-            os.rename(tmp, str(tx_path))
+                json.dump(counters, tf, indent=2)
+            os.rename(tmp, str(counters_path))
         except BaseException:
             try:
-                import os
                 os.unlink(tmp)
             except OSError:
                 pass

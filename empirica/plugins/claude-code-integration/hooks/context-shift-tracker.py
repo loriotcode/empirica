@@ -9,8 +9,8 @@ Uses a purely structural signal — no keyword matching:
 - sentinel-gate.py sets pending_user_response=True when AskUserQuestion fires
 - This hook checks that flag on each UserPromptSubmit event
 
-Counts are stored in the active transaction file for POSTFLIGHT consumption.
-Next-PREFLIGHT uses them to explain calibration divergence from context shifts.
+Counts are stored in the hook_counters file (separate from transaction lifecycle).
+POSTFLIGHT reads counters for calibration; next-PREFLIGHT uses them for divergence.
 """
 
 import json
@@ -107,6 +107,7 @@ def main():
         return
 
     try:
+        # READ transaction file (read-only — check status only)
         with open(tx_path, 'r') as f:
             tx = json.load(f)
 
@@ -114,20 +115,31 @@ def main():
             print(json.dumps({}))
             return
 
-        # Check the structural signal
-        was_solicited = tx.pop('pending_user_response', False)
+        # READ-MODIFY-WRITE the hook counters file (hook-owned, no race with POSTFLIGHT)
+        suffix = _get_instance_suffix()
+        counters_path = tx_path.parent / f'hook_counters{suffix}.json'
+        counters = {}
+        if counters_path.exists():
+            try:
+                with open(counters_path, 'r') as f:
+                    counters = json.load(f)
+            except Exception:
+                counters = {}
+
+        # Check the structural signal (set by sentinel on AskUserQuestion)
+        was_solicited = counters.pop('pending_user_response', False)
 
         if was_solicited:
-            tx['solicited_prompt_count'] = tx.get('solicited_prompt_count', 0) + 1
+            counters['solicited_prompt_count'] = counters.get('solicited_prompt_count', 0) + 1
         else:
-            tx['unsolicited_prompt_count'] = tx.get('unsolicited_prompt_count', 0) + 1
+            counters['unsolicited_prompt_count'] = counters.get('unsolicited_prompt_count', 0) + 1
 
-        # Atomic write-back
-        fd, tmp = tempfile.mkstemp(dir=str(tx_path.parent))
+        # Atomic write-back to counters file (NOT the transaction file)
+        fd, tmp = tempfile.mkstemp(dir=str(counters_path.parent))
         try:
             with os.fdopen(fd, 'w') as tf:
-                json.dump(tx, tf, indent=2)
-            os.rename(tmp, str(tx_path))
+                json.dump(counters, tf, indent=2)
+            os.rename(tmp, str(counters_path))
         except BaseException:
             try:
                 os.unlink(tmp)

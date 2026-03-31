@@ -442,13 +442,11 @@ def _resolve_empirica_session_id(claude_session_id: Optional[str]) -> Optional[s
 def _try_increment_tool_count(claude_session_id: Optional[str] = None,
                               tool_name: Optional[str] = None,
                               tool_input: Optional[dict] = None) -> tuple:
-    """Increment tool_call_count in the active transaction file.
+    """Increment tool_call_count in the hook counters file (separate from transaction).
 
-    Lightweight — no heavy imports. Uses project_resolver (already imported)
-    and direct file I/O.
-
-    Also splits counts into noetic_tool_calls and praxic_tool_calls based on
-    tool classification. Used for phase-weighted calibration.
+    Transaction file is READ-ONLY here (for status check and avg_turns).
+    All counter mutations go to hook_counters_{suffix}.json to avoid race
+    conditions with POSTFLIGHT's status=closed write.
 
     Returns (tool_call_count, avg_turns) or (0, 0) if no transaction.
     """
@@ -458,7 +456,7 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
     suffix = R.instance_suffix()
     empirica_session_id = _resolve_empirica_session_id(claude_session_id)
 
-    # Find the transaction file via active_work → project_path → .empirica/
+    # Find the transaction file (READ-ONLY — for status and avg_turns)
     tx_path = None
 
     # Try 1: active_work file for project_path
@@ -490,15 +488,27 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
         return 0, 0
 
     try:
+        # READ transaction file (read-only — never write back)
         with open(tx_path, 'r') as f:
             tx = json.load(f)
 
         if tx.get('status') != 'open':
             return 0, 0
 
-        tx['tool_call_count'] = tx.get('tool_call_count', 0) + 1
-        count = tx['tool_call_count']
         avg = tx.get('avg_turns', 0)
+
+        # READ-MODIFY-WRITE the counters file (hook-owned, no race with POSTFLIGHT)
+        counters_path = tx_path.parent / f'hook_counters{suffix}.json'
+        counters = {}
+        if counters_path.exists():
+            try:
+                with open(counters_path, 'r') as f:
+                    counters = json.load(f)
+            except Exception:
+                counters = {}
+
+        counters['tool_call_count'] = counters.get('tool_call_count', 0) + 1
+        count = counters['tool_call_count']
 
         # Phase-split counting for phase-weighted calibration
         if tool_name:
@@ -509,31 +519,29 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
                 or (tool_name in ('Write', 'Edit') and tool_input and is_plan_file(tool_input))
             )
             if _is_noetic:
-                tx['noetic_tool_calls'] = tx.get('noetic_tool_calls', 0) + 1
+                counters['noetic_tool_calls'] = counters.get('noetic_tool_calls', 0) + 1
             else:
-                tx['praxic_tool_calls'] = tx.get('praxic_tool_calls', 0) + 1
+                counters['praxic_tool_calls'] = counters.get('praxic_tool_calls', 0) + 1
 
         # Track edited file paths for non-git file change detection
-        # Used by grounded calibration to detect work outside git repos
         if tool_name in ('Edit', 'Write') and tool_input:
             fp = tool_input.get('file_path', '')
             if fp:
-                edited = tx.get('edited_files', [])
+                edited = counters.get('edited_files', [])
                 if fp not in edited:
                     edited.append(fp)
-                    tx['edited_files'] = edited
+                    counters['edited_files'] = edited
 
         # Context-shift tracking: flag when AI asks user a question
-        # UserPromptSubmit hook reads this to classify solicited vs unsolicited
         if tool_name == 'AskUserQuestion':
-            tx['pending_user_response'] = True
+            counters['pending_user_response'] = True
 
-        # Atomic write-back
-        fd, tmp = tempfile.mkstemp(dir=str(tx_path.parent))
+        # Atomic write to counters file (NOT the transaction file)
+        fd, tmp = tempfile.mkstemp(dir=str(counters_path.parent))
         try:
             with os.fdopen(fd, 'w') as tf:
-                json.dump(tx, tf, indent=2)
-            os.rename(tmp, str(tx_path))
+                json.dump(counters, tf, indent=2)
+            os.rename(tmp, str(counters_path))
         except BaseException:
             try:
                 os.unlink(tmp)
@@ -1994,43 +2002,46 @@ def main():
     # BUT: noetic tools and safe Bash (read-only) are still allowed —
     # investigation work needs to investigate (read DBs, run queries, analyze).
     if decision == 'investigate':
-        # Initialize investigate cool-down counter if not set
-        if tx_file:
-            try:
-                with open(tx_file, 'r') as _init_f:
-                    _init_tx = json.load(_init_f)
-                if 'noetic_since_investigate' not in _init_tx:
-                    _init_tx['noetic_since_investigate'] = 0
-                    import tempfile
-                    _init_tmp = tempfile.NamedTemporaryFile(mode='w', dir=tx_file.parent, delete=False, suffix='.tmp')
-                    json.dump(_init_tx, _init_tmp)
-                    _init_tmp.close()
-                    Path(_init_tmp.name).rename(tx_file)
-            except Exception:
-                pass
-
         # INVESTIGATE COOL-DOWN: Track noetic tool calls since investigate.
         # When AI resubmits CHECK after investigate, require evidence of
         # actual investigation (N noetic tool calls) before allowing it.
         # Prevents gaming by resubmitting CHECK with inflated vectors
         # without doing real investigation work.
+        # NOTE: noetic_since_investigate is tracked in hook_counters file
+        # (hook-owned), not the transaction file (workflow-owned).
         MIN_NOETIC_AFTER_INVESTIGATE = 3
 
+        # Resolve counters file path (co-located with transaction file)
+        _inv_counters_path = None
+        if tx_file:
+            _inv_counters_path = tx_file.parent / f'hook_counters{suffix}.json'
+
+        def _read_inv_counters():
+            if not _inv_counters_path or not _inv_counters_path.exists():
+                return {}
+            try:
+                with open(_inv_counters_path, 'r') as _f:
+                    return json.load(_f)
+            except Exception:
+                return {}
+
+        def _write_inv_counters(data):
+            if not _inv_counters_path:
+                return
+            try:
+                import tempfile
+                _fd, _tmp = tempfile.mkstemp(dir=str(_inv_counters_path.parent))
+                with os.fdopen(_fd, 'w') as _tf:
+                    json.dump(data, _tf, indent=2)
+                os.rename(_tmp, str(_inv_counters_path))
+            except Exception:
+                pass
+
         if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME:
-            # Increment noetic counter in transaction file
-            if tx_file:
-                try:
-                    with open(tx_file, 'r') as _inv_f:
-                        _inv_tx = json.load(_inv_f)
-                    _inv_count = _inv_tx.get('noetic_since_investigate', 0) + 1
-                    _inv_tx['noetic_since_investigate'] = _inv_count
-                    import tempfile
-                    _inv_tmp = tempfile.NamedTemporaryFile(mode='w', dir=tx_file.parent, delete=False, suffix='.tmp')
-                    json.dump(_inv_tx, _inv_tmp)
-                    _inv_tmp.close()
-                    Path(_inv_tmp.name).rename(tx_file)
-                except Exception:
-                    pass
+            # Increment noetic counter in hook counters file
+            _inv_c = _read_inv_counters()
+            _inv_c['noetic_since_investigate'] = _inv_c.get('noetic_since_investigate', 0) + 1
+            _write_inv_counters(_inv_c)
             db.close()
             respond("allow", f"Noetic tool during investigation phase: {tool_name}")
             sys.exit(0)
@@ -2038,13 +2049,8 @@ def main():
             command = tool_input.get('command', '')
             # Block check-submit if insufficient noetic work since investigate
             if 'check-submit' in command or 'check ' in command:
-                _inv_noetic = 0
-                if tx_file:
-                    try:
-                        with open(tx_file, 'r') as _inv_f:
-                            _inv_noetic = json.load(_inv_f).get('noetic_since_investigate', 0)
-                    except Exception:
-                        pass
+                _inv_c = _read_inv_counters()
+                _inv_noetic = _inv_c.get('noetic_since_investigate', 0)
                 if _inv_noetic < MIN_NOETIC_AFTER_INVESTIGATE:
                     db.close()
                     respond("deny",
@@ -2052,19 +2058,9 @@ def main():
                         f"Show evidence of investigation (findings) or submit CHECK with proceed decision.")
                     sys.exit(0)
             # Increment noetic counter for safe bash (read-only investigation)
-            if tx_file:
-                try:
-                    with open(tx_file, 'r') as _inv_f:
-                        _inv_tx = json.load(_inv_f)
-                    _inv_count = _inv_tx.get('noetic_since_investigate', 0) + 1
-                    _inv_tx['noetic_since_investigate'] = _inv_count
-                    import tempfile
-                    _inv_tmp = tempfile.NamedTemporaryFile(mode='w', dir=tx_file.parent, delete=False, suffix='.tmp')
-                    json.dump(_inv_tx, _inv_tmp)
-                    _inv_tmp.close()
-                    Path(_inv_tmp.name).rename(tx_file)
-                except Exception:
-                    pass
+            _inv_c = _read_inv_counters()
+            _inv_c['noetic_since_investigate'] = _inv_c.get('noetic_since_investigate', 0) + 1
+            _write_inv_counters(_inv_c)
             db.close()
             respond("allow", "Safe Bash during investigation phase (read-only)")
             sys.exit(0)

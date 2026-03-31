@@ -2094,24 +2094,36 @@ def handle_postflight_submit_command(args):
                     with open(tx_file, 'r') as f:
                         tx_data = _json.load(f)
                     postflight_transaction_id = tx_data.get('transaction_id')
-                    # Capture tool_call_count before closing (for calibration history)
-                    postflight_tool_call_count = tx_data.get('tool_call_count', 0)
                     postflight_avg_turns = tx_data.get('avg_turns', 0)
-                    # Phase-split counts for phase-weighted calibration
-                    postflight_phase_tool_counts = {
-                        'noetic_tool_calls': tx_data.get('noetic_tool_calls', 0),
-                        'praxic_tool_calls': tx_data.get('praxic_tool_calls', 0),
-                    }
-                    # Context-shift tracking data
-                    postflight_context_shifts = {
-                        'solicited_prompts': tx_data.get('solicited_prompt_count', 0),
-                        'unsolicited_prompts': tx_data.get('unsolicited_prompt_count', 0),
-                    }
                     # Work context for maturity-aware normalization
                     postflight_work_context = tx_data.get('work_context')
                     # Work type for evidence weight profiling
                     postflight_work_type = tx_data.get('work_type')
-                    # Update to closed status - preserve project_path from transaction
+
+                    # Read hook counters file (hook-owned, separate from transaction)
+                    counters_file = tx_file.parent / f'hook_counters{suffix}.json'
+                    counters = {}
+                    if counters_file.exists():
+                        try:
+                            with open(counters_file, 'r') as f:
+                                counters = _json.load(f)
+                        except Exception:
+                            pass
+
+                    # Capture tool counts from counters (hooks write here now)
+                    postflight_tool_call_count = counters.get('tool_call_count', 0)
+                    # Phase-split counts for phase-weighted calibration
+                    postflight_phase_tool_counts = {
+                        'noetic_tool_calls': counters.get('noetic_tool_calls', 0),
+                        'praxic_tool_calls': counters.get('praxic_tool_calls', 0),
+                    }
+                    # Context-shift tracking data
+                    postflight_context_shifts = {
+                        'solicited_prompts': counters.get('solicited_prompt_count', 0),
+                        'unsolicited_prompts': counters.get('unsolicited_prompt_count', 0),
+                    }
+
+                    # Close transaction (workflow-owned write)
                     R.transaction_write(
                         transaction_id=postflight_transaction_id,
                         session_id=tx_data.get('session_id'),
@@ -2119,6 +2131,8 @@ def handle_postflight_submit_command(args):
                         status="closed",
                         project_path=tx_data.get('project_path') or resolved_project_path
                     )
+                    # Delete hook counters file — data captured above
+                    R.counters_clear()
             except Exception as e:
                 logger.debug(f"Transaction close failed (non-fatal): {e}")
                 postflight_tool_call_count = 0

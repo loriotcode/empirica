@@ -230,10 +230,12 @@ def main():
                       (pre_snapshot.get('live_state') or {}).get('vectors', {})
         pre_reasoning = (pre_snapshot.get('live_state') or {}).get('reasoning')
 
-    # Extract active transaction from pre-compact snapshot (for continuity)
+    # Extract active transaction and hook counters from pre-compact snapshot
     active_transaction = None
+    hook_counters = None
     if pre_snapshot:
         active_transaction = pre_snapshot.get('active_transaction')
+        hook_counters = pre_snapshot.get('hook_counters')
 
     # Load DYNAMIC context - only what's relevant for re-grounding
     dynamic_context = _load_dynamic_context(empirica_session, ai_id, pre_snapshot)
@@ -289,6 +291,16 @@ def main():
             project_path=str(project_root),
             instance_id=instance_id
         )
+
+        # Restore hook counters file (separate from transaction since v1.7.4)
+        if hook_counters:
+            try:
+                suffix = _get_instance_suffix()
+                counters_file = Path(str(project_root)) / '.empirica' / f'hook_counters{suffix}.json'
+                with open(counters_file, 'w') as f:
+                    json.dump(hook_counters, f, indent=2)
+            except Exception:
+                pass  # Non-fatal
     elif phase_state.get('is_complete'):
         # NEW: Actually create session and run bootstrap here
         # This enforces the correct sequence before AI does PREFLIGHT
