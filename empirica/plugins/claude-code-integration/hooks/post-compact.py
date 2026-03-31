@@ -760,7 +760,7 @@ def _generate_new_session_prompt(pre_vectors: dict, dynamic_context: dict, old_s
             dead_ends=dynamic_context.get('critical_dead_ends', []),
             goals=dynamic_context.get('active_goals', []),
             subtasks=dynamic_context.get('pending_subtasks', []),
-            max_items=15,
+            max_items=5,
             session_id=new_session_id
         )
     else:
@@ -998,7 +998,7 @@ def _generate_transaction_continue_prompt(pre_vectors: dict, dynamic_context: di
             dead_ends=dynamic_context.get('critical_dead_ends', []),
             goals=dynamic_context.get('active_goals', []),
             subtasks=dynamic_context.get('pending_subtasks', []),
-            max_items=10,
+            max_items=5,
             session_id=session_id if session_id != 'unknown' else None
         )
     else:
@@ -1069,7 +1069,7 @@ def _generate_check_prompt(pre_vectors: dict, pre_reasoning: str, dynamic_contex
             dead_ends=dynamic_context.get('critical_dead_ends', []),
             goals=dynamic_context.get('active_goals', []),
             subtasks=dynamic_context.get('pending_subtasks', []),
-            max_items=15,
+            max_items=5,
             session_id=session_id if session_id != 'unknown' else None
         )
     else:
