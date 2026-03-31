@@ -72,10 +72,38 @@ def main():
     hook_input = json.loads(sys.stdin.read() or '{}')
     claude_session_id = hook_input.get('session_id')
 
+    # Context window monitoring: read from statusline state file (hooks don't get context_window)
+    # Statusline writes ~/.empirica/context_usage.json on each refresh
+    output = {}
+    try:
+        import time as _time
+        state_file = Path.home() / '.empirica' / 'context_usage.json'
+        if state_file.exists():
+            state = json.loads(state_file.read_text())
+            used_pct = state.get('used_percentage', 0)
+            state_age = _time.time() - state.get('timestamp', 0)
+            # Only use if state file is fresh (< 60 seconds old)
+            if state_age < 60 and used_pct >= 80:
+                output = {
+                    "hookSpecificOutput": {
+                        "hookEventName": "UserPromptSubmit",
+                        "additionalContext": f"CONTEXT WARNING: {int(used_pct)}% of context window used. Consider POSTFLIGHT + /compact to prevent quality degradation."
+                    }
+                }
+            elif state_age < 60 and used_pct >= 60:
+                output = {
+                    "hookSpecificOutput": {
+                        "hookEventName": "UserPromptSubmit",
+                        "additionalContext": f"Context at {int(used_pct)}%. Natural compaction point approaching."
+                    }
+                }
+    except Exception:
+        pass
+
     tx_path = _find_transaction_file(claude_session_id)
     if not tx_path:
-        # No active transaction — nothing to track
-        print(json.dumps({}))
+        # No active transaction — still output context warning if applicable
+        print(json.dumps(output))
         return
 
     try:
@@ -109,7 +137,7 @@ def main():
     except Exception:
         pass
 
-    print(json.dumps({}))
+    print(json.dumps(output))
 
 
 if __name__ == '__main__':

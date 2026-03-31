@@ -931,11 +931,28 @@ def format_deltas(deltas: dict) -> str:
 
 
 def format_context_window(stdin_context: dict) -> str:
-    """Format context window usage from Claude Code stdin data."""
+    """Format context window usage from Claude Code stdin data.
+
+    Also writes usage to state file for UserPromptSubmit hook to read
+    (hooks don't receive context_window, only statusline does).
+    """
     ctx = stdin_context.get('context_window', {})
     used_pct = ctx.get('used_percentage', 0)
     if not used_pct:
         return ""
+
+    # Write state file for hooks to read
+    try:
+        state_file = Path.home() / '.empirica' / 'context_usage.json'
+        import time as _time
+        import json as _json_ctx
+        state_file.write_text(_json_ctx.dumps({
+            'used_percentage': used_pct,
+            'timestamp': _time.time(),
+        }))
+    except Exception:
+        pass
+
     # Color: green < 50%, yellow 50-80%, red > 80%
     if used_pct >= 80:
         color = Colors.RED
