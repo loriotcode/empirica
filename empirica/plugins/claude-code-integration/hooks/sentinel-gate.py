@@ -29,10 +29,10 @@ Related but NOT consumed here:
   uses raw vectors. See workflow_commands.py for where this flag is consumed.
 """
 import json
-import os
 import sys
-from datetime import datetime
+import os
 from pathlib import Path
+from datetime import datetime
 from typing import Optional
 
 # Add lib folder to path for shared modules
@@ -40,7 +40,7 @@ _lib_path = Path(__file__).parent.parent / 'lib'
 if str(_lib_path) not in sys.path:
     sys.path.insert(0, str(_lib_path))
 
-from project_resolver import detect_environment, get_active_project_path, get_instance_id
+from project_resolver import get_active_project_path, get_instance_id, get_active_session_id, detect_environment
 
 # Noetic tools - read/investigate/search - always allowed (whitelist)
 NOETIC_TOOLS = {
@@ -130,7 +130,6 @@ DANGEROUS_SHELL_OPERATORS = (
 
 # Safe redirection patterns (stderr suppression, etc.)
 import re
-
 SAFE_REDIRECT_PATTERN = re.compile(r'2>/dev/null|2>&1|>/dev/null|2>\s*/dev/null')
 
 # Safe pipe targets - read-only commands that can receive piped input
@@ -414,7 +413,7 @@ def _find_transaction_file(empirica_dir: Path, suffix: str,
         try:
             for tx_file in sorted(empirica_dir.glob('active_transaction*.json')):
                 try:
-                    with open(tx_file) as f:
+                    with open(tx_file, 'r') as f:
                         tx_data = json.load(f)
                     if tx_data.get('session_id') == session_id:
                         return tx_file
@@ -433,7 +432,7 @@ def _resolve_empirica_session_id(claude_session_id: Optional[str]) -> Optional[s
     try:
         aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if aw_file.exists():
-            with open(aw_file) as f:
+            with open(aw_file, 'r') as f:
                 return json.load(f).get('empirica_session_id')
     except Exception:
         pass
@@ -465,7 +464,7 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
         aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if aw_file.exists():
             try:
-                with open(aw_file) as f:
+                with open(aw_file, 'r') as f:
                     pp = json.load(f).get('project_path')
                 if pp:
                     tx_path = _find_transaction_file(
@@ -490,7 +489,7 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
 
     try:
         # READ transaction file (read-only — never write back)
-        with open(tx_path) as f:
+        with open(tx_path, 'r') as f:
             tx = json.load(f)
 
         if tx.get('status') != 'open':
@@ -503,7 +502,7 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
         counters = {}
         if counters_path.exists():
             try:
-                with open(counters_path) as f:
+                with open(counters_path, 'r') as f:
                     counters = json.load(f)
             except Exception:
                 counters = {}
@@ -731,100 +730,87 @@ def is_plan_file(tool_input: dict) -> bool:
     return '/.claude/plans/' in normalized
 
 
+def _matches_safe_prefix(cmd: str) -> bool:
+    """Check if a command matches any SAFE_BASH_PREFIXES entry."""
+    for prefix in SAFE_BASH_PREFIXES:
+        if cmd.startswith(prefix):
+            return True
+        if prefix.endswith(' ') and cmd == prefix.rstrip():
+            return True
+    return False
+
+
+def _is_segment_safe(segment: str) -> bool:
+    """Check if a single command segment (from && or || chain) is safe."""
+    clean = segment.split('<<')[0].strip() if '<<' in segment else segment
+    clean = SAFE_REDIRECT_PATTERN.sub('', clean).strip()
+    if not clean:
+        return True
+    if clean.startswith('cd '):
+        return True
+    if is_safe_empirica_command(clean):
+        return True
+    if clean.startswith(('ssh ', 'rsync ', 'scp ', 'ssh-')):
+        return is_safe_remote_command(clean)
+    return _matches_safe_prefix(clean)
+
+
+def _has_dangerous_operators(command: str) -> bool:
+    """Check for dangerous shell operators (excluding && and || handled separately)."""
+    for operator in DANGEROUS_SHELL_OPERATORS:
+        if operator in ('&&', '||'):
+            continue
+        if operator in command:
+            return True
+    return False
+
+
+def _has_dangerous_redirects(command: str) -> bool:
+    """Check for file redirection (dangerous) vs stderr suppression (safe)."""
+    cmd_clean = SAFE_REDIRECT_PATTERN.sub('', command)
+    if '>' in cmd_clean or '>>' in cmd_clean:
+        return True
+    if '<' in cmd_clean and '<<' not in command:
+        return True
+    return False
+
+
 def is_safe_bash_command(tool_input: dict) -> bool:
     """Check if a Bash command is in the safe (noetic) whitelist."""
     command = tool_input.get('command', '')
     if not command:
         return False
 
-    # EMPIRICA CLI: Tiered whitelist (not blanket - prevents prompt injection bypass)
     if is_safe_empirica_command(command):
         return True
 
-    # Special case: && and || chains where ALL segments are safe (noetic)
-    # This allows: cd /path && grep ..., tmux capture-pane || echo "fallback"
+    # Chain commands (&&, ||): safe only if ALL segments are safe
     for chain_op in ('&&', '||'):
         if chain_op in command:
             segments = [s.strip() for s in command.split(chain_op)]
-            all_segments_safe = True
-            for segment in segments:
-                # Strip heredoc suffix for matching
-                segment_clean = segment.split('<<')[0].strip() if '<<' in segment else segment
-                # Strip safe redirects for matching (2>/dev/null, 2>&1)
-                segment_clean = SAFE_REDIRECT_PATTERN.sub('', segment_clean).strip()
-                # Check if segment is: cd, safe empirica, or starts with safe prefix
-                if segment_clean.startswith('cd '):
-                    continue  # cd is always safe
-                if is_safe_empirica_command(segment_clean):
-                    continue  # empirica tier1/tier2 commands are safe
-                # Check remote commands (ssh, rsync, scp)
-                if segment_clean.startswith(('ssh ', 'rsync ', 'scp ', 'ssh-')):
-                    if is_safe_remote_command(segment_clean):
-                        continue
-                    else:
-                        all_segments_safe = False
-                        break
-                # Check against SAFE_BASH_PREFIXES (grep, cat, ls, git status, etc.)
-                segment_is_safe = False
-                for prefix in SAFE_BASH_PREFIXES:
-                    if segment_clean.startswith(prefix) or (prefix.endswith(' ') and segment_clean == prefix.rstrip()):
-                        segment_is_safe = True
-                        break
-                if not segment_is_safe:
-                    all_segments_safe = False
-                    break
-            if all_segments_safe:
+            if all(_is_segment_safe(s) for s in segments):
                 return True
 
-    # Check for dangerous shell operators (command injection prevention)
-    # This blocks: ls; rm -rf, echo > file, etc.
-    # NOTE: && and || are handled above for safe chains, so we skip them here
-    for operator in DANGEROUS_SHELL_OPERATORS:
-        if operator in ('&&', '||'):
-            continue  # Already handled above - only block if chain wasn't all-safe
-        if operator in command:
-            return False
+    if _has_dangerous_operators(command):
+        return False
 
-    # Check for file redirection (dangerous) vs stderr suppression (safe)
-    # Strip safe patterns first, then check for remaining redirects
-    cmd_without_safe_redirects = SAFE_REDIRECT_PATTERN.sub('', command)
-    if '>' in cmd_without_safe_redirects or '>>' in cmd_without_safe_redirects:
-        return False  # Actual file redirection - not safe
-    if '<' in cmd_without_safe_redirects:
-        # Allow heredocs for safe commands (empirica already handled above)
-        if '<<' not in command:
-            return False  # Input redirection from file - not safe
+    if _has_dangerous_redirects(command):
+        return False
 
-    # Handle pipes specially - allow if all segments are safe
     if '|' in command:
         return is_safe_pipe_chain(command)
 
-    # Strip leading whitespace and check against safe prefixes
-    command_stripped = command.lstrip()
+    cmd = command.lstrip()
 
-    # Special case: remote commands (ssh, rsync, scp) — classify inner command
-    if command_stripped.startswith(('ssh ', 'rsync ', 'scp ', 'ssh-')):
-        return is_safe_remote_command(command_stripped)
+    # Special cases: remote, sqlite, python
+    if cmd.startswith(('ssh ', 'rsync ', 'scp ', 'ssh-')):
+        return is_safe_remote_command(cmd)
+    if cmd.startswith('sqlite3 ') and is_safe_sqlite_command(cmd):
+        return True
+    if cmd.startswith(('python3 -c ', 'python -c ')) and is_safe_python_command(cmd):
+        return True
 
-    # Special case: sqlite3 read-only queries (noetic DB access)
-    if command_stripped.startswith('sqlite3 '):
-        if is_safe_sqlite_command(command_stripped):
-            return True
-
-    # Special case: python3 -c read-only scripts (noetic analysis/investigation)
-    if command_stripped.startswith(('python3 -c ', 'python -c ')):
-        if is_safe_python_command(command_stripped):
-            return True
-
-    # Check if command starts with any safe prefix
-    for prefix in SAFE_BASH_PREFIXES:
-        if command_stripped.startswith(prefix):
-            return True
-        # Also check without trailing space for commands like 'ls', 'pwd'
-        if prefix.endswith(' ') and command_stripped == prefix.rstrip():
-            return True
-
-    return False
+    return _matches_safe_prefix(cmd)
 
 
 def is_safe_sqlite_command(command: str) -> bool:
@@ -1469,7 +1455,7 @@ def _detect_subagent(claude_session_id: str) -> bool:
             if _as_file.exists():
                 # Read the active_session to get its empirica_session_id
                 try:
-                    with open(_as_file) as _asf:
+                    with open(_as_file, 'r') as _asf:
                         _as_data = json.load(_asf)
                     _as_session_id = _as_data.get('empirica_session_id')
 
@@ -1479,7 +1465,7 @@ def _detect_subagent(claude_session_id: str) -> bool:
                         # Check if any active_work file has this session
                         for _aw_candidate in Path.home().glob('.empirica/active_work_*.json'):
                             try:
-                                with open(_aw_candidate) as _awf:
+                                with open(_aw_candidate, 'r') as _awf:
                                     _aw_data = json.load(_awf)
                                 if _aw_data.get('empirica_session_id') == _as_session_id:
                                     _tx_session_match = True
@@ -1594,7 +1580,7 @@ def _handle_investigate_continuation(decision: str, tool_name: str, tool_input: 
         if not _inv_counters_path or not _inv_counters_path.exists():
             return {}
         try:
-            with open(_inv_counters_path) as _f:
+            with open(_inv_counters_path, 'r') as _f:
                 return json.load(_f)
         except Exception:
             return {}
@@ -1758,7 +1744,7 @@ def main():
         tx_file = _find_transaction_file(empirica_root, suffix, empirica_session_id)
         if tx_file:
             try:
-                with open(tx_file) as f:
+                with open(tx_file, 'r') as f:
                     tx_data = json.load(f)
 
                 # CLOSED TRANSACTION CHECK: Closed transactions persist as project anchors.
@@ -1806,7 +1792,7 @@ def main():
         try:
             active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
             if active_work_file.exists():
-                with open(active_work_file) as f:
+                with open(active_work_file, 'r') as f:
                     work_data = json.load(f)
                 session_id = work_data.get('empirica_session_id')
         except Exception:
@@ -1872,7 +1858,7 @@ def main():
             counter_file = Path.home() / '.empirica' / f'pre_tx_calls{suffix}.json'
             count = 0
             if counter_file.exists():
-                with open(counter_file) as f:
+                with open(counter_file, 'r') as f:
                     count = json.load(f).get('count', 0)
             count += 1
             with open(counter_file, 'w') as f:
@@ -1919,7 +1905,7 @@ def main():
                 empirica_root, suffix,
                 _resolve_empirica_session_id(claude_session_id))
             if _gl_tx_file:
-                with open(_gl_tx_file) as _gl_f:
+                with open(_gl_tx_file, 'r') as _gl_f:
                     _gl_tx = json.load(_gl_f)
                 _gl_count = _gl_tx.get('tool_call_count', 0)
 
