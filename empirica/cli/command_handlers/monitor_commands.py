@@ -854,6 +854,50 @@ def _display_turtle_stack(vectors: dict, session_id: str = None, prompt: str = N
     print()
 
 
+def _resolve_current_vectors(db, session_id=None) -> tuple:
+    """Resolve current epistemic vectors and project_id. Returns (vectors, project_id)."""
+    import sqlite3
+    vectors = {}
+    project_id = None
+
+    if session_id:
+        try:
+            from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
+            checkpoints = GitEnhancedReflexLogger(
+                session_id=session_id, enable_git_notes=True
+            ).list_checkpoints(session_id=session_id, limit=1)
+            if checkpoints:
+                vectors = checkpoints[0].get('vectors', {})
+        except Exception:
+            pass
+        session = db.get_session(session_id)
+        if session:
+            project_id = session.get('project_id')
+
+    if not vectors:
+        try:
+            with sqlite3.connect(db.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT know, do, context, clarity, coherence, signal, density,
+                           engagement, state, change, completion, impact, uncertainty
+                    FROM reflexes ORDER BY id DESC LIMIT 1
+                """)
+                row = cursor.fetchone()
+                if row:
+                    names = ['know', 'do', 'context', 'clarity', 'coherence', 'signal', 'density',
+                             'engagement', 'state', 'change', 'completion', 'impact', 'uncertainty']
+                    vectors = {n: row[i] for i, n in enumerate(names) if row[i] is not None}
+        except Exception:
+            pass
+
+    if not vectors:
+        vectors = {k: 0.5 for k in ['know', 'do', 'context', 'clarity', 'coherence', 'signal',
+                                      'density', 'engagement', 'state', 'change', 'completion',
+                                      'impact', 'uncertainty']}
+    return vectors, project_id
+
+
 def handle_trajectory_project_command(args):
     """
     Project viable epistemic paths forward based on current grounding.
@@ -884,55 +928,7 @@ def handle_trajectory_project_command(args):
         verbose = getattr(args, 'verbose', False)
 
         db = SessionDatabase()
-
-        # Get current vectors (same logic as assess-state)
-        vectors = {}
-        project_id = None
-
-        if session_id:
-            # Try to get vectors from last checkpoint
-            from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
-
-            try:
-                reflex_logger = GitEnhancedReflexLogger(session_id=session_id, enable_git_notes=True)
-                checkpoints = reflex_logger.list_checkpoints(session_id=session_id, limit=1)
-                if checkpoints:
-                    checkpoint = checkpoints[0]
-                    vectors = checkpoint.get('vectors', {})
-            except Exception:
-                pass
-
-            # Get project_id from session
-            session = db.get_session(session_id)
-            if session:
-                project_id = session.get('project_id')
-
-        # Fallback: get from reflexes table
-        if not vectors:
-            try:
-                with sqlite3.connect(db.db_path) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("""
-                        SELECT know, do, context, clarity, coherence, signal, density,
-                               engagement, state, change, completion, impact, uncertainty
-                        FROM reflexes ORDER BY id DESC LIMIT 1
-                    """)
-                    row = cursor.fetchone()
-                    if row:
-                        vector_names = ['know', 'do', 'context', 'clarity', 'coherence', 'signal', 'density',
-                                       'engagement', 'state', 'change', 'completion', 'impact', 'uncertainty']
-                        vectors = {name: row[i] for i, name in enumerate(vector_names) if row[i] is not None}
-            except Exception:
-                pass
-
-        # If still no vectors, use defaults
-        if not vectors:
-            vectors = {
-                'know': 0.5, 'do': 0.5, 'context': 0.5, 'clarity': 0.5,
-                'coherence': 0.5, 'signal': 0.5, 'density': 0.5,
-                'engagement': 0.5, 'state': 0.5, 'change': 0.5,
-                'completion': 0.5, 'impact': 0.5, 'uncertainty': 0.5
-            }
+        vectors, project_id = _resolve_current_vectors(db, session_id)
 
         # Calculate turtle stack layers
         def get_moon_phase(score: float) -> tuple:
