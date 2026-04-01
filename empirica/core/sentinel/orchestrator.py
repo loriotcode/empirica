@@ -237,7 +237,7 @@ class ComplianceGate:
                 vectors = context.get("vectors", {})
                 value = vectors.get(vector_name, 0.5)
 
-                if operator == ">" and value > threshold or operator == "<" and value < threshold:
+                if (operator == ">" and value > threshold) or (operator == "<" and value < threshold):
                     return True
 
         # Flag-based conditions

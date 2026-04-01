@@ -213,10 +213,7 @@ def _compute_adaptive_limits(vectors: Optional[dict], base_limit: int) -> dict[s
     Low context → more episodic, goals, decisions.
     """
     if not vectors:
-        return {k: base_limit for k in [
-            "lessons", "dead_ends", "findings", "eidetic", "episodic",
-            "goals", "assumptions", "decisions", "global_dead_ends", "docs"
-        ]}
+        return dict.fromkeys(["lessons", "dead_ends", "findings", "eidetic", "episodic", "goals", "assumptions", "decisions", "global_dead_ends", "docs"], base_limit)
 
     uncertainty = vectors.get("uncertainty", 0.5)
     know = vectors.get("know", 0.5)

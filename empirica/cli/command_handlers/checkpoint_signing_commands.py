@@ -115,7 +115,6 @@ def handle_checkpoint_verify_command(args):
         # For verification, we don't actually need to load a signer identity
         # We just use the public key from the signature payload
         # Create a minimal signer instance (won't be used for actual signing)
-        from empirica.core.checkpoint_signer import CheckpointSigner
 
         class VerificationSigner(CheckpointSigner):
             """Minimal signer for verification only - doesn't need identity"""
@@ -178,7 +177,6 @@ def handle_checkpoint_signatures_command(args):
         # For listing, we don't need an identity - just access git
         from pathlib import Path
 
-        from empirica.core.checkpoint_signer import CheckpointSigner
 
         class ListSigner(CheckpointSigner):
             """Minimal signer for listing only - doesn't need identity"""
