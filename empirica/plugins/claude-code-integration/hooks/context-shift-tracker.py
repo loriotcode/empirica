@@ -24,7 +24,7 @@ _lib_path = Path(__file__).parent.parent / 'lib'
 if str(_lib_path) not in sys.path:
     sys.path.insert(0, str(_lib_path))
 
-from project_resolver import _get_instance_suffix, get_instance_id
+from project_resolver import get_instance_id, _get_instance_suffix
 
 
 def _find_transaction_file(claude_session_id: 'str | None' = None) -> 'Path | None':
@@ -37,7 +37,7 @@ def _find_transaction_file(claude_session_id: 'str | None' = None) -> 'Path | No
         aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if aw_file.exists():
             try:
-                with open(aw_file) as f:
+                with open(aw_file, 'r') as f:
                     pp = json.load(f).get('project_path')
                 if pp:
                     candidate = Path(pp) / '.empirica' / f'active_transaction{suffix}.json'
@@ -51,7 +51,7 @@ def _find_transaction_file(claude_session_id: 'str | None' = None) -> 'Path | No
         ip_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
         if ip_file.exists():
             try:
-                with open(ip_file) as f:
+                with open(ip_file, 'r') as f:
                     pp = json.load(f).get('project_path')
                 if pp:
                     candidate = Path(pp) / '.empirica' / f'active_transaction{suffix}.json'
@@ -82,19 +82,17 @@ def main():
             state = json.loads(state_file.read_text())
             used_pct = state.get('used_percentage', 0)
             state_age = _time.time() - state.get('timestamp', 0)
-            # Only use if state file is fresh (< 60 seconds old)
-            if state_age < 60 and used_pct >= 80:
+            # Informational only — no static thresholds.
+            # The AI decides when to suggest compaction based on:
+            # - current work context (mid-task vs between tasks)
+            # - epistemic density (how much useful context is loaded)
+            # - transaction state (open vs closed)
+            # We just provide the data point.
+            if state_age < 60 and used_pct > 0:
                 output = {
                     "hookSpecificOutput": {
                         "hookEventName": "UserPromptSubmit",
-                        "additionalContext": f"CONTEXT WARNING: {int(used_pct)}% of context window used. Consider POSTFLIGHT + /compact to prevent quality degradation."
-                    }
-                }
-            elif state_age < 60 and used_pct >= 60:
-                output = {
-                    "hookSpecificOutput": {
-                        "hookEventName": "UserPromptSubmit",
-                        "additionalContext": f"Context at {int(used_pct)}%. Natural compaction point approaching."
+                        "additionalContext": f"context: {int(used_pct)}%"
                     }
                 }
     except Exception:
@@ -108,7 +106,7 @@ def main():
 
     try:
         # READ transaction file (read-only — check status only)
-        with open(tx_path) as f:
+        with open(tx_path, 'r') as f:
             tx = json.load(f)
 
         if tx.get('status') != 'open':
@@ -121,7 +119,7 @@ def main():
         counters = {}
         if counters_path.exists():
             try:
-                with open(counters_path) as f:
+                with open(counters_path, 'r') as f:
                     counters = json.load(f)
             except Exception:
                 counters = {}
