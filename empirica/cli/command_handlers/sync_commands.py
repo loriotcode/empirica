@@ -860,82 +860,39 @@ def _rebuild_from_notes() -> dict[str, Any]:
         # Goal IDs are set only if the goal was successfully inserted in Phase 0
         inserted_all_goal_ids = inserted_goal_ids | {gid for gid in orphan_goal_ids}
 
-        for f in findings:
-            try:
-                gid = f.get('goal_id')
-                db.log_finding(
-                    project_id=f.get('project_id'),
-                    session_id=f.get('session_id'),
-                    finding=f.get('finding'),
-                    goal_id=gid if gid in inserted_all_goal_ids else None,
-                    subtask_id=None,  # Subtasks not rebuilt
-                    subject=f.get('subject'),
-                    impact=f.get('impact')
-                )
-                rebuilt['findings'] += 1
-            except Exception as e:
-                logger.debug(f"Finding rebuild skip: {e}")
+        # Phase 1: Insert breadcrumbs using table-driven approach
+        _REBUILD_HANDLERS = [
+            ('findings', findings, lambda db, item, valid_gids: db.log_finding(
+                project_id=item.get('project_id'), session_id=item.get('session_id'),
+                finding=item.get('finding'), subject=item.get('subject'), impact=item.get('impact'),
+                goal_id=item.get('goal_id') if item.get('goal_id') in valid_gids else None,
+                subtask_id=None)),
+            ('unknowns', unknowns, lambda db, item, valid_gids: db.log_unknown(
+                project_id=item.get('project_id'), session_id=item.get('session_id'),
+                unknown=item.get('unknown'), subtask_id=None,
+                goal_id=item.get('goal_id') if item.get('goal_id') in valid_gids else None)),
+            ('dead_ends', dead_ends, lambda db, item, valid_gids: db.log_dead_end(
+                project_id=item.get('project_id'), session_id=item.get('session_id'),
+                approach=item.get('approach'), why_failed=item.get('why_failed'), subtask_id=None,
+                goal_id=item.get('goal_id') if item.get('goal_id') in valid_gids else None)),
+            ('mistakes', mistakes, lambda db, item, valid_gids: db.log_mistake(
+                session_id=item.get('session_id'), project_id=item.get('project_id'),
+                mistake=item.get('mistake'), why_wrong=item.get('why_wrong'),
+                prevention=item.get('prevention'), cost_estimate=item.get('cost_estimate'),
+                root_cause_vector=item.get('root_cause_vector'),
+                goal_id=item.get('goal_id') if item.get('goal_id') in valid_gids else None)),
+        ]
+        for key, items, handler in _REBUILD_HANDLERS:
+            for item in items:
                 try:
-                    db.adapter.conn.rollback()
-                except Exception:
-                    pass
-
-        for u in unknowns:
-            try:
-                gid = u.get('goal_id')
-                db.log_unknown(
-                    project_id=u.get('project_id'),
-                    session_id=u.get('session_id'),
-                    unknown=u.get('unknown'),
-                    goal_id=gid if gid in inserted_all_goal_ids else None,
-                    subtask_id=None
-                )
-                rebuilt['unknowns'] += 1
-            except Exception as e:
-                logger.debug(f"Unknown rebuild skip: {e}")
-                try:
-                    db.adapter.conn.rollback()
-                except Exception:
-                    pass
-
-        for d in dead_ends:
-            try:
-                gid = d.get('goal_id')
-                db.log_dead_end(
-                    project_id=d.get('project_id'),
-                    session_id=d.get('session_id'),
-                    approach=d.get('approach'),
-                    why_failed=d.get('why_failed'),
-                    goal_id=gid if gid in inserted_all_goal_ids else None,
-                    subtask_id=None
-                )
-                rebuilt['dead_ends'] += 1
-            except Exception as e:
-                logger.debug(f"Dead end rebuild skip: {e}")
-                try:
-                    db.adapter.conn.rollback()
-                except Exception:
-                    pass
-
-        for m in mistakes:
-            try:
-                db.log_mistake(
-                    session_id=m.get('session_id'),
-                    mistake=m.get('mistake'),
-                    why_wrong=m.get('why_wrong'),
-                    prevention=m.get('prevention'),
-                    cost_estimate=m.get('cost_estimate'),
-                    root_cause_vector=m.get('root_cause_vector'),
-                    goal_id=m.get('goal_id') if m.get('goal_id') in inserted_all_goal_ids else None,
-                    project_id=m.get('project_id')
-                )
-                rebuilt['mistakes'] += 1
-            except Exception as e:
-                logger.debug(f"Mistake rebuild skip: {e}")
-                try:
-                    db.adapter.conn.rollback()
-                except Exception:
-                    pass
+                    handler(db, item, inserted_all_goal_ids)
+                    rebuilt[key] += 1
+                except Exception as e:
+                    logger.debug(f"{key} rebuild skip: {e}")
+                    try:
+                        db.adapter.conn.rollback()
+                    except Exception:
+                        pass
 
         db.close()
 
