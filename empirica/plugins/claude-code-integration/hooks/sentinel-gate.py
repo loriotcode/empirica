@@ -1548,6 +1548,36 @@ def _check_postflight_loop_closed(cursor, session_id: str, current_transaction_i
     return None
 
 
+def _check_prior_investigate(cursor, session_id: str, current_transaction_id, preflight_timestamp,
+                             tool_name: str, tool_input: dict) -> 'tuple | None':
+    """Block auto-proceed if previous transaction ended with INVESTIGATE and no evidence gathered."""
+    cursor.execute("""
+        SELECT json_extract(reflex_data, '$.decision') as decision, transaction_id
+        FROM reflexes WHERE session_id = ? AND phase = 'CHECK'
+        ORDER BY timestamp DESC LIMIT 1
+    """, (session_id,))
+    prev_check = cursor.fetchone()
+    if not prev_check:
+        return None
+
+    prev_decision, prev_tx_id = prev_check
+    if prev_decision != 'investigate' or prev_tx_id == current_transaction_id:
+        return None
+
+    cursor.execute("""
+        SELECT COUNT(*) FROM project_findings
+        WHERE session_id = ? AND created_timestamp > ?
+    """, (session_id, preflight_timestamp))
+    if (cursor.fetchone()[0] or 0) > 0:
+        return None
+
+    if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME:
+        return ("allow", f"Noetic tool (prior INVESTIGATE, gathering evidence): {tool_name}")
+    if tool_name == 'Bash' and is_safe_bash_command(tool_input):
+        return ("allow", "Safe Bash (prior INVESTIGATE, gathering evidence)")
+    return ("deny", "Previous transaction ended with INVESTIGATE. Show evidence of investigation (findings) or submit CHECK with proceed decision.")
+
+
 def _check_goalless_work(cursor, session_id: str, preflight_project_id, claude_session_id, empirica_root, suffix) -> str:
     """Check if transaction has tool calls but no goals. Returns nudge string or empty."""
     try:
@@ -1975,39 +2005,12 @@ def main():
     raw_unc = preflight_uncertainty or 1
 
     # ANTI-GAMING: Check if previous transaction ended with INVESTIGATE
-    # If so, require explicit CHECK with evidence - can't just start fresh with high confidence
-    cursor.execute("""
-        SELECT json_extract(reflex_data, '$.decision') as decision, transaction_id
-        FROM reflexes
-        WHERE session_id = ? AND phase = 'CHECK'
-        ORDER BY timestamp DESC LIMIT 1
-    """, (session_id,))
-    prev_check = cursor.fetchone()
-
-    if prev_check:
-        prev_decision, prev_tx_id = prev_check
-        # If previous CHECK was INVESTIGATE and this is a NEW transaction, block auto-proceed
-        if prev_decision == 'investigate' and prev_tx_id != current_transaction_id:
-            # Check if there's been any noetic evidence since (findings, etc.)
-            cursor.execute("""
-                SELECT COUNT(*) FROM project_findings
-                WHERE session_id = ? AND created_timestamp > ?
-            """, (session_id, preflight_timestamp))
-            findings_since = cursor.fetchone()[0] or 0
-
-            if findings_since == 0:
-                # Still allow noetic tools so investigation can actually happen
-                if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME:
-                    db.close()
-                    respond("allow", f"Noetic tool (prior INVESTIGATE, gathering evidence): {tool_name}")
-                    sys.exit(0)
-                if tool_name == 'Bash' and is_safe_bash_command(tool_input):
-                    db.close()
-                    respond("allow", "Safe Bash (prior INVESTIGATE, gathering evidence)")
-                    sys.exit(0)
-                db.close()
-                respond("deny", f"Previous transaction ended with INVESTIGATE. Show evidence of investigation (findings) or submit CHECK with proceed decision.")
-                sys.exit(0)
+    anti_game_result = _check_prior_investigate(
+        cursor, session_id, current_transaction_id, preflight_timestamp, tool_name, tool_input)
+    if anti_game_result:
+        db.close()
+        respond(anti_game_result[0], anti_game_result[1])
+        sys.exit(0)
 
     # AUTO-PROCEED: If PREFLIGHT passes readiness gate, skip CHECK requirement
     # Uses Brier-based dynamic thresholds when available (miscalibration raises the bar)
