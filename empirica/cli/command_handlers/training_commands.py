@@ -329,6 +329,42 @@ def _find_transaction_pairs(conn, project_filter=None, ai_filter=None):
     return pairs
 
 
+def _collect_transaction_artifacts(conn, session_id: str, start_ts, end_ts) -> dict:
+    """Collect noetic artifacts within a transaction time window."""
+    ARTIFACT_QUERIES = [
+        ('findings', 'project_findings',
+         'finding, impact, subject', 'ORDER BY impact DESC',
+         lambda r: {'finding': r['finding'], 'impact': r['impact'], 'subject': r['subject']}),
+        ('unknowns', 'project_unknowns',
+         'unknown, is_resolved, impact', '',
+         lambda r: {'unknown': r['unknown'], 'resolved': bool(r['is_resolved']), 'impact': r['impact']}),
+        ('dead_ends', 'project_dead_ends',
+         'approach, why_failed, impact', '',
+         lambda r: {'approach': r['approach'], 'why_failed': r['why_failed'], 'impact': r['impact']}),
+        ('mistakes', 'mistakes_made',
+         'mistake, why_wrong, prevention, root_cause_vector', '',
+         lambda r: {'mistake': r['mistake'], 'why_wrong': r['why_wrong'],
+                    'prevention': r['prevention'], 'root_cause_vector': r['root_cause_vector']}),
+        ('decisions', 'decisions_made',
+         'choice, rationale, reversibility', '',
+         lambda r: {'choice': r['choice'], 'rationale': r['rationale'],
+                    'reversibility': r['reversibility']}),
+    ]
+    artifacts = {}
+    for key, table, columns, order, mapper in ARTIFACT_QUERIES:
+        try:
+            rows = conn.execute(f"""
+                SELECT {columns} FROM {table}
+                WHERE session_id = ? AND created_timestamp >= ? AND created_timestamp <= ?
+                {order} LIMIT 10
+            """, [session_id, start_ts, end_ts]).fetchall()
+            if rows:
+                artifacts[key] = [mapper(r) for r in rows]
+        except sqlite3.OperationalError:
+            pass
+    return artifacts
+
+
 def _build_training_record(conn, pair, include_artifacts=True, include_grounded=True, min_vectors=3):
     """Build a single JSONL training record from a PREFLIGHT/POSTFLIGHT pair."""
     VECTORS = ['know', 'do', 'context', 'clarity', 'coherence', 'signal',
@@ -452,85 +488,8 @@ def _build_training_record(conn, pair, include_artifacts=True, include_grounded=
 
     # Noetic artifacts within transaction window
     if include_artifacts:
-        artifacts = {}
-
-        # Findings
-        try:
-            findings = conn.execute("""
-                SELECT finding, impact, subject FROM project_findings
-                WHERE session_id = ? AND created_timestamp >= ? AND created_timestamp <= ?
-                ORDER BY impact DESC LIMIT 10
-            """, [session_id, pair['preflight_ts'], pair['postflight_ts']]).fetchall()
-            if findings:
-                artifacts['findings'] = [
-                    {'finding': f['finding'], 'impact': f['impact'], 'subject': f['subject']}
-                    for f in findings
-                ]
-        except sqlite3.OperationalError:
-            pass
-
-        # Unknowns
-        try:
-            unknowns = conn.execute("""
-                SELECT unknown, is_resolved, impact FROM project_unknowns
-                WHERE session_id = ? AND created_timestamp >= ? AND created_timestamp <= ?
-                LIMIT 10
-            """, [session_id, pair['preflight_ts'], pair['postflight_ts']]).fetchall()
-            if unknowns:
-                artifacts['unknowns'] = [
-                    {'unknown': u['unknown'], 'resolved': bool(u['is_resolved']), 'impact': u['impact']}
-                    for u in unknowns
-                ]
-        except sqlite3.OperationalError:
-            pass
-
-        # Dead ends
-        try:
-            dead_ends = conn.execute("""
-                SELECT approach, why_failed, impact FROM project_dead_ends
-                WHERE session_id = ? AND created_timestamp >= ? AND created_timestamp <= ?
-                LIMIT 10
-            """, [session_id, pair['preflight_ts'], pair['postflight_ts']]).fetchall()
-            if dead_ends:
-                artifacts['dead_ends'] = [
-                    {'approach': d['approach'], 'why_failed': d['why_failed'], 'impact': d['impact']}
-                    for d in dead_ends
-                ]
-        except sqlite3.OperationalError:
-            pass
-
-        # Mistakes
-        try:
-            mistakes = conn.execute("""
-                SELECT mistake, why_wrong, prevention, root_cause_vector FROM mistakes_made
-                WHERE session_id = ? AND created_timestamp >= ? AND created_timestamp <= ?
-                LIMIT 10
-            """, [session_id, pair['preflight_ts'], pair['postflight_ts']]).fetchall()
-            if mistakes:
-                artifacts['mistakes'] = [
-                    {'mistake': m['mistake'], 'why_wrong': m['why_wrong'],
-                     'prevention': m['prevention'], 'root_cause_vector': m['root_cause_vector']}
-                    for m in mistakes
-                ]
-        except sqlite3.OperationalError:
-            pass
-
-        # Decisions
-        try:
-            decisions = conn.execute("""
-                SELECT choice, rationale, reversibility FROM decisions_made
-                WHERE session_id = ? AND created_timestamp >= ? AND created_timestamp <= ?
-                LIMIT 10
-            """, [session_id, pair['preflight_ts'], pair['postflight_ts']]).fetchall()
-            if decisions:
-                artifacts['decisions'] = [
-                    {'choice': d['choice'], 'rationale': d['rationale'],
-                     'reversibility': d['reversibility']}
-                    for d in decisions
-                ]
-        except sqlite3.OperationalError:
-            pass
-
+        artifacts = _collect_transaction_artifacts(conn, session_id,
+                                                    pair['preflight_ts'], pair['postflight_ts'])
         if artifacts:
             record['noetic_artifacts'] = artifacts
 
