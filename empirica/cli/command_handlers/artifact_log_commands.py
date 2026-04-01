@@ -44,36 +44,25 @@ def _parse_config_input(args):
     return config_data
 
 
-def _resolve_artifact_context(config_data, args, required_fields=None):
-    """Resolve common context needed by all artifact handlers.
-
-    Consolidates session resolution, project resolution, entity params,
-    transaction ID, goal auto-link, ai_id lookup, and subject detection
-    into a single call. Each handler previously did this independently.
-
-    Returns dict with: session_id, project_id, goal_id, transaction_id,
-    entity_type, entity_id, via, ai_id, subject, output_format, db.
-    Caller is responsible for closing db.
-    """
-    import sys
-
-
-    # Extract common fields from config or args
+def _extract_scalar_fields(config_data, args):
+    """Extract common scalar fields from config dict or CLI args."""
     output_format = 'json' if config_data else getattr(args, 'output', 'json')
     session_id = (config_data or {}).get('session_id') or getattr(args, 'session_id', None)
     project_id = (config_data or {}).get('project_id') or getattr(args, 'project_id', None)
     goal_id = (config_data or {}).get('goal_id') or getattr(args, 'goal_id', None)
     subtask_id = (config_data or {}).get('subtask_id') or getattr(args, 'subtask_id', None)
     impact = (config_data or {}).get('impact') or getattr(args, 'impact', None)
+    return output_format, session_id, project_id, goal_id, subtask_id, impact
 
-    # Entity scoping
-    entity_type, entity_id, via = _extract_entity_params(config_data, args)
 
-    # Session auto-derive
+def _resolve_session_for_artifact(session_id, project_id):
+    """Auto-derive session_id and detect cross-project writes.
+
+    Returns (session_id, is_cross_project).
+    """
     if not session_id:
         session_id = R.session_id()
 
-    # Cross-project detection + synthetic provenance
     is_cross_project = False
     if project_id:
         try:
@@ -82,21 +71,35 @@ def _resolve_artifact_context(config_data, args, required_fields=None):
             is_cross_project = current_project_id is None or project_id != current_project_id
         except Exception:
             is_cross_project = True
+
     if not session_id and is_cross_project:
         session_id = "cross-project"
 
-    # Validate required fields
-    if required_fields:
-        missing = [f for f in required_fields if not ((config_data or {}).get(f) or getattr(args, f, None))]
-        if not session_id or missing:
-            print(json.dumps({
-                "ok": False,
-                "error": f"Missing required: {', '.join(['session_id'] + missing) if not session_id else ', '.join(missing)}",
-                "hint": "Either run PREFLIGHT first, or provide --session-id explicitly"
-            }))
-            sys.exit(1)
+    return session_id, is_cross_project
 
-    # Subject auto-detect
+
+def _validate_artifact_required_fields(config_data, args, session_id, required_fields):
+    """Validate that session_id and all required fields are present.
+
+    Prints an error and exits if validation fails.
+    """
+    import sys
+
+    if not required_fields:
+        return
+
+    missing = [f for f in required_fields if not ((config_data or {}).get(f) or getattr(args, f, None))]
+    if not session_id or missing:
+        print(json.dumps({
+            "ok": False,
+            "error": f"Missing required: {', '.join(['session_id'] + missing) if not session_id else ', '.join(missing)}",
+            "hint": "Either run PREFLIGHT first, or provide --session-id explicitly"
+        }))
+        sys.exit(1)
+
+
+def _resolve_subject_for_artifact(config_data, args):
+    """Resolve artifact subject from config, args, or project config."""
     subject = (config_data or {}).get('subject') or getattr(args, 'subject', None)
     if subject is None:
         try:
@@ -104,11 +107,14 @@ def _resolve_artifact_context(config_data, args, required_fields=None):
             subject = get_current_subject()
         except Exception:
             pass
+    return subject
 
-    # Resolve DB (cross-project aware)
-    db, project_id = _resolve_db_for_artifact(project_id)
 
-    # Project ID resolution cascade
+def _resolve_project_id_for_artifact(project_id, session_id, db):
+    """Resolve project_id via cascading fallbacks after DB is known.
+
+    Falls back through: session lookup -> R.context() -> project_resolver -> hash.
+    """
     if not project_id and session_id:
         try:
             cursor = db.conn.cursor()
@@ -138,7 +144,11 @@ def _resolve_artifact_context(config_data, args, required_fields=None):
         import hashlib
         project_id = hashlib.md5(f"session-{session_id}".encode()).hexdigest()
 
-    # Goal auto-link
+    return project_id
+
+
+def _resolve_goal_for_artifact(goal_id, session_id, db):
+    """Auto-link to the most recent open goal for this session."""
     if not goal_id and session_id:
         try:
             cursor = db.conn.cursor()
@@ -150,15 +160,19 @@ def _resolve_artifact_context(config_data, args, required_fields=None):
                 goal_id = row['id'] if hasattr(row, 'keys') else row[0]
         except Exception:
             pass
+    return goal_id
 
-    # Transaction ID
-    transaction_id = None
+
+def _resolve_transaction_id_for_artifact():
+    """Resolve the current transaction ID, returning None on failure."""
     try:
-        transaction_id = R.transaction_id()
+        return R.transaction_id()
     except Exception:
-        pass
+        return None
 
-    # AI ID from session
+
+def _resolve_ai_id_for_artifact(session_id, db):
+    """Look up ai_id from the session record, defaulting to 'claude-code'."""
     ai_id = 'claude-code'
     try:
         cursor = db.conn.cursor()
@@ -170,10 +184,38 @@ def _resolve_artifact_context(config_data, args, required_fields=None):
                 ai_id = val
     except Exception:
         pass
+    return ai_id
 
-    # Entity defaults
+
+def _resolve_entity_defaults(entity_type, entity_id, project_id):
+    """Apply defaults: entity_type falls back to 'project', entity_id to project_id."""
     resolved_entity_type = entity_type or 'project'
     resolved_entity_id = entity_id or (project_id if resolved_entity_type == 'project' else None)
+    return resolved_entity_type, resolved_entity_id
+
+
+def _resolve_artifact_context(config_data, args, required_fields=None):
+    """Resolve common context needed by all artifact handlers.
+
+    Consolidates session resolution, project resolution, entity params,
+    transaction ID, goal auto-link, ai_id lookup, and subject detection
+    into a single call. Each handler previously did this independently.
+
+    Returns dict with: session_id, project_id, goal_id, transaction_id,
+    entity_type, entity_id, via, ai_id, subject, output_format, db.
+    Caller is responsible for closing db.
+    """
+    output_format, session_id, project_id, goal_id, subtask_id, impact = _extract_scalar_fields(config_data, args)
+    entity_type, entity_id, via = _extract_entity_params(config_data, args)
+    session_id, is_cross_project = _resolve_session_for_artifact(session_id, project_id)
+    _validate_artifact_required_fields(config_data, args, session_id, required_fields)
+    subject = _resolve_subject_for_artifact(config_data, args)
+    db, project_id = _resolve_db_for_artifact(project_id)
+    project_id = _resolve_project_id_for_artifact(project_id, session_id, db)
+    goal_id = _resolve_goal_for_artifact(goal_id, session_id, db)
+    transaction_id = _resolve_transaction_id_for_artifact()
+    ai_id = _resolve_ai_id_for_artifact(session_id, db)
+    resolved_entity_type, resolved_entity_id = _resolve_entity_defaults(entity_type, entity_id, project_id)
 
     return {
         'session_id': session_id,
