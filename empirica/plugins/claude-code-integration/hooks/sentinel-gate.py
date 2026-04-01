@@ -1548,6 +1548,106 @@ def _check_postflight_loop_closed(cursor, session_id: str, current_transaction_i
     return None
 
 
+def _check_goalless_work(cursor, session_id: str, preflight_project_id, claude_session_id, empirica_root, suffix) -> str:
+    """Check if transaction has tool calls but no goals. Returns nudge string or empty."""
+    try:
+        _gl_count = 0
+        if empirica_root:
+            _gl_tx_file = _find_transaction_file(
+                empirica_root, suffix,
+                _resolve_empirica_session_id(claude_session_id))
+            if _gl_tx_file:
+                with open(_gl_tx_file, 'r') as _gl_f:
+                    _gl_count = json.load(_gl_f).get('tool_call_count', 0)
+
+        if _gl_count < 5:
+            return ""
+
+        _gl_project_id = preflight_project_id
+        if not _gl_project_id:
+            cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
+            _gl_row = cursor.fetchone()
+            _gl_project_id = _gl_row[0] if _gl_row else None
+
+        if _gl_project_id:
+            cursor.execute("""
+                SELECT COUNT(*) FROM goals
+                WHERE project_id = ? AND is_completed = 0 AND status != 'completed'
+            """, (_gl_project_id,))
+            if cursor.fetchone()[0] == 0:
+                if _gl_count >= 10:
+                    return (
+                        f"DISCIPLINE: {_gl_count} tool calls with NO GOALS. "
+                        f"Create goals now: empirica goals-create --objective '...'. "
+                        f"Tell the user: 'We should create goals before continuing — "
+                        f"work without goals produces unmeasurable transactions.'"
+                    )
+                return (
+                    f"DISCIPLINE: {_gl_count} tool calls with no goals for this project. "
+                    f"Consider creating goals: empirica goals-create --objective '...'"
+                )
+    except Exception:
+        pass
+    return ""
+
+
+def _check_project_context(cursor, db, session_id: str, preflight_project_id) -> 'tuple | None':
+    """Check if project context changed since PREFLIGHT. Returns (status, msg) or None."""
+    current_project_id = _get_current_project_id(db, session_id)
+    if not (current_project_id and preflight_project_id and current_project_id != preflight_project_id):
+        return None
+    cursor.execute("""
+        SELECT timestamp FROM reflexes
+        WHERE session_id = ? AND phase = 'POSTFLIGHT' AND project_id = ?
+        ORDER BY timestamp DESC LIMIT 1
+    """, (session_id, preflight_project_id))
+    prev_postflight = cursor.fetchone()
+    if prev_postflight:
+        return ("deny", "Project context changed. Run PREFLIGHT for new project.")
+    return ("deny", "Project context changed (previous loop unclosed - consider POSTFLIGHT). Run PREFLIGHT for new project.")
+
+
+def _handle_no_preflight(tool_name: str, tool_input: dict, session_id: str, env_annotation: str) -> tuple:
+    """Handle tool calls when no PREFLIGHT exists yet.
+
+    Allows read-only commands and transitions. Tracks pre-transaction tool call count
+    and nudges AI to open a transaction. Returns (status, message) tuple.
+    """
+    pre_tx_nudge = ""
+    counter_file = None
+    try:
+        from empirica.utils.session_resolver import InstanceResolver as R
+        suffix = R.instance_suffix()
+        counter_file = Path.home() / '.empirica' / f'pre_tx_calls{suffix}.json'
+        count = 0
+        if counter_file.exists():
+            with open(counter_file, 'r') as f:
+                count = json.load(f).get('count', 0)
+        count += 1
+        with open(counter_file, 'w') as f:
+            json.dump({'count': count, 'session_id': session_id}, f)
+        if count >= 10:
+            pre_tx_nudge = f" STRONGLY RECOMMENDED: {count} tool calls without a transaction. Submit PREFLIGHT now — this work is unmeasured."
+        elif count >= 5:
+            pre_tx_nudge = f" NOTE: {count} tool calls without a transaction. Consider submitting PREFLIGHT to begin measured work."
+    except Exception:
+        pass
+
+    if tool_name == 'Bash':
+        command = tool_input.get('command', '')
+        if is_safe_bash_command(tool_input):
+            return ("allow", f"Safe Bash before PREFLIGHT (artifact review).{pre_tx_nudge}")
+        if is_transition_command(command):
+            if 'preflight' in command.lower() and counter_file is not None:
+                try:
+                    counter_file.unlink(missing_ok=True)
+                except Exception:
+                    pass
+            return ("allow", f"Transition command (no PREFLIGHT yet - starting new cycle).{pre_tx_nudge}")
+
+    return ("deny", f"No open transaction. Submit PREFLIGHT with your self-assessed vectors to begin measured work.{pre_tx_nudge}{env_annotation}")
+
+
 def _handle_investigate_continuation(decision: str, tool_name: str, tool_input: dict,
                                      suffix: str, tx_file: Optional[Path],
                                      db) -> Optional[tuple]:
@@ -1843,123 +1943,23 @@ def main():
     preflight_row = cursor.fetchone()
 
     if not preflight_row:
-        # No PREFLIGHT yet - allow read-only/workflow commands + transitions
-        # This enables artifact lifecycle review before starting a new transaction:
-        # goals-list, epistemics-list, goals-complete, unknown-resolve, etc.
-        #
-        # PRE-TRANSACTION MONITORING: Track tool calls outside transactions.
-        # The Sentinel can't do vector analysis without a baseline, but it can
-        # count calls and nudge the AI to open a transaction.
-        pre_tx_nudge = ""
-        counter_file = None
-        try:
-            from empirica.utils.session_resolver import InstanceResolver as R
-            suffix = R.instance_suffix()
-            counter_file = Path.home() / '.empirica' / f'pre_tx_calls{suffix}.json'
-            count = 0
-            if counter_file.exists():
-                with open(counter_file, 'r') as f:
-                    count = json.load(f).get('count', 0)
-            count += 1
-            with open(counter_file, 'w') as f:
-                json.dump({'count': count, 'session_id': session_id}, f)
-            if count >= 10:
-                pre_tx_nudge = f" STRONGLY RECOMMENDED: {count} tool calls without a transaction. Submit PREFLIGHT now — this work is unmeasured."
-            elif count >= 5:
-                pre_tx_nudge = f" NOTE: {count} tool calls without a transaction. Consider submitting PREFLIGHT to begin measured work."
-        except Exception:
-            pass
-
-        if tool_name == 'Bash':
-            command = tool_input.get('command', '')
-            if is_safe_bash_command(tool_input):
-                db.close()
-                respond("allow", f"Safe Bash before PREFLIGHT (artifact review).{pre_tx_nudge}")
-                sys.exit(0)
-            if is_transition_command(command):
-                db.close()
-                # Reset counter when AI submits PREFLIGHT
-                if 'preflight' in command.lower() and counter_file is not None:
-                    try:
-                        counter_file.unlink(missing_ok=True)
-                    except Exception:
-                        pass
-                respond("allow", f"Transition command (no PREFLIGHT yet - starting new cycle).{pre_tx_nudge}")
-                sys.exit(0)
+        result = _handle_no_preflight(tool_name, tool_input, session_id, env_annotation)
         db.close()
-        respond("deny", f"No open transaction. Submit PREFLIGHT with your self-assessed vectors to begin measured work.{pre_tx_nudge}{env_annotation}")
+        respond(result[0], result[1])
         sys.exit(0)
 
     preflight_know, preflight_uncertainty, preflight_timestamp, preflight_project_id = preflight_row
 
-    # === GOALLESS-WORK DETECTION ===
-    # Advisory nudge when transaction is open but no goals exist for the project.
-    # Only activates after a threshold of tool calls to avoid noise on first few actions.
-    # Nudge is appended to permissionDecisionReason on allow — not a deny.
+    # === GOALLESS-WORK DETECTION (advisory nudge) ===
     global _goalless_nudge
-    try:
-        # Read tool_call_count from transaction file (uses suffix-mismatch fallback)
-        _gl_count = 0
-        if empirica_root:
-            _gl_tx_file = _find_transaction_file(
-                empirica_root, suffix,
-                _resolve_empirica_session_id(claude_session_id))
-            if _gl_tx_file:
-                with open(_gl_tx_file, 'r') as _gl_f:
-                    _gl_tx = json.load(_gl_f)
-                _gl_count = _gl_tx.get('tool_call_count', 0)
-
-        GOALLESS_NUDGE_THRESHOLD = 5  # Start nudging after 5 tool calls
-        if _gl_count >= GOALLESS_NUDGE_THRESHOLD:
-            _gl_project_id = preflight_project_id
-            if not _gl_project_id:
-                cursor.execute(
-                    "SELECT project_id FROM sessions WHERE session_id = ?",
-                    (session_id,))
-                _gl_row = cursor.fetchone()
-                _gl_project_id = _gl_row[0] if _gl_row else None
-
-            if _gl_project_id:
-                cursor.execute("""
-                    SELECT COUNT(*) FROM goals
-                    WHERE project_id = ? AND is_completed = 0 AND status != 'completed'
-                """, (_gl_project_id,))
-                _gl_goal_count = cursor.fetchone()[0]
-
-                if _gl_goal_count == 0:
-                    if _gl_count >= 10:
-                        _goalless_nudge = (
-                            f"DISCIPLINE: {_gl_count} tool calls with NO GOALS. "
-                            f"Create goals now: empirica goals-create --objective '...'. "
-                            f"Tell the user: 'We should create goals before continuing — "
-                            f"work without goals produces unmeasurable transactions.'"
-                        )
-                    else:
-                        _goalless_nudge = (
-                            f"DISCIPLINE: {_gl_count} tool calls with no goals for this project. "
-                            f"Consider creating goals: empirica goals-create --objective '...'"
-                        )
-    except Exception:
-        pass  # Goalless detection failure is non-fatal
+    _goalless_nudge = _check_goalless_work(
+        cursor, session_id, preflight_project_id, claude_session_id, empirica_root, suffix)
 
     # PROJECT CONTEXT CHECK: Require new PREFLIGHT if project changed
-    # This implicitly closes the previous project's epistemic loop
-    # Uses session's project_id (same source as reflexes storage)
-    current_project_id = _get_current_project_id(db, session_id)
-    if current_project_id and preflight_project_id and current_project_id != preflight_project_id:
-        # Check if previous project loop was properly closed with POSTFLIGHT
-        cursor.execute("""
-            SELECT timestamp FROM reflexes
-            WHERE session_id = ? AND phase = 'POSTFLIGHT' AND project_id = ?
-            ORDER BY timestamp DESC LIMIT 1
-        """, (session_id, preflight_project_id))
-        prev_postflight = cursor.fetchone()
-
+    project_result = _check_project_context(cursor, db, session_id, preflight_project_id)
+    if project_result:
         db.close()
-        if prev_postflight:
-            respond("deny", f"Project context changed. Run PREFLIGHT for new project.")
-        else:
-            respond("deny", f"Project context changed (previous loop unclosed - consider POSTFLIGHT). Run PREFLIGHT for new project.")
+        respond(project_result[0], project_result[1])
         sys.exit(0)
 
     # POSTFLIGHT LOOP CHECK: If POSTFLIGHT exists after PREFLIGHT, loop is closed
