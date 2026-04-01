@@ -273,6 +273,12 @@ class ReleaseManager:
                 r'"version":\s*"[^"]+"',
                 f'"version": "{self.version}"',
             ),
+            # Installed plugin VERSION file (drift detection at session start)
+            (
+                Path.home() / ".claude" / "plugins" / "local" / "empirica" / "VERSION",
+                r'^[0-9]+\.[0-9]+\.[0-9]+',
+                self.version,
+            ),
             # __init__.py docstring version
             (
                 self.repo_root / "empirica" / "__init__.py",
