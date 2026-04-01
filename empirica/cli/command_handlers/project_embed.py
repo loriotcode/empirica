@@ -92,6 +92,56 @@ def _has_indexed_python_files(docs_cfg: dict) -> bool:
     return any(str(path).endswith(".py") for path in docs_cfg.keys())
 
 
+def _build_memory_items(findings, unknowns, mistakes, dead_ends, lessons, snapshots) -> list:
+    """Build Qdrant memory items from all artifact types. Uses actual artifact IDs."""
+    items = []
+    for f in findings:
+        fid = f.get('finding_id') or str(f.get('id', ''))
+        if fid:
+            items.append({'id': fid, 'text': f.get('finding', ''), 'type': 'finding',
+                          'goal_id': f.get('goal_id'), 'subtask_id': f.get('subtask_id'),
+                          'session_id': f.get('session_id'), 'timestamp': f.get('created_timestamp'),
+                          'subject': f.get('subject')})
+    for u in unknowns:
+        uid = u.get('unknown_id') or str(u.get('id', ''))
+        if uid:
+            items.append({'id': uid, 'text': u.get('unknown', ''), 'type': 'unknown',
+                          'goal_id': u.get('goal_id'), 'subtask_id': u.get('subtask_id'),
+                          'session_id': u.get('session_id'), 'timestamp': u.get('created_timestamp'),
+                          'subject': u.get('subject'), 'is_resolved': u.get('is_resolved', False)})
+    for m in mistakes:
+        mid = str(m.get('id', ''))
+        if mid:
+            items.append({'id': f"mistake_{mid}",
+                          'text': f"{m.get('mistake','')} Prevention: {m.get('prevention','')}",
+                          'type': 'mistake', 'session_id': m.get('session_id'),
+                          'goal_id': m.get('goal_id'), 'timestamp': m.get('created_timestamp')})
+    for d in dead_ends:
+        did = d.get('dead_end_id') or str(d.get('id', ''))
+        if did:
+            items.append({'id': did,
+                          'text': f"DEAD END: {d.get('approach', '')} Why failed: {d.get('why_failed', '')}",
+                          'type': 'dead_end', 'session_id': d.get('session_id'),
+                          'goal_id': d.get('goal_id'), 'subtask_id': d.get('subtask_id'),
+                          'timestamp': d.get('created_timestamp')})
+    for lesson in lessons:
+        lid = str(lesson.get('id', ''))
+        if lid:
+            items.append({'id': f"lesson_{lid}",
+                          'text': f"LESSON: {lesson.get('name', '')} - {lesson.get('description', '')} Domain: {lesson.get('domain', '')}",
+                          'type': 'lesson', 'lesson_id': lesson.get('id'),
+                          'domain': lesson.get('domain'), 'tags': lesson.get('tags'),
+                          'timestamp': lesson.get('created_timestamp')})
+    for snap in snapshots:
+        context = snap.get('context_summary', '')
+        sid = snap.get('snapshot_id') or str(snap.get('id', ''))
+        if context and sid:
+            items.append({'id': f"snap_{sid}", 'text': f"SESSION NARRATIVE: {context}",
+                          'type': 'episodic', 'session_id': snap.get('session_id'),
+                          'snapshot_id': snap.get('snapshot_id'), 'timestamp': snap.get('timestamp')})
+    return items
+
+
 def handle_project_embed_command(args):
     """Handle project-embed command to sync docs and memory to Qdrant."""
     try:
@@ -234,105 +284,8 @@ def handle_project_embed_command(args):
 
         db.close()
 
-        # Build memory items using ACTUAL artifact IDs from SQLite.
-        # CRITICAL: Use the same ID scheme as embed_single_memory_item() —
-        # string IDs (UUIDs) that get md5-hashed to Qdrant point IDs in
-        # upsert_memory(). Previously used sequential integers (mid=1000000++),
-        # which created duplicates: finding-log embedded with UUID-derived IDs
-        # while project-embed embedded with sequential IDs. Same text, different
-        # Qdrant point IDs = duplicate on every project-embed run.
-        mem_items: list[dict] = []
-        for f in findings:
-            fid = f.get('finding_id') or str(f.get('id', ''))
-            if not fid:
-                continue
-            mem_items.append({
-                'id': fid,
-                'text': f.get('finding', ''),
-                'type': 'finding',
-                'goal_id': f.get('goal_id'),
-                'subtask_id': f.get('subtask_id'),
-                'session_id': f.get('session_id'),
-                'timestamp': f.get('created_timestamp'),
-                'subject': f.get('subject')
-            })
-        for u in unknowns:
-            uid = u.get('unknown_id') or str(u.get('id', ''))
-            if not uid:
-                continue
-            mem_items.append({
-                'id': uid,
-                'text': u.get('unknown', ''),
-                'type': 'unknown',
-                'goal_id': u.get('goal_id'),
-                'subtask_id': u.get('subtask_id'),
-                'session_id': u.get('session_id'),
-                'timestamp': u.get('created_timestamp'),
-                'subject': u.get('subject'),
-                'is_resolved': u.get('is_resolved', False)
-            })
-        for m in mistakes:
-            mid_str = str(m.get('id', ''))
-            if not mid_str:
-                continue
-            text = f"{m.get('mistake','')} Prevention: {m.get('prevention','')}"
-            mem_items.append({
-                'id': f"mistake_{mid_str}",
-                'text': text,
-                'type': 'mistake',
-                'session_id': m.get('session_id'),
-                'goal_id': m.get('goal_id'),
-                'timestamp': m.get('created_timestamp')
-            })
-
-        # Dead ends - important for avoiding re-exploration of failed paths
-        for d in dead_ends:
-            did = d.get('dead_end_id') or str(d.get('id', ''))
-            if not did:
-                continue
-            text = f"DEAD END: {d.get('approach', '')} Why failed: {d.get('why_failed', '')}"
-            mem_items.append({
-                'id': did,
-                'text': text,
-                'type': 'dead_end',
-                'session_id': d.get('session_id'),
-                'goal_id': d.get('goal_id'),
-                'subtask_id': d.get('subtask_id'),
-                'timestamp': d.get('created_timestamp')
-            })
-
-        # Lessons - reusable knowledge patterns
-        for lesson in lessons:
-            lid = str(lesson.get('id', ''))
-            if not lid:
-                continue
-            text = f"LESSON: {lesson.get('name', '')} - {lesson.get('description', '')} Domain: {lesson.get('domain', '')}"
-            mem_items.append({
-                'id': f"lesson_{lid}",
-                'text': text,
-                'type': 'lesson',
-                'lesson_id': lesson.get('id'),
-                'domain': lesson.get('domain'),
-                'tags': lesson.get('tags'),
-                'timestamp': lesson.get('created_timestamp')
-            })
-
-        # Epistemic snapshots - session narratives (episodic memory)
-        for snap in snapshots:
-            context = snap.get('context_summary', '')
-            if context:
-                sid = snap.get('snapshot_id') or str(snap.get('id', ''))
-                if not sid:
-                    continue
-                text = f"SESSION NARRATIVE: {context}"
-                mem_items.append({
-                    'id': f"snap_{sid}",
-                    'text': text,
-                    'type': 'episodic',
-                    'session_id': snap.get('session_id'),
-                    'snapshot_id': snap.get('snapshot_id'),
-                    'timestamp': snap.get('timestamp')
-                })
+        # Build memory items from all artifact types
+        mem_items = _build_memory_items(findings, unknowns, mistakes, dead_ends, lessons, snapshots)
 
         upsert_memory(project_id, mem_items)
 
