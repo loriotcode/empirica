@@ -25,6 +25,49 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+def _collect_project_config_interactive(git_root) -> dict:
+    """Collect project configuration via interactive prompts."""
+    print("📋 Project Configuration\n")
+    default_name = git_root.name
+    project_name = input(f"Project name [{default_name}]: ").strip() or default_name
+    project_description = input("Project description (optional): ").strip() or None
+
+    type_choices = 'software|content|research|data|design|operations|strategic|engagement|legal'
+    type_input = input(f"\nProject type [{type_choices}] (software): ").strip().lower()
+    project_type = type_input if type_input in type_choices.split('|') else 'software'
+
+    project_domain = input("Domain (e.g., ai/measurement, bio/genomics): ").strip()
+    ep_input = input("Evidence profile [code/prose/hybrid/auto] (auto): ").strip().lower()
+    evidence_profile = ep_input if ep_input in ('code', 'prose', 'hybrid', 'auto') else 'auto'
+
+    enable_beads = input("\nEnable BEADS issue tracking by default? [y/N]: ").strip().lower() in ('y', 'yes')
+    create_semantic_index = input("Create SEMANTIC_INDEX.yaml template? [y/N]: ").strip().lower() in ('y', 'yes')
+
+    return {
+        'project_name': project_name, 'project_description': project_description,
+        'enable_beads': enable_beads, 'create_semantic_index': create_semantic_index,
+        'project_type': project_type, 'project_domain': project_domain,
+        'evidence_profile': evidence_profile, 'classification': 'internal',
+        'languages': [], 'tags': [],
+    }
+
+
+def _collect_project_config_from_args(args, git_root) -> dict:
+    """Collect project configuration from CLI args (non-interactive)."""
+    return {
+        'project_name': getattr(args, 'project_name', None) or git_root.name,
+        'project_description': getattr(args, 'project_description', None),
+        'enable_beads': getattr(args, 'enable_beads', False),
+        'create_semantic_index': getattr(args, 'create_semantic_index', False),
+        'project_type': getattr(args, 'type', None) or 'software',
+        'project_domain': getattr(args, 'domain', None) or '',
+        'evidence_profile': getattr(args, 'evidence_profile', None) or 'auto',
+        'classification': getattr(args, 'classification', None) or 'internal',
+        'languages': getattr(args, 'languages', None) or [],
+        'tags': getattr(args, 'tags', None) or [],
+    }
+
+
 def handle_project_init_command(args):
     """Handle project-init command - initialize Empirica in a new repo"""
     try:
@@ -85,61 +128,22 @@ def handle_project_init_command(args):
         # Create config.yaml
         create_default_config()
 
-        # Interactive setup (only if not in JSON mode)
-        project_name = None
-        project_description = None
-        enable_beads = False
-        create_semantic_index = False
-        project_type = 'software'
-        project_domain = ''
-        evidence_profile = 'auto'
-        classification = 'internal'
-        languages = []
-        tags = []
-
+        # Collect project configuration (interactive or from args)
         if interactive and output_format != 'json':
-            print("📋 Project Configuration\n")
-
-            # Get project name
-            default_name = git_root.name
-            project_name = input(f"Project name [{default_name}]: ").strip() or default_name
-
-            # Get description
-            project_description = input("Project description (optional): ").strip() or None
-
-            # Project type
-            type_choices = 'software|content|research|data|design|operations|strategic|engagement|legal'
-            type_input = input(f"\nProject type [{type_choices}] (software): ").strip().lower()
-            if type_input and type_input in type_choices.split('|'):
-                project_type = type_input
-
-            # Domain
-            project_domain = input("Domain (e.g., ai/measurement, bio/genomics): ").strip()
-
-            # Evidence profile
-            ep_input = input("Evidence profile [code/prose/hybrid/auto] (auto): ").strip().lower()
-            if ep_input in ('code', 'prose', 'hybrid', 'auto'):
-                evidence_profile = ep_input
-
-            # BEADS integration
-            beads_response = input("\nEnable BEADS issue tracking by default? [y/N]: ").strip().lower()
-            enable_beads = beads_response in ('y', 'yes')
-
-            # Semantic index
-            semantic_response = input("Create SEMANTIC_INDEX.yaml template? [y/N]: ").strip().lower()
-            create_semantic_index = semantic_response in ('y', 'yes')
+            config_input = _collect_project_config_interactive(git_root)
         else:
-            # Non-interactive mode: use args
-            project_name = getattr(args, 'project_name', None) or git_root.name
-            project_description = getattr(args, 'project_description', None)
-            enable_beads = getattr(args, 'enable_beads', False)
-            create_semantic_index = getattr(args, 'create_semantic_index', False)
-            project_type = getattr(args, 'type', None) or 'software'
-            project_domain = getattr(args, 'domain', None) or ''
-            evidence_profile = getattr(args, 'evidence_profile', None) or 'auto'
-            classification = getattr(args, 'classification', None) or 'internal'
-            languages = getattr(args, 'languages', None) or []
-            tags = getattr(args, 'tags', None) or []
+            config_input = _collect_project_config_from_args(args, git_root)
+
+        project_name = config_input['project_name']
+        project_description = config_input['project_description']
+        enable_beads = config_input['enable_beads']
+        create_semantic_index = config_input['create_semantic_index']
+        project_type = config_input['project_type']
+        project_domain = config_input['project_domain']
+        evidence_profile = config_input['evidence_profile']
+        classification = config_input['classification']
+        languages = config_input['languages']
+        tags = config_input['tags']
 
         # Create project.yaml with BEADS config
         project_config_path = git_root / '.empirica' / 'project.yaml'
