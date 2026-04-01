@@ -1394,6 +1394,249 @@ def _confidence_gate_remote(claude_session_id: str = None) -> str:
         return ''  # Fail-closed: if we can't read vectors, require normal gating
 
 
+def _noetic_firewall_check(tool_name: str, tool_input: dict, hook_input: dict) -> Optional[tuple]:
+    """Check if a tool invocation is noetic (read/investigate) and should be allowed.
+
+    Returns (True, message) if the tool is noetic and should be allowed,
+    or None if the tool is not noetic (caller continues with praxic gating).
+    """
+    # Rule 1: Noetic tools always allowed (read/investigate)
+    if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME:
+        return (True, f"Noetic tool: {tool_name}")
+
+    # Rule 2: Safe Bash commands always allowed (read-only shell)
+    if tool_name == 'Bash' and is_safe_bash_command(tool_input):
+        return (True, "Safe Bash (read-only)")
+
+    # Rule 2b: Plan file writes are noetic (planning is investigation, not execution)
+    # Claude Code writes plan files to ~/.claude/plans/ during plan mode.
+    # These should be allowed without CHECK since planning is inherently noetic work.
+    if tool_name in ('Write', 'Edit') and is_plan_file(tool_input):
+        return (True, f"Plan file write (noetic): {tool_name}")
+
+    # Rule 2c: CONFIDENCE GATE for praxic remote commands (SSH writes, scp uploads, etc.)
+    # Remote infra work doesn't produce local evidence for grounded verification,
+    # so full PREFLIGHT/POSTFLIGHT is meaningless. Instead, apply lightweight
+    # threshold check against latest vectors. No transaction overhead.
+    if tool_name == 'Bash' and tool_input:
+        command = tool_input.get('command', '')
+        if command and _is_praxic_remote_command(command):
+            gate_result = _confidence_gate_remote(hook_input.get('session_id'))
+            if gate_result:
+                return (True, f"ConfidenceGate: remote infra ({gate_result})")
+            # If gate fails, fall through to normal praxic gating
+            # (user needs PREFLIGHT or higher confidence)
+
+    return None
+
+
+def _detect_subagent(claude_session_id: str) -> bool:
+    """Detect if the current invocation is from a subagent.
+
+    Subagents don't need their own CASCADE — the parent's CHECK already
+    authorized the spawn. Subagents have a different Claude session_id
+    than the parent (who owns the active_work file).
+
+    Detection: Check if active_work_{claude_session_id}.json exists.
+    session-init hook writes this file for the PARENT session only.
+    Subagents (spawned via Agent tool) get a different claude_session_id
+    from Claude Code, so they won't have a matching active_work file.
+
+    Previous approach (active_session + instance_suffix) was broken because
+    subprocesses inherit env vars (WINDOWID, TMUX_PANE) from the parent,
+    making subagents appear as the parent session.
+
+    Edge case: if session-init failed, parent also lacks active_work file.
+    In that case, both parent and subagent fall through to normal gating
+    (fail-safe). The autonomy counter (line ~851) uses the same check,
+    so the signals are consistent.
+
+    Returns True if this is a confirmed subagent invocation.
+    """
+    try:
+        _aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
+        if not _aw_file.exists():
+            # No active_work file for this claude_session_id — likely a subagent
+            # (or session-init failed / project initialized mid-session)
+            #
+            # TIGHTENED CHECK (fixes #68): Don't just check if active_session exists —
+            # verify its session matches the current transaction. Stale active_session
+            # files from other projects/sessions cause false positive subagent detection.
+            from empirica.utils.session_resolver import InstanceResolver as R
+            _as_suffix = R.instance_suffix()
+            _as_file = Path.home() / '.empirica' / f'active_session{_as_suffix}'
+            if _as_file.exists():
+                # Read the active_session to get its empirica_session_id
+                try:
+                    with open(_as_file, 'r') as _asf:
+                        _as_data = json.load(_asf)
+                    _as_session_id = _as_data.get('empirica_session_id')
+
+                    # Find the current transaction to compare session IDs
+                    _tx_session_match = False
+                    if _as_session_id:
+                        # Check if any active_work file has this session
+                        for _aw_candidate in Path.home().glob('.empirica/active_work_*.json'):
+                            try:
+                                with open(_aw_candidate, 'r') as _awf:
+                                    _aw_data = json.load(_awf)
+                                if _aw_data.get('empirica_session_id') == _as_session_id:
+                                    _tx_session_match = True
+                                    break
+                            except Exception:
+                                continue
+
+                    if _tx_session_match:
+                        # Parent session is active AND has a matching active_work file
+                        # This session doesn't → confirmed subagent
+                        return True
+                except Exception:
+                    pass  # Can't read active_session → not confident it's a subagent
+            # Not a confirmed subagent → fall through to normal gating
+            # (covers: broken session-init, mid-session project init, stale files)
+    except Exception:
+        pass  # Detection failure → continue with normal sentinel logic
+    return False
+
+
+def _check_postflight_loop_closed(cursor, session_id: str, current_transaction_id: Optional[str],
+                                  preflight_timestamp, tool_name: str, tool_input: dict) -> Optional[tuple]:
+    """Check if the epistemic loop is closed (POSTFLIGHT exists after PREFLIGHT).
+
+    Returns (status, message) if the loop is closed and a decision was made,
+    or None if no POSTFLIGHT found or timestamps can't be compared (caller continues).
+    """
+    # Scope by transaction_id to prevent cross-instance bleed (multiple Claudes sharing session)
+    if current_transaction_id:
+        cursor.execute("""
+            SELECT timestamp FROM reflexes
+            WHERE session_id = ? AND phase = 'POSTFLIGHT' AND transaction_id = ?
+            ORDER BY timestamp DESC LIMIT 1
+        """, (session_id, current_transaction_id))
+    else:
+        cursor.execute("""
+            SELECT timestamp FROM reflexes
+            WHERE session_id = ? AND phase = 'POSTFLIGHT'
+            ORDER BY timestamp DESC LIMIT 1
+        """, (session_id,))
+    postflight_row = cursor.fetchone()
+
+    if not postflight_row:
+        return None
+
+    postflight_timestamp = postflight_row[0]
+    try:
+        preflight_ts = float(preflight_timestamp)
+        postflight_ts = float(postflight_timestamp)
+
+        if postflight_ts > preflight_ts:
+            # Loop closed. Only block truly praxic operations (file modification).
+            # Allow read-only, empirica workflow, toggles, and transitions.
+            # This enables artifact lifecycle between transactions:
+            # goals-list, goals-complete, unknown-resolve, finding-log, etc.
+            if tool_name == 'Bash':
+                command = tool_input.get('command', '')
+
+                # Safe Bash (read-only + empirica workflow) — always allowed
+                # This is a safety net: Rule 2 should catch most of these,
+                # but edge cases (|| chains, complex pipes) may reach here.
+                if is_safe_bash_command(tool_input):
+                    return ("allow", "Safe Bash between transactions (artifact lifecycle)")
+
+                # Toggle commands (pause/unpause)
+                toggle_action = is_toggle_command(command)
+                if toggle_action == 'pause':
+                    return ("allow", "Sentinel self-exemption: pause toggle (loop closed)")
+                elif toggle_action == 'unpause':
+                    return ("allow", "Sentinel self-exemption: unpause toggle")
+
+                # Transition commands (cd, session-create, project-bootstrap)
+                if is_transition_command(command):
+                    return ("allow", "Transition command (starting new cycle)")
+
+            return ("deny", "Epistemic loop closed (POSTFLIGHT completed). Run new PREFLIGHT to start next goal. Command: empirica preflight-submit - (JSON with vectors on stdin)")
+    except (ValueError, TypeError):
+        pass  # If timestamps can't be compared, continue with other checks
+
+    return None
+
+
+def _handle_investigate_continuation(decision: str, tool_name: str, tool_input: dict,
+                                     suffix: str, tx_file: Optional[Path],
+                                     db) -> Optional[tuple]:
+    """Handle the case where CHECK returned 'investigate'.
+
+    Noetic tools and safe Bash (read-only) are still allowed —
+    investigation work needs to investigate (read DBs, run queries, analyze).
+
+    Tracks noetic tool calls since investigate. When AI resubmits CHECK after
+    investigate, requires evidence of actual investigation (N noetic tool calls)
+    before allowing it. Prevents gaming by resubmitting CHECK with inflated vectors
+    without doing real investigation work.
+
+    Returns (status, message) if a decision was made, or None if not in investigate state.
+    """
+    if decision != 'investigate':
+        return None
+
+    # INVESTIGATE COOL-DOWN: Track noetic tool calls since investigate.
+    # NOTE: noetic_since_investigate is tracked in hook_counters file
+    # (hook-owned), not the transaction file (workflow-owned).
+    MIN_NOETIC_AFTER_INVESTIGATE = 3
+
+    # Resolve counters file path (co-located with transaction file)
+    _inv_counters_path = None
+    if tx_file:
+        _inv_counters_path = tx_file.parent / f'hook_counters{suffix}.json'
+
+    def _read_inv_counters():
+        if not _inv_counters_path or not _inv_counters_path.exists():
+            return {}
+        try:
+            with open(_inv_counters_path, 'r') as _f:
+                return json.load(_f)
+        except Exception:
+            return {}
+
+    def _write_inv_counters(data):
+        if not _inv_counters_path:
+            return
+        try:
+            import tempfile
+            _fd, _tmp = tempfile.mkstemp(dir=str(_inv_counters_path.parent))
+            with os.fdopen(_fd, 'w') as _tf:
+                json.dump(data, _tf, indent=2)
+            os.rename(_tmp, str(_inv_counters_path))
+        except Exception:
+            pass
+
+    if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME:
+        # Increment noetic counter in hook counters file
+        _inv_c = _read_inv_counters()
+        _inv_c['noetic_since_investigate'] = _inv_c.get('noetic_since_investigate', 0) + 1
+        _write_inv_counters(_inv_c)
+        return ("allow", f"Noetic tool during investigation phase: {tool_name}")
+    if tool_name == 'Bash' and is_safe_bash_command(tool_input):
+        command = tool_input.get('command', '')
+        # Block check-submit if insufficient noetic work since investigate
+        if 'check-submit' in command or 'check ' in command:
+            _inv_c = _read_inv_counters()
+            _inv_noetic = _inv_c.get('noetic_since_investigate', 0)
+            if _inv_noetic < MIN_NOETIC_AFTER_INVESTIGATE:
+                return ("deny",
+                    f"Previous transaction ended with INVESTIGATE. "
+                    f"Show evidence of investigation (findings) or submit CHECK with proceed decision.")
+        # Increment noetic counter for safe bash (read-only investigation)
+        _inv_c = _read_inv_counters()
+        _inv_c['noetic_since_investigate'] = _inv_c.get('noetic_since_investigate', 0) + 1
+        _write_inv_counters(_inv_c)
+        return ("allow", "Safe Bash during investigation phase (read-only)")
+    # ADVISORY MODE: Sentinel surfaces the investigate recommendation but lets the AI decide.
+    # The AI sees the message and can choose to investigate more or proceed with awareness.
+    # This is a measurement system, not a rules-based gate — the holistic judgment is the AI's.
+    return ("allow", f"ADVISORY: CHECK returned 'investigate'. Sentinel recommends noetic (read-only) work. Proceeding with praxic action — ensure sufficient understanding before modifying.")
+
+
 def main():
     try:
         hook_input = json.loads(sys.stdin.read() or '{}')
@@ -1420,108 +1663,20 @@ def main():
         pass  # Counter failure is non-fatal
 
     # === NOETIC FIREWALL: Whitelist-based access control ===
-
-    # Rule 1: Noetic tools always allowed (read/investigate)
-    if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME:
-        respond("allow", f"Noetic tool: {tool_name}")
+    # Rules 1, 2, 2b, 2c: noetic tools, safe bash, plan files, remote confidence gate
+    _noetic_result = _noetic_firewall_check(tool_name, tool_input, hook_input)
+    if _noetic_result:
+        respond("allow", _noetic_result[1])
         sys.exit(0)
-
-    # Rule 2: Safe Bash commands always allowed (read-only shell)
-    if tool_name == 'Bash' and is_safe_bash_command(tool_input):
-        respond("allow", "Safe Bash (read-only)")
-        sys.exit(0)
-
-    # Rule 2b: Plan file writes are noetic (planning is investigation, not execution)
-    # Claude Code writes plan files to ~/.claude/plans/ during plan mode.
-    # These should be allowed without CHECK since planning is inherently noetic work.
-    if tool_name in ('Write', 'Edit') and is_plan_file(tool_input):
-        respond("allow", f"Plan file write (noetic): {tool_name}")
-        sys.exit(0)
-
-    # Rule 2c: CONFIDENCE GATE for praxic remote commands (SSH writes, scp uploads, etc.)
-    # Remote infra work doesn't produce local evidence for grounded verification,
-    # so full PREFLIGHT/POSTFLIGHT is meaningless. Instead, apply lightweight
-    # threshold check against latest vectors. No transaction overhead.
-    if tool_name == 'Bash' and tool_input:
-        command = tool_input.get('command', '')
-        if command and _is_praxic_remote_command(command):
-            gate_result = _confidence_gate_remote(hook_input.get('session_id'))
-            if gate_result:
-                respond("allow", f"ConfidenceGate: remote infra ({gate_result})")
-                sys.exit(0)
-            # If gate fails, fall through to normal praxic gating
-            # (user needs PREFLIGHT or higher confidence)
 
     # Rule 3: Everything else is PRAXIC - requires CHECK authorization
     # This includes: Edit, Write, NotebookEdit, unsafe Bash, unknown tools
 
-    # Rule 3a: SUBAGENT EXEMPTION - subagents don't need their own CASCADE
-    # The parent's CHECK already authorized the spawn. Subagents have a different
-    # Claude session_id than the parent (who owns the active_work file).
-    #
-    # Detection: Check if active_work_{claude_session_id}.json exists.
-    # session-init hook writes this file for the PARENT session only.
-    # Subagents (spawned via Agent tool) get a different claude_session_id
-    # from Claude Code, so they won't have a matching active_work file.
-    #
-    # Previous approach (active_session + instance_suffix) was broken because
-    # subprocesses inherit env vars (WINDOWID, TMUX_PANE) from the parent,
-    # making subagents appear as the parent session.
-    #
-    # Edge case: if session-init failed, parent also lacks active_work file.
-    # In that case, both parent and subagent fall through to normal gating
-    # (fail-safe). The autonomy counter (line ~851) uses the same check,
-    # so the signals are consistent.
+    # Rule 3a: SUBAGENT EXEMPTION - subagents bypass gating (parent CHECK authorized spawn)
     claude_session_id_early = hook_input.get('session_id')
-    if claude_session_id_early:
-        try:
-            _aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id_early}.json'
-            if not _aw_file.exists():
-                # No active_work file for this claude_session_id — likely a subagent
-                # (or session-init failed / project initialized mid-session)
-                #
-                # TIGHTENED CHECK (fixes #68): Don't just check if active_session exists —
-                # verify its session matches the current transaction. Stale active_session
-                # files from other projects/sessions cause false positive subagent detection.
-                from empirica.utils.session_resolver import InstanceResolver as R
-                _as_suffix = R.instance_suffix()
-                _as_file = Path.home() / '.empirica' / f'active_session{_as_suffix}'
-                if _as_file.exists():
-                    # Read the active_session to get its empirica_session_id
-                    _is_subagent = False
-                    try:
-                        with open(_as_file, 'r') as _asf:
-                            _as_data = json.load(_asf)
-                        _as_session_id = _as_data.get('empirica_session_id')
-
-                        # Find the current transaction to compare session IDs
-                        _tx_session_match = False
-                        if _as_session_id:
-                            # Check if any active_work file has this session
-                            for _aw_candidate in Path.home().glob('.empirica/active_work_*.json'):
-                                try:
-                                    with open(_aw_candidate, 'r') as _awf:
-                                        _aw_data = json.load(_awf)
-                                    if _aw_data.get('empirica_session_id') == _as_session_id:
-                                        _tx_session_match = True
-                                        break
-                                except Exception:
-                                    continue
-
-                        if _tx_session_match:
-                            # Parent session is active AND has a matching active_work file
-                            # This session doesn't → confirmed subagent
-                            _is_subagent = True
-                    except Exception:
-                        pass  # Can't read active_session → not confident it's a subagent
-
-                    if _is_subagent:
-                        respond("allow", f"Subagent exemption: {tool_name} (no active_work for {claude_session_id_early[:8]})")
-                        sys.exit(0)
-                # Not a confirmed subagent → fall through to normal gating
-                # (covers: broken session-init, mid-session project init, stale files)
-        except Exception:
-            pass  # Detection failure → continue with normal sentinel logic
+    if claude_session_id_early and _detect_subagent(claude_session_id_early):
+        respond("allow", f"Subagent exemption: {tool_name} (no active_work for {claude_session_id_early[:8]})")
+        sys.exit(0)
 
     # OFF-RECORD CHECK: If Empirica is paused, allow everything (cheapest check first)
     if is_empirica_paused():
@@ -1821,66 +1976,12 @@ def main():
         sys.exit(0)
 
     # POSTFLIGHT LOOP CHECK: If POSTFLIGHT exists after PREFLIGHT, loop is closed
-    # This enforces the epistemic cycle: PREFLIGHT → work → POSTFLIGHT → (new PREFLIGHT required)
-    # Scope by transaction_id to prevent cross-instance bleed (multiple Claudes sharing session)
-    if current_transaction_id:
-        cursor.execute("""
-            SELECT timestamp FROM reflexes
-            WHERE session_id = ? AND phase = 'POSTFLIGHT' AND transaction_id = ?
-            ORDER BY timestamp DESC LIMIT 1
-        """, (session_id, current_transaction_id))
-    else:
-        cursor.execute("""
-            SELECT timestamp FROM reflexes
-            WHERE session_id = ? AND phase = 'POSTFLIGHT'
-            ORDER BY timestamp DESC LIMIT 1
-        """, (session_id,))
-    postflight_row = cursor.fetchone()
-
-    if postflight_row:
-        postflight_timestamp = postflight_row[0]
-        try:
-            preflight_ts = float(preflight_timestamp)
-            postflight_ts = float(postflight_timestamp)
-
-            if postflight_ts > preflight_ts:
-                # Loop closed. Only block truly praxic operations (file modification).
-                # Allow read-only, empirica workflow, toggles, and transitions.
-                # This enables artifact lifecycle between transactions:
-                # goals-list, goals-complete, unknown-resolve, finding-log, etc.
-                if tool_name == 'Bash':
-                    command = tool_input.get('command', '')
-
-                    # Safe Bash (read-only + empirica workflow) — always allowed
-                    # This is a safety net: Rule 2 should catch most of these,
-                    # but edge cases (|| chains, complex pipes) may reach here.
-                    if is_safe_bash_command(tool_input):
-                        db.close()
-                        respond("allow", "Safe Bash between transactions (artifact lifecycle)")
-                        sys.exit(0)
-
-                    # Toggle commands (pause/unpause)
-                    toggle_action = is_toggle_command(command)
-                    if toggle_action == 'pause':
-                        db.close()
-                        respond("allow", "Sentinel self-exemption: pause toggle (loop closed)")
-                        sys.exit(0)
-                    elif toggle_action == 'unpause':
-                        db.close()
-                        respond("allow", "Sentinel self-exemption: unpause toggle")
-                        sys.exit(0)
-
-                    # Transition commands (cd, session-create, project-bootstrap)
-                    if is_transition_command(command):
-                        db.close()
-                        respond("allow", "Transition command (starting new cycle)")
-                        sys.exit(0)
-
-                db.close()
-                respond("deny", f"Epistemic loop closed (POSTFLIGHT completed). Run new PREFLIGHT to start next goal. Command: empirica preflight-submit - (JSON with vectors on stdin)")
-                sys.exit(0)
-        except (ValueError, TypeError):
-            pass  # If timestamps can't be compared, continue with other checks
+    _postflight_result = _check_postflight_loop_closed(
+        cursor, session_id, current_transaction_id, preflight_timestamp, tool_name, tool_input)
+    if _postflight_result:
+        db.close()
+        respond(_postflight_result[0], _postflight_result[1])
+        sys.exit(0)
 
     # Use RAW vectors - bias corrections are feedback for AI to internalize, not silent adjustments
     raw_know = preflight_know or 0
@@ -1999,76 +2100,12 @@ def main():
             pass
 
     # Check if decision was "investigate" (not authorized for praxic)
-    # BUT: noetic tools and safe Bash (read-only) are still allowed —
-    # investigation work needs to investigate (read DBs, run queries, analyze).
-    if decision == 'investigate':
-        # INVESTIGATE COOL-DOWN: Track noetic tool calls since investigate.
-        # When AI resubmits CHECK after investigate, require evidence of
-        # actual investigation (N noetic tool calls) before allowing it.
-        # Prevents gaming by resubmitting CHECK with inflated vectors
-        # without doing real investigation work.
-        # NOTE: noetic_since_investigate is tracked in hook_counters file
-        # (hook-owned), not the transaction file (workflow-owned).
-        MIN_NOETIC_AFTER_INVESTIGATE = 3
-
-        # Resolve counters file path (co-located with transaction file)
-        _inv_counters_path = None
-        if tx_file:
-            _inv_counters_path = tx_file.parent / f'hook_counters{suffix}.json'
-
-        def _read_inv_counters():
-            if not _inv_counters_path or not _inv_counters_path.exists():
-                return {}
-            try:
-                with open(_inv_counters_path, 'r') as _f:
-                    return json.load(_f)
-            except Exception:
-                return {}
-
-        def _write_inv_counters(data):
-            if not _inv_counters_path:
-                return
-            try:
-                import tempfile
-                _fd, _tmp = tempfile.mkstemp(dir=str(_inv_counters_path.parent))
-                with os.fdopen(_fd, 'w') as _tf:
-                    json.dump(data, _tf, indent=2)
-                os.rename(_tmp, str(_inv_counters_path))
-            except Exception:
-                pass
-
-        if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME:
-            # Increment noetic counter in hook counters file
-            _inv_c = _read_inv_counters()
-            _inv_c['noetic_since_investigate'] = _inv_c.get('noetic_since_investigate', 0) + 1
-            _write_inv_counters(_inv_c)
-            db.close()
-            respond("allow", f"Noetic tool during investigation phase: {tool_name}")
-            sys.exit(0)
-        if tool_name == 'Bash' and is_safe_bash_command(tool_input):
-            command = tool_input.get('command', '')
-            # Block check-submit if insufficient noetic work since investigate
-            if 'check-submit' in command or 'check ' in command:
-                _inv_c = _read_inv_counters()
-                _inv_noetic = _inv_c.get('noetic_since_investigate', 0)
-                if _inv_noetic < MIN_NOETIC_AFTER_INVESTIGATE:
-                    db.close()
-                    respond("deny",
-                        f"Previous transaction ended with INVESTIGATE. "
-                        f"Show evidence of investigation (findings) or submit CHECK with proceed decision.")
-                    sys.exit(0)
-            # Increment noetic counter for safe bash (read-only investigation)
-            _inv_c = _read_inv_counters()
-            _inv_c['noetic_since_investigate'] = _inv_c.get('noetic_since_investigate', 0) + 1
-            _write_inv_counters(_inv_c)
-            db.close()
-            respond("allow", "Safe Bash during investigation phase (read-only)")
-            sys.exit(0)
+    # BUT: noetic tools and safe Bash (read-only) are still allowed
+    _investigate_result = _handle_investigate_continuation(
+        decision, tool_name, tool_input, suffix, tx_file, db)
+    if _investigate_result:
         db.close()
-        # ADVISORY MODE: Sentinel surfaces the investigate recommendation but lets the AI decide.
-        # The AI sees the message and can choose to investigate more or proceed with awareness.
-        # This is a measurement system, not a rules-based gate — the holistic judgment is the AI's.
-        respond("allow", f"ADVISORY: CHECK returned 'investigate'. Sentinel recommends noetic (read-only) work. Proceeding with praxic action — ensure sufficient understanding before modifying.")
+        respond(_investigate_result[0], _investigate_result[1])
         sys.exit(0)
 
     # Optional: Check age expiry
