@@ -98,6 +98,10 @@ SAFE_BASH_PREFIXES = (
     'pip show', 'pip list', 'pip freeze', 'pip index',
     'npm list', 'npm ls', 'npm view', 'npm info',
     'cargo tree', 'cargo metadata',
+    # Version/help queries (always safe, any tool)
+    '--version', '--help',
+    'python3 --version', 'python --version', 'node --version',
+    'npm --version', 'cargo --version', 'go version',
     # Process inspection
     'ps ', 'top -b -n 1', 'pgrep ', 'jobs',
     # Terminal/tmux inspection (read-only)
@@ -1590,6 +1594,67 @@ def _check_postflight_loop_closed(cursor, session_id: str, current_transaction_i
     return None
 
 
+def _validate_check_record(cursor, session_id: str, current_transaction_id, preflight_timestamp):
+    """Lookup CHECK record, verify sequence, detect rushed assessments.
+
+    Returns (know, uncertainty, decision, check_timestamp) on success,
+    or ("deny", message) tuple on failure.
+    """
+    if current_transaction_id:
+        cursor.execute("""
+            SELECT know, uncertainty, reflex_data, timestamp
+            FROM reflexes WHERE session_id = ? AND phase = 'CHECK' AND transaction_id = ?
+            ORDER BY timestamp DESC LIMIT 1
+        """, (session_id, current_transaction_id))
+    else:
+        cursor.execute("""
+            SELECT know, uncertainty, reflex_data, timestamp
+            FROM reflexes WHERE session_id = ? AND phase = 'CHECK'
+            ORDER BY timestamp DESC LIMIT 1
+        """, (session_id,))
+    check_row = cursor.fetchone()
+
+    if not check_row:
+        return ("deny", "No valid CHECK found. Run CHECK after investigation to proceed. Command: empirica check-submit - (JSON with vectors on stdin)")
+
+    know, uncertainty, reflex_data, check_timestamp = check_row
+
+    try:
+        preflight_ts = float(preflight_timestamp)
+        check_ts = float(check_timestamp)
+
+        if check_ts < preflight_ts:
+            return ("deny", "CHECK is from previous transaction (before current PREFLIGHT). Run CHECK to validate readiness.")
+
+        noetic_duration = check_ts - preflight_ts
+        min_duration = float(os.getenv('EMPIRICA_MIN_NOETIC_DURATION', '30'))
+
+        if noetic_duration < min_duration:
+            cursor.execute("""
+                SELECT COUNT(*) FROM project_findings
+                WHERE session_id = ? AND timestamp > ? AND timestamp < ?
+            """, (session_id, preflight_ts, check_ts))
+            findings = cursor.fetchone()[0]
+            cursor.execute("""
+                SELECT COUNT(*) FROM project_unknowns
+                WHERE session_id = ? AND timestamp > ? AND timestamp < ?
+            """, (session_id, preflight_ts, check_ts))
+            unknowns = cursor.fetchone()[0]
+            if findings == 0 and unknowns == 0:
+                return ("deny", f"Rushed assessment ({noetic_duration:.0f}s). Investigate and log learnings first.")
+    except (TypeError, ValueError):
+        pass
+
+    decision = None
+    if reflex_data:
+        try:
+            decision = json.loads(reflex_data).get('decision')
+        except Exception:
+            pass
+
+    return (know, uncertainty, decision, check_timestamp)
+
+
 def _check_prior_investigate(cursor, session_id: str, current_transaction_id, preflight_timestamp,
                              tool_name: str, tool_input: dict) -> 'tuple | None':
     """Block auto-proceed if previous transaction ended with INVESTIGATE and no evidence gathered."""
@@ -2064,74 +2129,14 @@ def main():
         respond("allow", f"PREFLIGHT confidence sufficient - proceeding (threshold: K>={_dyn_know:.0%} U<={_dyn_unc:.0%}){env_annotation}")
         sys.exit(0)
 
-    # PREFLIGHT confidence too low - require explicit CHECK
-    # Scope by transaction_id to only find CHECK within current transaction
-    if current_transaction_id:
-        cursor.execute("""
-            SELECT know, uncertainty, reflex_data, timestamp
-            FROM reflexes
-            WHERE session_id = ? AND phase = 'CHECK' AND transaction_id = ?
-            ORDER BY timestamp DESC LIMIT 1
-        """, (session_id, current_transaction_id))
-    else:
-        cursor.execute("""
-            SELECT know, uncertainty, reflex_data, timestamp
-            FROM reflexes
-            WHERE session_id = ? AND phase = 'CHECK'
-            ORDER BY timestamp DESC LIMIT 1
-        """, (session_id,))
-    check_row = cursor.fetchone()
-    # NOTE: db kept open - reused for anti-gaming check below (single connection per invocation)
-
-    if not check_row:
-        respond("deny", "No valid CHECK found. Run CHECK after investigation to proceed. Command: empirica check-submit - (JSON with vectors on stdin)")
+    # VALIDATE CHECK: lookup, sequence, rushed assessment, decision parse
+    check_result = _validate_check_record(
+        cursor, session_id, current_transaction_id, preflight_timestamp)
+    if isinstance(check_result, tuple) and len(check_result) == 2:
+        db.close()
+        respond(check_result[0], check_result[1])
         sys.exit(0)
-
-    know, uncertainty, reflex_data, check_timestamp = check_row
-
-    # Verify CHECK is after PREFLIGHT (proper sequence)
-    try:
-        preflight_ts = float(preflight_timestamp)
-        check_ts = float(check_timestamp)
-
-        if check_ts < preflight_ts:
-            respond("deny", f"CHECK is from previous transaction (before current PREFLIGHT). Run CHECK to validate readiness.")
-            sys.exit(0)
-
-        # Anti-gaming: Minimum noetic duration with evidence check
-        # If CHECK is very fast (<30s) AND no evidence of investigation, reject
-        noetic_duration = check_ts - preflight_ts
-        MIN_NOETIC_DURATION = float(os.getenv('EMPIRICA_MIN_NOETIC_DURATION', '30'))
-
-        if noetic_duration < MIN_NOETIC_DURATION:
-            # Check for evidence of investigation (findings or unknowns logged)
-            # Reuse existing db connection (single connection per sentinel invocation)
-            cursor.execute("""
-                SELECT COUNT(*) FROM project_findings
-                WHERE session_id = ? AND timestamp > ? AND timestamp < ?
-            """, (session_id, preflight_ts, check_ts))
-            findings_count = cursor.fetchone()[0]
-
-            cursor.execute("""
-                SELECT COUNT(*) FROM project_unknowns
-                WHERE session_id = ? AND timestamp > ? AND timestamp < ?
-            """, (session_id, preflight_ts, check_ts))
-            unknowns_count = cursor.fetchone()[0]
-
-            if findings_count == 0 and unknowns_count == 0:
-                respond("deny", f"Rushed assessment ({noetic_duration:.0f}s). Investigate and log learnings first.")
-                sys.exit(0)
-    except (TypeError, ValueError):
-        pass  # Can't compare timestamps, skip this check
-
-    # Parse decision from reflex_data
-    decision = None
-    if reflex_data:
-        try:
-            data = json.loads(reflex_data)
-            decision = data.get('decision')
-        except Exception:
-            pass
+    know, uncertainty, decision, check_timestamp = check_result
 
     # Check if decision was "investigate" (not authorized for praxic)
     # BUT: noetic tools and safe Bash (read-only) are still allowed
