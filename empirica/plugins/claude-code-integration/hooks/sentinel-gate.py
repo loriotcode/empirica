@@ -142,6 +142,37 @@ SAFE_PIPE_TARGETS = (
     'base64',  # Data encoding/decoding (read-only)
 )
 
+# Work-type-aware command expansion.
+# When PREFLIGHT declares work_type, the Sentinel expands the safe command list.
+# The user explicitly chose the work type — this is a scope declaration.
+_current_work_type: Optional[str] = None
+
+# Additional safe commands for infra/config/debug work types
+INFRA_SAFE_PREFIXES = (
+    # System inspection
+    'systemctl status', 'systemctl is-active', 'systemctl list-units',
+    'journalctl --since', 'journalctl -u', 'journalctl --no-pager',
+    'free', 'uptime', 'lscpu', 'lsmem', 'lsusb', 'lspci',
+    'htop', 'vmstat', 'iostat', 'dmesg',
+    # Docker inspection (not mutation)
+    'docker ps', 'docker images', 'docker logs', 'docker inspect',
+    'docker network ls', 'docker volume ls', 'docker stats',
+    'docker compose ps', 'docker compose logs',
+    # Network inspection
+    'ss -', 'ip addr', 'ip link', 'ip route', 'ip -br',
+    'netstat -', 'traceroute ', 'mtr ',
+    'iptables -L', 'ufw status',
+    # Service inspection
+    'ollama list', 'ollama ps', 'ollama show',
+    'nginx -t', 'nginx -T',
+    # Tmux full access
+    'tmux ',
+    # Cloud/infra read operations
+    'kubectl get', 'kubectl describe', 'kubectl logs',
+    'terraform plan', 'terraform show',
+    'cloudflared tunnel list', 'cloudflared tunnel info',
+)
+
 # Thresholds for CHECK validation.
 #
 # DESIGN: The Sentinel uses RAW (uncorrected) vectors for all gating decisions.
@@ -776,13 +807,24 @@ def _has_dangerous_redirects(command: str) -> bool:
 
 
 def is_safe_bash_command(tool_input: dict) -> bool:
-    """Check if a Bash command is in the safe (noetic) whitelist."""
+    """Check if a Bash command is in the safe (noetic) whitelist.
+
+    When work_type is infra/config/debug, expands the whitelist with
+    system inspection commands (docker, systemctl, ss, tmux, etc.).
+    """
+    global _current_work_type
     command = tool_input.get('command', '')
     if not command:
         return False
 
     if is_safe_empirica_command(command):
         return True
+
+    # Work-type expansion: infra/config/debug get broader safe commands
+    if _current_work_type in ('infra', 'config', 'debug'):
+        cmd = command.lstrip()
+        if any(cmd.startswith(prefix) for prefix in INFRA_SAFE_PREFIXES):
+            return True
 
     # Chain commands (&&, ||): safe only if ALL segments are safe
     for chain_op in ('&&', '||'):
@@ -1889,6 +1931,8 @@ def main():
                 if not _tx_closed:
                     current_transaction_id = tx_data.get('transaction_id')
                     tx_session_id = tx_candidate_session
+                    # Extract work_type for work-type-aware command expansion
+                    _current_work_type = tx_data.get('work_type')
                 else:
                     # CLOSED TRANSACTION SHORT-CIRCUIT: Don't fall through to
                     # stale session fallback which produces confusing errors
