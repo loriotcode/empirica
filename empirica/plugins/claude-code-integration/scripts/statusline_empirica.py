@@ -557,6 +557,53 @@ def _resolve_claude_session_id(stdin_claude_session_id: Optional[str] = None):
     return None
 
 
+def _read_session_file(path: Path) -> Optional[str]:
+    """Read session_id from a file (JSON or plain text format)."""
+    try:
+        content = path.read_text().strip()
+        if not content:
+            return None
+        if content.startswith('{'):
+            import json as _json
+            return _json.loads(content).get('session_id', '')
+        return content
+    except Exception:
+        return None
+
+
+def _lookup_session_by_id(cursor, session_id: str, require_active: bool = True) -> Optional[dict]:
+    """Query sessions table by ID. Returns dict or None."""
+    if not session_id:
+        return None
+    if require_active:
+        cursor.execute("""
+            SELECT session_id, ai_id, start_time FROM sessions
+            WHERE session_id = ? AND end_time IS NULL
+        """, (session_id,))
+    else:
+        cursor.execute("""
+            SELECT session_id, ai_id, start_time FROM sessions
+            WHERE session_id = ?
+        """, (session_id,))
+    row = cursor.fetchone()
+    return dict(row) if row else None
+
+
+def _search_session_files(cursor, start_dir: Path, filename: str) -> Optional[dict]:
+    """Search upward from start_dir for a session file, query DB if found."""
+    for parent in [start_dir] + list(start_dir.parents):
+        candidate = parent / '.empirica' / filename
+        if candidate.exists():
+            session_id = _read_session_file(candidate)
+            result = _lookup_session_by_id(cursor, session_id)
+            if result:
+                return result
+            break  # Found file but session ended
+        if parent == Path.home() or parent == parent.parent:
+            break
+    return None
+
+
 def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id: Optional[str] = None) -> Optional[dict]:
     """
     Get the active session with strict pane isolation.
@@ -572,170 +619,68 @@ def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id:
     """
     cursor = db.conn.cursor()
 
-    # Priority 0: instance_projects → empirica_session_id (most current after project-switch)
+    # Priority 0: instance_projects → empirica_session_id
     try:
         import json as _json
-
         from empirica.utils.session_resolver import InstanceResolver as R
         _gas_inst_id = R.instance_id()
         if _gas_inst_id:
             _gas_inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{_gas_inst_id}.json'
             if _gas_inst_file.exists():
                 with open(_gas_inst_file) as f:
-                    _gas_inst_data = _json.load(f)
-                _gas_session_id = _gas_inst_data.get('empirica_session_id')
-                if _gas_session_id:
-                    # Trust instance_projects as authoritative — don't filter by
-                    # end_time IS NULL. The file is updated by SessionStart hooks
-                    # and project-switch, so it reflects the CURRENT instance state.
-                    # Filtering by end_time causes stale fallthrough when a session
-                    # was auto-closed but is still the instance's active session.
-                    cursor.execute("""
-                        SELECT session_id, ai_id, start_time
-                        FROM sessions
-                        WHERE session_id = ?
-                    """, (_gas_session_id,))
-                    row = cursor.fetchone()
-                    if row:
-                        return dict(row)
+                    _gas_session_id = _json.load(f).get('empirica_session_id')
+                result = _lookup_session_by_id(cursor, _gas_session_id, require_active=False)
+                if result:
+                    return result
     except Exception:
         pass
 
-    # Priority 1: Claude session_id → active_work file → empirica_session_id (fallback for non-TMUX)
+    # Priority 1: Claude session_id → active_work → empirica_session_id
     try:
         import json as _json
-
         claude_session_id = _resolve_claude_session_id(stdin_claude_session_id)
         if claude_session_id:
             empirica_session_id = None
-
             active_work_path = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
             if active_work_path.exists():
                 with open(active_work_path) as f:
-                    active_work = _json.load(f)
-                    empirica_session_id = active_work.get('empirica_session_id')
-
-            # TTY session fallback
+                    empirica_session_id = _json.load(f).get('empirica_session_id')
             if not empirica_session_id:
                 try:
-                    from empirica.utils.session_resolver import InstanceResolver as R
                     tty_session = R.tty_session(warn_if_stale=False)
                     if tty_session:
                         empirica_session_id = tty_session.get('empirica_session_id')
                 except Exception:
                     pass
-
-            if empirica_session_id:
-                # Same rationale as Priority 0: active_work file is authoritative.
-                cursor.execute("""
-                    SELECT session_id, ai_id, start_time
-                    FROM sessions
-                    WHERE session_id = ?
-                """, (empirica_session_id,))
-                row = cursor.fetchone()
-                if row:
-                    return dict(row)
+            result = _lookup_session_by_id(cursor, empirica_session_id, require_active=False)
+            if result:
+                return result
     except Exception:
-        pass  # Fall through to legacy methods
+        pass
 
-    # Get current instance_id for multi-instance isolation (legacy)
+    # Legacy: instance-specific active_session files
     try:
-        from empirica.utils.session_resolver import InstanceResolver as R
         current_instance_id = R.instance_id()
-    except ImportError:
+    except (ImportError, NameError):
         current_instance_id = None
 
-    # Build instance-specific filename suffix
-    instance_suffix = ""
     if current_instance_id:
         safe_instance = current_instance_id.replace(":", "_").replace("%", "")
         instance_suffix = f"_{safe_instance}"
-
-    # Priority 1: Instance-specific active_session file ONLY
-    # Do NOT fall through to generic 'active_session' when instance_id is known
-    # That's the primary bleeding vector - generic file has no pane isolation
-    if instance_suffix:
-        # Search upward for instance-specific file only
-        current = Path.cwd()
-        for parent in [current] + list(current.parents):
-            candidate = parent / '.empirica' / f'active_session{instance_suffix}'
-            if candidate.exists():
-                try:
-                    content = candidate.read_text().strip()
-                    # Handle JSON format (new) or plain session_id (legacy)
-                    if content.startswith('{'):
-                        import json as _json
-                        data = _json.loads(content)
-                        session_id = data.get('session_id', '')
-                    else:
-                        session_id = content
-                    if session_id:
-                        cursor.execute("""
-                            SELECT session_id, ai_id, start_time
-                            FROM sessions
-                            WHERE session_id = ? AND end_time IS NULL
-                        """, (session_id,))
-                        row = cursor.fetchone()
-                        if row:
-                            return dict(row)
-                except Exception:
-                    pass
-                break  # Found file but session ended - don't keep searching
-            if parent == Path.home() or parent == parent.parent:
-                break
-
-        # Also check global instance-specific file
-        global_instance_file = Path.home() / '.empirica' / f'active_session{instance_suffix}'
-        if global_instance_file.exists():
-            try:
-                content = global_instance_file.read_text().strip()
-                # Handle JSON format (new) or plain session_id (legacy)
-                if content.startswith('{'):
-                    import json as _json
-                    data = _json.loads(content)
-                    session_id = data.get('session_id', '')
-                else:
-                    session_id = content
-                if session_id:
-                    cursor.execute("""
-                        SELECT session_id, ai_id, start_time
-                        FROM sessions
-                        WHERE session_id = ? AND end_time IS NULL
-                    """, (session_id,))
-                    row = cursor.fetchone()
-                    if row:
-                        return dict(row)
-            except Exception:
-                pass
+        result = _search_session_files(cursor, Path.cwd(), f'active_session{instance_suffix}')
+        if result:
+            return result
+        # Global instance file
+        global_file = Path.home() / '.empirica' / f'active_session{instance_suffix}'
+        if global_file.exists():
+            session_id = _read_session_file(global_file)
+            result = _lookup_session_by_id(cursor, session_id)
+            if result:
+                return result
     else:
-        # No instance_id - use generic file (legacy mode)
-        current = Path.cwd()
-        for parent in [current] + list(current.parents):
-            candidate = parent / '.empirica' / 'active_session'
-            if candidate.exists():
-                try:
-                    content = candidate.read_text().strip()
-                    # Handle JSON format (new) or plain session_id (legacy)
-                    if content.startswith('{'):
-                        import json as _json
-                        data = _json.loads(content)
-                        session_id = data.get('session_id', '')
-                    else:
-                        session_id = content
-                    if session_id:
-                        cursor.execute("""
-                            SELECT session_id, ai_id, start_time
-                            FROM sessions
-                            WHERE session_id = ? AND end_time IS NULL
-                        """, (session_id,))
-                        row = cursor.fetchone()
-                        if row:
-                            return dict(row)
-                except Exception:
-                    pass
-                break
-            if parent == Path.home() or parent == parent.parent:
-                break
+        result = _search_session_files(cursor, Path.cwd(), 'active_session')
+        if result:
+            return result
 
     # Priority 2: Exact ai_id + STRICT instance_id match (no NULL fallback)
     if current_instance_id:
