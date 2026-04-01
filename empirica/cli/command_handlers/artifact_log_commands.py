@@ -472,6 +472,101 @@ def handle_engagement_focus_command(args):
     except Exception as e:
         print(json.dumps({"ok": False, "error": str(e)}))
 
+def _store_finding_git_notes(finding_id, project_id, session_id, ai_id,
+                             finding, impact, goal_id, subtask_id, subject) -> bool:
+    """Store finding in git notes (canonical source). Non-fatal on failure."""
+    try:
+        from empirica.core.canonical.empirica_git.finding_store import GitFindingStore
+        stored = GitFindingStore().store_finding(
+            finding_id=finding_id, project_id=project_id, session_id=session_id,
+            ai_id=ai_id, finding=finding, impact=impact, goal_id=goal_id,
+            subtask_id=subtask_id, subject=subject)
+        if stored:
+            logger.info(f"✓ Finding {finding_id[:8]} stored in git notes")
+        return stored
+    except Exception as e:
+        logger.warning(f"Git notes storage failed: {e}")
+        return False
+
+
+def _embed_finding_qdrant(project_id, finding_id, finding, session_id,
+                           goal_id, subtask_id, subject, impact) -> bool:
+    """Auto-embed finding to Qdrant for semantic search. Non-fatal on failure."""
+    if not (project_id and finding_id):
+        return False
+    try:
+        from datetime import datetime
+        from empirica.core.qdrant.vector_store import embed_single_memory_item
+        return embed_single_memory_item(
+            project_id=project_id, item_id=finding_id, text=finding,
+            item_type='finding', session_id=session_id, goal_id=goal_id,
+            subtask_id=subtask_id, subject=subject, impact=impact,
+            timestamp=datetime.now().isoformat())
+    except Exception as e:
+        logger.warning(f"Auto-embed failed: {e}")
+        return False
+
+
+def _ingest_finding_eidetic(project_id, finding_id, finding, subject, impact, session_id):
+    """Add finding to eidetic layer for confidence tracking. Returns 'created'|'confirmed'|None."""
+    if not (project_id and finding_id):
+        return None
+    try:
+        import hashlib
+        from empirica.core.qdrant.vector_store import confirm_eidetic_fact, embed_eidetic
+        content_hash = hashlib.md5(finding.encode()).hexdigest()
+        if confirm_eidetic_fact(project_id, content_hash, session_id):
+            return "confirmed"
+        if embed_eidetic(
+            project_id=project_id, fact_id=finding_id, content=finding,
+            fact_type="fact", domain=subject,
+            confidence=0.5 + ((impact or 0.5) * 0.2),
+            confirmation_count=1,
+            source_sessions=[session_id] if session_id else [],
+            source_findings=[finding_id],
+            tags=[subject] if subject else []):
+            return "created"
+    except Exception as e:
+        logger.warning(f"Eidetic ingestion failed: {e}")
+    return None
+
+
+def _decay_related_lessons(finding, subject, project_id) -> list:
+    """Immune system: decay related lessons when findings are logged. Non-fatal."""
+    try:
+        from empirica.core.lessons.storage import LessonStorageManager
+        decayed = LessonStorageManager().decay_related_lessons(
+            finding_text=finding, domain=subject,
+            decay_amount=0.05, min_confidence=0.3, keywords_threshold=2)
+        if decayed:
+            logger.info(f"IMMUNE: Decayed {len(decayed)} related lessons in domain '{subject}'")
+            try:
+                from empirica.core.qdrant.vector_store import propagate_lesson_confidence_to_qdrant
+                if project_id:
+                    for dl in decayed:
+                        propagate_lesson_confidence_to_qdrant(
+                            project_id, dl.get('name', ''), dl.get('new_confidence', 0.3))
+            except Exception:
+                pass
+        return decayed
+    except Exception:
+        return []
+
+
+def _decay_eidetic_by_finding(project_id, finding, subject) -> int:
+    """Decay eidetic facts that contradict this finding. Non-fatal."""
+    if not (project_id and subject):
+        return 0
+    try:
+        from empirica.core.qdrant.vector_store import decay_eidetic_by_finding
+        count = decay_eidetic_by_finding(project_id, finding, domain=subject)
+        if count:
+            logger.info(f"IMMUNE: Decayed {count} eidetic facts by finding in domain '{subject}'")
+        return count
+    except Exception:
+        return 0
+
+
 def handle_finding_log_command(args):
     """Handle finding-log command - AI-first with config file support"""
     db = None
@@ -526,140 +621,15 @@ def handle_finding_log_command(args):
         db.close()
         db = None  # Prevent double-close in finally
 
-        # GIT NOTES: Store finding in git notes for sync (canonical source)
-        git_stored = False
-        try:
-            from empirica.core.canonical.empirica_git.finding_store import GitFindingStore
-            git_store = GitFindingStore()
-
-            git_stored = git_store.store_finding(
-                finding_id=finding_id,
-                project_id=project_id,
-                session_id=session_id,
-                ai_id=ai_id,
-                finding=finding,
-                impact=impact,
-                goal_id=goal_id,
-                subtask_id=subtask_id,
-                subject=subject
-            )
-            if git_stored:
-                logger.info(f"✓ Finding {finding_id[:8]} stored in git notes")
-        except Exception as git_err:
-            # Non-fatal - log but continue
-            logger.warning(f"Git notes storage failed: {git_err}")
-
-        # AUTO-EMBED: Add finding to Qdrant for semantic search
-        embedded = False
-        if project_id and finding_id:
-            try:
-                from datetime import datetime
-
-                from empirica.core.qdrant.vector_store import embed_single_memory_item
-                embedded = embed_single_memory_item(
-                    project_id=project_id,
-                    item_id=finding_id,
-                    text=finding,
-                    item_type='finding',
-                    session_id=session_id,
-                    goal_id=goal_id,
-                    subtask_id=subtask_id,
-                    subject=subject,
-                    impact=impact,
-                    timestamp=datetime.now().isoformat()
-                )
-            except Exception as embed_err:
-                # Non-fatal - log but continue
-                logger.warning(f"Auto-embed failed: {embed_err}")
-
-        # EIDETIC MEMORY: Extract fact and add to eidetic layer for confidence tracking
-        eidetic_result = None
-        if project_id and finding_id:
-            try:
-                import hashlib
-
-                from empirica.core.qdrant.vector_store import (
-                    confirm_eidetic_fact,
-                    embed_eidetic,
-                )
-
-                # Content hash for deduplication
-                content_hash = hashlib.md5(finding.encode()).hexdigest()
-
-                # Try to confirm existing fact first
-                confirmed = confirm_eidetic_fact(project_id, content_hash, session_id)
-                if confirmed:
-                    eidetic_result = "confirmed"
-                    logger.debug(f"Confirmed existing eidetic fact: {content_hash[:8]}")
-                else:
-                    # Create new eidetic entry
-                    eidetic_created = embed_eidetic(
-                        project_id=project_id,
-                        fact_id=finding_id,
-                        content=finding,
-                        fact_type="fact",
-                        domain=subject,  # Use subject as domain hint
-                        confidence=0.5 + ((impact or 0.5) * 0.2),  # Higher impact → higher initial confidence
-                        confirmation_count=1,
-                        source_sessions=[session_id] if session_id else [],
-                        source_findings=[finding_id],
-                        tags=[subject] if subject else [],
-                    )
-                    if eidetic_created:
-                        eidetic_result = "created"
-                        logger.debug(f"Created new eidetic fact: {finding_id}")
-            except Exception as eidetic_err:
-                # Non-fatal - log but continue
-                logger.warning(f"Eidetic ingestion failed: {eidetic_err}")
-
-        # IMMUNE SYSTEM: Decay related lessons when findings are logged
-        # This implements the pattern where new learnings naturally supersede old lessons
-        # CENTRAL TOLERANCE: Scope decay to finding's domain to prevent autoimmune attacks
-        decayed_lessons = []
-        try:
-            from empirica.core.lessons.storage import LessonStorageManager
-            lesson_storage = LessonStorageManager()
-            decayed_lessons = lesson_storage.decay_related_lessons(
-                finding_text=finding,
-                domain=subject,  # Central tolerance: only decay lessons in same domain
-                decay_amount=0.05,  # 5% decay per related finding
-                min_confidence=0.3,  # Floor at 30%
-                keywords_threshold=2  # Require at least 2 keyword matches
-            )
-            if decayed_lessons:
-                logger.info(f"IMMUNE: Decayed {len(decayed_lessons)} related lessons in domain '{subject}'")
-
-                # Cross-layer sync: propagate YAML lesson decay to Qdrant payloads
-                try:
-                    from empirica.core.qdrant.vector_store import propagate_lesson_confidence_to_qdrant
-                    if project_id:
-                        for dl in decayed_lessons:
-                            propagate_lesson_confidence_to_qdrant(
-                                project_id,
-                                dl.get('name', ''),
-                                dl.get('new_confidence', 0.3)
-                            )
-                except Exception as qdrant_sync_err:
-                    logger.debug(f"Lesson→Qdrant sync skipped: {qdrant_sync_err}")
-        except Exception as decay_err:
-            # Non-fatal - log but continue
-            logger.debug(f"Lesson decay check failed: {decay_err}")
-
-        # Cross-layer: decay eidetic facts that contradict this finding
-        # Only when a domain/subject is provided — domainless findings spray too broadly
-        eidetic_decayed = 0
-        try:
-            from empirica.core.qdrant.vector_store import decay_eidetic_by_finding
-            if project_id and subject:
-                eidetic_decayed = decay_eidetic_by_finding(
-                    project_id,
-                    finding,
-                    domain=subject,
-                )
-                if eidetic_decayed:
-                    logger.info(f"IMMUNE: Decayed {eidetic_decayed} eidetic facts by finding in domain '{subject}'")
-        except Exception as eidetic_err:
-            logger.debug(f"Eidetic decay skipped: {eidetic_err}")
+        # Multi-layer storage: git notes → Qdrant → eidetic → immune system
+        git_stored = _store_finding_git_notes(finding_id, project_id, session_id, ai_id,
+                                               finding, impact, goal_id, subtask_id, subject)
+        embedded = _embed_finding_qdrant(project_id, finding_id, finding, session_id,
+                                          goal_id, subtask_id, subject, impact)
+        eidetic_result = _ingest_finding_eidetic(project_id, finding_id, finding, subject,
+                                                  impact, session_id)
+        decayed_lessons = _decay_related_lessons(finding, subject, project_id)
+        eidetic_decayed = _decay_eidetic_by_finding(project_id, finding, subject)
 
         result = {
             "ok": True,
