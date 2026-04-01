@@ -137,6 +137,55 @@ def _check_for_similar_goals(objective: str, session_id: str = None, threshold: 
     return unique
 
 
+def _link_goal_to_beads(args, config_data, goal, objective,
+                        scope_breadth, scope_duration, output_format):
+    """Create linked BEADS issue for a goal. Returns issue_id or None."""
+    use_beads = getattr(args, 'use_beads', False) or (config_data and config_data.get('use_beads', False))
+    if not use_beads and not hasattr(args, 'use_beads'):
+        try:
+            from empirica.config.project_config_loader import load_project_config
+            project_config = load_project_config()
+            if project_config and project_config.default_use_beads:
+                use_beads = True
+        except Exception:
+            pass
+
+    if not use_beads:
+        return None
+
+    try:
+        from empirica.integrations.beads import BeadsAdapter
+        beads = BeadsAdapter()
+        if not beads.is_available():
+            msg = (
+                "⚠️  BEADS integration requested but 'bd' CLI not found.\n\n"
+                "To use BEADS: pip install beads-project && bd init\n"
+                "Or omit --use-beads to create goal without issue tracking."
+            )
+            logger.warning("BEADS not available")
+            print(f"\n{msg}", file=sys.stderr)
+            return None
+
+        priority = 1 if scope_breadth > 0.7 else (2 if scope_breadth > 0.3 else 3)
+        issue_type = "epic" if scope_breadth > 0.7 else "feature"
+        issue_id = beads.create_issue(
+            title=objective,
+            description=f"Empirica Goal {goal.id[:8]}\nScope: breadth={scope_breadth:.2f}, duration={scope_duration:.2f}",
+            priority=priority, issue_type=issue_type, labels=["empirica"])
+
+        if issue_id:
+            from empirica.data.session_database import SessionDatabase
+            temp_db = SessionDatabase()
+            temp_db.conn.execute("UPDATE goals SET beads_issue_id = ? WHERE id = ?", (issue_id, goal.id))
+            temp_db.conn.commit()
+            temp_db.close()
+            logger.info(f"Linked goal {goal.id[:8]} to BEADS issue {issue_id}")
+        return issue_id
+    except Exception as e:
+        logger.warning(f"BEADS integration failed: {e}")
+        return None
+
+
 def handle_goals_create_command(args):
     """Handle goals-create command - AI-first with legacy flag support"""
     try:
@@ -328,77 +377,11 @@ def handle_goals_create_command(args):
         success = goal_repo.save_goal(goal, session_id, transaction_id=transaction_id)
 
         if success:
-            # BEADS Integration (Optional): Create linked issue tracker item
-            beads_issue_id = None
-
-            # Check if BEADS should be used (priority: flag > config file > project default)
+            # BEADS Integration (Optional)
             use_beads = getattr(args, 'use_beads', False) or (config_data and config_data.get('use_beads', False))
-
-            # If not explicitly set, check project-level default
-            if not use_beads and not hasattr(args, 'use_beads'):
-                try:
-                    from empirica.config.project_config_loader import load_project_config
-                    project_config = load_project_config()
-                    if project_config:
-                        use_beads = project_config.default_use_beads
-                        if use_beads:
-                            logger.info("Using BEADS integration from project config default")
-                except Exception as e:
-                    logger.debug(f"Could not load project config for BEADS default: {e}")
-
-            if use_beads:
-                try:
-                    from empirica.integrations.beads import BeadsAdapter
-                    beads = BeadsAdapter()
-
-                    if beads.is_available():
-                        # Map scope to BEADS priority (1=high, 2=medium, 3=low)
-                        priority = 1 if scope_breadth > 0.7 else (2 if scope_breadth > 0.3 else 3)
-
-                        # Determine issue type based on scope
-                        issue_type = "epic" if scope_breadth > 0.7 else "feature"
-
-                        # Create BEADS issue
-                        beads_issue_id = beads.create_issue(
-                            title=objective,
-                            description=f"Empirica Goal {goal.id[:8]}\nScope: breadth={scope_breadth:.2f}, duration={scope_duration:.2f}",
-                            priority=priority,
-                            issue_type=issue_type,
-                            labels=["empirica"]
-                        )
-
-                        if beads_issue_id:
-                            # Update goal with BEADS link
-                            from empirica.data.session_database import SessionDatabase
-                            temp_db = SessionDatabase()
-                            temp_db.conn.execute(
-                                "UPDATE goals SET beads_issue_id = ? WHERE id = ?",
-                                (beads_issue_id, goal.id)
-                            )
-                            temp_db.conn.commit()
-                            temp_db.close()
-                            logger.info(f"Linked goal {goal.id[:8]} to BEADS issue {beads_issue_id}")
-                    else:
-                        # BEADS requested but not available - provide helpful error
-                        import sys as _sys  # Local import to ensure availability
-                        error_msg = (
-                            "⚠️  BEADS integration requested but 'bd' CLI not found.\n\n"
-                            "To use BEADS issue tracking:\n"
-                            "  1. Install BEADS: pip install beads-project\n"
-                            "  2. Initialize: bd init\n"
-                            "  3. Try again: empirica goals-create --use-beads ...\n\n"
-                            "Or omit --use-beads to create goal without issue tracking.\n"
-                            "Learn more: https://github.com/cased/beads"
-                        )
-                        if output_format == 'json':
-                            logger.warning("BEADS integration requested but bd CLI not available")
-                            print(f"\n{error_msg}", file=_sys.stderr)
-                        else:
-                            print(f"\n{error_msg}", file=_sys.stderr)
-                        # Continue without BEADS - goal already created successfully
-                except Exception as e:
-                    logger.warning(f"BEADS integration failed: {e}")
-                    # Continue without BEADS - it's optional
+            beads_issue_id = _link_goal_to_beads(
+                args, config_data, goal, objective,
+                scope_breadth, scope_duration, output_format)
 
             result = {
                 "ok": True,
