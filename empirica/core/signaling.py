@@ -9,8 +9,8 @@ Used by:
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 from enum import Enum
+from typing import Optional
 
 
 class DriftLevel(Enum):
@@ -66,7 +66,7 @@ class VectorConfig:
 
 
 # Vector configuration - single source of truth
-VECTOR_CONFIGS: Dict[str, VectorConfig] = {
+VECTOR_CONFIGS: dict[str, VectorConfig] = {
     'know': VectorConfig('🧠', 'Knowledge', 0.7, 0.4, inverted=False),
     'uncertainty': VectorConfig('🎯', 'Certainty', 0.3, 0.6, inverted=True),
     'context': VectorConfig('📍', 'Context', 0.6, 0.4, inverted=False),
@@ -201,8 +201,8 @@ def format_vector_state(vector_name: str, value: Optional[float], show_value: bo
 
 
 def format_vectors_compact(
-    vectors: Dict[str, float],
-    keys: Optional[List[str]] = None,
+    vectors: dict[str, float],
+    keys: Optional[list[str]] = None,
     show_values: bool = False,
     use_percentage: bool = True
 ) -> str:

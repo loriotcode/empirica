@@ -11,8 +11,8 @@ Tables:
 - client_memory: Semantic memory items (SQLite fallback for Qdrant)
 """
 
-import sqlite3
 import logging
+import sqlite3
 from pathlib import Path
 from typing import Optional
 
@@ -159,7 +159,7 @@ def get_crm_connection() -> sqlite3.Connection:
     Returns:
         SQLite connection to ~/.empirica/crm/crm.db
     """
-    from empirica.config.path_resolver import get_crm_db_path, ensure_crm_structure
+    from empirica.config.path_resolver import ensure_crm_structure, get_crm_db_path
 
     # Ensure directory structure exists
     ensure_crm_structure()
@@ -219,7 +219,6 @@ def migrate_client_data_to_global(source_db_path: Path) -> dict:
     Returns:
         Dict with migration stats: {clients: int, engagements: int, ...}
     """
-    from empirica.config.path_resolver import get_crm_db_path
 
     stats = {"clients": 0, "engagements": 0, "interactions": 0, "memory": 0}
 

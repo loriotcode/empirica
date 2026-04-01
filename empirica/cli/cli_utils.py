@@ -6,8 +6,8 @@ import json
 import os
 import subprocess
 import time
-import sys
-from typing import Dict, Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any, Optional
 
 
 def safe_print(*args, **kwargs):
@@ -70,22 +70,22 @@ def print_component_status(component_name: str, status: str, details: Optional[s
     """Print standardized component status information"""
     status_emoji = {
         'success': '✅',
-        'warning': '⚠️', 
+        'warning': '⚠️',
         'error': '❌',
         'info': 'ℹ️',
         'loading': '🔄'
     }.get(status.lower(), '•')
-    
+
     safe_print(f"{status_emoji} {component_name}: {status}")
     if details:
         safe_print(f"   {details}")
 
 
-def format_uncertainty_output(uncertainty_scores: Dict[str, float], verbose: bool = False) -> str:
+def format_uncertainty_output(uncertainty_scores: dict[str, float], verbose: bool = False) -> str:
     """Format uncertainty scores for display"""
     if not uncertainty_scores:
         return "No uncertainty data available"
-    
+
     output = []
     if verbose:
         output.append("🔍 Detailed uncertainty assessment:")
@@ -97,7 +97,7 @@ def format_uncertainty_output(uncertainty_scores: Dict[str, float], verbose: boo
         output.append("🎯 Key uncertainty vectors:")
         for vector, score in sorted_scores:
             output.append(f"   • {vector}: {score:.2f}")
-    
+
     return "\n".join(output)
 
 
@@ -130,7 +130,7 @@ def handle_cli_error(error: Exception, command: str, verbose: bool = False, sess
 
     # Auto-capture the error for handoff to other AIs
     try:
-        from empirica.core.issue_capture import get_auto_capture, initialize_auto_capture, IssueSeverity, IssueCategory
+        from empirica.core.issue_capture import IssueCategory, IssueSeverity, get_auto_capture, initialize_auto_capture
 
         # Get or initialize auto-capture service
         service = get_auto_capture()
@@ -181,7 +181,7 @@ def handle_cli_error(error: Exception, command: str, verbose: bool = False, sess
             safe_print(f"⚠️  Auto-capture failed: {capture_error}")
 
 
-def parse_json_safely(json_string: Optional[str], default: Dict = None) -> Dict[str, Any]:
+def parse_json_safely(json_string: Optional[str], default: dict = None) -> dict[str, Any]:
     """Safely parse JSON string with fallback and escape sequence repair"""
     if not json_string:
         return default or {}
@@ -193,7 +193,6 @@ def parse_json_safely(json_string: Optional[str], default: Dict = None) -> Dict[
         try:
             # Common issue: unescaped backslashes in paths or strings
             # Replace single backslashes that aren't part of valid escape sequences
-            import re
             # First, try to fix simple backslash issues
             fixed_json = json_string.replace('\\', '\\\\')
             # But be careful not to double-escape already escaped sequences
@@ -254,9 +253,9 @@ def format_execution_time(start_time: float, end_time: Optional[float] = None) -
     """Format execution time for display"""
     if end_time is None:
         end_time = time.time()
-    
+
     duration = end_time - start_time
-    
+
     if duration < 0.001:
         return f"{duration*1000000:.0f}μs"
     elif duration < 1:
@@ -281,31 +280,31 @@ def print_separator(char: str = "-", length: int = 50) -> None:
     safe_print(char * length)
 
 
-def format_component_list(components: List[Dict[str, Any]], show_details: bool = False) -> str:
+def format_component_list(components: list[dict[str, Any]], show_details: bool = False) -> str:
     """Format component list for display"""
     if not components:
         return "No components available"
-    
+
     output = []
     working_count = sum(1 for c in components if c.get('status') == 'working')
     total_count = len(components)
-    
+
     output.append(f"📊 Component Status: {working_count}/{total_count} working")
-    
+
     if show_details:
         output.append("\n📋 Component Details:")
         for component in components:
             status_emoji = "✅" if component.get('status') == 'working' else "❌"
             name = component.get('name', 'Unknown')
             output.append(f"   {status_emoji} {name}")
-            
+
             if component.get('error') and component.get('status') != 'working':
                 output.append(f"      Error: {component['error']}")
-    
+
     return "\n".join(output)
 
 
-def print_project_context(quiet: bool = False, verbose: bool = False) -> Optional[Dict[str, str]]:
+def print_project_context(quiet: bool = False, verbose: bool = False) -> Optional[dict[str, str]]:
     """
     Print current project context banner.
     
@@ -327,10 +326,9 @@ def print_project_context(quiet: bool = False, verbose: bool = False) -> Optiona
         or None if not in a project
     """
     try:
-        from pathlib import Path
         import logging
         import subprocess
-        import json
+        from pathlib import Path
 
         logger = logging.getLogger(__name__)
 
@@ -361,19 +359,19 @@ def print_project_context(quiet: bool = False, verbose: bool = False) -> Optiona
             if not quiet:
                 safe_print(f"⚠️  No .empirica/project.yaml - run 'empirica project-init'")
             return None
-        
+
         # Load project config
         import yaml
         with open(project_yaml) as f:
             config = yaml.safe_load(f)
-        
+
         project_info = {
             'name': config.get('name', 'Unknown'),
             'project_id': config.get('project_id', 'Unknown'),
             'git_root': str(git_root),
             'db_path': str(git_root / '.empirica' / 'sessions' / 'sessions.db')
         }
-        
+
         # Get git remote URL if verbose
         git_url = None
         if verbose:
@@ -389,7 +387,7 @@ def print_project_context(quiet: bool = False, verbose: bool = False) -> Optiona
                     git_url = result.stdout.strip()
             except Exception as e:
                 logger.debug(f"Could not get git remote: {e}")
-        
+
         # Print based on mode
         if quiet:
             # Single line for quiet mode
@@ -399,12 +397,12 @@ def print_project_context(quiet: bool = False, verbose: bool = False) -> Optiona
             safe_print(f"📁 Project: {project_info['name']}")
             safe_print(f"🆔 ID: {project_info['project_id'][:8]}...")
             safe_print(f"📍 Location: {project_info['git_root']}")
-            
+
             if verbose and git_url:
                 safe_print(f"🔗 Repository: {git_url}")
-        
+
         return project_info
-        
+
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)

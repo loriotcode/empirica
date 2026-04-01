@@ -9,7 +9,7 @@ Adapted from world-model-mcp's extraction.py (MIT license).
 
 import os
 import re
-from typing import List, Optional, Tuple
+from typing import Optional
 
 from .types import Entity, Fact, Relationship
 
@@ -34,7 +34,7 @@ def extract_entities_from_content(
     content: str,
     project_id: Optional[str] = None,
     session_id: Optional[str] = None,
-) -> Tuple[List[Entity], List[Relationship]]:
+) -> tuple[list[Entity], list[Relationship]]:
     """
     Extract entities and relationships from file content.
 
@@ -59,7 +59,7 @@ def extract_entities_from_diff(
     diff_text: str,
     project_id: Optional[str] = None,
     session_id: Optional[str] = None,
-) -> Tuple[List[Entity], List[Fact]]:
+) -> tuple[list[Entity], list[Fact]]:
     """
     Extract entities and facts from a diff (added lines only).
 
@@ -115,9 +115,9 @@ _PY_CONSTANT = re.compile(
 def _extract_python(
     file_path: str, content: str,
     project_id: Optional[str], session_id: Optional[str],
-) -> Tuple[List[Entity], List[Relationship]]:
-    entities: List[Entity] = []
-    relationships: List[Relationship] = []
+) -> tuple[list[Entity], list[Relationship]]:
+    entities: list[Entity] = []
+    relationships: list[Relationship] = []
 
     # Functions
     for m in _PY_FUNC.finditer(content):
@@ -216,9 +216,9 @@ _TS_API = re.compile(
 def _extract_typescript(
     file_path: str, content: str,
     project_id: Optional[str], session_id: Optional[str],
-) -> Tuple[List[Entity], List[Relationship]]:
-    entities: List[Entity] = []
-    relationships: List[Relationship] = []
+) -> tuple[list[Entity], list[Relationship]]:
+    entities: list[Entity] = []
+    relationships: list[Relationship] = []
 
     for m in _TS_FUNC.finditer(content):
         entities.append(Entity(
@@ -294,9 +294,9 @@ _GO_INTERFACE = re.compile(
 def _extract_go(
     file_path: str, content: str,
     project_id: Optional[str], session_id: Optional[str],
-) -> Tuple[List[Entity], List[Relationship]]:
-    entities: List[Entity] = []
-    relationships: List[Relationship] = []
+) -> tuple[list[Entity], list[Relationship]]:
+    entities: list[Entity] = []
+    relationships: list[Relationship] = []
 
     for m in _GO_FUNC.finditer(content):
         receiver = m.group(1)
@@ -355,9 +355,9 @@ _RS_IMPL = re.compile(
 def _extract_rust(
     file_path: str, content: str,
     project_id: Optional[str], session_id: Optional[str],
-) -> Tuple[List[Entity], List[Relationship]]:
-    entities: List[Entity] = []
-    relationships: List[Relationship] = []
+) -> tuple[list[Entity], list[Relationship]]:
+    entities: list[Entity] = []
+    relationships: list[Relationship] = []
 
     for m in _RS_FN.finditer(content):
         entities.append(Entity(
@@ -405,10 +405,10 @@ def _extract_rust(
 def _extract_facts_from_diff(
     file_path: str,
     diff_text: str,
-    entities: List[Entity],
-) -> List[Fact]:
+    entities: list[Entity],
+) -> list[Fact]:
     """Generate facts about changes from a diff."""
-    facts: List[Fact] = []
+    facts: list[Fact] = []
 
     added = sum(1 for l in diff_text.splitlines() if l.startswith('+') and not l.startswith('+++'))
     removed = sum(1 for l in diff_text.splitlines() if l.startswith('-') and not l.startswith('---'))

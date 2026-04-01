@@ -9,13 +9,14 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 # Modality switcher is DEPRECATED and no longer available
 MODALITY_AVAILABLE = False
 
-from ..cli_utils import handle_cli_error
 from empirica.utils.session_resolver import InstanceResolver as R
+
+from ..cli_utils import handle_cli_error
 
 # Set up logging for monitor commands
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ class UsageMonitor:
     - Average latency
     - Success/failure rates
     """
-    
+
     def __init__(self, stats_file: Path = None):
         """
         Initialize UsageMonitor.
@@ -44,21 +45,21 @@ class UsageMonitor:
             self.stats_file = Path(default_path).expanduser()
         else:
             self.stats_file = stats_file
-        
+
         self.stats_file.parent.mkdir(parents=True, exist_ok=True)
-        
+
         self.stats = self._load_stats()
-    
-    def _load_stats(self) -> Dict[str, Any]:
+
+    def _load_stats(self) -> dict[str, Any]:
         """Load existing stats or create new."""
         if self.stats_file.exists():
             try:
-                with open(self.stats_file, 'r') as f:
+                with open(self.stats_file) as f:
                     return json.load(f)
             except Exception as e:
                 logger.warning(f"Could not load stats from {self.stats_file}: {e}")
                 pass
-        
+
         # Initialize new stats
         return {
             "session_start": datetime.now().isoformat(),
@@ -72,17 +73,17 @@ class UsageMonitor:
             "fallbacks": 0,
             "history": []
         }
-    
+
     def _save_stats(self):
         """Save stats to file."""
         with open(self.stats_file, 'w') as f:
             json.dump(self.stats, f, indent=2)
-    
+
     def record_request(
-        self, 
-        adapter: str, 
-        success: bool, 
-        tokens: int = 0, 
+        self,
+        adapter: str,
+        success: bool,
+        tokens: int = 0,
         cost: float = 0.0,
         latency: float = 0.0
     ):
@@ -90,20 +91,20 @@ class UsageMonitor:
         if adapter not in self.stats["adapters"]:
             logger.debug(f"Creating new stats entry for adapter: {adapter}")
             self.stats["adapters"][adapter] = {"requests": 0, "tokens": 0, "cost": 0.0, "errors": 0}
-        
+
         self.stats["adapters"][adapter]["requests"] += 1
         self.stats["adapters"][adapter]["tokens"] += tokens
         self.stats["adapters"][adapter]["cost"] += cost
-        
+
         if not success:
             self.stats["adapters"][adapter]["errors"] += 1
             logger.warning(f"Request error recorded for adapter: {adapter}")
-        
+
         self.stats["total_requests"] += 1
         self.stats["total_cost"] += cost
-        
+
         logger.debug(f"Recorded request: adapter={adapter}, success={success}, tokens={tokens}, cost=${cost:.4f}")
-        
+
         # Add to history
         self.stats["history"].append({
             "timestamp": datetime.now().isoformat(),
@@ -113,18 +114,18 @@ class UsageMonitor:
             "cost": cost,
             "latency": latency
         })
-        
+
         # Keep only last 1000 records
         if len(self.stats["history"]) > 1000:
             logger.debug("Trimming history to last 1000 records")
             self.stats["history"] = self.stats["history"][-1000:]
-        
+
         self._save_stats()
-    
-    def get_stats(self) -> Dict[str, Any]:
+
+    def get_stats(self) -> dict[str, Any]:
         """Get current statistics."""
         return self.stats
-    
+
     def reset_stats(self):
         """Reset all statistics."""
         logger.info("Resetting all monitoring statistics")
@@ -199,8 +200,12 @@ def _display_turtle_health():
     print("=" * 70)
 
     try:
+        from empirica.data.flow_state_calculator import (
+            calculate_flow_score,
+            classify_flow_state,
+            identify_flow_blockers,
+        )
         from empirica.data.session_database import SessionDatabase
-        from empirica.data.flow_state_calculator import calculate_flow_score, classify_flow_state, identify_flow_blockers
 
         db = SessionDatabase()
 
@@ -328,43 +333,43 @@ def handle_monitor_export_command(args):
     try:
         print("\n📤 Exporting Monitoring Data")
         print("=" * 70)
-        
+
         monitor = UsageMonitor()
         stats = monitor.get_stats()
-        
+
         output_format = getattr(args, 'format', 'json')
         output_file = getattr(args, 'output', None) or getattr(args, 'export', None)
-        
+
         if output_format == 'json':
             # Export as JSON
             with open(output_file, 'w') as f:
                 json.dump(stats, f, indent=2)
-            
+
             print(f"\n✅ Exported to JSON: {output_file}")
-            
+
         elif output_format == 'csv':
             # Export history as CSV
             import csv
-            
+
             history = stats.get("history", [])
-            
+
             if not history:
                 print("⚠️  No history to export")
                 return
-            
+
             with open(output_file, 'w', newline='') as f:
                 fieldnames = ['timestamp', 'adapter', 'success', 'tokens', 'cost', 'latency']
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
-                
+
                 writer.writeheader()
                 for record in history:
                     writer.writerow({k: record.get(k, '') for k in fieldnames})
-            
+
             print(f"\n✅ Exported to CSV: {output_file}")
             print(f"   Records: {len(history)}")
-        
+
         print("=" * 70)
-        
+
     except Exception as e:
         handle_cli_error(e, "Monitor Export", getattr(args, 'verbose', False))
 
@@ -378,21 +383,21 @@ def handle_monitor_reset_command(args):
     try:
         print("\n🔄 Resetting Monitoring Statistics")
         print("=" * 70)
-        
+
         # Confirm unless --yes flag
         if not getattr(args, 'yes', False):
             confirm = input("\n⚠️  This will clear all monitoring data. Continue? [y/N]: ").strip().lower()
             if confirm not in ['y', 'yes']:
                 print("❌ Reset cancelled")
                 return
-        
+
         monitor = UsageMonitor()
         monitor.reset_stats()
-        
+
         print("\n✅ Statistics reset")
         print(f"   Stats file: {monitor.stats_file}")
         print("=" * 70)
-        
+
     except Exception as e:
         handle_cli_error(e, "Monitor Reset", getattr(args, 'verbose', False))
 
@@ -406,51 +411,51 @@ def handle_monitor_cost_command(args):
     try:
         print("\n💰 Cost Analysis")
         print("=" * 70)
-        
+
         monitor = UsageMonitor()
         stats = monitor.get_stats()
-        
+
         total_cost = stats.get("total_cost", 0.0)
         adapters_stats = stats.get("adapters", {})
-        
+
         print(f"\n📊 Total Cost: ${total_cost:.4f}")
-        
+
         print("\n" + "=" * 70)
         print("Cost by Adapter:")
         print("=" * 70)
-        
+
         for adapter, data in sorted(adapters_stats.items(), key=lambda x: x[1].get('cost', 0.0), reverse=True):
             cost = data.get("cost", 0.0)
             requests = data.get("requests", 0)
-            
+
             if cost > 0:
                 percentage = (cost / total_cost * 100) if total_cost > 0 else 0
                 avg_cost = cost / requests if requests > 0 else 0
-                
+
                 print(f"\n🔹 {adapter.upper()}")
                 print(f"   Total:       ${cost:.4f} ({percentage:.1f}%)")
                 print(f"   Avg/Request: ${avg_cost:.6f}")
                 print(f"   Requests:    {requests:,}")
-        
+
         # Project costs
         if getattr(args, 'project', False):
             print("\n" + "=" * 70)
             print("📈 Cost Projections")
             print("=" * 70)
-            
+
             total_requests = stats.get("total_requests", 0)
-            
+
             if total_requests > 0:
                 avg_cost_per_request = total_cost / total_requests
-                
+
                 print(f"\n   Average cost per request: ${avg_cost_per_request:.6f}")
                 print(f"\n   Projected costs:")
                 print(f"      100 requests:   ${avg_cost_per_request * 100:.2f}")
                 print(f"      1,000 requests: ${avg_cost_per_request * 1000:.2f}")
                 print(f"      10,000 requests: ${avg_cost_per_request * 10000:.2f}")
-        
+
         print("\n" + "=" * 70)
-        
+
     except Exception as e:
         handle_cli_error(e, "Cost Analysis", getattr(args, 'verbose', False))
 
@@ -481,10 +486,10 @@ def handle_mco_load_command(args):
         persona: Explicit persona override (optional)
         output: Output format ('json' or 'human', default 'human')
     """
+    import json
+
     from empirica.config.mco_loader import get_mco_config
     from empirica.data.session_database import SessionDatabase
-    from pathlib import Path
-    import json
 
     try:
         session_id = getattr(args, 'session_id', None)
@@ -612,8 +617,8 @@ def handle_assess_state_command(args):
     - Human: Formatted display with context
     """
     try:
-        from datetime import datetime, timezone
         import json
+        from datetime import datetime, timezone
 
         session_id = getattr(args, 'session_id', None)
         prompt = getattr(args, 'prompt', None)
@@ -865,9 +870,10 @@ def handle_trajectory_project_command(args):
     - HALT: Stop and seek human guidance (critical issues)
     """
     import sqlite3
-    from empirica.data.session_database import SessionDatabase
+
     from empirica.core.canonical.empirica_git import SentinelHooks
     from empirica.core.canonical.empirica_git.sentinel_hooks import auto_enable_sentinel
+    from empirica.data.session_database import SessionDatabase
     auto_enable_sentinel()
 
     try:
@@ -1195,6 +1201,7 @@ def _show_disputes(output_format: str):
     """Show all calibration disputes (open and resolved)."""
     import json
     from datetime import datetime
+
     from empirica.data.session_database import SessionDatabase
 
     try:
@@ -1267,6 +1274,7 @@ def _show_brier_profile(args, ai_id: str, output_format: str):
     - Uncertainty: inherent domain difficulty (not controllable)
     """
     import json
+
     from empirica.data.session_database import SessionDatabase
 
     MIN_SAMPLES = 3  # get_brier_profile uses 3 internally
@@ -1372,6 +1380,7 @@ def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str,
     measuring accuracy of self-assessment against objective evidence.
     """
     import json
+
     from empirica.data.session_database import SessionDatabase
 
     try:
@@ -1518,8 +1527,8 @@ def handle_calibration_report_command(args):
     try:
         import json
         import sqlite3
-        from datetime import datetime, timedelta
         from collections import defaultdict
+        from datetime import datetime, timedelta
 
         # Get arguments
         ai_id = getattr(args, 'ai_id', None) or 'claude-code'
@@ -1985,8 +1994,8 @@ def handle_calibration_dispute_command(args):
     """
     import json
     import sys
-    import uuid
     import time
+    import uuid
 
     try:
         from empirica.data.session_database import SessionDatabase

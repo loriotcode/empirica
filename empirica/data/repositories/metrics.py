@@ -5,7 +5,6 @@ Extracts metrics logic from SessionDatabase to improve coherence.
 Handles all flow state metrics and epistemic health score calculations.
 """
 
-from typing import Dict, List, Tuple
 
 from .base import BaseRepository
 
@@ -13,7 +12,7 @@ from .base import BaseRepository
 class MetricsRepository(BaseRepository):
     """Repository for flow state and health score metrics"""
 
-    def calculate_flow_metrics(self, project_id: str, limit: int = 5) -> Dict:
+    def calculate_flow_metrics(self, project_id: str, limit: int = 5) -> dict:
         """
         Calculate flow state metrics for recent sessions in a project.
 
@@ -31,10 +30,10 @@ class MetricsRepository(BaseRepository):
         """
         from ..flow_state_calculator import (
             calculate_flow_score,
-            classify_flow_state,
             calculate_flow_trend,
+            check_flow_triggers,
+            classify_flow_state,
             identify_flow_blockers,
-            check_flow_triggers
         )
 
         # Get recent sessions with POSTFLIGHT vectors
@@ -144,7 +143,7 @@ class MetricsRepository(BaseRepository):
             'triggers_present': triggers_present
         }
 
-    def calculate_health_score(self, project_id: str, limit: int = 5) -> Dict:
+    def calculate_health_score(self, project_id: str, limit: int = 5) -> dict:
         """
         Calculate epistemic health score for recent sessions in a project.
 
@@ -243,7 +242,7 @@ class MetricsRepository(BaseRepository):
             'components': components
         }
 
-    def _calculate_session_health_score(self, vectors: Dict[str, float]) -> float:
+    def _calculate_session_health_score(self, vectors: dict[str, float]) -> float:
         """
         Calculate health score (0-100) from epistemic vectors.
 
@@ -288,7 +287,7 @@ class MetricsRepository(BaseRepository):
 
         return round(health_score * 100, 1)
 
-    def _calculate_health_trend(self, health_scores: List[float]) -> Tuple[str, str]:
+    def _calculate_health_trend(self, health_scores: list[float]) -> tuple[str, str]:
         """
         Calculate health trend from multiple scores.
 
@@ -319,7 +318,7 @@ class MetricsRepository(BaseRepository):
         else:
             return f"📉 Significant decline ({percent_change:.0f}%)", "📉"
 
-    def _analyze_health_components(self, health_data: List[Dict]) -> Dict:
+    def _analyze_health_components(self, health_data: list[dict]) -> dict:
         """
         Analyze health score components across sessions.
 

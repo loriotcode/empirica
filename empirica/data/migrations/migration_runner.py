@@ -1,7 +1,6 @@
 """Migration runner with tracking for database schema changes"""
 import sqlite3
-from typing import Callable, List, Tuple
-from datetime import datetime
+from collections.abc import Callable
 
 
 class MigrationRunner:
@@ -62,7 +61,7 @@ class MigrationRunner:
             # Re-raise with context
             raise RuntimeError(f"Migration {migration_id} failed: {e}") from e
 
-    def run_all(self, migrations: List[Tuple[str, str, Callable]]):
+    def run_all(self, migrations: list[tuple[str, str, Callable]]):
         """
         Run all pending migrations
 

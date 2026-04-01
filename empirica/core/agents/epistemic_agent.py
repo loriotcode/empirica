@@ -23,10 +23,9 @@ Usage:
 """
 
 import json
-import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-from datetime import datetime, UTC
+from datetime import UTC, datetime
+from typing import Any, Optional
 
 from empirica.core.persona import PersonaManager, PersonaProfile
 from empirica.data.session_database import SessionDatabase
@@ -57,7 +56,7 @@ class EpistemicAgentConfig:
 
     # Context injection
     parent_context: Optional[str] = None  # Additional context from parent
-    findings_so_far: List[str] = field(default_factory=list)
+    findings_so_far: list[str] = field(default_factory=list)
 
     def __post_init__(self):
         """Set default persona and generate investigation path if not provided."""
@@ -80,13 +79,13 @@ class EpistemicAgentResult:
     persona_id: str
 
     # Epistemic state
-    preflight_vectors: Dict[str, float]
-    postflight_vectors: Optional[Dict[str, float]]
-    learning_delta: Dict[str, float]
+    preflight_vectors: dict[str, float]
+    postflight_vectors: Optional[dict[str, float]]
+    learning_delta: dict[str, float]
 
     # Output
-    findings: List[str]
-    unknowns: List[str]
+    findings: list[str]
+    unknowns: list[str]
     output: str
 
     # Metrics
@@ -110,9 +109,7 @@ def load_persona(config: EpistemicAgentConfig) -> PersonaProfile:
     except FileNotFoundError:
         # Return default persona with balanced priors.
         # Must satisfy persona schema requirements used by agent-spawn.
-        from empirica.core.persona import (
-            EpistemicConfig, SigningIdentityConfig, PersonaProfile
-        )
+        from empirica.core.persona import EpistemicConfig, PersonaProfile, SigningIdentityConfig
 
         return PersonaProfile(
             persona_id="general",
@@ -253,7 +250,7 @@ Begin your work now.
     return prompt
 
 
-def parse_postflight(output: str, branch_id: str) -> Optional[Dict[str, Any]]:
+def parse_postflight(output: str, branch_id: str) -> Optional[dict[str, Any]]:
     """
     Parse POSTFLIGHT block from agent output.
 
@@ -297,9 +294,9 @@ def parse_postflight(output: str, branch_id: str) -> Optional[Dict[str, Any]]:
 
 
 def calculate_learning_delta(
-    preflight: Dict[str, float],
-    postflight: Dict[str, float]
-) -> Dict[str, float]:
+    preflight: dict[str, float],
+    postflight: dict[str, float]
+) -> dict[str, float]:
     """Calculate learning delta between preflight and postflight."""
     delta = {}
     key_vectors = ['know', 'uncertainty', 'context', 'clarity', 'completion', 'impact']
@@ -440,9 +437,9 @@ def spawn_epistemic_agent(
 
 def aggregate_agent_results(
     session_id: str,
-    results: List[EpistemicAgentResult],
+    results: list[EpistemicAgentResult],
     investigation_round: int = 1
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Aggregate results from multiple epistemic agents.
 

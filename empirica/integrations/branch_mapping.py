@@ -11,15 +11,14 @@ This enables:
 """
 
 import json
-import os
-from pathlib import Path
-from typing import Optional, Dict, List
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Optional
 
 
 class BranchMapping:
     """Manages branch-to-goal mapping in .empirica/branch_mapping.json"""
-    
+
     def __init__(self, repo_root: Optional[str] = None):
         """
         Initialize branch mapping manager.
@@ -29,17 +28,17 @@ class BranchMapping:
         """
         if repo_root is None:
             repo_root = self._find_repo_root()
-        
+
         self.repo_root = Path(repo_root)
         self.empirica_dir = self.repo_root / ".empirica"
         self.mapping_file = self.empirica_dir / "branch_mapping.json"
-        
+
         # Ensure .empirica directory exists
         self.empirica_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Load existing mappings
         self._mappings = self._load_mappings()
-    
+
     def _find_repo_root(self) -> str:
         """Find git repository root from current directory."""
         current = Path.cwd()
@@ -48,24 +47,24 @@ class BranchMapping:
                 return str(current)
             current = current.parent
         raise RuntimeError("Not in a git repository")
-    
-    def _load_mappings(self) -> Dict:
+
+    def _load_mappings(self) -> dict:
         """Load mappings from file."""
         if not self.mapping_file.exists():
             return {"mappings": {}, "history": []}
-        
+
         try:
-            with open(self.mapping_file, 'r') as f:
+            with open(self.mapping_file) as f:
                 return json.load(f)
         except json.JSONDecodeError:
             # Corrupt file, start fresh
             return {"mappings": {}, "history": []}
-    
+
     def _save_mappings(self):
         """Save mappings to file."""
         with open(self.mapping_file, 'w') as f:
             json.dump(self._mappings, f, indent=2)
-    
+
     def add_mapping(
         self,
         branch_name: str,
@@ -89,7 +88,7 @@ class BranchMapping:
         """
         if branch_name in self._mappings["mappings"]:
             return False  # Branch already mapped
-        
+
         self._mappings["mappings"][branch_name] = {
             "goal_id": goal_id,
             "beads_issue_id": beads_issue_id,
@@ -98,21 +97,21 @@ class BranchMapping:
             "created_at": datetime.now(timezone.utc).isoformat() + "Z",
             "status": "active"
         }
-        
+
         self._save_mappings()
         return True
-    
-    def get_mapping(self, branch_name: str) -> Optional[Dict]:
+
+    def get_mapping(self, branch_name: str) -> Optional[dict]:
         """Get mapping for a branch."""
         return self._mappings["mappings"].get(branch_name)
-    
+
     def get_branch_for_goal(self, goal_id: str) -> Optional[str]:
         """Find branch associated with a goal."""
         for branch, mapping in self._mappings["mappings"].items():
             if mapping["goal_id"] == goal_id and mapping["status"] == "active":
                 return branch
         return None
-    
+
     def remove_mapping(self, branch_name: str, archive: bool = True) -> bool:
         """
         Remove a branch mapping.
@@ -126,7 +125,7 @@ class BranchMapping:
         """
         if branch_name not in self._mappings["mappings"]:
             return False
-        
+
         if archive:
             # Move to history
             mapping = self._mappings["mappings"][branch_name]
@@ -136,21 +135,21 @@ class BranchMapping:
                 "branch": branch_name,
                 **mapping
             })
-        
+
         # Remove from active mappings
         del self._mappings["mappings"][branch_name]
         self._save_mappings()
         return True
-    
-    def list_active_mappings(self) -> List[Dict]:
+
+    def list_active_mappings(self) -> list[dict]:
         """List all active branch mappings."""
         return [
             {"branch": branch, **mapping}
             for branch, mapping in self._mappings["mappings"].items()
             if mapping["status"] == "active"
         ]
-    
-    def get_history(self, limit: int = 50) -> List[Dict]:
+
+    def get_history(self, limit: int = 50) -> list[dict]:
         """Get branch mapping history."""
         return self._mappings["history"][-limit:]
 

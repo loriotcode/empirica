@@ -6,13 +6,8 @@ Provides task breakdown and management for goal achievement.
 MVP implementation focuses on explicit task creation (AI creates tasks via MCP).
 """
 
-from .types import (
-    SubTask,
-    TaskDecomposition,
-    EpistemicImportance,
-    TaskStatus
-)
 from .repository import TaskRepository
+from .types import EpistemicImportance, SubTask, TaskDecomposition, TaskStatus
 
 __all__ = [
     'SubTask',

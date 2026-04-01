@@ -5,11 +5,11 @@ Dataclasses for temporal entity tracking in codebases.
 Follows Empirica conventions: @dataclass, to_dict/from_dict, time.time() timestamps.
 """
 
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List, Optional
 import time
 import uuid
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Optional
 
 
 class EntityType(Enum):
@@ -78,13 +78,13 @@ class Entity:
     last_seen: Optional[float] = None   # None = still exists
     project_id: Optional[str] = None
     session_id: Optional[str] = None    # Session that discovered it
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         if self.entity_type not in {e.value for e in EntityType}:
             raise ValueError(f"Invalid entity_type: {self.entity_type}")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'id': self.id,
             'entity_type': self.entity_type,
@@ -99,7 +99,7 @@ class Entity:
         }
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'Entity':
+    def from_dict(data: dict[str, Any]) -> 'Entity':
         return Entity(
             id=data.get('id', str(uuid.uuid4())),
             entity_type=data.get('entity_type', 'function'),
@@ -127,7 +127,7 @@ class Fact:
     valid_at: float = field(default_factory=time.time)
     invalid_at: Optional[float] = None  # None = still true
     status: str = "canonical"           # FactStatus.value
-    entity_ids: List[str] = field(default_factory=list)
+    entity_ids: list[str] = field(default_factory=list)
     evidence_type: str = "source_code"  # EvidenceType.value
     evidence_path: str = ""             # file:lines or session_id
     confidence: float = 1.0
@@ -138,7 +138,7 @@ class Fact:
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError(f"confidence must be 0.0-1.0, got {self.confidence}")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'id': self.id,
             'fact_text': self.fact_text,
@@ -154,7 +154,7 @@ class Fact:
         }
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'Fact':
+    def from_dict(data: dict[str, Any]) -> 'Fact':
         return Fact(
             id=data.get('id', str(uuid.uuid4())),
             fact_text=data.get('fact_text', ''),
@@ -183,7 +183,7 @@ class Relationship:
     evidence_count: int = 1
     project_id: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'id': self.id,
             'source_entity_id': self.source_entity_id,
@@ -197,7 +197,7 @@ class Relationship:
         }
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'Relationship':
+    def from_dict(data: dict[str, Any]) -> 'Relationship':
         return Relationship(
             id=data.get('id', str(uuid.uuid4())),
             source_entity_id=data.get('source_entity_id', ''),
@@ -225,13 +225,13 @@ class Constraint:
     description: str = ""
     violation_count: int = 0
     last_violated: Optional[float] = None
-    examples: List[Dict[str, str]] = field(default_factory=list)  # [{incorrect, correct}]
+    examples: list[dict[str, str]] = field(default_factory=list)  # [{incorrect, correct}]
     severity: str = "warning"            # error, warning, info
     project_id: Optional[str] = None
     session_id: Optional[str] = None
     created_at: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'id': self.id,
             'constraint_type': self.constraint_type,
@@ -248,7 +248,7 @@ class Constraint:
         }
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'Constraint':
+    def from_dict(data: dict[str, Any]) -> 'Constraint':
         return Constraint(
             id=data.get('id', str(uuid.uuid4())),
             constraint_type=data.get('constraint_type', 'convention'),

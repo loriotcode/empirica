@@ -10,12 +10,12 @@ Key Features:
 - Enable cross-device sync via standard git push/pull
 """
 
-import os
-import subprocess
 import json
 import logging
-from typing import Dict, Any, Optional, List
+import os
+import subprocess
 from datetime import datetime, timezone
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +157,7 @@ class GitUnknownStore:
             logger.warning(f"Failed to store unknown in git: {e}")
             return False
 
-    def load_unknown(self, unknown_id: str) -> Optional[Dict[str, Any]]:
+    def load_unknown(self, unknown_id: str) -> Optional[dict[str, Any]]:
         """Load unknown from git notes"""
         if not self._git_available or not self._has_commits():
             return None
@@ -242,7 +242,7 @@ class GitUnknownStore:
         session_id: Optional[str] = None,
         ai_id: Optional[str] = None,
         include_resolved: bool = False
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Discover unknowns from git notes
 

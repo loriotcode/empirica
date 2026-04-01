@@ -1,10 +1,10 @@
 """Vector repository for epistemic vector storage and retrieval"""
-import json
-import time
-import subprocess
 import hashlib
-from pathlib import Path
-from typing import Dict, List, Optional
+import json
+import subprocess
+import time
+from typing import Optional
+
 from .base import BaseRepository
 
 
@@ -72,10 +72,10 @@ class VectorRepository(BaseRepository):
         self,
         session_id: str,
         phase: str,
-        vectors: Dict[str, float],
+        vectors: dict[str, float],
         cascade_id: Optional[str] = None,
         round_num: int = 1,
-        metadata: Optional[Dict] = None,
+        metadata: Optional[dict] = None,
         reasoning: Optional[str] = None,
         project_id: Optional[str] = None,
         transaction_id: Optional[str] = None
@@ -154,7 +154,7 @@ class VectorRepository(BaseRepository):
         self,
         session_id: str,
         phase: Optional[str] = None
-    ) -> Optional[Dict]:
+    ) -> Optional[dict]:
         """
         Get the latest epistemic vectors for a session from the reflexes table
 
@@ -208,22 +208,22 @@ class VectorRepository(BaseRepository):
 
         return None
 
-    def get_preflight_vectors(self, session_id: str) -> Optional[Dict]:
+    def get_preflight_vectors(self, session_id: str) -> Optional[dict]:
         """Get latest PREFLIGHT vectors for session (convenience method)"""
         return self.get_latest_vectors(session_id, phase="PREFLIGHT")
 
-    def get_check_vectors(self, session_id: str, cycle: Optional[int] = None) -> List[Dict]:
+    def get_check_vectors(self, session_id: str, cycle: Optional[int] = None) -> list[dict]:
         """Get CHECK phase vectors, optionally filtered by cycle"""
         vectors = self.get_vectors_by_phase(session_id, phase="CHECK")
         if cycle is not None:
             return [v for v in vectors if v.get('round') == cycle]
         return vectors
 
-    def get_postflight_vectors(self, session_id: str) -> Optional[Dict]:
+    def get_postflight_vectors(self, session_id: str) -> Optional[dict]:
         """Get latest POSTFLIGHT vectors for session (convenience method)"""
         return self.get_latest_vectors(session_id, phase="POSTFLIGHT")
 
-    def get_vectors_by_phase(self, session_id: str, phase: str) -> List[Dict]:
+    def get_vectors_by_phase(self, session_id: str, phase: str) -> list[dict]:
         """Get all vectors for a specific phase"""
         cursor = self._execute("""
             SELECT * FROM reflexes
@@ -267,7 +267,7 @@ class VectorRepository(BaseRepository):
 
         return results
 
-    def get_session_vector_history(self, session_id: str) -> List[Dict]:
+    def get_session_vector_history(self, session_id: str) -> list[dict]:
         """
         Get complete vector history for a session
 

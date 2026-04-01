@@ -18,9 +18,9 @@ Design Principles:
 
 from .checkpoint_manager import CheckpointManager, auto_checkpoint
 from .goal_store import GitGoalStore
-from .session_sync import SessionSync
-from .sentinel_hooks import SentinelHooks, SentinelDecision, SentinelState, TurtleStatus
 from .message_store import GitMessageStore
+from .sentinel_hooks import SentinelDecision, SentinelHooks, SentinelState, TurtleStatus
+from .session_sync import SessionSync
 
 __all__ = [
     'CheckpointManager',

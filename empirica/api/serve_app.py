@@ -15,10 +15,11 @@ API contract matches empirica-extension/src/api/empirica-client.ts:
 """
 
 import logging
+from typing import Optional
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +171,7 @@ def _store_artifacts(artifacts: list[ArtifactPayload]) -> dict:
     """Store pre-extracted artifacts in the Empirica database."""
     import uuid
     from datetime import datetime, timezone
+
     from empirica.data.session_database import SessionDatabase
 
     db = SessionDatabase()
@@ -279,8 +281,8 @@ def _run_profile_status() -> dict:
 
 def _run_profile_sync() -> dict:
     """Run profile sync by invoking the existing sync logic."""
-    import subprocess
     import json
+    import subprocess
 
     result = subprocess.run(
         ["empirica", "profile-sync", "--import-only", "--output", "json"],

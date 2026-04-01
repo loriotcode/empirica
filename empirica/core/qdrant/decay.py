@@ -2,19 +2,20 @@
 Decay and lifecycle management: confidence decay, staleness signals, urgency updates.
 """
 from __future__ import annotations
-import logging
-from typing import Dict, List, Optional
 
-from empirica.core.qdrant.connection import (
-    _check_qdrant_available, _get_qdrant_imports, _get_qdrant_client,
-    _get_embedding_safe, logger,
-)
 from empirica.core.qdrant.collections import (
-    _eidetic_collection, _memory_collection, _global_learnings_collection,
     _assumptions_collection,
+    _eidetic_collection,
+    _memory_collection,
+)
+from empirica.core.qdrant.connection import (
+    _check_qdrant_available,
+    _get_qdrant_client,
+    logger,
 )
 from empirica.core.qdrant.eidetic import search_eidetic
 from empirica.core.qdrant.global_sync import embed_to_global
+
 
 def decay_eidetic_fact(
     project_id: str,
@@ -41,7 +42,7 @@ def decay_eidetic_fact(
         if not client.collection_exists(coll):
             return False
 
-        from qdrant_client.models import Filter, FieldCondition, MatchValue, PointStruct
+        from qdrant_client.models import FieldCondition, Filter, MatchValue, PointStruct
 
         results = client.scroll(
             collection_name=coll,
@@ -152,7 +153,7 @@ def propagate_lesson_confidence_to_qdrant(
         if not client.collection_exists(coll):
             return False
 
-        from qdrant_client.models import Filter, FieldCondition, MatchValue, PointStruct
+        from qdrant_client.models import FieldCondition, Filter, MatchValue, PointStruct
 
         # Find lesson by type + text content match
         results = client.scroll(
@@ -201,9 +202,10 @@ def auto_sync_session_to_global(
 
     try:
         # Get session findings from SQLite
+        from pathlib import Path
+
         from empirica.data.session_database import SessionDatabase
         from empirica.utils.session_resolver import InstanceResolver as R
-        from pathlib import Path
 
         project_path = R.project_path()
         if not project_path:

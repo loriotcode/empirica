@@ -10,16 +10,16 @@ Curates pre-summary snapshots using importance-weighted algorithm:
 
 import json
 import sys
-from pathlib import Path
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
+from pathlib import Path
+from typing import Any
 
 
 def should_keep_snapshot(
-    snapshot: Dict[str, Any],
-    all_snapshots: List[Dict[str, Any]],
+    snapshot: dict[str, Any],
+    all_snapshots: list[dict[str, Any]],
     recent_count: int = 5
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Determine if snapshot should be kept using Impact + Completion curation.
 
@@ -80,8 +80,8 @@ def parse_snapshot_timestamp(ts: str) -> datetime:
 
 
 def is_best_in_window(
-    snapshot: Dict[str, Any],
-    all_snapshots: List[Dict[str, Any]],
+    snapshot: dict[str, Any],
+    all_snapshots: list[dict[str, Any]],
     window_hours: int = 24
 ) -> bool:
     """Check if snapshot has highest impact in its time window"""
@@ -114,7 +114,7 @@ def is_best_in_window(
     return snapshot_impact >= max_impact
 
 
-def curate_snapshots(ref_docs_dir: Path, dry_run: bool = False) -> Dict[str, Any]:
+def curate_snapshots(ref_docs_dir: Path, dry_run: bool = False) -> dict[str, Any]:
     """
     Curate pre-summary snapshots in ref-docs directory.
 
@@ -134,7 +134,7 @@ def curate_snapshots(ref_docs_dir: Path, dry_run: bool = False) -> Dict[str, Any
     # Load all snapshots
     snapshots = []
     for f in snapshot_files:
-        with open(f, 'r') as fp:
+        with open(f) as fp:
             snapshot = json.load(fp)
             snapshot['_file_path'] = f
             snapshots.append(snapshot)

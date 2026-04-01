@@ -10,14 +10,10 @@ Enables AIs to:
 """
 
 import json
-import sys
-from typing import Optional
 
 from empirica.core.issue_capture import (
     get_auto_capture,
     initialize_auto_capture,
-    IssueSeverity,
-    IssueCategory,
 )
 
 
@@ -31,6 +27,7 @@ def handle_issue_list_command(args):
     """
     try:
         import sqlite3
+
         from empirica.data.session_database import SessionDatabase
 
         session_id = getattr(args, 'session_id', None)
@@ -184,7 +181,7 @@ def handle_issue_show_command(args):
         session_id = getattr(args, 'session_id', None)
         issue_id = getattr(args, 'issue_id', None)
         output = getattr(args, 'output', 'json')
-        
+
         if not session_id or not issue_id:
             result = {
                 "ok": False,
@@ -192,16 +189,16 @@ def handle_issue_show_command(args):
             }
             print(json.dumps(result))
             return 1
-        
+
         # Get service
         service = get_auto_capture()
         if not service or service.session_id != session_id:
             service = initialize_auto_capture(session_id)
-        
+
         # Find issue
         issues = service.list_issues(limit=1000)
         issue = next((i for i in issues if i['id'] == issue_id), None)
-        
+
         if not issue:
             result = {
                 "ok": False,
@@ -209,14 +206,14 @@ def handle_issue_show_command(args):
             }
             print(json.dumps(result))
             return 1
-        
+
         if output == 'json':
             # Parse context if it's JSON string
             try:
                 issue['context'] = json.loads(issue['context']) if isinstance(issue['context'], str) else issue['context']
             except Exception:
                 pass
-            
+
             result = {
                 "ok": True,
                 "issue": issue
@@ -227,7 +224,7 @@ def handle_issue_show_command(args):
             print(f"\n{'='*80}")
             print(f"📌 ISSUE: {issue['id']}")
             print(f"{'='*80}\n")
-            
+
             print(f"Severity: {issue['severity'].upper()}")
             print(f"Category: {issue['category']}")
             print(f"Status: {issue['status']}")
@@ -235,15 +232,15 @@ def handle_issue_show_command(args):
             print(f"Created: {issue['created_at']}")
             if issue['assigned_to_ai']:
                 print(f"Assigned to: {issue['assigned_to_ai']}")
-            
+
             print(f"\nMessage:\n  {issue['message']}\n")
-            
+
             if issue['stack_trace']:
                 print("Stack Trace:")
                 print(issue['stack_trace'][:1000])
                 if len(issue['stack_trace']) > 1000:
                     print("... (truncated)")
-            
+
             if issue['context']:
                 print(f"\nContext:")
                 try:
@@ -252,9 +249,9 @@ def handle_issue_show_command(args):
                         print(f"  {key}: {value}")
                 except Exception:
                     print(f"  {issue['context']}")
-        
+
         return 0
-        
+
     except Exception as e:
         result = {
             "ok": False,
@@ -271,7 +268,7 @@ def handle_issue_handoff_command(args):
         issue_id = getattr(args, 'issue_id', None)
         assigned_to = getattr(args, 'assigned_to', None)
         output = getattr(args, 'output', 'json')
-        
+
         if not all([session_id, issue_id, assigned_to]):
             result = {
                 "ok": False,
@@ -279,15 +276,15 @@ def handle_issue_handoff_command(args):
             }
             print(json.dumps(result))
             return 1
-        
+
         # Get service
         service = get_auto_capture()
         if not service or service.session_id != session_id:
             service = initialize_auto_capture(session_id)
-        
+
         # Mark for handoff
         success = service.mark_for_handoff(issue_id, assigned_to)
-        
+
         if success:
             result = {
                 "ok": True,
@@ -304,7 +301,7 @@ def handle_issue_handoff_command(args):
             }
             print(json.dumps(result))
             return 1
-            
+
     except Exception as e:
         result = {
             "ok": False,
@@ -321,7 +318,7 @@ def handle_issue_resolve_command(args):
         issue_id = getattr(args, 'issue_id', None)
         resolution = getattr(args, 'resolution', None)
         output = getattr(args, 'output', 'json')
-        
+
         if not all([session_id, issue_id, resolution]):
             result = {
                 "ok": False,
@@ -329,15 +326,15 @@ def handle_issue_resolve_command(args):
             }
             print(json.dumps(result))
             return 1
-        
+
         # Get service
         service = get_auto_capture()
         if not service or service.session_id != session_id:
             service = initialize_auto_capture(session_id)
-        
+
         # Mark as resolved
         success = service.resolve_issue(issue_id, resolution)
-        
+
         if success:
             result = {
                 "ok": True,
@@ -354,7 +351,7 @@ def handle_issue_resolve_command(args):
             }
             print(json.dumps(result))
             return 1
-            
+
     except Exception as e:
         result = {
             "ok": False,
@@ -370,7 +367,7 @@ def handle_issue_export_command(args):
         session_id = getattr(args, 'session_id', None)
         assigned_to = getattr(args, 'assigned_to', None)
         output = getattr(args, 'output', 'json')
-        
+
         if not all([session_id, assigned_to]):
             result = {
                 "ok": False,
@@ -378,22 +375,22 @@ def handle_issue_export_command(args):
             }
             print(json.dumps(result))
             return 1
-        
+
         # Get service
         service = get_auto_capture()
         if not service or service.session_id != session_id:
             service = initialize_auto_capture(session_id)
-        
+
         # Export
         export_data = service.export_for_handoff(assigned_to)
-        
+
         result = {
             "ok": True,
             "export": export_data
         }
         print(json.dumps(result))
         return 0
-            
+
     except Exception as e:
         result = {
             "ok": False,
@@ -408,7 +405,7 @@ def handle_issue_stats_command(args):
     try:
         session_id = getattr(args, 'session_id', None)
         output = getattr(args, 'output', 'json')
-        
+
         if not session_id:
             result = {
                 "ok": False,
@@ -416,15 +413,15 @@ def handle_issue_stats_command(args):
             }
             print(json.dumps(result))
             return 1
-        
+
         # Get service
         service = get_auto_capture()
         if not service or service.session_id != session_id:
             service = initialize_auto_capture(session_id)
-        
+
         # Get stats
         stats = service.get_stats()
-        
+
         if output == 'json':
             result = {
                 "ok": True,
@@ -435,12 +432,12 @@ def handle_issue_stats_command(args):
             print(f"\n{'='*80}")
             print(f"📊 ISSUE CAPTURE STATISTICS")
             print(f"{'='*80}\n")
-            
+
             for key, value in stats.items():
                 print(f"{key}: {value}")
-        
+
         return 0
-            
+
     except Exception as e:
         result = {
             "ok": False,

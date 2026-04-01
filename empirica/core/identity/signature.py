@@ -22,11 +22,11 @@ EEP-1 Signature Payload:
 The payload is canonicalized (deterministic JSON) and signed with Ed25519.
 """
 
-import json
 import hashlib
+import json
 import logging
-from typing import Dict, Any, Optional, List
-from datetime import datetime, UTC
+from datetime import UTC, datetime
+from typing import Any, Optional
 
 from .ai_identity import AIIdentity
 
@@ -35,13 +35,13 @@ logger = logging.getLogger(__name__)
 
 def create_eep1_payload(
     content: str,
-    epistemic_state: Dict[str, float],
+    epistemic_state: dict[str, float],
     ai_id: str,
     cascade_trace_hash: Optional[str] = None,
-    metadata_sources: Optional[List[str]] = None,
+    metadata_sources: Optional[list[str]] = None,
     model_id: Optional[str] = None,
     session_id: Optional[str] = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Create EEP-1 signature payload
     
@@ -59,7 +59,7 @@ def create_eep1_payload(
     """
     # Hash content
     content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
-    
+
     # Build payload
     payload = {
         'content_hash': content_hash,
@@ -70,14 +70,14 @@ def create_eep1_payload(
         'metadata_sources': metadata_sources or [],
         'model_id': model_id or 'unknown'
     }
-    
+
     if session_id:
         payload['session_id'] = session_id
-    
+
     return payload
 
 
-def canonicalize_payload(payload: Dict[str, Any]) -> str:
+def canonicalize_payload(payload: dict[str, Any]) -> str:
     """
     Canonicalize payload for signing
     
@@ -97,13 +97,13 @@ def canonicalize_payload(payload: Dict[str, Any]) -> str:
 
 def sign_assessment(
     content: str,
-    epistemic_state: Dict[str, float],
+    epistemic_state: dict[str, float],
     identity: AIIdentity,
     cascade_trace_hash: Optional[str] = None,
-    metadata_sources: Optional[List[str]] = None,
+    metadata_sources: Optional[list[str]] = None,
     model_id: Optional[str] = None,
     session_id: Optional[str] = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Sign assessment with EEP-1 signature
     
@@ -140,7 +140,7 @@ def sign_assessment(
             f"No private key loaded for {identity.ai_id}. "
             "Call identity.load_keypair() first."
         )
-    
+
     # Create payload
     payload = create_eep1_payload(
         content=content,
@@ -151,16 +151,16 @@ def sign_assessment(
         model_id=model_id,
         session_id=session_id
     )
-    
+
     # Replace ai_id with public key
     payload['creator_id'] = identity.public_key_hex()
-    
+
     # Canonicalize payload
     canonical_payload = canonicalize_payload(payload)
-    
+
     # Sign canonical payload
     signature = identity.sign(canonical_payload.encode('utf-8'))
-    
+
     # Build signed package
     signed_package = {
         'payload': payload,
@@ -169,17 +169,17 @@ def sign_assessment(
         'ai_id': identity.ai_id,  # For convenience (not part of signed data)
         'eep_version': '1.0'
     }
-    
+
     logger.info(
         f"✓ Signed assessment with EEP-1 "
         f"(ai_id={identity.ai_id}, content_hash={payload['content_hash'][:8]}...)"
     )
-    
+
     return signed_package
 
 
 def verify_signature(
-    signed_package: Dict[str, Any],
+    signed_package: dict[str, Any],
     public_key_hex: Optional[str] = None
 ) -> bool:
     """
@@ -204,41 +204,41 @@ def verify_signature(
     try:
         payload = signed_package['payload']
         signature_hex = signed_package['signature']
-        
+
         # Get public key
         if public_key_hex is None:
             public_key_hex = payload['creator_id']
-        
+
         # Canonicalize payload
         canonical_payload = canonicalize_payload(payload)
-        
+
         # Verify signature
         signature_bytes = bytes.fromhex(signature_hex)
         public_key_bytes = bytes.fromhex(public_key_hex)
-        
+
         is_valid = AIIdentity.verify(
             signature=signature_bytes,
             message=canonical_payload.encode('utf-8'),
             public_key_bytes=public_key_bytes
         )
-        
+
         if is_valid:
             logger.info(f"✓ Signature verified (creator_id={public_key_hex[:16]}...)")
         else:
             logger.warning(f"✗ Signature verification failed")
-        
+
         return is_valid
-        
+
     except Exception as e:
         logger.error(f"Signature verification error: {e}")
         return False
 
 
 def verify_eep1_payload(
-    signed_package: Dict[str, Any],
+    signed_package: dict[str, Any],
     content: Optional[str] = None,
     cascade_trace_hash: Optional[str] = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Comprehensive EEP-1 payload verification
     
@@ -270,14 +270,14 @@ def verify_eep1_payload(
     """
     errors = []
     warnings = []
-    
+
     # 1. Verify signature
     signature_valid = verify_signature(signed_package)
     if not signature_valid:
         errors.append("Signature verification failed")
-    
+
     payload = signed_package.get('payload', {})
-    
+
     # 2. Verify content hash (if content provided)
     if content is not None:
         content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
@@ -286,7 +286,7 @@ def verify_eep1_payload(
                 f"Content hash mismatch: expected {payload.get('content_hash')[:8]}..., "
                 f"got {content_hash[:8]}..."
             )
-    
+
     # 3. Verify cascade trace hash (if provided)
     if cascade_trace_hash is not None:
         if cascade_trace_hash != payload.get('cascade_trace_hash'):
@@ -294,31 +294,31 @@ def verify_eep1_payload(
                 f"Cascade trace hash mismatch: expected {payload.get('cascade_trace_hash')[:8]}..., "
                 f"got {cascade_trace_hash[:8]}..."
             )
-    
+
     # 4. Verify timestamp
     try:
         timestamp = datetime.fromisoformat(payload.get('timestamp', ''))
         now = datetime.now(UTC)
-        
+
         # Check not in future
         if timestamp > now:
             warnings.append(f"Timestamp is in future: {timestamp}")
-        
+
         # Check not too old (warn if >1 year)
         age_days = (now - timestamp).days
         if age_days > 365:
             warnings.append(f"Timestamp is {age_days} days old")
-            
+
     except Exception as e:
         errors.append(f"Invalid timestamp: {e}")
-    
+
     # 5. Verify epistemic state structure
     epistemic_state = payload.get('epistemic_state_final', {})
     required_vectors = ['engagement', 'know', 'do', 'uncertainty']
     missing_vectors = [v for v in required_vectors if v not in epistemic_state]
     if missing_vectors:
         warnings.append(f"Missing epistemic vectors: {missing_vectors}")
-    
+
     # Build result
     result = {
         'valid': len(errors) == 0,
@@ -330,12 +330,12 @@ def verify_eep1_payload(
         'timestamp': payload.get('timestamp'),
         'epistemic_state': epistemic_state
     }
-    
+
     if result['valid']:
         result['message'] = "EEP-1 payload verified successfully"
     else:
         result['message'] = f"EEP-1 verification failed: {'; '.join(errors)}"
-    
+
     return result
 
 

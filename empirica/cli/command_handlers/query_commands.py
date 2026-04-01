@@ -7,13 +7,11 @@ With consistent --scope flag (session, project, global)
 
 import json
 import sqlite3
-from typing import Optional, List, Dict
 
 
 def handle_query_command(args):
     """Handle unified query command"""
     try:
-        from empirica.data.session_database import SessionDatabase
 
         query_type = args.type
         scope = getattr(args, 'scope', 'global')
@@ -84,7 +82,7 @@ def handle_query_command(args):
 
 
 def _query_findings(scope: str, session_id: str, project_id: str,
-                    limit: int, status: str, ai_id: str, since: str) -> List[Dict]:
+                    limit: int, status: str, ai_id: str, since: str) -> list[dict]:
     """Query findings from project_findings (canonical table)."""
     from empirica.data.session_database import SessionDatabase
     db = SessionDatabase()
@@ -108,7 +106,7 @@ def _query_findings(scope: str, session_id: str, project_id: str,
 
 
 def _query_unknowns(scope: str, session_id: str, project_id: str,
-                    limit: int, status: str, ai_id: str, since: str) -> List[Dict]:
+                    limit: int, status: str, ai_id: str, since: str) -> list[dict]:
     """Query unknowns from project_unknowns (canonical table)."""
     from empirica.data.session_database import SessionDatabase
     db = SessionDatabase()
@@ -139,7 +137,7 @@ def _query_unknowns(scope: str, session_id: str, project_id: str,
 
 
 def _query_deadends(scope: str, session_id: str, project_id: str,
-                    limit: int, status: str, ai_id: str, since: str) -> List[Dict]:
+                    limit: int, status: str, ai_id: str, since: str) -> list[dict]:
     """Query dead ends from project_dead_ends (canonical table)."""
     from empirica.data.session_database import SessionDatabase
     db = SessionDatabase()
@@ -163,7 +161,7 @@ def _query_deadends(scope: str, session_id: str, project_id: str,
 
 
 def _query_mistakes(scope: str, session_id: str, project_id: str,
-                    limit: int, status: str, ai_id: str, since: str) -> List[Dict]:
+                    limit: int, status: str, ai_id: str, since: str) -> list[dict]:
     """Query mistakes from session_mistakes or mistakes_made"""
     from empirica.data.session_database import SessionDatabase
     db = SessionDatabase()
@@ -197,7 +195,7 @@ def _query_mistakes(scope: str, session_id: str, project_id: str,
 
 
 def _query_issues(scope: str, session_id: str, project_id: str,
-                  limit: int, status: str, ai_id: str, since: str) -> List[Dict]:
+                  limit: int, status: str, ai_id: str, since: str) -> list[dict]:
     """Query auto-captured issues"""
     from empirica.data.session_database import SessionDatabase
     db = SessionDatabase()
@@ -237,7 +235,7 @@ def _query_issues(scope: str, session_id: str, project_id: str,
 
 
 def _query_handoffs(scope: str, session_id: str, project_id: str,
-                    limit: int, status: str, ai_id: str, since: str) -> List[Dict]:
+                    limit: int, status: str, ai_id: str, since: str) -> list[dict]:
     """Query handoff reports (uses HybridHandoffStorage for git + db)"""
     from empirica.core.handoff.storage import HybridHandoffStorage
 
@@ -251,7 +249,7 @@ def _query_handoffs(scope: str, session_id: str, project_id: str,
 
 
 def _query_goals(scope: str, session_id: str, project_id: str,
-                 limit: int, status: str, ai_id: str, since: str) -> List[Dict]:
+                 limit: int, status: str, ai_id: str, since: str) -> list[dict]:
     """Query goals with subtasks"""
     from empirica.data.session_database import SessionDatabase
     db = SessionDatabase()
@@ -308,7 +306,7 @@ def _query_goals(scope: str, session_id: str, project_id: str,
 
 
 def _query_blockers(scope: str, session_id: str, project_id: str,
-                    limit: int, status: str, ai_id: str, since: str) -> List[Dict]:
+                    limit: int, status: str, ai_id: str, since: str) -> list[dict]:
     """Query goal-linked unknowns (blockers) sorted by impact"""
     from empirica.data.session_database import SessionDatabase
     db = SessionDatabase()
@@ -363,7 +361,7 @@ def _query_blockers(scope: str, session_id: str, project_id: str,
     return results
 
 
-def _print_human(query_type: str, scope: str, results: List[Dict]):
+def _print_human(query_type: str, scope: str, results: list[dict]):
     """Print human-readable output"""
     type_emoji = {
         'findings': '💡',

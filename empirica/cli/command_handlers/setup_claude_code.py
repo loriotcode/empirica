@@ -100,7 +100,7 @@ def _ensure_json_file(path: Path, default: dict) -> dict:
         try:
             with open(path) as f:
                 return json.load(f)
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             pass
     return default.copy()
 

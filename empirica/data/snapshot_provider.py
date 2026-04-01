@@ -33,15 +33,16 @@ Usage:
     loaded = provider.import_snapshot_from_file("snapshot.json")
 """
 
-from typing import Optional, Dict, List
+import json
+import uuid
 from datetime import datetime
 from pathlib import Path
-import uuid
-import json
+from typing import Optional
+
+from empirica.data.epistemic_snapshot import ContextSummary, EpistemicStateSnapshot
 
 # Import Empirica components
 from empirica.data.session_database import SessionDatabase
-from empirica.data.epistemic_snapshot import EpistemicStateSnapshot, ContextSummary, create_snapshot
 
 
 class EpistemicSnapshotProvider:
@@ -66,10 +67,10 @@ class EpistemicSnapshotProvider:
                                     session_id: str,
                                     context_summary: Optional[ContextSummary] = None,
                                     context_summary_text: Optional[str] = None,
-                                    semantic_tags: Optional[Dict] = None,
-                                    evidence_refs: Optional[List[str]] = None,
+                                    semantic_tags: Optional[dict] = None,
+                                    evidence_refs: Optional[list[str]] = None,
                                     cascade_phase: Optional[str] = None,
-                                    domain_vectors: Optional[Dict[str, Dict[str, float]]] = None) -> EpistemicStateSnapshot:
+                                    domain_vectors: Optional[dict[str, dict[str, float]]] = None) -> EpistemicStateSnapshot:
         """
         Create epistemic snapshot from current session state
 
@@ -276,7 +277,7 @@ class EpistemicSnapshotProvider:
 
         return self._row_to_snapshot(row)
 
-    def get_snapshot_history(self, session_id: str, limit: int = 10) -> List[EpistemicStateSnapshot]:
+    def get_snapshot_history(self, session_id: str, limit: int = 10) -> list[EpistemicStateSnapshot]:
         """
         Get snapshot history for session
 
@@ -334,13 +335,13 @@ class EpistemicSnapshotProvider:
         if not path.exists():
             raise FileNotFoundError(f"Snapshot file not found: {filepath}")
 
-        with open(path, 'r') as f:
+        with open(path) as f:
             snapshot = EpistemicStateSnapshot.from_json(f.read())
 
         print(f"📥 Snapshot imported: {filepath}")
         return snapshot
 
-    def _extract_vectors_from_assessment(self, assessment: Dict) -> Dict[str, float]:
+    def _extract_vectors_from_assessment(self, assessment: dict) -> dict[str, float]:
         """
         Extract 13 epistemic vectors from preflight assessment
 
@@ -373,7 +374,7 @@ class EpistemicSnapshotProvider:
 
         return vectors
 
-    def _get_default_vectors(self) -> Dict[str, float]:
+    def _get_default_vectors(self) -> dict[str, float]:
         """Get default 13 vectors (neutral state)"""
         return {
             'ENGAGEMENT': 0.5,
@@ -416,9 +417,9 @@ class EpistemicSnapshotProvider:
         return total_tokens
 
     def _estimate_snapshot_tokens(self,
-                                  vectors: Dict[str, float],
+                                  vectors: dict[str, float],
                                   context_summary: Optional[ContextSummary],
-                                  domain_vectors: Optional[Dict]) -> int:
+                                  domain_vectors: Optional[dict]) -> int:
         """
         Estimate snapshot token count
 
@@ -441,7 +442,7 @@ class EpistemicSnapshotProvider:
         return tokens
 
     def _estimate_fidelity(self,
-                          vectors: Dict[str, float],
+                          vectors: dict[str, float],
                           context_summary: Optional[ContextSummary]) -> float:
         """
         Estimate snapshot fidelity (how well it represents original context)

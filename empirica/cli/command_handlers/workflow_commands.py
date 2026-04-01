@@ -12,11 +12,13 @@ These commands provide JSON output for MCP v2 server integration.
 
 import json
 import logging
-from ..cli_utils import handle_cli_error, parse_json_safely, run_empirica_subprocess
-from ..validation import PreflightInput, CheckInput, PostflightInput, safe_validate
-from empirica.core.canonical.empirica_git.sentinel_hooks import SentinelHooks, SentinelDecision, auto_enable_sentinel
-from empirica.utils.session_resolver import InstanceResolver as R
+
 from empirica.config.path_resolver import resolve_session_db_path
+from empirica.core.canonical.empirica_git.sentinel_hooks import SentinelDecision, SentinelHooks, auto_enable_sentinel
+from empirica.utils.session_resolver import InstanceResolver as R
+
+from ..cli_utils import handle_cli_error, parse_json_safely, run_empirica_subprocess
+from ..validation import PreflightInput, safe_validate
 
 # Auto-enable Sentinel with default evaluator on module load
 auto_enable_sentinel()
@@ -192,8 +194,8 @@ def _parse_workflow_input(args, phase: str):
     Returns (config_data, output_format) where config_data is parsed JSON
     or None if using legacy CLI flags.
     """
-    import sys
     import os
+    import sys
 
     config_data = None
 
@@ -205,7 +207,7 @@ def _parse_workflow_input(args, phase: str):
             if not os.path.exists(args.config):
                 print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
                 sys.exit(1)
-            with open(args.config, 'r') as f:
+            with open(args.config) as f:
                 config_data = parse_json_safely(f.read())
     elif not sys.stdin.isatty():
         config_data = parse_json_safely(sys.stdin.read())
@@ -265,10 +267,11 @@ def _invoke_sentinel_hook(phase: str, session_id: str, checkpoint_data: dict):
 def handle_preflight_submit_command(args):
     """Handle preflight-submit command - AI-first with config file support"""
     try:
+        import os
+        import sys
         import time
         import uuid
-        import sys
-        import os
+
         from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
         from empirica.data.session_database import SessionDatabase
 
@@ -362,10 +365,11 @@ def handle_preflight_submit_command(args):
             # Persist active transaction for breadcrumb handlers, CHECK/POSTFLIGHT, and Sentinel
             # Include session_id and project_path so operations work regardless of CWD
             try:
-                import time
-                import os
                 import json as _json
+                import os
+                import time
                 from pathlib import Path
+
                 from empirica.utils.session_resolver import update_active_context
 
                 # Get context from unified resolver (respects project-switch, instance isolation)
@@ -393,7 +397,7 @@ def handle_preflight_submit_command(args):
                             suffix = R.instance_suffix()
                             tx_file = Path(resolved_project_path) / '.empirica' / f'active_transaction{suffix}.json'
                             if tx_file.exists():
-                                with open(tx_file, 'r') as f:
+                                with open(tx_file) as f:
                                     tx_d = _json.load(f)
                                 if work_context:
                                     tx_d['work_context'] = work_context
@@ -745,11 +749,11 @@ def handle_check_command(args):
     - Reasoning for suggestion
     """
     try:
-        import time
-        import sys
         import os
+        import sys
+        import time
+
         from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
-        from empirica.data.session_database import SessionDatabase
 
         # AI-FIRST MODE: Check if config provided as positional argument
         config_data = None
@@ -760,7 +764,7 @@ def handle_check_command(args):
                 if not os.path.exists(args.config):
                     print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
                     sys.exit(1)
-                with open(args.config, 'r') as f:
+                with open(args.config) as f:
                     config_data = parse_json_safely(f.read())
         else:
             # Try to load from stdin if available (legacy mode)
@@ -776,7 +780,7 @@ def handle_check_command(args):
         round_num = getattr(args, 'round', None) or (config_data.get('round') if config_data else None)
         output_format = getattr(args, 'output', 'json') or (config_data.get('output', 'json') if config_data else 'json')
         verbose = getattr(args, 'verbose', False) or (config_data.get('verbose', False) if config_data else False)
-        
+
         # Extract explicit confidence from input (GATE CHECK uses stated confidence, not derived)
         explicit_confidence = config_data.get('confidence') if config_data else None
 
@@ -965,7 +969,7 @@ def handle_check_command(args):
         # 7. Build result
         # Use explicit confidence if provided (GATE CHECK), else derive from uncertainty
         confidence_value = explicit_confidence if explicit_confidence is not None else (1.0 - uncertainty)
-        
+
         result = {
             "ok": True,
             "session_id": session_id,
@@ -1035,9 +1039,9 @@ def handle_check_command(args):
 def handle_check_submit_command(args):
     """Handle check-submit command"""
     try:
-        import sys
-        import os
         import json
+        import os
+
         from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
 
         # Parse input (shared helper)
@@ -1166,9 +1170,9 @@ def handle_check_submit_command(args):
                 if k in vectors:
                     flat[k] = vectors[k]
             # flatten groups
-            flat.update((vectors.get('foundation') or {}))
-            flat.update((vectors.get('comprehension') or {}))
-            flat.update((vectors.get('execution') or {}))
+            flat.update(vectors.get('foundation') or {})
+            flat.update(vectors.get('comprehension') or {})
+            flat.update(vectors.get('execution') or {})
             vectors = flat
 
         # Validate inputs
@@ -1348,17 +1352,17 @@ def handle_check_submit_command(args):
                 session_id=session_id,
                 enable_git_notes=True  # Enable git notes for cross-AI features
             )
-            
+
             # Calculate confidence from uncertainty (inverse relationship)
             uncertainty = vectors.get('uncertainty', 0.5)
             confidence = 1.0 - uncertainty
-            
+
             # Extract gaps (areas with low scores)
             gaps = []
             for key, value in vectors.items():
                 if isinstance(value, (int, float)) and value < 0.5:
                     gaps.append(f"{key}: {value:.2f}")
-            
+
             # Read active transaction_id (generated by PREFLIGHT)
             check_transaction_id2 = None
             try:
@@ -1384,22 +1388,22 @@ def handle_check_submit_command(args):
                     "transaction_id": check_transaction_id2
                 }
             )
-            
+
             # NOTE: Bayesian belief updates during CHECK were REMOVED (2026-01-21)
             # Reason: CHECK-phase updates polluted calibration data by recording mid-session
             # observations without proper PREFLIGHT→POSTFLIGHT baseline comparison.
             # Calibration now uses vector_trajectories table which captures clean start/end vectors.
             # POSTFLIGHT still does proper belief updates with PREFLIGHT comparison (see postflight_submit).
-            
+
             # Wire CHECK phase hooks (TIER 3 Priority 3)
             # Capture fresh epistemic state before and after CHECK
             try:
                 import subprocess
-                
+
                 # Pre-CHECK hook: Capture state BEFORE checkpoint storage
                 # (Note: In real flow, pre_check would run BEFORE check-submit)
                 # For now, document that this should be called by orchestration layer
-                
+
                 # Post-CHECK drift detection removed in v1.6.6 — superseded by
                 # grounded calibration pipeline (postflight → post-test → bayesian updates)
             except Exception as e:
@@ -1489,8 +1493,8 @@ def handle_check_submit_command(args):
             snapshot_created = False
             snapshot_id = None
             try:
-                from empirica.data.snapshot_provider import EpistemicSnapshotProvider
                 from empirica.data.epistemic_snapshot import ContextSummary
+                from empirica.data.snapshot_provider import EpistemicSnapshotProvider
 
                 db = _get_db_for_session(session_id)
                 snapshot_provider = EpistemicSnapshotProvider()
@@ -1624,8 +1628,8 @@ def handle_check_submit_command(args):
             try:
                 check_project_id = (bootstrap_result or {}).get('project_id') or bootstrap_status.get('project_id')
                 if check_project_id:
-                    from empirica.data.session_database import SessionDatabase
                     from empirica.config.path_resolver import get_session_db_path
+                    from empirica.data.session_database import SessionDatabase
                     codebase_db_path = get_session_db_path()
                     if codebase_db_path:
                         codebase_db = SessionDatabase(codebase_db_path)
@@ -1697,7 +1701,7 @@ def handle_check_submit_command(args):
 
         # Return None to avoid exit code issues and duplicate output
         return None
-        
+
     except Exception as e:
         handle_cli_error(e, "Check submit", getattr(args, 'verbose', False))
 
@@ -1791,7 +1795,7 @@ def _extract_all_vectors(vectors):
         Output: {"engagement": 0.85, "know": 0.75, "do": 0.80}
     """
     extracted = {}
-    
+
     for key, value in vectors.items():
         if isinstance(value, dict):
             # Nested structure - recursively extract all sub-vectors
@@ -1810,18 +1814,18 @@ def _extract_all_vectors(vectors):
             else:
                 # Fallback to default if extraction fails
                 extracted[key] = 0.5
-    
+
     return extracted
 
 def handle_postflight_submit_command(args):
     """Handle postflight-submit command - AI-first with config file support"""
     try:
+        import os
+        import sys
         import time
         import uuid
-        import sys
-        import os
+
         from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
-        from empirica.data.session_database import SessionDatabase
 
         # Parse input (shared helper)
         config_data, output_format = _parse_workflow_input(args, "POSTFLIGHT")
@@ -1882,8 +1886,8 @@ def handle_postflight_submit_command(args):
         # This handles the case where context compacted and session_id changed mid-transaction
         preflight_session_id = session_id  # Default to current session
         try:
-            from pathlib import Path
             import json as _json
+            from pathlib import Path
             global_home = Path.home() / '.empirica'
 
             # Check instance-specific active_work files for transaction context
@@ -1935,11 +1939,11 @@ def handle_postflight_submit_command(args):
             # AI assesses CURRENT state only, system calculates growth independently
             deltas = {}
             trajectory_issues = []  # Learning trajectory pattern issues (NOT calibration)
-            
+
             try:
                 # Get preflight checkpoint from git notes or SQLite for delta calculation
                 preflight_checkpoint = logger_instance.get_last_checkpoint(phase="PREFLIGHT")
-                
+
                 # Fallback: Query SQLite reflexes table directly if git notes unavailable
                 # Use preflight_session_id to handle cross-session transactions (compaction)
                 if not preflight_checkpoint:
@@ -1954,9 +1958,9 @@ def handle_postflight_submit_command(args):
                     """, (preflight_session_id,))
                     preflight_row = cursor.fetchone()
                     db.close()
-                    
+
                     if preflight_row:
-                        vector_names = ["engagement", "know", "do", "context", "clarity", "coherence", 
+                        vector_names = ["engagement", "know", "do", "context", "clarity", "coherence",
                                        "signal", "density", "state", "change", "completion", "impact", "uncertainty"]
                         preflight_vectors = {name: preflight_row[i] for i, name in enumerate(vector_names)}
                     else:
@@ -1965,7 +1969,7 @@ def handle_postflight_submit_command(args):
                     preflight_vectors = preflight_checkpoint['vectors']
                 else:
                     preflight_vectors = None
-                
+
                 if preflight_vectors:
 
                     # Calculate deltas (system calculates growth, not AI's claimed growth)
@@ -1975,14 +1979,14 @@ def handle_postflight_submit_command(args):
                             post_val = vectors.get(key, 0.5)
                             delta = post_val - pre_val
                             deltas[key] = round(delta, 3)
-                            
+
                             # Note: Within-session vector decreases removed
                             # (PREFLIGHT→POSTFLIGHT decreases are calibration corrections, not memory gaps)
                             # True memory gap detection requires cross-session comparison:
                             # Previous session POSTFLIGHT → Current session PREFLIGHT
                             # This requires forced session restart before context fills and using
                             # handoff-query/project-bootstrap to measure retention
-                            
+
                             # TRAJECTORY ISSUE DETECTION: Identify learning patterns in PREFLIGHT→POSTFLIGHT deltas
                             # Note: These are trajectory issues, NOT calibration (which requires grounded evidence)
                             if key == "know" and delta > 0.2:
@@ -2003,7 +2007,7 @@ def handle_postflight_submit_command(args):
                                     })
                 else:
                     logger.warning("No PREFLIGHT checkpoint found - cannot calculate deltas or detect memory gaps")
-                    
+
             except Exception as e:
                 logger.debug(f"Delta calculation failed: {e}")
                 # Delta calculation is optional
@@ -2017,9 +2021,9 @@ def handle_postflight_submit_command(args):
             postflight_context_shifts = {'solicited_prompts': 0, 'unsolicited_prompts': 0}
             postflight_work_context = None
             try:
+                import json as _json
                 import time
                 from pathlib import Path
-                import json as _json
 
                 # Read current transaction with instance suffix (multi-instance isolation)
                 suffix = R.instance_suffix()
@@ -2036,7 +2040,7 @@ def handle_postflight_submit_command(args):
                     tx_file = Path.home() / '.empirica' / f'active_transaction{suffix}.json'
 
                 if tx_file.exists():
-                    with open(tx_file, 'r') as f:
+                    with open(tx_file) as f:
                         tx_data = _json.load(f)
                     postflight_transaction_id = tx_data.get('transaction_id')
                     postflight_avg_turns = tx_data.get('avg_turns', 0)
@@ -2050,7 +2054,7 @@ def handle_postflight_submit_command(args):
                     counters = {}
                     if counters_file.exists():
                         try:
-                            with open(counters_file, 'r') as f:
+                            with open(counters_file) as f:
                                 counters = _json.load(f)
                         except Exception:
                             pass
@@ -2207,8 +2211,9 @@ def handle_postflight_submit_command(args):
             grounded_verification = None
             try:
                 import os
-                from empirica.core.post_test.grounded_calibration import run_grounded_verification
+
                 from empirica.core.post_test.collector import EvidenceProfile
+                from empirica.core.post_test.grounded_calibration import run_grounded_verification
                 from empirica.core.post_test.phase_boundary import detect_phase_boundary
 
                 db = _get_db_for_session(session_id)
@@ -2292,9 +2297,9 @@ def handle_postflight_submit_command(args):
             try:
                 if grounded_verification and grounded_verification.get('evidence_count', 0) > 0:
                     from empirica.core.qdrant.vector_store import (
-                        embed_grounded_verification,
-                        embed_calibration_trajectory,
                         _check_qdrant_available,
+                        embed_calibration_trajectory,
+                        embed_grounded_verification,
                     )
 
                     if _check_qdrant_available():
@@ -2366,8 +2371,9 @@ def handle_postflight_submit_command(args):
                 db = _get_db_for_session(session_id)
                 session = db.get_session(session_id)
                 if session and session.get('project_id'):
-                    from empirica.core.qdrant.vector_store import embed_episodic
                     import uuid as uuid_mod
+
+                    from empirica.core.qdrant.vector_store import embed_episodic
 
                     project_id = session['project_id']
 
@@ -2429,7 +2435,7 @@ def handle_postflight_submit_command(args):
             # This is incremental (just this session) vs full project-embed
             memory_synced = 0
             try:
-                from empirica.core.qdrant.vector_store import upsert_memory, init_collections, _check_qdrant_available
+                from empirica.core.qdrant.vector_store import _check_qdrant_available, init_collections, upsert_memory
 
                 db = _get_db_for_session(session_id)
                 session = db.get_session(session_id)
@@ -2551,8 +2557,8 @@ def handle_postflight_submit_command(args):
             snapshot_created = False
             snapshot_id = None
             try:
-                from empirica.data.snapshot_provider import EpistemicSnapshotProvider
                 from empirica.data.epistemic_snapshot import ContextSummary
+                from empirica.data.snapshot_provider import EpistemicSnapshotProvider
 
                 # Get session for ai_id
                 db = _get_db_for_session(session_id)

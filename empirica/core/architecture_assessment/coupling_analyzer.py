@@ -16,10 +16,7 @@ Maps to vectors:
 """
 
 import ast
-import os
 from pathlib import Path
-from typing import Dict, List, Set, Tuple, Optional
-from dataclasses import dataclass
 
 from .schema import CouplingMetrics
 
@@ -35,8 +32,8 @@ class CouplingAnalyzer:
             project_root: Root directory of the project
         """
         self.project_root = Path(project_root)
-        self._import_graph: Dict[str, Set[str]] = {}
-        self._reverse_graph: Dict[str, Set[str]] = {}
+        self._import_graph: dict[str, set[str]] = {}
+        self._reverse_graph: dict[str, set[str]] = {}
 
     def analyze(self, component_path: str) -> CouplingMetrics:
         """
@@ -133,7 +130,7 @@ class CouplingAnalyzer:
 
         return metrics
 
-    def _extract_imports(self, tree: ast.AST) -> List[str]:
+    def _extract_imports(self, tree: ast.AST) -> list[str]:
         """Extract all import statements from AST."""
         imports = []
         for node in ast.walk(tree):
@@ -191,7 +188,7 @@ class CouplingAnalyzer:
         except ValueError:
             return path.stem
 
-    def _count_definitions(self, tree: ast.AST) -> Tuple[int, int]:
+    def _count_definitions(self, tree: ast.AST) -> tuple[int, int]:
         """Count public vs private function/class definitions."""
         public = 0
         private = 0
@@ -205,7 +202,7 @@ class CouplingAnalyzer:
 
         return public, private
 
-    def _find_leaked_internals(self, tree: ast.AST) -> List[str]:
+    def _find_leaked_internals(self, tree: ast.AST) -> list[str]:
         """Find private symbols that are exposed in __all__."""
         leaked = []
 
@@ -243,7 +240,7 @@ class CouplingAnalyzer:
             return 0.0
         return abstract_count / total_count
 
-    def to_vectors(self, metrics: CouplingMetrics) -> Dict[str, float]:
+    def to_vectors(self, metrics: CouplingMetrics) -> dict[str, float]:
         """
         Convert coupling metrics to epistemic vectors.
 

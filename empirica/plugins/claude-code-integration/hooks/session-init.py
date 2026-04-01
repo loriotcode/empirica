@@ -11,17 +11,18 @@ This ensures every conversation starts with proper epistemic baseline.
 """
 
 import json
-import sys
-import subprocess
 import os
 import re
 import shutil
-from pathlib import Path
+import subprocess
+import sys
 from datetime import datetime
+from pathlib import Path
 
 # Import shared utilities from plugin lib
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from project_resolver import get_instance_id, find_project_root  # noqa: E402
+from project_resolver import find_project_root, get_instance_id
+
 
 def archive_stale_plans() -> list:
     """
@@ -247,7 +248,7 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
             tty_data = {}
             if tty_session_file.exists():
                 try:
-                    with open(tty_session_file, 'r') as f:
+                    with open(tty_session_file) as f:
                         tty_data = json.load(f)
                 except Exception:
                     pass
@@ -289,7 +290,7 @@ def _detect_existing_session(claude_session_id: str, project_root: Path) -> dict
     active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
     if active_work_file.exists():
         try:
-            with open(active_work_file, 'r') as f:
+            with open(active_work_file) as f:
                 data = json.load(f)
             session_id = data.get('empirica_session_id')
             if session_id:
@@ -307,7 +308,7 @@ def _detect_existing_session(claude_session_id: str, project_root: Path) -> dict
     # Scan ALL active_session files — the old WINDOWID's file may still exist
     for as_file in Path.home().glob('.empirica/active_session_*'):
         try:
-            with open(as_file, 'r') as f:
+            with open(as_file) as f:
                 data = json.load(f)
             # Match by project_path — same project means same logical session
             if data.get('project_path') == str(project_root):
@@ -335,7 +336,7 @@ def _detect_existing_session(claude_session_id: str, project_root: Path) -> dict
                 mtime = tx_file.stat().st_mtime
                 if mtime <= best_mtime:
                     continue
-                with open(tx_file, 'r') as f:
+                with open(tx_file) as f:
                     tx_data = json.load(f)
                 if tx_data.get('status') == 'open':
                     best_tx = (tx_file, tx_data, mtime)
@@ -575,8 +576,12 @@ EOF
     try:
         sys.path.insert(0, str(Path.home() / 'empirical-ai' / 'empirica'))
         from empirica.core.context_budget import (
-            ContextBudgetManager, ContextItem, MemoryZone, ContentType,
-            InjectionChannel, estimate_tokens,
+            ContentType,
+            ContextBudgetManager,
+            ContextItem,
+            InjectionChannel,
+            MemoryZone,
+            estimate_tokens,
         )
 
         manager = ContextBudgetManager(

@@ -25,9 +25,10 @@ Usage:
 """
 
 import logging
-import yaml
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +67,9 @@ class MCOLoader:
             config_dir = Path(__file__).parent / 'mco'
 
         self.config_dir = config_dir
-        self._loaded: Dict[str, Any] = {}   # Lazily populated configs
+        self._loaded: dict[str, Any] = {}   # Lazily populated configs
         self._load_count = 0                 # Track how many configs loaded
-        self.metadata: Dict[str, Dict[str, Any]] = {}
+        self.metadata: dict[str, dict[str, Any]] = {}
 
         if eager:
             self._load_all()
@@ -144,7 +145,7 @@ class MCOLoader:
         """List of all available config names."""
         return list(self._CONFIG_REGISTRY.keys())
 
-    def get_domain_category_weights(self, domain: str = "default") -> Dict[str, float]:
+    def get_domain_category_weights(self, domain: str = "default") -> dict[str, float]:
         """Get Tier 1 category weights for a domain.
 
         Args:
@@ -157,7 +158,7 @@ class MCOLoader:
         domain_weights = self.confidence_weights.get("domain_category_weights", {})
         return domain_weights.get(domain, domain_weights.get("default", defaults))
 
-    def get_vector_category_map(self) -> Dict[str, str]:
+    def get_vector_category_map(self) -> dict[str, str]:
         """Get vector-to-category mapping from confidence_weights.yaml."""
         defaults = {
             "know": "foundation", "do": "foundation", "context": "foundation",
@@ -170,7 +171,7 @@ class MCOLoader:
         }
         return self.confidence_weights.get("vector_category_map", defaults)
 
-    def get_model_bias(self, model_name: str) -> Dict[str, Any]:
+    def get_model_bias(self, model_name: str) -> dict[str, Any]:
         """
         Get bias corrections for a specific model.
 
@@ -186,11 +187,11 @@ class MCOLoader:
         logger.warning(f"Model profile not found: {model_name}")
         return {}
 
-    def get_model_profile(self, model_name: str) -> Dict[str, Any]:
+    def get_model_profile(self, model_name: str) -> dict[str, Any]:
         """Get full model profile"""
         return self.model_profiles.get(model_name, {})
 
-    def get_persona(self, persona_name: str) -> Dict[str, Any]:
+    def get_persona(self, persona_name: str) -> dict[str, Any]:
         """Get persona configuration"""
         return self.personas.get(persona_name, {})
 
@@ -252,7 +253,7 @@ class MCOLoader:
 
     def export_snapshot(self, session_id: str, ai_id: Optional[str] = None,
                        model: Optional[str] = None, persona: Optional[str] = None,
-                       cascade_style: str = 'default') -> Dict[str, Any]:
+                       cascade_style: str = 'default') -> dict[str, Any]:
         """
         Export MCO configuration snapshot for pre-compact saving.
 
@@ -320,7 +321,7 @@ class MCOLoader:
                 "model_profile": model_profile,
                 "persona_config": persona_config,
             },
-            
+
             # Epistemic conduct and investigation strategy
             "epistemic_conduct": self.epistemic_conduct,
             "ask_before_investigate": self.ask_before_investigate
@@ -328,7 +329,7 @@ class MCOLoader:
 
         return snapshot
 
-    def format_for_prompt(self, snapshot: Dict[str, Any]) -> str:
+    def format_for_prompt(self, snapshot: dict[str, Any]) -> str:
         """
         Format MCO snapshot for AI consumption in prompt/bootstrap.
 
@@ -341,7 +342,7 @@ class MCOLoader:
         bias = snapshot['bias_corrections']
         budget = snapshot['investigation_budget']
         thresh = snapshot['thresholds']
-        
+
         # Get epistemic conduct config
         conduct = snapshot.get('epistemic_conduct', {})
         ask_config = snapshot.get('ask_before_investigate', {})
@@ -422,7 +423,7 @@ class MCOLoader:
         formatted += """
 **Instruction:** Internalize these values. Be epistemically assertive when you KNOW. Challenge assumptions (yours and user's). Admit uncertainty explicitly.
 """
-        
+
         return formatted.strip()
 
 

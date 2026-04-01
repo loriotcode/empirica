@@ -12,7 +12,7 @@ Target: ~1,250 tokens for complete session resumption (vs 20,000 baseline)
 """
 
 from .report_generator import EpistemicHandoffReportGenerator
-from .storage import GitHandoffStorage, DatabaseHandoffStorage
+from .storage import DatabaseHandoffStorage, GitHandoffStorage
 
 __all__ = [
     'EpistemicHandoffReportGenerator',

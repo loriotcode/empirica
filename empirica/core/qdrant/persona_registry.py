@@ -26,13 +26,12 @@ Design:
     all_personas = registry.list_all_personas()
 """
 
-import json
 import logging
-from typing import Dict, List, Optional, Any
 from hashlib import sha256
+from typing import Any, Optional
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from qdrant_client.models import Distance, PointStruct, VectorParams
 
 from empirica.core.persona.signing_persona import SigningPersona
 
@@ -218,7 +217,7 @@ class PersonaRegistry:
         self,
         domain: str,
         limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Find personas focused on a specific domain
 
@@ -260,7 +259,7 @@ class PersonaRegistry:
         self,
         tag: str,
         limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Find personas by tag
 
@@ -293,7 +292,7 @@ class PersonaRegistry:
         signing_persona: SigningPersona,
         limit: int = 5,
         min_similarity: float = 0.7
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Find personas with similar epistemic profiles
 
@@ -338,7 +337,7 @@ class PersonaRegistry:
             logger.warning(f"Error finding similar personas: {e}")
             return []
 
-    def get_persona_by_id(self, persona_id: str) -> Optional[Dict[str, Any]]:
+    def get_persona_by_id(self, persona_id: str) -> Optional[dict[str, Any]]:
         """
         Get persona by ID
 
@@ -364,7 +363,7 @@ class PersonaRegistry:
             logger.warning(f"Error retrieving persona {persona_id}: {e}")
             return None
 
-    def list_all_personas(self) -> List[Dict[str, Any]]:
+    def list_all_personas(self) -> list[dict[str, Any]]:
         """
         List all registered personas
 
@@ -389,7 +388,7 @@ class PersonaRegistry:
             logger.warning(f"Error listing personas: {e}")
             return []
 
-    def get_personas_by_type(self, persona_type: str) -> List[Dict[str, Any]]:
+    def get_personas_by_type(self, persona_type: str) -> list[dict[str, Any]]:
         """
         Get personas by type (security, ux, performance, etc.)
 
@@ -422,7 +421,7 @@ class PersonaRegistry:
         min_reputation: float = 0.0,
         max_reputation: float = 1.0,
         limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get high-reputation personas
 
@@ -476,7 +475,7 @@ class PersonaRegistry:
             logger.warning(f"Error deleting persona: {e}")
             return False
 
-    def get_registry_stats(self) -> Dict[str, Any]:
+    def get_registry_stats(self) -> dict[str, Any]:
         """
         Get registry statistics
 
@@ -497,7 +496,7 @@ class PersonaRegistry:
             logger.warning(f"Error getting registry stats: {e}")
             return {}
 
-    def register_agent(self, agent_package: Dict[str, Any]) -> str:
+    def register_agent(self, agent_package: dict[str, Any]) -> str:
         """
         Register an epistemic agent from export package format.
 
@@ -571,7 +570,7 @@ class PersonaRegistry:
         self,
         domain: str,
         limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Find epistemic agents by investigation domain.
 
@@ -608,7 +607,7 @@ class PersonaRegistry:
         self,
         min_reputation: float = 0.5,
         limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Find high-reputation epistemic agents.
 
@@ -643,7 +642,7 @@ class PersonaRegistry:
             return []
 
     @staticmethod
-    def _point_to_agent_dict(point: Any) -> Dict[str, Any]:
+    def _point_to_agent_dict(point: Any) -> dict[str, Any]:
         """Convert Qdrant point to agent dict"""
         return {
             "agent_id": point.payload.get("persona_id"),
@@ -670,7 +669,7 @@ class PersonaRegistry:
         return point_id
 
     @staticmethod
-    def _point_to_persona_dict(point: Any) -> Dict[str, Any]:
+    def _point_to_persona_dict(point: Any) -> dict[str, Any]:
         """Convert Qdrant point to persona dict"""
         return {
             "persona_id": point.payload.get("persona_id"),

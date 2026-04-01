@@ -9,7 +9,7 @@ from . import format_help_text
 
 def add_edit_verification_parsers(subparsers):
     """Add edit verification command parsers"""
-    
+
     # edit-with-confidence command - metacognitive edit guard
     edit_confidence_parser = subparsers.add_parser(
         'edit-with-confidence',

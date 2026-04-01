@@ -8,8 +8,8 @@ Design Pattern: Repository Pattern
 - Supports both SQLite and PostgreSQL connections
 """
 
-import sqlite3
 import logging
+import sqlite3
 from typing import Optional
 
 logger = logging.getLogger(__name__)

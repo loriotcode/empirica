@@ -1,12 +1,13 @@
 """Session repository for session CRUD operations"""
-import sqlite3
-import uuid
 import json
-import time
 import logging
-from pathlib import Path
-from typing import Dict, List, Optional
+import sqlite3
+import time
+import uuid
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Optional
+
 from .base import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -159,7 +160,7 @@ class SessionRepository(BaseRepository):
 
         return session_id
 
-    def get_session(self, session_id: str) -> Optional[Dict]:
+    def get_session(self, session_id: str) -> Optional[dict]:
         """Get session data by ID"""
         cursor = self._execute(
             "SELECT * FROM sessions WHERE session_id = ?",
@@ -172,7 +173,7 @@ class SessionRepository(BaseRepository):
         self,
         ai_id: Optional[str] = None,
         limit: int = 50
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         List all sessions, optionally filtered by ai_id
 
@@ -199,7 +200,7 @@ class SessionRepository(BaseRepository):
 
         return [dict(row) for row in cursor.fetchall()]
 
-    def get_session_cascades(self, session_id: str) -> List[Dict]:
+    def get_session_cascades(self, session_id: str) -> list[dict]:
         """Get all cascades for a session"""
         cursor = self._execute("""
             SELECT * FROM cascades
@@ -243,7 +244,7 @@ class SessionRepository(BaseRepository):
         self,
         ai_id: Optional[str] = None,
         project_id: Optional[str] = None
-    ) -> Optional[Dict]:
+    ) -> Optional[dict]:
         """
         Get the most recent session, optionally filtered by AI or project
 
@@ -277,7 +278,7 @@ class SessionRepository(BaseRepository):
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_child_sessions(self, parent_session_id: str) -> List[Dict]:
+    def get_child_sessions(self, parent_session_id: str) -> list[dict]:
         """
         Get all child sessions spawned by a parent session.
 
@@ -294,7 +295,7 @@ class SessionRepository(BaseRepository):
         """, (parent_session_id,))
         return [dict(row) for row in cursor.fetchall()]
 
-    def get_session_summary(self, session_id: str, detail_level: str = "summary") -> Optional[Dict]:
+    def get_session_summary(self, session_id: str, detail_level: str = "summary") -> Optional[dict]:
         """
         Generate comprehensive session summary for resume/handoff
 

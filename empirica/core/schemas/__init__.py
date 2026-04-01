@@ -8,10 +8,10 @@ Canonical schemas used across CLI, MCP, Harness, and Sentinel:
 """
 
 from .epistemic_assessment import (
-    VectorAssessment,
     EpistemicAssessmentSchema,
+    VectorAssessment,
+    parse_assessment_dict,
     validate_assessment,
-    parse_assessment_dict
 )
 
 __all__ = [

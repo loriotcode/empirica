@@ -22,22 +22,22 @@ Usage:
     prompt = snapshot.to_context_prompt(level="standard")  # Inject into AI prompt
 """
 
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional, Any
-from datetime import datetime
 import json
 import uuid
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from typing import Any, Optional
 
 
 @dataclass
 class ContextSummary:
     """Hybrid semantic + narrative context summary"""
 
-    semantic: Dict[str, Any] = field(default_factory=dict)
+    semantic: dict[str, Any] = field(default_factory=dict)
     narrative: str = ""
-    evidence_refs: List[str] = field(default_factory=list)
+    evidence_refs: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization"""
         return {
             'semantic': self.semantic,
@@ -46,7 +46,7 @@ class ContextSummary:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'ContextSummary':
+    def from_dict(cls, data: dict) -> 'ContextSummary':
         """Create from dictionary"""
         return cls(
             semantic=data.get('semantic', {}),
@@ -106,10 +106,10 @@ class EpistemicStateSnapshot:
     # Execution: STATE, CHANGE, COMPLETION, IMPACT
     # Gate: ENGAGEMENT
     # Meta: UNCERTAINTY
-    vectors: Dict[str, float] = field(default_factory=dict)
+    vectors: dict[str, float] = field(default_factory=dict)
 
     # Delta from previous state (what changed)
-    delta: Optional[Dict[str, float]] = None
+    delta: Optional[dict[str, float]] = None
     previous_snapshot_id: Optional[str] = None
 
     # Hybrid context summary (semantic + narrative)
@@ -120,7 +120,7 @@ class EpistemicStateSnapshot:
 
     # Domain-specific vector extensions (EXTENSIBLE!)
     # Example: {"code_analysis": {"COMPLEXITY": 0.7, "SECURITY_RISK": 0.3}}
-    domain_vectors: Optional[Dict[str, Dict[str, float]]] = None
+    domain_vectors: Optional[dict[str, dict[str, float]]] = None
 
     # Compression metadata
     original_context_tokens: int = 0
@@ -135,7 +135,7 @@ class EpistemicStateSnapshot:
     transfer_count: int = 0  # How many AI hops
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization"""
         data = asdict(self)
 
@@ -150,10 +150,10 @@ class EpistemicStateSnapshot:
         return json.dumps(self.to_dict(), indent=2)
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'EpistemicStateSnapshot':
+    def from_dict(cls, data: dict) -> 'EpistemicStateSnapshot':
         """Create from dictionary"""
         # Handle ContextSummary deserialization
-        if 'context_summary' in data and data['context_summary']:
+        if data.get('context_summary'):
             data['context_summary'] = ContextSummary.from_dict(data['context_summary'])
 
         return cls(**data)
@@ -238,7 +238,7 @@ Use this to maintain context continuity without full conversation history.
         gate = ['ENGAGEMENT']
         meta = ['UNCERTAINTY']
 
-        def format_group(name: str, vectors: List[str]) -> str:
+        def format_group(name: str, vectors: list[str]) -> str:
             """Format a group of vectors with name, scores, and visual bars."""
             lines = [f"\n**{name}:**"]
             for v in vectors:
@@ -304,7 +304,7 @@ Use this to maintain context continuity without full conversation history.
         empty = width - filled
         return "█" * filled + "░" * empty
 
-    def calculate_delta(self, previous: 'EpistemicStateSnapshot') -> Dict[str, float]:
+    def calculate_delta(self, previous: 'EpistemicStateSnapshot') -> dict[str, float]:
         """
         Calculate vector changes from previous snapshot
 
@@ -406,10 +406,10 @@ Use this to maintain context continuity without full conversation history.
 
 def create_snapshot(session_id: str,
                    ai_id: str,
-                   vectors: Dict[str, float],
+                   vectors: dict[str, float],
                    context_summary: Optional[ContextSummary] = None,
                    cascade_phase: Optional[str] = None,
-                   domain_vectors: Optional[Dict[str, Dict[str, float]]] = None) -> EpistemicStateSnapshot:
+                   domain_vectors: Optional[dict[str, dict[str, float]]] = None) -> EpistemicStateSnapshot:
     """
     Convenience function to create a new epistemic snapshot
 

@@ -11,13 +11,12 @@ Key Features:
 - Configurable via --no-git flag
 """
 
-import os
-import subprocess
 import json
 import logging
-from pathlib import Path
-from typing import Dict, Any, Optional, List
-from datetime import datetime, UTC
+import os
+import subprocess
+from datetime import UTC, datetime
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +31,7 @@ class CheckpointManager:
     - Compresses epistemic state (~85% token reduction)
     - Tags with phase, round, ai_id for Sentinel routing
     """
-    
+
     def __init__(self, workspace_root: Optional[str] = None):
         """
         Initialize checkpoint manager
@@ -42,7 +41,7 @@ class CheckpointManager:
         """
         self.workspace_root = workspace_root or os.getcwd()
         self._git_available = self._check_git_repo()
-        
+
     def _check_git_repo(self) -> bool:
         """Check if we're in a git repository"""
         try:
@@ -101,15 +100,15 @@ class CheckpointManager:
             return False
 
         return True
-    
+
     def auto_checkpoint(
         self,
         session_id: str,
         ai_id: str,
         phase: str,
-        vectors: Dict[str, float],
+        vectors: dict[str, float],
         round_num: int = 1,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
         no_git_flag: bool = False
     ) -> Optional[str]:
         """
@@ -129,7 +128,7 @@ class CheckpointManager:
         """
         if not self.is_enabled(no_git_flag):
             return None
-        
+
         try:
             checkpoint_hash = self._create_checkpoint(
                 session_id=session_id,
@@ -139,23 +138,23 @@ class CheckpointManager:
                 round_num=round_num,
                 metadata=metadata or {}
             )
-            
+
             logger.info(f"✓ Created git checkpoint: {checkpoint_hash[:8]} (phase={phase}, ai={ai_id})")
             return checkpoint_hash
-            
+
         except Exception as e:
             logger.warning(f"Failed to create git checkpoint: {e}")
             # Safe degradation - don't fail the CASCADE
             return None
-    
+
     def _create_checkpoint(
         self,
         session_id: str,
         ai_id: str,
         phase: str,
-        vectors: Dict[str, float],
+        vectors: dict[str, float],
         round_num: int,
-        metadata: Dict[str, Any]
+        metadata: dict[str, Any]
     ) -> str:
         """
         Create compressed checkpoint in git notes
@@ -187,10 +186,10 @@ class CheckpointManager:
             'vectors': vectors,
             'metadata': metadata
         }
-        
+
         # Serialize to compact JSON
         checkpoint_json = json.dumps(checkpoint_data, separators=(',', ':'))
-        
+
         # Get current commit hash
         result = subprocess.run(
             ['git', 'rev-parse', 'HEAD'],
@@ -200,7 +199,7 @@ class CheckpointManager:
             check=True
         )
         commit_hash = result.stdout.strip()
-        
+
         # Add git note (refs/notes/empirica/checkpoints)
         subprocess.run(
             ['git', 'notes', '--ref=empirica/checkpoints', 'add', '-f', '-m', checkpoint_json, commit_hash],
@@ -209,15 +208,15 @@ class CheckpointManager:
             text=True,
             check=True
         )
-        
+
         return commit_hash
-    
+
     def load_checkpoint(
         self,
         session_id: Optional[str] = None,
         ai_id: Optional[str] = None,
         commit_hash: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """
         Load checkpoint from git notes
         
@@ -231,20 +230,20 @@ class CheckpointManager:
         """
         if not self._git_available:
             return None
-        
+
         try:
             # If commit_hash specified, load that checkpoint
             if commit_hash:
                 return self._load_checkpoint_by_hash(commit_hash)
-            
+
             # Otherwise, find latest matching checkpoint
             return self._find_latest_checkpoint(session_id=session_id, ai_id=ai_id)
-            
+
         except Exception as e:
             logger.warning(f"Failed to load checkpoint: {e}")
             return None
-    
-    def _load_checkpoint_by_hash(self, commit_hash: str) -> Optional[Dict[str, Any]]:
+
+    def _load_checkpoint_by_hash(self, commit_hash: str) -> Optional[dict[str, Any]]:
         """Load checkpoint from specific commit"""
         result = subprocess.run(
             ['git', 'notes', '--ref=empirica/checkpoints', 'show', commit_hash],
@@ -252,18 +251,18 @@ class CheckpointManager:
             capture_output=True,
             text=True
         )
-        
+
         if result.returncode != 0:
             return None
-        
+
         return json.loads(result.stdout)
-    
+
     def load_recent_checkpoints(
         self,
         session_id: Optional[str] = None,
         ai_id: Optional[str] = None,
         count: int = 5
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Load recent checkpoints matching filters
 
@@ -320,7 +319,7 @@ class CheckpointManager:
         self,
         session_id: Optional[str] = None,
         ai_id: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """Find latest checkpoint matching filters"""
         # Get all checkpoints
         result = subprocess.run(
@@ -356,9 +355,9 @@ def auto_checkpoint(
     session_id: str,
     ai_id: str,
     phase: str,
-    vectors: Dict[str, float],
+    vectors: dict[str, float],
     round_num: int = 1,
-    metadata: Optional[Dict[str, Any]] = None,
+    metadata: Optional[dict[str, Any]] = None,
     no_git_flag: bool = False
 ) -> Optional[str]:
     """

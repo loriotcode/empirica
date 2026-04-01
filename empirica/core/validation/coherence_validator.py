@@ -12,8 +12,9 @@ Phase 3 Component: Ensures handoff context is valid
 """
 
 import logging
-from typing import Dict, Optional, List
-from .validation_utils import get_git_diff_summary, analyze_epistemic_trajectory
+from typing import Optional
+
+from .validation_utils import analyze_epistemic_trajectory, get_git_diff_summary
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +35,12 @@ class CoherenceValidator:
 
     def validate_before_handoff(
         self,
-        preflight_vectors: Dict[str, float],
-        postflight_vectors: Dict[str, float],
-        preflight_plan: Optional[Dict[str, any]] = None,
-        findings: Optional[List[Dict]] = None,
-        unknowns: Optional[List[Dict]] = None
-    ) -> Dict[str, any]:
+        preflight_vectors: dict[str, float],
+        postflight_vectors: dict[str, float],
+        preflight_plan: Optional[dict[str, any]] = None,
+        findings: Optional[list[dict]] = None,
+        unknowns: Optional[list[dict]] = None
+    ) -> dict[str, any]:
         """
         Validate: can I hand off, or do I need to investigate more?
 
@@ -103,7 +104,7 @@ class CoherenceValidator:
             "message": self._format_message(coherent, recommendation, concerns)
         }
 
-    def _check_scope_match(self, preflight_plan: Optional[Dict]) -> Dict[str, any]:
+    def _check_scope_match(self, preflight_plan: Optional[dict]) -> dict[str, any]:
         """
         Check: Did I do what I planned?
 
@@ -151,9 +152,9 @@ class CoherenceValidator:
 
     def _check_trajectory(
         self,
-        preflight_vectors: Dict[str, float],
-        postflight_vectors: Dict[str, float]
-    ) -> Dict[str, any]:
+        preflight_vectors: dict[str, float],
+        postflight_vectors: dict[str, float]
+    ) -> dict[str, any]:
         """
         Check: Is my learning trajectory coherent?
 
@@ -178,9 +179,9 @@ class CoherenceValidator:
 
     def _check_findings_honesty(
         self,
-        findings: List[Dict],
-        postflight_vectors: Dict[str, float]
-    ) -> Dict[str, any]:
+        findings: list[dict],
+        postflight_vectors: dict[str, float]
+    ) -> dict[str, any]:
         """
         Check: Are my findings honest? (Not overstating confidence)
 
@@ -224,7 +225,7 @@ class CoherenceValidator:
         self,
         coherent: bool,
         recommendation: str,
-        concerns: List[str]
+        concerns: list[str]
     ) -> str:
         """Format human-readable validation message"""
         if coherent:

@@ -8,18 +8,11 @@ updated live as lessons are created/modified.
 Performance target: <100ns for relationship queries
 """
 
-from typing import Dict, List, Optional, Set, Tuple
-from dataclasses import dataclass, field
-import time
 import threading
+import time
 from collections import defaultdict
-
-from .schema import (
-    EpistemicDelta,
-    RelationType,
-    KnowledgeGraphNode,
-    KnowledgeGraphEdge
-)
+from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
@@ -27,10 +20,10 @@ class HotLessonEntry:
     """Minimal lesson data for hot cache"""
     id: str
     name: str
-    expected_delta: Dict[str, float]
-    prereq_ids: Set[str]
-    enables_ids: Set[str]
-    requires_ids: Set[str]
+    expected_delta: dict[str, float]
+    prereq_ids: set[str]
+    enables_ids: set[str]
+    requires_ids: set[str]
     domain: Optional[str] = None
 
 
@@ -48,22 +41,22 @@ class LessonHotCache:
     def __init__(self) -> None:
         """Initialize hot cache with empty data structures."""
         # Lesson data indexed by ID
-        self._lessons: Dict[str, HotLessonEntry] = {}
+        self._lessons: dict[str, HotLessonEntry] = {}
 
         # Adjacency lists for graph traversal
-        self._requires: Dict[str, Set[str]] = defaultdict(set)  # lesson -> lessons it requires
-        self._enables: Dict[str, Set[str]] = defaultdict(set)   # lesson -> lessons it enables
-        self._required_by: Dict[str, Set[str]] = defaultdict(set)  # reverse of requires
-        self._enabled_by: Dict[str, Set[str]] = defaultdict(set)   # reverse of enables
+        self._requires: dict[str, set[str]] = defaultdict(set)  # lesson -> lessons it requires
+        self._enables: dict[str, set[str]] = defaultdict(set)   # lesson -> lessons it enables
+        self._required_by: dict[str, set[str]] = defaultdict(set)  # reverse of requires
+        self._enabled_by: dict[str, set[str]] = defaultdict(set)   # reverse of enables
 
         # Index by epistemic improvement
-        self._improves_know: List[Tuple[str, float]] = []
-        self._improves_do: List[Tuple[str, float]] = []
-        self._improves_context: List[Tuple[str, float]] = []
-        self._reduces_uncertainty: List[Tuple[str, float]] = []
+        self._improves_know: list[tuple[str, float]] = []
+        self._improves_do: list[tuple[str, float]] = []
+        self._improves_context: list[tuple[str, float]] = []
+        self._reduces_uncertainty: list[tuple[str, float]] = []
 
         # Index by domain
-        self._by_domain: Dict[str, Set[str]] = defaultdict(set)
+        self._by_domain: dict[str, set[str]] = defaultdict(set)
 
         # Thread safety
         self._lock = threading.RLock()
@@ -72,7 +65,7 @@ class LessonHotCache:
         self._load_timestamp: Optional[float] = None
         self._query_count: int = 0
 
-    def load_lesson(self, lesson_hot_dict: Dict) -> None:
+    def load_lesson(self, lesson_hot_dict: dict) -> None:
         """Load a single lesson into hot cache"""
         with self._lock:
             lesson_id = lesson_hot_dict['id']
@@ -160,7 +153,7 @@ class LessonHotCache:
         vector: str,
         threshold: float = 0.1,
         limit: int = 10
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Find lessons that improve a specific epistemic vector.
         Returns lesson IDs sorted by improvement magnitude.
@@ -183,12 +176,12 @@ class LessonHotCache:
             if delta >= threshold
         ]
 
-    def get_prerequisites(self, lesson_id: str) -> Set[str]:
+    def get_prerequisites(self, lesson_id: str) -> set[str]:
         """Get all prerequisites for a lesson - O(1)"""
         self._query_count += 1
         return self._requires.get(lesson_id, set())
 
-    def get_all_prerequisites(self, lesson_id: str) -> Set[str]:
+    def get_all_prerequisites(self, lesson_id: str) -> set[str]:
         """
         Get all prerequisites recursively (transitive closure).
         Returns all lessons that must be completed before this one.
@@ -212,7 +205,7 @@ class LessonHotCache:
 
         return result
 
-    def get_enabled_lessons(self, lesson_id: str) -> Set[str]:
+    def get_enabled_lessons(self, lesson_id: str) -> set[str]:
         """Get lessons that this lesson enables - O(1)"""
         self._query_count += 1
         return self._enables.get(lesson_id, set())
@@ -220,8 +213,8 @@ class LessonHotCache:
     def get_learning_path(
         self,
         target_lesson_id: str,
-        completed_lessons: Set[str]
-    ) -> List[str]:
+        completed_lessons: set[str]
+    ) -> list[str]:
         """
         Compute optimal learning path to reach target lesson.
         Returns ordered list of lesson IDs to complete.
@@ -265,9 +258,9 @@ class LessonHotCache:
     def can_execute(
         self,
         lesson_id: str,
-        completed_lessons: Set[str],
-        current_epistemic: Dict[str, float]
-    ) -> Tuple[bool, List[str]]:
+        completed_lessons: set[str],
+        current_epistemic: dict[str, float]
+    ) -> tuple[bool, list[str]]:
         """
         Check if a lesson can be executed given current state.
         Returns (can_execute, missing_prerequisites).
@@ -289,16 +282,16 @@ class LessonHotCache:
 
         return len(missing) == 0, missing
 
-    def find_by_domain(self, domain: str) -> Set[str]:
+    def find_by_domain(self, domain: str) -> set[str]:
         """Find all lessons in a domain - O(1)"""
         self._query_count += 1
         return self._by_domain.get(domain, set())
 
     def find_best_for_gap(
         self,
-        epistemic_state: Dict[str, float],
+        epistemic_state: dict[str, float],
         threshold: float = 0.6
-    ) -> List[Tuple[str, str, float]]:
+    ) -> list[tuple[str, str, float]]:
         """
         Find lessons that address the biggest epistemic gaps.
         Returns [(lesson_id, vector, improvement), ...] sorted by impact.
@@ -336,7 +329,7 @@ class LessonHotCache:
 
     # ==================== STATS ====================
 
-    def stats(self) -> Dict:
+    def stats(self) -> dict:
         """Get cache statistics"""
         return {
             'lesson_count': len(self._lessons),

@@ -3,22 +3,22 @@ Performance Commands - Benchmarking, performance analysis, and optimization
 """
 
 import time
-import json
-from ..cli_utils import print_component_status, handle_cli_error, format_execution_time, parse_json_safely
+
+from ..cli_utils import format_execution_time, handle_cli_error, parse_json_safely
 
 
 def _get_profile_performance_thresholds():
     """Get performance thresholds from investigation profiles"""
     try:
         from empirica.config.profile_loader import ProfileLoader
-        
+
         loader = ProfileLoader()
         universal = loader.universal_constraints
-        
+
         try:
             profile = loader.get_profile('balanced')
             constraints = profile.constraints
-            
+
             return {
                 'performance_low': getattr(constraints, 'performance_low_threshold', 0.6),
                 'performance_high': getattr(constraints, 'performance_high_threshold', 0.8),
@@ -32,7 +32,7 @@ def _get_profile_performance_thresholds():
             }
     except Exception:
         return {
-            'performance_low': 0.6, 
+            'performance_low': 0.6,
             'performance_high': 0.8,
             'engagement_gate': 0.6,
         }
@@ -42,17 +42,17 @@ def handle_benchmark_command(args):
     """Handle benchmark command for performance testing"""
     try:
         from empirica.components.empirical_performance_analyzer import EmpiricalPerformanceAnalyzer
-        
+
         print("📊 Running comprehensive benchmark suite...")
-        
+
         analyzer = EmpiricalPerformanceAnalyzer()
         start_time = time.time()
-        
+
         # Configure benchmark parameters
         benchmark_type = getattr(args, 'type', 'comprehensive')
         iterations = getattr(args, 'iterations', 10)
         include_memory = getattr(args, 'memory', True)
-        
+
         # Run benchmark
         result = analyzer.run_benchmark(
             benchmark_type=benchmark_type,
@@ -60,15 +60,15 @@ def handle_benchmark_command(args):
             include_memory=include_memory,
             verbose=getattr(args, 'verbose', False)
         )
-        
+
         end_time = time.time()
-        
+
         print(f"✅ Benchmark complete")
         print(f"   🏁 Type: {benchmark_type}")
         print(f"   🔄 Iterations: {iterations}")
         print(f"   ⏱️ Total time: {format_execution_time(start_time, end_time)}")
         print(f"   📊 Overall score: {result.get('overall_score', 0):.2f}")
-        
+
         # Show performance metrics
         if result.get('metrics'):
             print("📈 Performance metrics:")
@@ -77,7 +77,7 @@ def handle_benchmark_command(args):
                     print(f"   • {metric}: {value:.3f}")
                 else:
                     print(f"   • {metric}: {value}")
-        
+
         # Show component performance
         if result.get('component_performance'):
             thresholds = _get_profile_performance_thresholds()
@@ -85,7 +85,7 @@ def handle_benchmark_command(args):
             for component, perf in result['component_performance'].items():
                 status = "✅" if perf > thresholds['performance_high'] else "⚠️" if perf > thresholds['performance_low'] else "❌"
                 print(f"   {status} {component}: {perf:.2f}")
-        
+
         # Show memory usage if included
         if include_memory and result.get('memory_usage'):
             memory = result['memory_usage']
@@ -93,13 +93,13 @@ def handle_benchmark_command(args):
             print(f"   • Peak: {memory.get('peak_mb', 0):.1f} MB")
             print(f"   • Average: {memory.get('average_mb', 0):.1f} MB")
             print(f"   • Current: {memory.get('current_mb', 0):.1f} MB")
-        
+
         # Show recommendations
         if result.get('recommendations'):
             print("💡 Performance recommendations:")
             for rec in result['recommendations']:
                 print(f"   • {rec}")
-        
+
         # Show detailed breakdown if verbose
         if getattr(args, 'verbose', False) and result.get('detailed_breakdown'):
             print("🔍 Detailed performance breakdown:")
@@ -107,7 +107,7 @@ def handle_benchmark_command(args):
                 print(f"   📂 {category}:")
                 for key, value in details.items():
                     print(f"     • {key}: {value}")
-        
+
     except Exception as e:
         handle_cli_error(e, "Benchmark", getattr(args, 'verbose', False))
 
@@ -125,24 +125,24 @@ def handle_performance_command(args):
         print("⚡ Running performance analysis...")
 
         analyzer = EmpiricalPerformanceAnalyzer()
-        
+
         # Configure analysis
         target = getattr(args, 'target', 'system')
         context = parse_json_safely(getattr(args, 'context', None))
         detailed = getattr(args, 'detailed', False)
-        
+
         # Run performance analysis
         result = analyzer.analyze_performance(
             target=target,
             context=context,
             detailed=detailed
         )
-        
+
         print(f"✅ Performance analysis complete")
         print(f"   🎯 Target: {target}")
         print(f"   📊 Performance score: {result.get('performance_score', 0):.2f}")
         print(f"   🏆 Grade: {result.get('performance_grade', 'unknown')}")
-        
+
         # Show performance dimensions
         if result.get('dimensions'):
             thresholds = _get_profile_performance_thresholds()
@@ -150,7 +150,7 @@ def handle_performance_command(args):
             for dimension, score in result['dimensions'].items():
                 status = "🟢" if score > thresholds['performance_high'] else "🟡" if score > thresholds['performance_low'] else "🔴"
                 print(f"   {status} {dimension}: {score:.2f}")
-        
+
         # Show bottlenecks
         if result.get('bottlenecks'):
             print("🚧 Identified bottlenecks:")
@@ -158,7 +158,7 @@ def handle_performance_command(args):
                 severity = bottleneck.get('severity', 'medium')
                 emoji = "🔴" if severity == 'high' else "🟡" if severity == 'medium' else "🟢"
                 print(f"   {emoji} {bottleneck.get('description', 'Unknown bottleneck')}")
-        
+
         # Show optimization suggestions
         if result.get('optimizations'):
             print("🚀 Optimization suggestions:")
@@ -168,7 +168,7 @@ def handle_performance_command(args):
                 print(f"   {emoji} {opt.get('suggestion', 'Unknown optimization')}")
                 if opt.get('effort'):
                     print(f"     Effort: {opt['effort']}")
-        
+
         # Show detailed metrics if requested
         if detailed and result.get('detailed_metrics'):
             print("🔍 Detailed performance metrics:")
@@ -176,7 +176,7 @@ def handle_performance_command(args):
                 print(f"   📂 {category}:")
                 for metric, value in metrics.items():
                     print(f"     • {metric}: {value}")
-        
+
         # Show historical comparison if available
         if result.get('historical_comparison'):
             hist = result['historical_comparison']
@@ -184,6 +184,6 @@ def handle_performance_command(args):
             print(f"📊 Historical trend: {trend} {hist.get('trend', 'stable')}")
             if hist.get('change_percentage'):
                 print(f"   Change: {hist['change_percentage']:+.1f}%")
-        
+
     except Exception as e:
         handle_cli_error(e, "Performance analysis", getattr(args, 'verbose', False))

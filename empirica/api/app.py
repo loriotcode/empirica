@@ -7,8 +7,9 @@ Backend selection (SQLite/PostgreSQL) is driven by environment:
   - Or defaults to SQLite via config.yaml / path_resolver
 """
 
-import os
 import logging
+import os
+
 from flask import Flask, jsonify
 
 logger = logging.getLogger(__name__)
@@ -76,8 +77,8 @@ def create_app() -> Flask:
         })
 
     # Register blueprints
-    from .routes import sessions, deltas, verification, heatmaps, comparison, project
     from .auth import APIKeyMiddleware
+    from .routes import comparison, deltas, heatmaps, project, sessions, verification
 
     # Apply API key authentication middleware
     app.wsgi_app = APIKeyMiddleware(app.wsgi_app, prefix="/api/v1")  # type: ignore[method-assign]

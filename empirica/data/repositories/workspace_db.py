@@ -13,11 +13,11 @@ Usage:
         repo.upsert_project(project_id, name, trajectory_path, ...)
 """
 
+import logging
 import sqlite3
 import time
-import logging
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any, Optional
 
 from .base import BaseRepository
 
@@ -174,7 +174,7 @@ class WorkspaceDBRepository(BaseRepository):
 
     # --- global_projects ---
 
-    def get_project_by_path(self, trajectory_path: str) -> Optional[Dict[str, Any]]:
+    def get_project_by_path(self, trajectory_path: str) -> Optional[dict[str, Any]]:
         """Look up a project by its filesystem path (the stable key)."""
         cursor = self._execute(
             "SELECT * FROM global_projects WHERE trajectory_path = ? AND status = 'active'",
@@ -183,7 +183,7 @@ class WorkspaceDBRepository(BaseRepository):
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_project_by_id(self, project_id: str) -> Optional[Dict[str, Any]]:
+    def get_project_by_id(self, project_id: str) -> Optional[dict[str, Any]]:
         """Look up a project by UUID."""
         cursor = self._execute(
             "SELECT * FROM global_projects WHERE id = ?",
@@ -192,7 +192,7 @@ class WorkspaceDBRepository(BaseRepository):
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_project_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_project_by_name(self, name: str) -> Optional[dict[str, Any]]:
         """Look up a project by name (case-insensitive)."""
         cursor = self._execute(
             "SELECT * FROM global_projects WHERE LOWER(name) = LOWER(?) AND status = 'active'",
@@ -201,7 +201,7 @@ class WorkspaceDBRepository(BaseRepository):
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def list_projects(self, status: str = 'active') -> List[Dict[str, Any]]:
+    def list_projects(self, status: str = 'active') -> list[dict[str, Any]]:
         """List all projects with given status."""
         cursor = self._execute(
             "SELECT * FROM global_projects WHERE status = ? ORDER BY updated_timestamp DESC",
@@ -308,7 +308,7 @@ class WorkspaceDBRepository(BaseRepository):
 
     # --- instance_bindings ---
 
-    def get_instance_binding(self, instance_id: str) -> Optional[Dict[str, Any]]:
+    def get_instance_binding(self, instance_id: str) -> Optional[dict[str, Any]]:
         """Get the project binding for a TMUX pane instance."""
         cursor = self._execute(
             "SELECT * FROM instance_bindings WHERE instance_id = ?",
@@ -399,7 +399,7 @@ class WorkspaceDBRepository(BaseRepository):
 
     def get_entity_artifacts_by_transaction(
         self, transaction_id: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get all entity-artifact links for a given transaction."""
         cursor = self._execute(
             "SELECT * FROM entity_artifacts WHERE transaction_id = ?",
@@ -412,7 +412,7 @@ class WorkspaceDBRepository(BaseRepository):
         entity_type: str,
         entity_id: str,
         limit: int = 50,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get all artifact links for a specific entity."""
         cursor = self._execute(
             """SELECT * FROM entity_artifacts
@@ -426,7 +426,7 @@ class WorkspaceDBRepository(BaseRepository):
         self,
         engagement_id: str,
         limit: int = 100,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get all artifact links for a specific engagement."""
         cursor = self._execute(
             """SELECT * FROM entity_artifacts

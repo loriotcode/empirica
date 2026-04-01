@@ -4,8 +4,8 @@ Provides aggregate stats, findings, unknowns, and breadcrumbs
 for display in the Forgejo epistemic injector.
 """
 
-import json
 import logging
+
 from flask import Blueprint, jsonify, request
 
 bp = Blueprint("project", __name__)

@@ -1,7 +1,8 @@
 """Database schema migrations"""
 import logging
 import sqlite3
-from typing import List, Tuple, Callable
+from collections.abc import Callable
+
 from .migration_runner import add_column_if_missing
 
 logger = logging.getLogger(__name__)
@@ -206,7 +207,7 @@ def migration_012_unknowns_impact(cursor: sqlite3.Cursor):
 # Migration 13: Add session-scoped breadcrumb tables (dual-scope architecture)
 def migration_013_session_scoped_breadcrumbs(cursor: sqlite3.Cursor):
     """Create session_* tables for session-scoped learning (dual-scope Phase 1)"""
-    
+
     # session_findings (mirrors project_findings)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS session_findings (
@@ -226,7 +227,7 @@ def migration_013_session_scoped_breadcrumbs(cursor: sqlite3.Cursor):
         )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_findings_session ON session_findings(session_id)")
-    
+
     # session_unknowns (mirrors project_unknowns)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS session_unknowns (
@@ -250,7 +251,7 @@ def migration_013_session_scoped_breadcrumbs(cursor: sqlite3.Cursor):
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_unknowns_session ON session_unknowns(session_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_unknowns_resolved ON session_unknowns(is_resolved)")
-    
+
     # session_dead_ends (mirrors project_dead_ends)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS session_dead_ends (
@@ -270,7 +271,7 @@ def migration_013_session_scoped_breadcrumbs(cursor: sqlite3.Cursor):
         )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_dead_ends_session ON session_dead_ends(session_id)")
-    
+
     # session_mistakes (mirrors mistakes_made structure)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS session_mistakes (
@@ -1139,7 +1140,7 @@ def migration_033_codebase_model(cursor: sqlite3.Cursor):
     logger.info("✅ Migration 033 complete: Codebase model tables and FTS5 index created")
 
 
-ALL_MIGRATIONS: List[Tuple[str, str, Callable]] = [
+ALL_MIGRATIONS: list[tuple[str, str, Callable]] = [
     ("001_cascade_workflow_columns", "Add CASCADE workflow tracking to cascades", migration_001_cascade_workflow_columns),
     ("002_epistemic_delta", "Add epistemic delta JSON to cascades", migration_002_epistemic_delta),
     ("003_cascade_goal_tracking", "Add goal tracking to cascades", migration_003_cascade_goal_tracking),

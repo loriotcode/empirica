@@ -8,10 +8,10 @@ Part of the GitEnhancedReflexLogger refactoring (extracted from 1,156 line file)
 """
 
 import json
-import subprocess
 import logging
+import subprocess
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Optional
 
 from empirica.core.git_ops.signed_operations import SignedGitOperations
 from empirica.core.persona.signing_persona import SigningPersona
@@ -80,7 +80,7 @@ class GitNotesStorage:
 
         return self._is_git_repo
 
-    def add_note(self, checkpoint: Dict[str, Any]) -> Optional[str]:
+    def add_note(self, checkpoint: dict[str, Any]) -> Optional[str]:
         """
         Add checkpoint to git notes with session-specific namespace.
 
@@ -156,7 +156,7 @@ class GitNotesStorage:
             logger.warning(f"Git note operation failed: {e}. Using fallback storage.")
             return None
 
-    def add_signed_note(self, checkpoint: Dict[str, Any], phase: str) -> Optional[str]:
+    def add_signed_note(self, checkpoint: dict[str, Any], phase: str) -> Optional[str]:
         """
         Add cryptographically signed checkpoint to git notes.
 
@@ -235,7 +235,7 @@ class GitNotesStorage:
             logger.warning(f"Failed to add signed git note: {e}. Falling back to unsigned.")
             return self.add_note(checkpoint)
 
-    def get_latest_note(self, phase: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get_latest_note(self, phase: Optional[str] = None) -> Optional[dict[str, Any]]:
         """
         Retrieve most recent checkpoint from hierarchical git notes structure.
 
@@ -293,7 +293,7 @@ class GitNotesStorage:
         session_id: Optional[str] = None,
         limit: Optional[int] = None,
         phase: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         List checkpoints from git notes (using hierarchical namespace).
 

@@ -4,21 +4,21 @@ based on project epistemic memory (findings/unknowns/mistakes) and
 semantic index (docs/SEMANTIC_INDEX.yaml).
 """
 from __future__ import annotations
+
 import os
-import json
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 
-def _load_yaml(path: str) -> Dict:
+def _load_yaml(path: str) -> dict:
     try:
         import yaml  # type: ignore
     except Exception:  # pragma: no cover
         raise RuntimeError("pyyaml is required to use doc planner")
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, encoding='utf-8') as f:
         return yaml.safe_load(f) or {}
 
 
-def _load_semantic_index(root: str) -> Dict[str, Dict]:
+def _load_semantic_index(root: str) -> dict[str, dict]:
     """Load semantic index (per-project, with graceful fallback)"""
     from empirica.config.semantic_index_loader import load_semantic_index
     index = load_semantic_index(root)
@@ -37,7 +37,7 @@ def _find_cli_reference(root: str) -> Optional[str]:
     return None
 
 
-def compute_doc_plan(project_id: str, session_id: Optional[str] = None, goal_id: Optional[str] = None) -> Dict:
+def compute_doc_plan(project_id: str, session_id: Optional[str] = None, goal_id: Optional[str] = None) -> dict:
     """
     Heuristic planner that:
     - Loads semantic index
@@ -84,7 +84,7 @@ def compute_doc_plan(project_id: str, session_id: Optional[str] = None, goal_id:
         score -= 0.1
     score = max(0.0, min(1.0, score))
 
-    suggestions: List[Dict] = []
+    suggestions: list[dict] = []
     # Helpers to add suggestions if indexed doc exists
     def _suggest_if_present(rel: str, reason: str) -> None:
         if rel in index:

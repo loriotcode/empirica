@@ -17,7 +17,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Any, Optional
 
 from empirica.core.information_gain import novelty_score
 
@@ -44,7 +44,7 @@ class ScoredFinding:
                 self.finding.encode('utf-8')
             ).hexdigest()[:16]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "finding": self.finding,
             "score": self.score,
@@ -62,8 +62,8 @@ class ScoredFinding:
 @dataclass
 class RollupResult:
     """Result of running findings through the rollup gate."""
-    accepted: List[ScoredFinding] = field(default_factory=list)
-    rejected: List[ScoredFinding] = field(default_factory=list)
+    accepted: list[ScoredFinding] = field(default_factory=list)
+    rejected: list[ScoredFinding] = field(default_factory=list)
     total_score: float = 0.0
     budget_consumed: int = 0
     budget_remaining: int = 0
@@ -73,7 +73,7 @@ class RollupResult:
         total = len(self.accepted) + len(self.rejected)
         return len(self.accepted) / total if total > 0 else 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "accepted": [f.to_dict() for f in self.accepted],
             "rejected": [f.to_dict() for f in self.rejected],
@@ -117,7 +117,7 @@ class EpistemicRollupGate:
         agent_name: str,
         domain: str,
         confidence: float,
-        existing_findings: List[str],
+        existing_findings: list[str],
         domain_relevance: float = 1.0,
     ) -> ScoredFinding:
         """
@@ -160,9 +160,9 @@ class EpistemicRollupGate:
 
     def deduplicate(
         self,
-        findings: List[ScoredFinding],
+        findings: list[ScoredFinding],
         project_id: Optional[str] = None,
-    ) -> List[ScoredFinding]:
+    ) -> list[ScoredFinding]:
         """
         Deduplicate findings using hash and optionally Qdrant semantic similarity.
 
@@ -172,7 +172,7 @@ class EpistemicRollupGate:
         Returns deduplicated list.
         """
         # Hash-based dedup: keep highest score per hash
-        by_hash: Dict[str, ScoredFinding] = {}
+        by_hash: dict[str, ScoredFinding] = {}
         for f in findings:
             if f.finding_hash not in by_hash or f.score > by_hash[f.finding_hash].score:
                 by_hash[f.finding_hash] = f
@@ -193,7 +193,7 @@ class EpistemicRollupGate:
 
         return deduped
 
-    def _jaccard_dedup(self, findings: List[ScoredFinding]) -> List[ScoredFinding]:
+    def _jaccard_dedup(self, findings: list[ScoredFinding]) -> list[ScoredFinding]:
         """Remove findings that are Jaccard-similar to higher-scored findings."""
         # Sort by score descending (keep higher-scored ones)
         sorted_findings = sorted(findings, key=lambda f: f.score, reverse=True)
@@ -216,9 +216,9 @@ class EpistemicRollupGate:
 
     def _semantic_dedup(
         self,
-        findings: List[ScoredFinding],
+        findings: list[ScoredFinding],
         project_id: str,
-    ) -> List[ScoredFinding]:
+    ) -> list[ScoredFinding]:
         """Semantic dedup via Qdrant (graceful degradation if unavailable)."""
         try:
             from empirica.core.qdrant.vector_store import search_similar
@@ -242,7 +242,7 @@ class EpistemicRollupGate:
 
     def gate(
         self,
-        findings: List[ScoredFinding],
+        findings: list[ScoredFinding],
         budget_remaining: int,
     ) -> RollupResult:
         """
@@ -289,11 +289,11 @@ class EpistemicRollupGate:
 
     def process(
         self,
-        raw_findings: List[Any],
+        raw_findings: list[Any],
         agent_name: str,
         domain: str,
         confidence: float,
-        existing_findings: List[str],
+        existing_findings: list[str],
         budget_remaining: int,
         domain_relevance: float = 1.0,
         project_id: Optional[str] = None,

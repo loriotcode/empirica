@@ -7,13 +7,12 @@ avoiding token bloat from storing full cascade data.
 
 import json
 import logging
-from typing import Dict, List, Optional
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
 
-def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/sessions.db") -> Dict:
+def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/sessions.db") -> dict:
     """
     Auto-generate handoff report from cascades data in database.
     
@@ -30,9 +29,9 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
         ValueError: If session not found or no cascades exist
     """
     from empirica.data.session_database import SessionDatabase
-    
+
     db = SessionDatabase(db_path=db_path)
-    
+
     try:
         # 1. Get session metadata
         cursor = db.conn.cursor()
@@ -41,13 +40,13 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
             FROM sessions
             WHERE session_id = ?
         """, (session_id,))
-        
+
         session = cursor.fetchone()
         if not session:
             raise ValueError(f"Session {session_id} not found")
-        
+
         ai_id, start_time, end_time, bootstrap_level, total_cascades = session
-        
+
         # 2. Get all cascades for this session
         cursor.execute("""
             SELECT cascade_id, task, context_json, epistemic_delta,
@@ -56,21 +55,21 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
             WHERE session_id = ?
             ORDER BY started_at ASC
         """, (session_id,))
-        
+
         cascades = cursor.fetchall()
-        
+
         if not cascades:
             raise ValueError(f"No cascades found for session {session_id}")
-        
+
         # 3. Extract task summary from first cascade
         first_cascade = cascades[0]
         task_summary = first_cascade[1]  # task column
-        
+
         # 4. Calculate epistemic trajectory (COMPACT!)
         knowledge_trajectory = []
         uncertainty_trajectory = []
         key_learning_moments = []
-        
+
         prev_know = 0.5
         for i, cascade in enumerate(cascades, 1):
             epistemic_delta = cascade[3]  # epistemic_delta column
@@ -79,10 +78,10 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
                     delta_data = json.loads(epistemic_delta)
                     know = delta_data.get('know', 0.5)
                     uncertainty = delta_data.get('uncertainty', 0.5)
-                    
+
                     knowledge_trajectory.append(round(know, 2))
                     uncertainty_trajectory.append(round(uncertainty, 2))
-                    
+
                     # Track significant learning moments (>0.10 increase)
                     if know - prev_know > 0.10:
                         task = cascade[1][:50]  # First 50 chars of task
@@ -97,25 +96,25 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
         key_findings = []
         investigation_notes = []
         actions_taken = []
-        
+
         for cascade in cascades:
             context_json = cascade[2]
             if context_json:
                 try:
                     context = json.loads(context_json)
-                    
+
                     # Extract CHECK findings
                     if 'check_findings' in context:
                         findings = context['check_findings']
                         if isinstance(findings, list):
                             key_findings.extend(findings)
-                    
+
                     # Extract investigation log
                     if 'investigation_log' in context:
                         for log_entry in context['investigation_log']:
                             if 'findings' in log_entry:
                                 investigation_notes.extend(log_entry['findings'])
-                    
+
                     # Extract actions from act log
                     if 'act_log' in context:
                         for act_entry in context['act_log']:
@@ -127,7 +126,7 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
         # Combine and deduplicate findings
         all_findings = key_findings + investigation_notes
         key_findings = list(dict.fromkeys(all_findings))[:5]
-        
+
         # 6. Get remaining unknowns from last CHECK
         remaining_unknowns = []
         if cascades:
@@ -143,13 +142,13 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
 
         # 7. Get artifacts from git diff (simplified - just note that files were modified)
         artifacts = _get_artifacts_from_session(session_id, start_time)
-        
+
         # 8. Auto-generate next session context
         if knowledge_trajectory:
             first_know = knowledge_trajectory[0]
             last_know = knowledge_trajectory[-1]
             confidence_delta = last_know - first_know
-            
+
             if confidence_delta > 0.2:
                 next_context = f"High confidence gained (+{confidence_delta:.2f}). Work validated and ready for next phase."
             elif confidence_delta > 0.1:
@@ -158,7 +157,7 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
                 next_context = f"Minimal change ({confidence_delta:+.2f}). Some unknowns remain - investigate further."
         else:
             next_context = "No epistemic data available. Manual review recommended."
-        
+
         # 9. Calculate duration
         duration_seconds = 0
         if start_time and end_time:
@@ -194,12 +193,12 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
             "cascades_completed": len(cascades),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
-        
+
     finally:
         db.close()
 
 
-def _get_artifacts_from_session(session_id: str, start_time: str) -> List[str]:
+def _get_artifacts_from_session(session_id: str, start_time: str) -> list[str]:
     """
     Get list of files modified during session using git diff.
     
@@ -211,7 +210,7 @@ def _get_artifacts_from_session(session_id: str, start_time: str) -> List[str]:
         List of modified file paths
     """
     import subprocess
-    
+
     try:
         # Try to get git diff since session start
         if start_time:
@@ -222,13 +221,13 @@ def _get_artifacts_from_session(session_id: str, start_time: str) -> List[str]:
                 text=True,
                 timeout=5
             )
-            
+
             if result.returncode == 0 and result.stdout.strip():
                 files = [f.strip() for f in result.stdout.strip().split('\n') if f.strip()]
                 return files[:10]  # Limit to 10 files
     except Exception as e:
         logger.debug(f"Could not get git diff: {e}")
-    
+
     # Fallback: return empty list
     return []
 
@@ -242,9 +241,9 @@ def close_session(session_id: str, db_path: str = "./.empirica/sessions/sessions
         db_path: Path to session database
     """
     from empirica.data.session_database import SessionDatabase
-    
+
     db = SessionDatabase(db_path=db_path)
-    
+
     try:
         cursor = db.conn.cursor()
         cursor.execute("""
@@ -252,9 +251,9 @@ def close_session(session_id: str, db_path: str = "./.empirica/sessions/sessions
             SET end_time = ?
             WHERE session_id = ?
         """, (datetime.now(timezone.utc).isoformat(), session_id))
-        
+
         db.conn.commit()
         logger.info(f"Session {session_id} closed successfully")
-        
+
     finally:
         db.close()

@@ -10,12 +10,12 @@ Key Features:
 - Enable cross-device sync for calibration
 """
 
-import os
-import subprocess
 import json
 import logging
-from typing import Dict, Any, Optional, List
+import os
+import subprocess
 from datetime import datetime, timezone
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +163,7 @@ class GitMistakeStore:
             logger.warning(f"Failed to store mistake in git: {e}")
             return False
 
-    def load_mistake(self, mistake_id: str) -> Optional[Dict[str, Any]]:
+    def load_mistake(self, mistake_id: str) -> Optional[dict[str, Any]]:
         """Load mistake from git notes"""
         if not self._git_available or not self._has_commits():
             return None
@@ -211,7 +211,7 @@ class GitMistakeStore:
         session_id: Optional[str] = None,
         ai_id: Optional[str] = None,
         root_cause_vector: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Discover mistakes from git notes
 
@@ -276,7 +276,7 @@ class GitMistakeStore:
             logger.warning(f"Failed to discover mistakes: {e}")
             return []
 
-    def get_by_root_cause(self) -> Dict[str, List[Dict[str, Any]]]:
+    def get_by_root_cause(self) -> dict[str, list[dict[str, Any]]]:
         """
         Group mistakes by root cause vector
 
@@ -284,7 +284,7 @@ class GitMistakeStore:
             Dict mapping vector name to list of mistakes
         """
         all_mistakes = self.discover_mistakes()
-        by_vector: Dict[str, List[Dict[str, Any]]] = {}
+        by_vector: dict[str, list[dict[str, Any]]] = {}
 
         for mistake in all_mistakes:
             vector = mistake.get('root_cause_vector', 'UNKNOWN')

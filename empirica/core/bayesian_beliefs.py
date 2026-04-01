@@ -21,11 +21,10 @@ Author: Claude Code
 Date: 2025-12-30
 """
 
-import json
 import uuid
-from datetime import datetime
-from typing import Dict, Optional, List, Tuple
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Optional
 
 
 @dataclass
@@ -71,7 +70,7 @@ class BayesianBeliefManager:
         self.db = db
         self.conn = db.conn
 
-    def get_beliefs(self, ai_id: str) -> Dict[str, Belief]:
+    def get_beliefs(self, ai_id: str) -> dict[str, Belief]:
         """
         Get current beliefs for an AI.
 
@@ -122,7 +121,7 @@ class BayesianBeliefManager:
 
         return beliefs
 
-    def get_calibration_adjustments(self, ai_id: str) -> Dict[str, float]:
+    def get_calibration_adjustments(self, ai_id: str) -> dict[str, float]:
         """
         Get calibration adjustments for PREFLIGHT based on historical beliefs.
 
@@ -157,7 +156,7 @@ class BayesianBeliefManager:
         return adjustments
 
     def update_belief(self, session_id: str, vector_name: str, observation: float,
-                      phase: str = "CHECK", round_num: int = 1) -> Optional[Dict]:
+                      phase: str = "CHECK", round_num: int = 1) -> Optional[dict]:
         """
         Update belief for a single vector during CHECK phase.
 
@@ -248,8 +247,8 @@ class BayesianBeliefManager:
         }
 
     def update_beliefs(self, cascade_id: str, session_id: str,
-                       preflight_vectors: Dict[str, float],
-                       postflight_vectors: Dict[str, float]) -> Dict[str, Dict]:
+                       preflight_vectors: dict[str, float],
+                       postflight_vectors: dict[str, float]) -> dict[str, dict]:
         """
         Update beliefs based on PREFLIGHT → POSTFLIGHT comparison.
 
@@ -342,7 +341,7 @@ class BayesianBeliefManager:
         self.conn.commit()
         return updates
 
-    def get_calibration_report(self, ai_id: str) -> Dict:
+    def get_calibration_report(self, ai_id: str) -> dict:
         """
         Generate a calibration report for an AI.
 
@@ -386,8 +385,8 @@ class BayesianBeliefManager:
         return report
 
 
-def apply_calibration_to_vectors(vectors: Dict[str, float],
-                                  adjustments: Dict[str, float]) -> Dict[str, float]:
+def apply_calibration_to_vectors(vectors: dict[str, float],
+                                  adjustments: dict[str, float]) -> dict[str, float]:
     """
     Apply calibration adjustments to self-assessed vectors.
 
@@ -455,7 +454,7 @@ def export_calibration_to_breadcrumbs(ai_id: str, db, git_root: str = None) -> b
     calibration_end = -1
 
     if os.path.exists(breadcrumbs_path):
-        with open(breadcrumbs_path, 'r') as f:
+        with open(breadcrumbs_path) as f:
             existing_lines = f.readlines()
 
         # Find existing section (matches old 'calibration:' or new 'learning_trajectory:')
@@ -550,7 +549,7 @@ learning_trajectory:
         return False
 
 
-def load_bias_corrections(git_root: str = None) -> Dict[str, float]:
+def load_bias_corrections(git_root: str = None) -> dict[str, float]:
     """
     Load bias corrections from .breadcrumbs.yaml calibration cache.
 
@@ -580,7 +579,7 @@ def load_bias_corrections(git_root: str = None) -> Dict[str, float]:
         return {}
 
     try:
-        with open(breadcrumbs_path, 'r') as f:
+        with open(breadcrumbs_path) as f:
             content = f.read()
 
         # Simple YAML parsing for bias_corrections block (avoid yaml dependency)
@@ -614,7 +613,7 @@ def load_bias_corrections(git_root: str = None) -> Dict[str, float]:
         return {}
 
 
-def load_grounded_corrections(git_root: str = None) -> Dict[str, float]:
+def load_grounded_corrections(git_root: str = None) -> dict[str, float]:
     """
     Load GROUNDED bias corrections from .breadcrumbs.yaml.
 
@@ -648,7 +647,7 @@ def load_grounded_corrections(git_root: str = None) -> Dict[str, float]:
         return {}
 
     try:
-        with open(breadcrumbs_path, 'r') as f:
+        with open(breadcrumbs_path) as f:
             content = f.read()
 
         corrections = {}

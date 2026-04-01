@@ -9,9 +9,9 @@ Part of the GitEnhancedReflexLogger refactoring (extracted from 1,156 line file)
 
 import json
 import logging
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from datetime import datetime, timedelta, UTC
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class CheckpointStorage:
 
     def save_to_sqlite(
         self,
-        checkpoint: Dict[str, Any],
+        checkpoint: dict[str, Any],
         git_commit_sha: Optional[str] = None,
         git_notes_ref: Optional[str] = None
     ) -> bool:
@@ -115,7 +115,7 @@ class CheckpointStorage:
         self,
         phase: Optional[str] = None,
         max_age_hours: int = 24
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """
         Load checkpoint from SQLite fallback storage (JSON files).
 
@@ -142,7 +142,7 @@ class CheckpointStorage:
 
         for filepath in checkpoint_files:
             try:
-                with open(filepath, 'r') as f:
+                with open(filepath) as f:
                     checkpoint = json.load(f)
 
                 # Check age
@@ -162,7 +162,7 @@ class CheckpointStorage:
 
         return None
 
-    def save_to_json(self, checkpoint: Dict[str, Any]) -> Optional[Path]:
+    def save_to_json(self, checkpoint: dict[str, Any]) -> Optional[Path]:
         """
         Save checkpoint to JSON file for audit trail.
 

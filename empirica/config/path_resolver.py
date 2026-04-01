@@ -31,12 +31,13 @@ Date: 2025-12-03
 Version: 1.1.0 (Added EMPIRICA_WORKSPACE_ROOT support)
 """
 
+import logging
 import os
 import subprocess
-import yaml
-import logging
 from pathlib import Path
 from typing import Optional
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,7 @@ def load_empirica_config() -> Optional[dict]:
         return None
 
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             config = yaml.safe_load(f)
         logger.debug(f"✅ Loaded Empirica config from {config_path}")
         return config
@@ -347,7 +348,7 @@ def resolve_session_db_path(session_id: str) -> Optional[Path]:
         if inst_id:
             instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{inst_id}.json'
             if instance_file.exists():
-                with open(instance_file, 'r') as f:
+                with open(instance_file) as f:
                     instance_data = json.load(f)
                 instance_project_path = instance_data.get('project_path')
                 if instance_project_path:

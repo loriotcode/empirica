@@ -23,12 +23,7 @@ EEP-1 Signature Payload:
 """
 
 from .ai_identity import AIIdentity, IdentityManager
-from .signature import (
-    sign_assessment,
-    verify_signature,
-    create_eep1_payload,
-    verify_eep1_payload
-)
+from .signature import create_eep1_payload, sign_assessment, verify_eep1_payload, verify_signature
 
 __all__ = [
     'AIIdentity',

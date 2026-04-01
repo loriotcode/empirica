@@ -2,16 +2,21 @@
 Epistemic learning trajectory storage and search.
 """
 from __future__ import annotations
-import logging
-from typing import Dict, List, Optional
 
-from empirica.core.qdrant.connection import (
-    _check_qdrant_available, _get_qdrant_imports, _get_qdrant_client,
-    _get_embedding_safe, _service_url, _rest_search, logger,
-)
+from typing import Optional
+
 from empirica.core.qdrant.collections import _epistemics_collection
+from empirica.core.qdrant.connection import (
+    _check_qdrant_available,
+    _get_embedding_safe,
+    _get_qdrant_client,
+    _get_qdrant_imports,
+    _rest_search,
+    logger,
+)
 
-def upsert_epistemics(project_id: str, items: List[Dict]) -> int:
+
+def upsert_epistemics(project_id: str, items: list[dict]) -> int:
     """
     Store epistemic learning trajectories (PREFLIGHT → POSTFLIGHT deltas).
     Returns number of items upserted, or 0 if Qdrant not available.
@@ -45,9 +50,9 @@ def upsert_epistemics(project_id: str, items: List[Dict]) -> int:
 def search_epistemics(
     project_id: str,
     query_text: str,
-    filters: Optional[Dict] = None,
+    filters: Optional[dict] = None,
     limit: int = 5
-) -> List[Dict]:
+) -> list[dict]:
     """
     Search epistemic learning trajectories by semantic similarity.
     Returns empty list if Qdrant not available.

@@ -12,6 +12,7 @@ This is the largest single command handler (~900 lines) as it handles:
 import json
 import logging
 import os
+
 from ..cli_utils import handle_cli_error, safe_print
 
 logger = logging.getLogger(__name__)
@@ -20,10 +21,11 @@ logger = logging.getLogger(__name__)
 def handle_project_bootstrap_command(args):
     """Handle project-bootstrap command - show epistemic breadcrumbs"""
     try:
-        from empirica.data.session_database import SessionDatabase
-        from empirica.config.project_config_loader import get_current_subject
-        from empirica.cli.utils.project_resolver import resolve_project_id
         import subprocess
+
+        from empirica.cli.utils.project_resolver import resolve_project_id
+        from empirica.config.project_config_loader import get_current_subject
+        from empirica.data.session_database import SessionDatabase
 
         output_format = getattr(args, 'output', 'human')
         project_id = getattr(args, 'project_id', None)
@@ -59,9 +61,9 @@ def handle_project_bootstrap_command(args):
                     # Fallback: project.yaml for fresh projects without sessions
                     if not project_id:
                         import yaml
-                        project_yaml = os.path.join(active_project, '.empirica', 'project.yaml')  # noqa: F823
+                        project_yaml = os.path.join(active_project, '.empirica', 'project.yaml')
                         if os.path.exists(project_yaml):
-                            with open(project_yaml, 'r') as f:
+                            with open(project_yaml) as f:
                                 project_config = yaml.safe_load(f)
                                 if project_config and project_config.get('project_id'):
                                     project_id = project_config['project_id']
@@ -72,7 +74,8 @@ def handle_project_bootstrap_command(args):
             if not project_id:
                 try:
                     from empirica.cli.utils.project_resolver import (
-                        get_current_git_repo, resolve_project_by_git_repo, normalize_git_url
+                        get_current_git_repo,
+                        resolve_project_by_git_repo,
                     )
 
                     git_repo = get_current_git_repo()
@@ -120,11 +123,11 @@ def handle_project_bootstrap_command(args):
             db = SessionDatabase()
             project_id = resolve_project_id(project_id, db)
             db.close()
-        
+
         check_integrity = False  # Disabled: naive parser has false positives. Use pattern matcher instead.
         context_to_inject = getattr(args, 'context_to_inject', False)
         task_description = getattr(args, 'task_description', None)
-        
+
         # Parse epistemic_state from JSON string if provided
         epistemic_state = None
         epistemic_state_str = getattr(args, 'epistemic_state', None)
@@ -134,7 +137,7 @@ def handle_project_bootstrap_command(args):
             except json.JSONDecodeError as e:
                 safe_print(f"❌ Invalid JSON in --epistemic-state: {e}")
                 return None
-        
+
         # Auto-detect subject from current directory
         subject = getattr(args, 'subject', None)
         if subject is None:
@@ -155,7 +158,7 @@ def handle_project_bootstrap_command(args):
                 _proj_yaml = Path(_proj_path) / '.empirica' / 'project.yaml'
                 if _proj_yaml.exists():
                     import yaml
-                    with open(_proj_yaml, 'r') as _f:
+                    with open(_proj_yaml) as _f:
                         _proj_cfg = yaml.safe_load(_f) or {}
                     if 'calibration_weights' not in _proj_cfg:
                         from .project_init import _seed_calibration_weights
@@ -178,8 +181,9 @@ def handle_project_bootstrap_command(args):
         # SessionStart Hook: Auto-load MCO config after memory compact
         mco_config = None
         if trigger == 'post_compact':
-            from empirica.config.mco_loader import get_mco_config
             from pathlib import Path
+
+            from empirica.config.mco_loader import get_mco_config
             from empirica.utils.session_resolver import InstanceResolver as R
 
             # Find latest pre_summary snapshot - use active context, not CWD
@@ -250,7 +254,7 @@ def handle_project_bootstrap_command(args):
         episodic_memories = None
         if task_description and project_id:
             try:
-                from empirica.core.qdrant.vector_store import search_eidetic, search_episodic, _check_qdrant_available
+                from empirica.core.qdrant.vector_store import _check_qdrant_available, search_eidetic, search_episodic
                 if _check_qdrant_available():
                     eidetic_results = search_eidetic(project_id, task_description, limit=5, min_confidence=0.5)
                     if eidetic_results:
@@ -306,7 +310,11 @@ def handle_project_bootstrap_command(args):
         # Re-install auto-capture hooks for resumed/existing sessions
         if session_id:
             try:
-                from empirica.core.issue_capture import initialize_auto_capture, install_auto_capture_hooks, get_auto_capture
+                from empirica.core.issue_capture import (
+                    get_auto_capture,
+                    initialize_auto_capture,
+                    install_auto_capture_hooks,
+                )
                 existing = get_auto_capture()
                 if not existing:
                     auto_capture = initialize_auto_capture(session_id, enable=True)
@@ -318,8 +326,10 @@ def handle_project_bootstrap_command(args):
         # Load project skills from project_skills/*.yaml
         project_skills = None
         try:
-            import yaml
             import os
+
+            import yaml
+
             from empirica.utils.session_resolver import InstanceResolver as R
             context_project = R.project_path()
             base_path = context_project if context_project else os.getcwd()
@@ -330,7 +340,7 @@ def handle_project_bootstrap_command(args):
                     if filename.endswith(('.yaml', '.yml')):
                         filepath = os.path.join(skills_dir, filename)
                         try:
-                            with open(filepath, 'r', encoding='utf-8') as f:
+                            with open(filepath, encoding='utf-8') as f:
                                 skill = yaml.safe_load(f)
                                 if skill:
                                     skills_list.append(skill)
@@ -394,7 +404,7 @@ def handle_project_bootstrap_command(args):
             safe_print()
             safe_print(f"📁 Project: {project['name']}")
             safe_print(f"🆔 ID: {project_id}")
-            
+
             # Get git URL
             git_url = None
             try:
@@ -418,7 +428,7 @@ def handle_project_bootstrap_command(args):
             safe_print()
             safe_print("━" * 64)
             safe_print()
-            
+
             # ===== PROJECT SUMMARY =====
             safe_print(f"📋 Project Summary")
             safe_print(f"   {project['description']}")
@@ -426,19 +436,19 @@ def handle_project_bootstrap_command(args):
                 safe_print(f"   Repos: {', '.join(project['repos'])}")
             safe_print(f"   Total sessions: {project['total_sessions']}")
             safe_print()
-            
+
             safe_print(f"🕐 Last Activity:")
             safe_print(f"   {last['summary']}")
             safe_print(f"   Next focus: {last['next_focus']}")
             safe_print()
-            
+
             # ===== AI EPISTEMIC HANDOFF =====
             if breadcrumbs.get('ai_epistemic_handoff'):
                 handoff = breadcrumbs['ai_epistemic_handoff']
                 safe_print(f"🧠 Epistemic Handoff (from {handoff.get('ai_id', 'unknown')}):")
                 vectors = handoff.get('vectors', {})
                 deltas = handoff.get('deltas', {})
-                
+
                 if vectors:
                     safe_print(f"   State (POSTFLIGHT):")
                     safe_print(f"      Engagement: {vectors.get('engagement', 'N/A'):.2f}", end='')
@@ -447,7 +457,7 @@ def handle_project_bootstrap_command(args):
                         arrow = "↑" if delta > 0 else "↓" if delta < 0 else "→"
                         safe_print(f" {arrow} {delta:+.2f}", end='')
                     safe_print()
-                    
+
                     if 'foundation' in vectors:
                         f = vectors['foundation']
                         d = deltas.get('foundation', {})
@@ -461,14 +471,14 @@ def handle_project_bootstrap_command(args):
                         if d.get('context') is not None:
                             safe_print(f" {d['context']:+.2f}", end='')
                         safe_print()
-                    
+
                     safe_print(f"      Uncertainty: {vectors.get('uncertainty', 'N/A'):.2f}", end='')
                     if 'uncertainty' in deltas and deltas['uncertainty'] is not None:
                         delta = deltas['uncertainty']
                         arrow = "↓" if delta < 0 else "↑" if delta > 0 else "→"  # Lower is better
                         safe_print(f" {arrow} {delta:+.2f}", end='')
                     safe_print()
-                
+
                 if handoff.get('reasoning'):
                     safe_print(f"   Learning: {handoff['reasoning'][:80]}...")
                 safe_print()
@@ -534,7 +544,7 @@ def handle_project_bootstrap_command(args):
                         cap = components.get('capability', {})
                         conf = components.get('confidence', {})
                         eng = components.get('engagement', {})
-                        
+
                         safe_print(f"      Knowledge Quality: {kq.get('average', 0):.2f}")
                         safe_print(f"      Epistemic Progress: {ep.get('average', 0):.2f}")
                         safe_print(f"      Capability: {cap.get('average', 0):.2f}")
@@ -547,7 +557,7 @@ def handle_project_bootstrap_command(args):
                 for i, f in enumerate(breadcrumbs['findings'][:10], 1):
                     safe_print(f"   {i}. {f}")
                 safe_print()
-            
+
             if breadcrumbs.get('unknowns'):
                 unresolved = [u for u in breadcrumbs['unknowns'] if not u['is_resolved']]
                 if unresolved:
@@ -555,14 +565,14 @@ def handle_project_bootstrap_command(args):
                     for i, u in enumerate(unresolved[:5], 1):
                         safe_print(f"   {i}. {u['unknown']}")
                     safe_print()
-            
+
             if breadcrumbs.get('dead_ends'):
                 safe_print(f"💀 Dead Ends (What Didn't Work):")
                 for i, d in enumerate(breadcrumbs['dead_ends'][:5], 1):
                     safe_print(f"   {i}. {d['approach']}")
                     safe_print(f"      → Why: {d['why_failed']}")
                 safe_print()
-            
+
             if breadcrumbs['mistakes_to_avoid']:
                 safe_print(f"⚠️  Recent Mistakes to Avoid:")
                 for i, m in enumerate(breadcrumbs['mistakes_to_avoid'][:3], 1):
@@ -571,13 +581,13 @@ def handle_project_bootstrap_command(args):
                     safe_print(f"   {i}. {m['mistake']} (cost: {cost}, cause: {cause})")
                     safe_print(f"      → {m['prevention']}")
                 safe_print()
-            
+
             if breadcrumbs.get('key_decisions'):
                 safe_print(f"💡 Key Decisions:")
                 for i, d in enumerate(breadcrumbs['key_decisions'], 1):
                     safe_print(f"   {i}. {d}")
                 safe_print()
-            
+
             if breadcrumbs.get('reference_docs'):
                 safe_print(f"📄 Reference Docs:")
                 for i, doc in enumerate(breadcrumbs['reference_docs'][:5], 1):
@@ -587,7 +597,7 @@ def handle_project_bootstrap_command(args):
                     if doc.get('description'):
                         safe_print(f"      {doc['description']}")
                 safe_print()
-            
+
             if breadcrumbs.get('recent_artifacts'):
                 safe_print(f"📝 Recently Modified Files (last 10 sessions):")
                 for i, artifact in enumerate(breadcrumbs['recent_artifacts'][:10], 1):
@@ -599,12 +609,12 @@ def handle_project_bootstrap_command(args):
                     if len(artifact['files_modified']) > 5:
                         safe_print(f"        ... and {len(artifact['files_modified']) - 5} more")
                 safe_print()
-            
+
             # ===== NEW: Active Work Section =====
             if breadcrumbs.get('active_sessions') or breadcrumbs.get('active_goals'):
                 safe_print(f"🚀 Active Work (In Progress):")
                 safe_print()
-                
+
                 # Show active sessions
                 if breadcrumbs.get('active_sessions'):
                     safe_print(f"   📡 Active Sessions:")
@@ -617,7 +627,7 @@ def handle_project_bootstrap_command(args):
                         if sess.get('subject'):
                             safe_print(f"        Subject: {sess['subject']}")
                     safe_print()
-                
+
                 # Show active goals
                 if breadcrumbs.get('active_goals'):
                     safe_print(f"   🎯 Goals In Progress:")
@@ -625,13 +635,13 @@ def handle_project_bootstrap_command(args):
                         beads_link = f" [BEADS: {goal['beads_issue_id']}]" if goal.get('beads_issue_id') else " ⚠️ No BEADS link"
                         safe_print(f"      • [{goal['id'][:8]}] {goal['objective']}{beads_link}")
                         safe_print(f"        AI: {goal['ai_id']} | Subtasks: {goal['subtask_count']}")
-                        
+
                         # Show recent findings for this goal
                         goal_findings = [f for f in breadcrumbs.get('findings_with_goals', []) if f['goal_id'] == goal['id']]
                         if goal_findings:
                             safe_print(f"        Latest: {goal_findings[0]['finding'][:60]}...")
                     safe_print()
-                
+
                 # Show epistemic artifacts
                 if breadcrumbs.get('epistemic_artifacts'):
                     safe_print(f"   📊 Epistemic Artifacts:")
@@ -639,7 +649,7 @@ def handle_project_bootstrap_command(args):
                         size_kb = artifact['size'] / 1024
                         safe_print(f"      • {artifact['path']} ({size_kb:.1f} KB)")
                     safe_print()
-                
+
                 # Show AI activity summary
                 if breadcrumbs.get('ai_activity'):
                     safe_print(f"   👥 AI Activity (Last 7 Days):")
@@ -648,14 +658,14 @@ def handle_project_bootstrap_command(args):
                     safe_print()
                     safe_print(f"   💡 Tip: Use format '<model>-<workstream>' (e.g., claude-cli-testing)")
                     safe_print()
-            
+
             # ===== END NEW =====
-            
+
             # ===== FLOW STATE METRICS =====
             if breadcrumbs.get('flow_metrics') is not None:
                 safe_print(f"📊 Flow State Analysis (Recent Sessions):")
                 safe_print()
-                
+
                 flow_metrics = breadcrumbs['flow_metrics']
                 flow_data = flow_metrics.get('flow_scores', [])
                 if flow_data:
@@ -670,20 +680,20 @@ def handle_project_bootstrap_command(args):
                             emoji = "🟡"
                         else:
                             emoji = "🔴"
-                        
+
                         safe_print(f"   {i}. {session['session_id']} ({session['ai_id']})")
                         safe_print(f"      Flow Score: {score:.2f} {emoji}")
-                        
+
                         # Show top 3 components
                         components = session['components']
                         top_3 = sorted(components.items(), key=lambda x: x[1], reverse=True)[:3]
                         safe_print(f"      Top factors: {', '.join([f'{k}={v:.2f}' for k, v in top_3])}")
-                        
+
                         # Show recommendations if any
                         if session['recommendations']:
                             safe_print(f"      💡 {session['recommendations'][0]}")
                         safe_print()
-                    
+
                     # Show what creates flow
                     safe_print(f"   💡 Flow Triggers (Optimize for these):")
                     safe_print(f"      ✅ CASCADE complete (PREFLIGHT → POSTFLIGHT)")
@@ -697,48 +707,48 @@ def handle_project_bootstrap_command(args):
                     safe_print(f"   Tip: Close active sessions with POSTFLIGHT to see flow metrics")
                     safe_print(f"   Flow score will show patterns from completed work")
                     safe_print()
-            
+
             # ===== DATABASE SCHEMA SUMMARY =====
             if breadcrumbs.get('database_summary'):
                 safe_print(f"🗄️  Database Schema (Epistemic Data Store):")
                 safe_print()
-                
+
                 db_summary = breadcrumbs['database_summary']
                 safe_print(f"   Total Tables: {db_summary.get('total_tables', 0)}")
                 safe_print(f"   Tables With Data: {db_summary.get('tables_with_data', 0)}")
                 safe_print()
-                
+
                 # Show key tables (static knowledge reminder)
                 if db_summary.get('key_tables'):
                     safe_print(f"   📌 Key Tables:")
                     for table, description in list(db_summary['key_tables'].items())[:6]:
                         safe_print(f"      • {table}: {description}")
                     safe_print()
-                
+
                 # Show top tables by row count
                 if db_summary.get('top_tables'):
                     safe_print(f"   📊 Most Active Tables:")
                     for table_info in db_summary['top_tables'][:5]:
                         safe_print(f"      • {table_info}")
                     safe_print()
-                
+
                 # Reference to full schema
                 if db_summary.get('schema_doc'):
                     safe_print(f"   📖 Full Schema: {db_summary['schema_doc']}")
                     safe_print()
-            
+
             # ===== STRUCTURE HEALTH =====
             if breadcrumbs.get('structure_health'):
                 safe_print(f"🏗️  Project Structure Health:")
                 safe_print()
-                
+
                 health = breadcrumbs['structure_health']
-                
+
                 # Show detected pattern with confidence
                 # .get() returns None if key exists with None value — guard against it
                 confidence = health.get('confidence') or 0.0
                 conformance = health.get('conformance') or 0.0
-                
+
                 # Choose emoji based on conformance
                 if conformance >= 0.9:
                     emoji = "✅"
@@ -748,13 +758,13 @@ def handle_project_bootstrap_command(args):
                     emoji = "🟡"
                 else:
                     emoji = "🔴"
-                
+
                 safe_print(f"   Detected Pattern: {health.get('detected_name', 'Unknown')} {emoji}")
                 safe_print(f"   Detection Confidence: {confidence:.2f}")
                 safe_print(f"   Pattern Conformance: {conformance:.2f}")
                 safe_print(f"   Description: {health.get('description', '')}")
                 safe_print()
-                
+
                 # Show violations if any
                 violations = health.get('violations', [])
                 if violations:
@@ -764,7 +774,7 @@ def handle_project_bootstrap_command(args):
                     if len(violations) > 3:
                         safe_print(f"      ... and {len(violations) - 3} more")
                     safe_print()
-                
+
                 # Show suggestions
                 suggestions = health.get('suggestions', [])
                 if suggestions:
@@ -772,7 +782,7 @@ def handle_project_bootstrap_command(args):
                     for suggestion in suggestions[:3]:
                         safe_print(f"      {suggestion}")
                     safe_print()
-            
+
             # ===== DEPENDENCY GRAPH =====
             if breadcrumbs.get('dependency_graph'):
                 dep = breadcrumbs['dependency_graph']
@@ -787,7 +797,7 @@ def handle_project_bootstrap_command(args):
                 if dep.get('external_deps'):
                     safe_print(f"   📦 External: {', '.join(sorted(dep['external_deps'])[:10])}")
                 safe_print()
-            
+
             if breadcrumbs['incomplete_work']:
                 safe_print(f"🎯 Incomplete Work:")
                 for i, w in enumerate(breadcrumbs['incomplete_work'], 1):
@@ -810,24 +820,24 @@ def handle_project_bootstrap_command(args):
                     safe_print(f"   {i}. {doc['title']}")
                     safe_print(f"      Path: {doc['path']}")
                 safe_print()
-            
+
             if breadcrumbs.get('integrity_analysis'):
                 safe_print(f"🔍 Doc-Code Integrity Analysis:")
                 integrity = breadcrumbs['integrity_analysis']
-                
+
                 if 'error' in integrity:
                     safe_print(f"   ⚠️  Analysis failed: {integrity['error']}")
                 else:
                     cli = integrity['cli_commands']
                     safe_print(f"   Score: {cli['integrity_score']:.1%} ({cli['total_in_code']} code, {cli['total_in_docs']} docs)")
-                    
+
                     if integrity.get('missing_code'):
                         safe_print(f"\n   🔴 Missing Implementations ({cli['missing_implementations']} total):")
                         for item in integrity['missing_code'][:5]:
                             safe_print(f"      • empirica {item['command']} (severity: {item['severity']})")
                             if item['mentioned_in']:
                                 safe_print(f"        Mentioned in: {item['mentioned_in'][0]['file']}")
-                    
+
                     if integrity.get('missing_docs'):
                         safe_print(f"\n   📝 Missing Documentation ({cli['missing_documentation']} total):")
                         for item in integrity['missing_docs'][:5]:

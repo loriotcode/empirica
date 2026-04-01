@@ -12,7 +12,6 @@ When expected gain falls below a threshold, it's better to stop.
 
 import logging
 import math
-from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +23,8 @@ DEFAULT_STALE_ROUNDS = 2  # Rounds without novel findings = stop
 
 def estimate_information_gain(
     domain: str,
-    current_vectors: Dict[str, float],
-    prior_findings: List[str],
+    current_vectors: dict[str, float],
+    prior_findings: list[str],
     dead_ends: int = 0,
 ) -> float:
     """
@@ -150,7 +149,7 @@ def should_spawn_more(
 
 def novelty_score(
     finding: str,
-    existing_findings: List[str],
+    existing_findings: list[str],
     jaccard_threshold: float = 0.7,
 ) -> float:
     """

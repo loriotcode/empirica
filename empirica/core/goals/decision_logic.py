@@ -14,8 +14,8 @@ Decision:
 - Low clarity/signal → Ask for clarification
 """
 
-from typing import Dict, Optional, Tuple
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
@@ -29,7 +29,7 @@ class GoalDecision:
     reasoning: str
     suggested_action: str  # 'create_goal', 'investigate_first', 'ask_clarification'
     confidence: float
-    
+
     # Breakdown for transparency
     clarity_score: float
     signal_score: float
@@ -82,18 +82,18 @@ def decide_goal_creation(
         not_healthy → improve_epistemic_health
         don't_understand → ask_clarification
     """
-    
+
     # Step 1: Check CLARITY GATE (epistemic health)
     health_gate_passed = True
     if health_score is not None:
         health_gate_passed = (health_score >= health_threshold)
-    
+
     # Step 2: Do I understand the request?
     understands_request = (clarity >= clarity_threshold and signal >= signal_threshold)
-    
+
     # Step 3: Can I operate?
     can_operate = (know >= know_threshold and context >= context_threshold)
-    
+
     # Step 4: Decide
     if not health_gate_passed:
         # "Epistemic health is not sufficient"
@@ -130,7 +130,7 @@ def decide_goal_creation(
             health_score=health_score,
             health_gate_passed=health_gate_passed
         )
-    
+
     elif understands_request and not can_operate:
         # "I understand what to do BUT lack foundation"
         # Check which foundation component is low
@@ -143,7 +143,7 @@ def decide_goal_creation(
         else:
             focus = "foundation"
             investigate_what = "foundation"
-        
+
         return GoalDecision(
             should_create_goal_now=False,
             reasoning=(
@@ -160,7 +160,7 @@ def decide_goal_creation(
             health_score=health_score,
             health_gate_passed=health_gate_passed
         )
-    
+
     else:
         # "I don't understand the request"
         # Check which comprehension component is low
@@ -170,7 +170,7 @@ def decide_goal_creation(
             problem = "information quality is poor (low signal)"
         else:
             problem = "request is unclear (low clarity and signal)"
-        
+
         return GoalDecision(
             should_create_goal_now=False,
             reasoning=(
@@ -198,7 +198,7 @@ def get_investigation_focus(decision: GoalDecision) -> Optional[str]:
     """
     if decision.suggested_action != 'investigate_first':
         return None
-    
+
     # Identify weakest foundation component
     if decision.context_score < decision.know_score:
         return "Explore workspace and understand environment"
@@ -225,17 +225,17 @@ def format_decision_for_ai(decision: GoalDecision) -> str:
         f"",
         f"Suggested Action: {decision.suggested_action.upper()}",
     ]
-    
+
     if decision.suggested_action == 'investigate_first':
         focus = get_investigation_focus(decision)
         if focus:
             output.append(f"  → Investigation Focus: {focus}")
-    
+
     output.append(f"")
     output.append(f"Confidence in Decision: {decision.confidence:.2f}")
     output.append(f"")
     output.append(f"Note: This is guidance. AI can override based on context.")
-    
+
     return "\n".join(output)
 
 

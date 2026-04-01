@@ -10,12 +10,12 @@ User identification: EMPIRICA_USER env var → prompt for identification.
 Protocol search: project dir → home dir → skip gracefully.
 """
 
-import json
-import sys
-import os
 import hashlib
+import json
+import os
 import re
 import stat
+import sys
 from pathlib import Path
 
 try:
@@ -157,12 +157,12 @@ def load_protocol(path: Path) -> dict | None:
     """Load workflow protocol YAML."""
     if HAS_YAML:
         import yaml as _yaml
-        with open(path, 'r') as f:
+        with open(path) as f:
             return _yaml.safe_load(f)
     else:
         # Fallback: basic YAML parsing for simple structures
         # Won't handle nested structures well, but enough for detection
-        with open(path, 'r') as f:
+        with open(path) as f:
             content = f.read()
         return {"_raw": content, "_parse_method": "raw"}
 

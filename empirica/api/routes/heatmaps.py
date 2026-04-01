@@ -1,6 +1,7 @@
 """Uncertainty heatmap endpoints"""
 
 import logging
+
 from flask import Blueprint, jsonify
 
 bp = Blueprint("heatmaps", __name__)

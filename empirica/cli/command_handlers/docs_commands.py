@@ -22,14 +22,12 @@ import ast
 import fnmatch
 import json
 import re
-import subprocess
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from ..cli_utils import handle_cli_error
-
 
 # --- ProjectConfig: auto-detected project structure for portability ---
 
@@ -1092,7 +1090,7 @@ class EpistemicDocsAgent:
             import yaml
             project_yaml = self.root / ".empirica" / "project.yaml"
             if project_yaml.exists():
-                with open(project_yaml, 'r') as f:
+                with open(project_yaml) as f:
                     data = yaml.safe_load(f)
                     if data and data.get("project_id"):
                         return data["project_id"]
@@ -1852,9 +1850,7 @@ class DocsExplainAgent:
 
         # Add aliases if topic matches
         for alias_key, alias_keywords in self.TOPIC_ALIASES.items():
-            if topic_lower in alias_key or alias_key in topic_lower:
-                keywords.extend(alias_keywords)
-            elif any(kw in topic_lower for kw in alias_keywords):
+            if topic_lower in alias_key or alias_key in topic_lower or any(kw in topic_lower for kw in alias_keywords):
                 keywords.extend(alias_keywords)
 
         return list(set(keywords))

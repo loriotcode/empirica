@@ -7,13 +7,14 @@ All queries use ? placeholders (PostgreSQLAdapter auto-converts to %s).
 
 import logging
 import os
-from flask import Blueprint, request, jsonify
+
+from flask import Blueprint, jsonify, request
 
 from empirica.api.validation import (
-    validate_session_id,
     validate_ai_id,
     validate_limit,
     validate_offset,
+    validate_session_id,
     validate_timestamp,
 )
 

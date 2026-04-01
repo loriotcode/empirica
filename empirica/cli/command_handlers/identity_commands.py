@@ -13,6 +13,7 @@ Phase 2: Cryptographic Trust Layer (EEP-1)
 import json
 import logging
 from pathlib import Path
+
 from ..cli_utils import handle_cli_error
 
 logger = logging.getLogger(__name__)
@@ -21,11 +22,11 @@ logger = logging.getLogger(__name__)
 def handle_identity_create_command(args):
     """Create new AI identity with Ed25519 keypair"""
     try:
-        from empirica.core.identity import AIIdentity, IdentityManager
-        
+        from empirica.core.identity import IdentityManager
+
         ai_id = args.ai_id
         overwrite = getattr(args, 'overwrite', False)
-        
+
         # Check if identity exists
         manager = IdentityManager()
         if manager.identity_exists(ai_id) and not overwrite:
@@ -35,7 +36,7 @@ def handle_identity_create_command(args):
                 "message": "Use --overwrite to replace existing identity",
                 "key_file": str(Path(".empirica/identity") / f"{ai_id}.key")
             }
-            
+
             if hasattr(args, 'output') and args.output == 'json':
                 print(json.dumps(result, indent=2))
             else:
@@ -45,10 +46,10 @@ def handle_identity_create_command(args):
 
             # Return None to avoid exit code issues and duplicate output
             return None
-        
+
         # Create identity
         identity = manager.create_identity(ai_id, overwrite=overwrite)
-        
+
         result = {
             "ok": True,
             "ai_id": ai_id,
@@ -58,7 +59,7 @@ def handle_identity_create_command(args):
             "public_key_file": str(identity.public_key_path),
             "message": "Identity created successfully"
         }
-        
+
         # Format output
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
@@ -80,7 +81,7 @@ def handle_identity_create_command(args):
 
         # Return None to avoid exit code issues and duplicate output
         return None
-        
+
     except Exception as e:
         handle_cli_error(e, "Identity creation", getattr(args, 'verbose', False))
         # Error handler already manages output, return None to avoid duplicate output
@@ -91,16 +92,16 @@ def handle_identity_list_command(args):
     """List all AI identities"""
     try:
         from empirica.core.identity import IdentityManager
-        
+
         manager = IdentityManager()
         identities = manager.list_identities()
-        
+
         result = {
             "ok": True,
             "count": len(identities),
             "identities": identities
         }
-        
+
         # Format output
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
@@ -111,23 +112,23 @@ def handle_identity_list_command(args):
                 print("   empirica identity-create --ai-id <name>")
             else:
                 print(f"🔑 Found {len(identities)} identit{'y' if len(identities) == 1 else 'ies'}:\n")
-                
+
                 for i, identity in enumerate(identities, 1):
                     print(f"{i}. {identity['ai_id']}")
                     print(f"   Created: {identity['created_at'][:10]}")
                     print(f"   Key file: {identity['key_file']}")
-                    
+
                     if identity['has_public_key']:
                         print(f"   Public key: ✓")
                     else:
                         print(f"   Public key: ✗ (missing)")
-                    
+
                     print()
-                
+
                 print("💡 Commands:")
                 print("   • Export public key: empirica identity-export --ai-id <name>")
                 print("   • Use for signing: empirica preflight \"task\" --ai-id <name> --sign")
-        
+
         # Return None to avoid exit code issues and duplicate output
         return None
 
@@ -141,19 +142,19 @@ def handle_identity_export_command(args):
     """Export public key for sharing"""
     try:
         from empirica.core.identity import IdentityManager
-        
+
         ai_id = args.ai_id
-        
+
         manager = IdentityManager()
         identity = manager.load_identity(ai_id)
-        
+
         public_key_data = identity.export_public_key()
-        
+
         result = {
             "ok": True,
             **public_key_data
         }
-        
+
         # Format output
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
@@ -162,17 +163,17 @@ def handle_identity_export_command(args):
             print(f"Public Key:")
             print(f"{public_key_data['public_key']}\n")
             print(f"Created: {public_key_data['created_at']}")
-            
+
             if public_key_data.get('metadata'):
                 print(f"\nMetadata:")
                 for key, value in public_key_data['metadata'].items():
                     print(f"  {key}: {value}")
-            
+
             print(f"\n💡 Share this public key:")
             print(f"   • Others can verify your signed assessments")
             print(f"   • Public key is safe to distribute")
             print(f"   • Never share your private key!")
-        
+
         # Return None to avoid exit code issues and duplicate output
         return None
 
@@ -202,29 +203,28 @@ def handle_identity_export_command(args):
 def handle_identity_verify_command(args):
     """Verify signed session"""
     try:
-        from empirica.core.identity import verify_signature, verify_eep1_payload
         from empirica.data.session_database import SessionDatabase
-        
+
         session_id = args.session_id
-        
+
         # Load session from database
         db = SessionDatabase()
-        
+
         # TODO: Add signature field to database and load it
         # For now, check if session exists
         session = db.get_session(session_id)
-        
+
         if not session:
             result = {
                 "ok": False,
                 "error": f"Session '{session_id}' not found"
             }
-            
+
             if hasattr(args, 'output') and args.output == 'json':
                 print(json.dumps(result, indent=2))
             else:
                 print(f"❌ Session '{session_id}' not found")
-            
+
             # Return None to avoid exit code issues and duplicate output
             db.close()
             return None

@@ -17,27 +17,23 @@ Key Principles:
 5. Canonical weights: 35/25/25/15 (foundation/comprehension/execution/engagement)
 """
 
-from .reflex_frame import (
-    VectorState,
-    Action,
-    CANONICAL_WEIGHTS
-)
-
-# Import centralized thresholds
-from ..thresholds import ENGAGEMENT_THRESHOLD, CRITICAL_THRESHOLDS
-
 # OLD EpistemicAssessment and ReflexFrame removed - use EpistemicAssessmentSchema
 # For backwards compatibility during migration, import from schemas
 from empirica.core.schemas.epistemic_assessment import EpistemicAssessmentSchema
+
+# Import centralized thresholds
+from ..thresholds import CRITICAL_THRESHOLDS, ENGAGEMENT_THRESHOLD
+from .reflex_frame import CANONICAL_WEIGHTS, Action, VectorState
+
 # Alias for backwards compatibility (will be removed after all code is updated)
 EpistemicAssessment = EpistemicAssessmentSchema
 
 # reflex_logger removed - use GitEnhancedReflexLogger instead
 
-from .git_enhanced_reflex_logger import GitEnhancedReflexLogger
-from .git_state_capture import GitStateCapture
-from .git_notes_storage import GitNotesStorage
 from .checkpoint_storage import CheckpointStorage
+from .git_enhanced_reflex_logger import GitEnhancedReflexLogger
+from .git_notes_storage import GitNotesStorage
+from .git_state_capture import GitStateCapture
 
 __all__ = [
     # Data Structures
@@ -54,7 +50,7 @@ __all__ = [
     'ReflexLogger',
     'log_assessment',
     'log_assessment_sync',
-    
+
     # NEW schema (main export)
     'EpistemicAssessmentSchema',
 

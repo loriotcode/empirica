@@ -15,9 +15,10 @@ Defaults:
 - optional: True (graceful fail if Qdrant unavailable)
 """
 from __future__ import annotations
-import os
+
 import logging
-from typing import Dict, List, Optional
+import os
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ TIME_GAP_THRESHOLDS = {
 }
 
 
-def compute_time_gap_info(last_session_timestamp: Optional[float] = None) -> Dict[str, any]:
+def compute_time_gap_info(last_session_timestamp: Optional[float] = None) -> dict[str, any]:
     """
     Compute time gap information since last session.
 
@@ -104,7 +105,7 @@ def _search_memory_by_type(
     memory_type: str,
     limit: int = DEFAULT_LIMIT,
     min_score: float = DEFAULT_THRESHOLD
-) -> List[Dict]:
+) -> list[dict]:
     """
     Search memory collection filtered by type.
     Returns empty list if Qdrant not available (optional behavior).
@@ -119,7 +120,7 @@ def _search_memory_by_type(
         if qvec is None:
             return []
 
-        from qdrant_client.models import Filter, FieldCondition, MatchValue
+        from qdrant_client.models import FieldCondition, Filter, MatchValue
         client = _get_qdrant_client()
         coll = _memory_collection(project_id)
 
@@ -157,7 +158,7 @@ def _search_related_docs(
     query_text: str,
     limit: int = DEFAULT_LIMIT,
     min_score: float = DEFAULT_THRESHOLD
-) -> List[Dict]:
+) -> list[dict]:
     """
     Search docs collection for documents related to a query.
     Used to find supporting documentation for retrieved memory entries.
@@ -165,7 +166,7 @@ def _search_related_docs(
     Returns list of related docs with path, description, and relevance score.
     """
     try:
-        from .vector_store import _check_qdrant_available, _get_embedding_safe, _get_qdrant_client, _docs_collection
+        from .vector_store import _check_qdrant_available, _docs_collection, _get_embedding_safe, _get_qdrant_client
 
         if not _check_qdrant_available():
             return []
@@ -204,7 +205,7 @@ def _search_related_docs(
         return []
 
 
-def _compute_adaptive_limits(vectors: Optional[Dict], base_limit: int) -> Dict[str, int]:
+def _compute_adaptive_limits(vectors: Optional[dict], base_limit: int) -> dict[str, int]:
     """Compute per-collection retrieval limits based on vector state.
 
     Higher uncertainty → more context from all collections (up to 2x).
@@ -259,8 +260,8 @@ def retrieve_task_patterns(
     include_goals: bool = False,
     include_assumptions: bool = False,
     include_decisions: bool = False,
-    vectors: Optional[Dict] = None,
-) -> Dict[str, any]:
+    vectors: Optional[dict] = None,
+) -> dict[str, any]:
     """
     PREFLIGHT hook: Retrieve relevant patterns for a task (Noetic RAG).
 
@@ -534,14 +535,14 @@ def retrieve_task_patterns(
 def check_against_patterns(
     project_id: str,
     current_approach: str,
-    vectors: Optional[Dict] = None,
+    vectors: Optional[dict] = None,
     threshold: float = DEFAULT_THRESHOLD,
     limit: int = DEFAULT_LIMIT,
     include_findings: bool = False,
     include_eidetic: bool = False,
     include_goals: bool = False,
     include_assumptions: bool = False,
-) -> Dict[str, any]:
+) -> dict[str, any]:
     """
     CHECK hook: Validate current approach against known patterns (Noetic RAG).
 
@@ -711,7 +712,7 @@ def search_lessons_for_task(
     domain: Optional[str] = None,
     limit: int = DEFAULT_LIMIT,
     min_score: float = DEFAULT_THRESHOLD
-) -> List[Dict]:
+) -> list[dict]:
     """
     Search for relevant lessons for a specific task.
     Optionally filter by domain.
@@ -736,7 +737,7 @@ def search_lessons_for_task(
         if qvec is None:
             return []
 
-        from qdrant_client.models import Filter, FieldCondition, MatchValue
+        from qdrant_client.models import FieldCondition, Filter, MatchValue
         client = _get_qdrant_client()
         coll = _memory_collection(project_id)
 

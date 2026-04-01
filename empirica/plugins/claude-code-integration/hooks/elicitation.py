@@ -16,11 +16,11 @@ Can block: TBD
 """
 
 import json
-import sys
-import subprocess
 import logging
-from pathlib import Path
+import subprocess
+import sys
 from datetime import datetime
+from pathlib import Path
 
 LOG_DIR = Path.home() / '.empirica' / 'logs'
 LOG_DIR.mkdir(parents=True, exist_ok=True)

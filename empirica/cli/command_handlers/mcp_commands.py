@@ -9,13 +9,14 @@ Provides commands for:
 - Calling MCP tools directly
 """
 
-import os
-import sys
 import json
-import subprocess
+import os
 import signal
+import subprocess
+import sys
 import time
 from pathlib import Path
+
 from ..cli_utils import handle_cli_error, print_header
 
 # MCP server paths
@@ -27,20 +28,20 @@ def handle_mcp_start_command(args):
     """Start MCP server in background"""
     try:
         print_header("🚀 Starting Empirica MCP Server")
-        
+
         # Check if already running
         if _is_mcp_running():
             pid = _get_mcp_pid()
             print(f"✅ MCP server already running (PID: {pid})")
             return
-        
+
         # Ensure .empirica directory exists
         MCP_PID_FILE.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Start MCP server
         python_exe = sys.executable
         log_file = MCP_PID_FILE.parent / "mcp_server.log"
-        
+
         with open(log_file, 'w') as log:
             process = subprocess.Popen(
                 [python_exe, str(MCP_SERVER_PATH)],
@@ -48,14 +49,14 @@ def handle_mcp_start_command(args):
                 stderr=subprocess.STDOUT,
                 start_new_session=True
             )
-        
+
         # Save PID
         with open(MCP_PID_FILE, 'w') as f:
             f.write(str(process.pid))
-        
+
         # Wait a bit to check if it started successfully
         time.sleep(1)
-        
+
         if _is_mcp_running():
             print(f"✅ MCP server started successfully (PID: {process.pid})")
             print(f"📝 Logs: {log_file}")
@@ -64,7 +65,7 @@ def handle_mcp_start_command(args):
             print(f"   Args: [\"{MCP_SERVER_PATH}\"]")
         else:
             print(f"❌ MCP server failed to start. Check logs: {log_file}")
-            
+
     except Exception as e:
         handle_cli_error(e, "Starting MCP server", getattr(args, 'verbose', False))
 
@@ -73,18 +74,18 @@ def handle_mcp_stop_command(args):
     """Stop MCP server"""
     try:
         print_header("🛑 Stopping Empirica MCP Server")
-        
+
         if not _is_mcp_running():
             print("ℹ️  MCP server is not running")
             return
-        
+
         pid = _get_mcp_pid()
-        
+
         # Try graceful shutdown first
         try:
             os.kill(pid, signal.SIGTERM)
             time.sleep(1)
-            
+
             # Check if stopped
             if not _is_mcp_running():
                 print(f"✅ MCP server stopped gracefully (PID: {pid})")
@@ -92,7 +93,7 @@ def handle_mcp_stop_command(args):
                 return
         except ProcessLookupError:
             pass
-        
+
         # Force kill if still running
         try:
             os.kill(pid, signal.SIGKILL)
@@ -100,9 +101,9 @@ def handle_mcp_stop_command(args):
             print(f"✅ MCP server force stopped (PID: {pid})")
         except ProcessLookupError:
             print(f"ℹ️  MCP server already stopped")
-        
+
         MCP_PID_FILE.unlink(missing_ok=True)
-        
+
     except Exception as e:
         handle_cli_error(e, "Stopping MCP server", getattr(args, 'verbose', False))
 
@@ -111,13 +112,13 @@ def handle_mcp_status_command(args):
     """Check MCP server status"""
     try:
         print_header("📊 Empirica MCP Server Status")
-        
+
         if _is_mcp_running():
             pid = _get_mcp_pid()
             print(f"✅ Status: Running")
             print(f"🆔 PID: {pid}")
             print(f"📝 Log file: {MCP_PID_FILE.parent / 'mcp_server.log'}")
-            
+
             if args.verbose:
                 # Show process info
                 try:
@@ -133,7 +134,7 @@ def handle_mcp_status_command(args):
         else:
             print(f"❌ Status: Not Running")
             print(f"\n💡 Start with: empirica mcp start")
-            
+
     except Exception as e:
         handle_cli_error(e, "Checking MCP server status", getattr(args, 'verbose', False))
 
@@ -142,15 +143,15 @@ def handle_mcp_test_command(args):
     """Test MCP server connection"""
     try:
         print_header("🧪 Testing Empirica MCP Server")
-        
+
         if not _is_mcp_running():
             print("❌ MCP server is not running")
             print("💡 Start with: empirica mcp start")
             return
-        
+
         print("✅ MCP server is running")
         print("\n🔍 Testing MCP protocol...")
-        
+
         # Try to import MCP client and test connection
         try:
             # Basic test: Check if server responds to stdio
@@ -161,7 +162,7 @@ def handle_mcp_test_command(args):
                 text=True,
                 timeout=5
             )
-            
+
             if result.returncode == 0:
                 print("✅ MCP protocol test passed")
             else:
@@ -173,11 +174,11 @@ def handle_mcp_test_command(args):
             print("⚠️  MCP server not responding (timeout)")
         except Exception as e:
             print(f"⚠️  MCP test failed: {e}")
-        
+
         print("\n💡 To test from your IDE, configure MCP server:")
         print(f"   Command: {python_exe}")
         print(f"   Args: [\"{MCP_SERVER_PATH}\"]")
-        
+
     except Exception as e:
         handle_cli_error(e, "Testing MCP server", getattr(args, 'verbose', False))
 
@@ -186,7 +187,7 @@ def handle_mcp_list_tools_command(args):
     """List available MCP tools"""
     try:
         print_header("🔧 Available MCP Tools")
-        
+
         # Core workflow tools
         print("\n📋 Core Workflow Tools:")
         core_tools = [
@@ -196,7 +197,7 @@ def handle_mcp_list_tools_command(args):
         ]
         for name, desc in core_tools:
             print(f"   • {name:35s} - {desc}")
-        
+
         # Session management
         print("\n🔄 Session Management:")
         session_tools = [
@@ -208,7 +209,7 @@ def handle_mcp_list_tools_command(args):
         ]
         for name, desc in session_tools:
             print(f"   • {name:35s} - {desc}")
-        
+
         # Goal Management (NEW)
         print("\n🎯 Goal Management:")
         goal_tools = [
@@ -220,7 +221,7 @@ def handle_mcp_list_tools_command(args):
         ]
         for name, desc in goal_tools:
             print(f"   • {name:35s} - {desc}")
-        
+
         # Cross-AI Coordination (NEW)
         print("\n🤝 Cross-AI Coordination:")
         coordination_tools = [
@@ -229,7 +230,7 @@ def handle_mcp_list_tools_command(args):
         ]
         for name, desc in coordination_tools:
             print(f"   • {name:35s} - {desc}")
-        
+
         # Checkpoints (NEW)
         print("\n💾 Checkpoints:")
         checkpoint_tools = [
@@ -238,7 +239,7 @@ def handle_mcp_list_tools_command(args):
         ]
         for name, desc in checkpoint_tools:
             print(f"   • {name:35s} - {desc}")
-        
+
         # Handoff Reports (NEW)
         print("\n📝 Handoff Reports:")
         handoff_tools = [
@@ -247,7 +248,7 @@ def handle_mcp_list_tools_command(args):
         ]
         for name, desc in handoff_tools:
             print(f"   • {name:35s} - {desc}")
-        
+
         # Guidance
         print("\n📖 Guidance:")
         guidance_tools = [
@@ -257,17 +258,17 @@ def handle_mcp_list_tools_command(args):
         ]
         for name, desc in guidance_tools:
             print(f"   • {name:35s} - {desc}")
-        
+
         total = (len(core_tools) + len(session_tools) + len(goal_tools) +
                  len(coordination_tools) + len(checkpoint_tools) +
                  len(handoff_tools) + len(guidance_tools))
 
         print(f"\n📊 Total tools: {total}")
-        
+
         if args.verbose:
             print(f"\n💡 Use 'empirica mcp call <tool_name>' to test a tool")
             print(f"💡 See docs/human/developers/MCP_SERVER_REFERENCE.md for detailed documentation")
-        
+
     except Exception as e:
         handle_cli_error(e, "Listing MCP tools", getattr(args, 'verbose', False))
 
@@ -276,7 +277,7 @@ def handle_mcp_call_command(args):
     """Call MCP tool directly (for testing)"""
     try:
         print_header(f"🔧 Calling MCP Tool: {args.tool_name}")
-        
+
         # Parse arguments
         tool_args = {}
         if args.arguments:
@@ -286,7 +287,7 @@ def handle_mcp_call_command(args):
                 print("❌ Invalid JSON arguments")
                 print("💡 Example: empirica mcp call cli_help '{\"command\": \"bootstrap\"}'")
                 return
-        
+
         # Import MCP client and call tool
         # For now, provide instructions
         print("⏳ Direct MCP tool calling from CLI is experimental")
@@ -294,7 +295,7 @@ def handle_mcp_call_command(args):
         print(f"📝 Arguments: {json.dumps(tool_args, indent=2)}")
         print(f"\n💡 To use this tool, configure it in your IDE's MCP client")
         print(f"💡 See docs/human/developers/MCP_SERVER_REFERENCE.md")
-        
+
     except Exception as e:
         handle_cli_error(e, "Calling MCP tool", getattr(args, 'verbose', False))
 
@@ -304,7 +305,7 @@ def _is_mcp_running():
     """Check if MCP server is running"""
     if not MCP_PID_FILE.exists():
         return False
-    
+
     try:
         pid = _get_mcp_pid()
         os.kill(pid, 0)  # Signal 0 just checks if process exists
@@ -317,5 +318,5 @@ def _is_mcp_running():
 
 def _get_mcp_pid():
     """Get MCP server PID"""
-    with open(MCP_PID_FILE, 'r') as f:
+    with open(MCP_PID_FILE) as f:
         return int(f.read().strip())

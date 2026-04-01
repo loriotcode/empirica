@@ -20,7 +20,7 @@ def add_session_parsers(subparsers):
     sessions_list_parser.add_argument('--limit', type=int, default=50, help='Maximum sessions to show')
     sessions_list_parser.add_argument('--verbose', action='store_true', help='Show detailed info')
     sessions_list_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
-    
+
     # Sessions show command
     sessions_show_parser = subparsers.add_parser(
         'sessions-show',
@@ -46,7 +46,7 @@ def add_session_parsers(subparsers):
     sessions_export_parser.add_argument('session_id', nargs='?', help='Session ID or alias (latest, latest:active, latest:<ai_id>)')
     sessions_export_parser.add_argument('--session-id', dest='session_id_named', help='Session ID (alternative to positional argument)')
     sessions_export_parser.add_argument('--output', '-o', help='Output file path (default: session_<id>.json)')
-    
+
     # Memory compact command (AI-first JSON stdin)
     memory_compact_parser = subparsers.add_parser('memory-compact',
         help='Create epistemic continuity across memory compaction boundaries')

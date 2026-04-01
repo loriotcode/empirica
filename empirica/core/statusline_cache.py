@@ -21,9 +21,9 @@ import json
 import os
 import sys
 import time
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Any, Optional
 
 # Platform-specific file locking
 if sys.platform == 'win32':
@@ -80,9 +80,9 @@ class StatuslineCacheEntry:
 
     # Epistemic state
     phase: Optional[str] = None  # PREFLIGHT, CHECK, POSTFLIGHT
-    vectors: Optional[Dict[str, float]] = None
+    vectors: Optional[dict[str, float]] = None
     gate_decision: Optional[str] = None  # proceed, investigate
-    deltas: Optional[Dict[str, float]] = None  # PREFLIGHT→POSTFLIGHT learning delta
+    deltas: Optional[dict[str, float]] = None  # PREFLIGHT→POSTFLIGHT learning delta
 
     # Counts
     open_goals: int = 0
@@ -95,12 +95,12 @@ class StatuslineCacheEntry:
     # Timestamps
     updated_at: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'StatuslineCacheEntry':
+    def from_dict(cls, data: dict[str, Any]) -> 'StatuslineCacheEntry':
         """Create from dictionary."""
         # Handle missing fields gracefully
         return cls(
@@ -240,7 +240,7 @@ class StatuslineCache:
             return None
 
         try:
-            with open(self.cache_file, 'r') as f:
+            with open(self.cache_file) as f:
                 _lock_file(f, exclusive=False)
                 try:
                     data = json.load(f)
@@ -334,7 +334,7 @@ class StatuslineCache:
                 try:
                     age = time.time() - cache_file.stat().st_mtime
                     if age <= max_age:
-                        with open(cache_file, 'r') as f:
+                        with open(cache_file) as f:
                             data = json.load(f)
                         entry = StatuslineCacheEntry.from_dict(data)
                         active.append((entry.instance_id, entry.project_path, entry))
@@ -351,7 +351,7 @@ def write_statusline_cache(
     session_id: str,
     ai_id: str,
     phase: Optional[str] = None,
-    vectors: Optional[Dict[str, float]] = None,
+    vectors: Optional[dict[str, float]] = None,
     gate_decision: Optional[str] = None,
     project_path: Optional[str] = None,
     project_name: Optional[str] = None,
@@ -359,7 +359,7 @@ def write_statusline_cache(
     open_unknowns: int = 0,
     goal_linked_unknowns: int = 0,
     confidence: Optional[float] = None,
-    deltas: Optional[Dict[str, float]] = None,
+    deltas: Optional[dict[str, float]] = None,
 ) -> bool:
     """
     Write to statusline cache.
@@ -399,7 +399,7 @@ def read_statusline_cache(
 
 
 def update_statusline_vectors(
-    vectors: Dict[str, float],
+    vectors: dict[str, float],
     project_path: Optional[str] = None
 ) -> bool:
     """

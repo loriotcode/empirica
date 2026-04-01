@@ -12,9 +12,8 @@ Transformations applied:
 - Column name 'do' → '"do"' (reserved word quoting)
 """
 
-import re
 import logging
-from typing import List
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +75,7 @@ def adapt_schema_sql(sql: str, dialect: str) -> str:
     return adapted
 
 
-def adapt_all_schemas(schemas: List[str], dialect: str) -> List[str]:
+def adapt_all_schemas(schemas: list[str], dialect: str) -> list[str]:
     """Adapt a list of schema SQL strings for the target dialect."""
     return [adapt_schema_sql(sql, dialect) for sql in schemas]
 

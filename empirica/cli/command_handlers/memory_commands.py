@@ -91,9 +91,9 @@ def handle_memory_scope_command(args):
     """
     try:
         from empirica.core.context_budget import (
-            get_budget_manager,
-            MemoryZone,
             ContentType,
+            MemoryZone,
+            get_budget_manager,
         )
 
         # Get or create the budget manager
@@ -177,8 +177,8 @@ def handle_memory_value_command(args):
     respecting a token budget.
     """
     try:
-        from empirica.core.information_gain import estimate_information_gain, novelty_score
         from empirica.core.context_budget import estimate_tokens
+        from empirica.core.information_gain import estimate_information_gain, novelty_score
         from empirica.data.session_database import SessionDatabase
 
         db = SessionDatabase()

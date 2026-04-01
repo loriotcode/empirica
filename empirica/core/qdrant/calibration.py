@@ -2,27 +2,30 @@
 Grounded calibration: verification embedding and trajectory analysis.
 """
 from __future__ import annotations
-import logging
-from typing import Dict, List, Optional
 
-from empirica.core.qdrant.connection import (
-    _check_qdrant_available, _get_qdrant_imports, _get_qdrant_client,
-    _get_embedding_safe, _get_vector_size, logger,
-)
 from empirica.core.qdrant.collections import _calibration_collection
+from empirica.core.qdrant.connection import (
+    _check_qdrant_available,
+    _get_embedding_safe,
+    _get_qdrant_client,
+    _get_qdrant_imports,
+    _get_vector_size,
+    logger,
+)
+
 
 def embed_grounded_verification(
     project_id: str,
     verification_id: str,
     session_id: str,
     ai_id: str = "claude-code",
-    self_assessed: Dict[str, float] = None,
-    grounded_vectors: Dict[str, float] = None,
-    calibration_gaps: Dict[str, float] = None,
+    self_assessed: dict[str, float] = None,
+    grounded_vectors: dict[str, float] = None,
+    calibration_gaps: dict[str, float] = None,
     grounded_coverage: float = 0.0,
     calibration_score: float = 0.0,
     evidence_count: int = 0,
-    sources: List[str] = None,
+    sources: list[str] = None,
     goal_id: str = None,
     timestamp: float = None,
 ) -> bool:
@@ -99,9 +102,9 @@ def embed_calibration_trajectory(
     project_id: str,
     session_id: str,
     ai_id: str = "claude-code",
-    self_assessed: Dict[str, float] = None,
-    grounded_vectors: Dict[str, float] = None,
-    calibration_gaps: Dict[str, float] = None,
+    self_assessed: dict[str, float] = None,
+    grounded_vectors: dict[str, float] = None,
+    calibration_gaps: dict[str, float] = None,
     goal_id: str = None,
     timestamp: float = None,
 ) -> bool:
@@ -182,7 +185,7 @@ def search_calibration_patterns(
     entry_type: str = None,
     min_calibration_score: float = None,
     limit: int = 5,
-) -> List[Dict]:
+) -> list[dict]:
     """
     Search calibration data for patterns.
 
@@ -218,7 +221,7 @@ def search_calibration_patterns(
         if vector is None:
             return []
 
-        from qdrant_client.models import Filter, FieldCondition, MatchValue, Range
+        from qdrant_client.models import FieldCondition, Filter, MatchValue, Range
 
         conditions = []
         if ai_id:

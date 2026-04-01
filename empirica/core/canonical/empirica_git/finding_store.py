@@ -11,12 +11,12 @@ Key Features:
 - Merge strategy: 'union' (multiple AIs add findings = keep all)
 """
 
-import os
-import subprocess
 import json
 import logging
-from typing import Dict, Any, Optional, List
+import os
+import subprocess
 from datetime import datetime, timezone
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ class GitFindingStore:
         goal_id: Optional[str] = None,
         subtask_id: Optional[str] = None,
         subject: Optional[str] = None,
-        finding_data: Optional[Dict[str, Any]] = None
+        finding_data: Optional[dict[str, Any]] = None
     ) -> bool:
         """
         Store finding in git notes
@@ -164,7 +164,7 @@ class GitFindingStore:
             logger.warning(f"Failed to store finding in git: {e}")
             return False
 
-    def load_finding(self, finding_id: str) -> Optional[Dict[str, Any]]:
+    def load_finding(self, finding_id: str) -> Optional[dict[str, Any]]:
         """
         Load finding from git notes
 
@@ -223,7 +223,7 @@ class GitFindingStore:
         session_id: Optional[str] = None,
         ai_id: Optional[str] = None,
         min_impact: Optional[float] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Discover findings from git notes
 

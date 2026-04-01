@@ -5,10 +5,11 @@ Loads .empirica/project.yaml configuration including subject definitions
 and path mappings for context filtering.
 """
 
-import yaml
-from pathlib import Path
-from typing import Dict, List, Optional, Any
 import logging
+from pathlib import Path
+from typing import Any, Optional
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class ProjectConfig:
 
     VALID_STATUSES = ['active', 'dormant', 'archived']
 
-    def __init__(self, config_data: Dict[str, Any]) -> None:
+    def __init__(self, config_data: dict[str, Any]) -> None:
         """Initialize project config from configuration dictionary."""
         # Schema version
         self.version = config_data.get('version', '1.0')
@@ -74,16 +75,16 @@ class ProjectConfig:
         self.domain_config = config_data.get('domain_config', {})
 
     @staticmethod
-    def _validated(value: str, valid_set: List[str], default: str, field_name: str) -> str:
+    def _validated(value: str, valid_set: list[str], default: str, field_name: str) -> str:
         """Validate value against known set, warn and default if invalid."""
         if value in valid_set:
             return value
         logger.warning(f"Unknown {field_name} '{value}', defaulting to '{default}'")
         return default
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize config back to dict for yaml round-tripping."""
-        d: Dict[str, Any] = {
+        d: dict[str, Any] = {
             'version': self.version,
             'name': self.name,
             'description': self.description,
@@ -132,15 +133,15 @@ class ProjectConfig:
         """
         if not self.auto_detect.get('enabled', True):
             return None
-        
+
         current_path = Path(current_path).resolve()
-        
+
         # Try to match current path to subject paths
         for subject_id, subject_config in self.subjects.items():
             for path_pattern in subject_config.get('paths', []):
                 # Convert to absolute path
                 subject_path = Path(path_pattern).resolve()
-                
+
                 # Check if current path is within subject path
                 try:
                     current_path.relative_to(subject_path)
@@ -149,15 +150,15 @@ class ProjectConfig:
                 except ValueError:
                     # Not a subpath, continue
                     continue
-        
+
         logger.debug(f"No subject auto-detected for path: {current_path}")
         return None
-    
-    def get_subject_info(self, subject_id: str) -> Optional[Dict[str, Any]]:
+
+    def get_subject_info(self, subject_id: str) -> Optional[dict[str, Any]]:
         """Get subject configuration"""
         return self.subjects.get(subject_id)
-    
-    def list_subjects(self) -> List[str]:
+
+    def list_subjects(self) -> list[str]:
         """List all subject IDs"""
         return list(self.subjects.keys())
 
@@ -186,7 +187,7 @@ def load_project_config(project_root: Optional[Path] = None) -> Optional[Project
         return None
 
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             config_data = yaml.safe_load(f)
 
         # Override project_id with authoritative value from sessions.db
@@ -207,7 +208,7 @@ def load_project_config(project_root: Optional[Path] = None) -> Optional[Project
         return None
 
 
-def get_current_subject(project_config: Optional[ProjectConfig] = None, 
+def get_current_subject(project_config: Optional[ProjectConfig] = None,
                        current_path: Optional[Path] = None) -> Optional[str]:
     """
     Get current subject based on working directory.
@@ -221,11 +222,11 @@ def get_current_subject(project_config: Optional[ProjectConfig] = None,
     """
     if project_config is None:
         project_config = load_project_config()
-    
+
     if project_config is None:
         return None
-    
+
     if current_path is None:
         current_path = Path.cwd()
-    
+
     return project_config.get_subject_for_path(str(current_path))

@@ -17,14 +17,15 @@ Usage:
         return jsonify({"ok": True})
 """
 
-import os
 import hmac
-import secrets
 import logging
+import os
+import secrets
+from collections.abc import Callable
 from functools import wraps
-from typing import Optional, Callable
+from typing import Optional
 
-from flask import request, jsonify, g
+from flask import g, jsonify, request
 
 logger = logging.getLogger(__name__)
 

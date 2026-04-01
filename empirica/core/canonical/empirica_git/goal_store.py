@@ -11,12 +11,12 @@ Key Features:
 - Track goal lineage (which AI worked on what)
 """
 
-import os
-import subprocess
 import json
 import logging
-from typing import Dict, Any, Optional, List
+import os
+import subprocess
 from datetime import datetime, timezone
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +50,12 @@ class GitGoalStore:
             ]
         }
     """
-    
+
     def __init__(self, workspace_root: Optional[str] = None):
         """Initialize git goal store"""
         self.workspace_root = workspace_root or os.getcwd()
         self._git_available = self._check_git_repo()
-        
+
     def _check_git_repo(self) -> bool:
         """Check if we're in a git repository"""
         try:
@@ -85,15 +85,15 @@ class GitGoalStore:
             return result.returncode == 0
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
-    
+
     def store_goal(
         self,
         goal_id: str,
         session_id: str,
         ai_id: str,
-        goal_data: Dict[str, Any],
-        epistemic_state: Optional[Dict[str, float]] = None,
-        lineage: Optional[List[Dict[str, str]]] = None
+        goal_data: dict[str, Any],
+        epistemic_state: Optional[dict[str, float]] = None,
+        lineage: Optional[list[dict[str, str]]] = None
     ) -> bool:
         """
         Store goal in git notes
@@ -134,10 +134,10 @@ class GitGoalStore:
                     }
                 ]
             }
-            
+
             # Serialize
             payload_json = json.dumps(payload, indent=2)
-            
+
             # Get current commit
             result = subprocess.run(
                 ['git', 'rev-parse', 'HEAD'],
@@ -147,7 +147,7 @@ class GitGoalStore:
                 check=True
             )
             commit_hash = result.stdout.strip()
-            
+
             # Store in git notes (refs/notes/empirica/goals/<goal-id>)
             note_ref = f'empirica/goals/{goal_id}'
             subprocess.run(
@@ -157,15 +157,15 @@ class GitGoalStore:
                 text=True,
                 check=True
             )
-            
+
             logger.info(f"✓ Stored goal {goal_id[:8]} in git notes (ai={ai_id})")
             return True
-            
+
         except Exception as e:
             logger.warning(f"Failed to store goal in git: {e}")
             return False
-    
-    def load_goal(self, goal_id: str) -> Optional[Dict[str, Any]]:
+
+    def load_goal(self, goal_id: str) -> Optional[dict[str, Any]]:
         """
         Load goal from git notes
 
@@ -218,12 +218,12 @@ class GitGoalStore:
         except Exception as e:
             logger.warning(f"Failed to load goal from git: {e}")
             return None
-    
+
     def discover_goals(
         self,
         from_ai_id: Optional[str] = None,
         session_id: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Discover goals from other AIs
         
@@ -236,7 +236,7 @@ class GitGoalStore:
         """
         if not self._git_available:
             return []
-        
+
         try:
             # List all goal note refs using for-each-ref
             # This properly handles custom refs like refs/notes/empirica/goals/*
@@ -246,47 +246,47 @@ class GitGoalStore:
                 capture_output=True,
                 text=True
             )
-            
+
             if result.returncode != 0:
                 return []
-            
+
             goals = []
-            
+
             # Parse for-each-ref output
             # Format: <commit-hash> commit\trefs/notes/empirica/goals/<goal-id>
             for line in result.stdout.strip().split('\n'):
                 if not line:
                     continue
-                
+
                 parts = line.split('\t')
                 if len(parts) < 2:
                     continue
-                
+
                 ref = parts[1]  # refs/notes/empirica/goals/<goal-id>
                 if not ref.startswith('refs/notes/empirica/goals/'):
                     continue
-                
+
                 # Extract goal ID from ref path
                 goal_id = ref.split('/')[-1]
                 goal_data = self.load_goal(goal_id)
-                
+
                 if not goal_data:
                     continue
-                
+
                 # Apply filters
                 if from_ai_id and goal_data.get('ai_id') != from_ai_id:
                     continue
                 if session_id and goal_data.get('session_id') != session_id:
                     continue
-                
+
                 goals.append(goal_data)
-            
+
             return goals
-            
+
         except Exception as e:
             logger.warning(f"Failed to discover goals: {e}")
             return []
-    
+
     def add_lineage(
         self,
         goal_id: str,
@@ -307,14 +307,14 @@ class GitGoalStore:
         goal_data = self.load_goal(goal_id)
         if not goal_data:
             return False
-        
+
         # Add lineage entry
         goal_data['lineage'].append({
             'ai_id': ai_id,
             'timestamp': datetime.now(timezone.utc).isoformat(),
             'action': action
         })
-        
+
         # Re-store with updated lineage
         return self.store_goal(
             goal_id=goal_id,

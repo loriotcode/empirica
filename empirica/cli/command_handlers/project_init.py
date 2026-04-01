@@ -21,7 +21,6 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +28,9 @@ logger = logging.getLogger(__name__)
 def handle_project_init_command(args):
     """Handle project-init command - initialize Empirica in a new repo"""
     try:
-        from empirica.config.path_resolver import get_git_root, ensure_empirica_structure, create_default_config
+        from empirica.config.path_resolver import create_default_config, ensure_empirica_structure, get_git_root
         from empirica.data.session_database import SessionDatabase
-        
+
         # Auto-detect non-interactive: explicit flag OR no TTY OR JSON output
         explicit_non_interactive = getattr(args, 'non_interactive', False)
         has_tty = sys.stdin.isatty() if hasattr(sys.stdin, 'isatty') else False
@@ -60,7 +59,7 @@ def handle_project_init_command(args):
                 else:
                     print("Error: Not in a git repository. Run 'git init' first.")
                 return None
-        
+
         # Check if already initialized
         config_path = git_root / '.empirica' / 'config.yaml'
         if config_path.exists() and not getattr(args, 'force', False):
@@ -75,17 +74,17 @@ def handle_project_init_command(args):
                 print(f"   Config found: {config_path}")
                 print("\nTip: Use --force to reinitialize")
             return None
-        
+
         if output_format != 'json':
             print("🚀 Initializing Empirica in this repository...")
             print(f"   Git root: {git_root}\n")
-        
+
         # Create directory structure
         ensure_empirica_structure()
-        
+
         # Create config.yaml
         create_default_config()
-        
+
         # Interactive setup (only if not in JSON mode)
         project_name = None
         project_description = None
@@ -141,10 +140,10 @@ def handle_project_init_command(args):
             classification = getattr(args, 'classification', None) or 'internal'
             languages = getattr(args, 'languages', None) or []
             tags = getattr(args, 'tags', None) or []
-        
+
         # Create project.yaml with BEADS config
         project_config_path = git_root / '.empirica' / 'project.yaml'
-        
+
         # Get git remote URL for repos field
         import subprocess
         try:
@@ -157,7 +156,7 @@ def handle_project_init_command(args):
             git_url = result.stdout.strip() if result.returncode == 0 else None
         except Exception:
             git_url = None
-        
+
         # Auto-detect languages from build files if not specified
         if not languages:
             languages = _auto_detect_languages(git_root)
@@ -195,11 +194,11 @@ def handle_project_init_command(args):
             'domain_config': {},
             'calibration_weights': _seed_calibration_weights(project_type),
         })
-        
+
         import yaml
         with open(project_config_path, 'w') as f:
             yaml.dump(project_config, f, default_flow_style=False, sort_keys=False)
-        
+
         # Create or reuse project in database (idempotent)
         # For new projects, we must pass explicit path since get_session_db_path()
         # requires an existing db or context to resolve
@@ -219,7 +218,7 @@ def handle_project_init_command(args):
         # First, check if project.yaml already has a project_id (from previous init)
         if not project_id and project_config_path.exists():
             try:
-                with open(project_config_path, 'r') as f:
+                with open(project_config_path) as f:
                     existing_config = yaml.safe_load(f) or {}
                 existing_id = existing_config.get('project_id')
                 if existing_id:
@@ -261,10 +260,11 @@ def handle_project_init_command(args):
 
         # Register project in global workspace.db for cross-project visibility
         try:
-            from .workspace_init import _register_in_workspace_db
             # Store trajectory_path with .empirica suffix for consistency with existing projects
             # project-switch expects this format: /home/user/project/.empirica
             import json as _json_ws
+
+            from .workspace_init import _register_in_workspace_db
             ws_metadata = _json_ws.dumps({
                 'domain': project_config.get('domain', ''),
                 'classification': project_config.get('classification', 'internal'),
@@ -298,9 +298,9 @@ def handle_project_init_command(args):
         if create_semantic_index:
             docs_dir = git_root / 'docs'
             docs_dir.mkdir(exist_ok=True)
-            
+
             semantic_index_path = docs_dir / 'SEMANTIC_INDEX.yaml'
-            
+
             template = {
                 'version': '2.0',
                 'project': project_name,
@@ -321,10 +321,10 @@ def handle_project_init_command(args):
                     'api': 0
                 }
             }
-            
+
             with open(semantic_index_path, 'w') as f:
                 yaml.dump(template, f, default_flow_style=False, sort_keys=False)
-        
+
         # Format output
         if output_format == 'json':
             result = {
@@ -349,12 +349,12 @@ def handle_project_init_command(args):
             print(f"   • {project_config_path.relative_to(git_root)}")
             if semantic_index_path:
                 print(f"   • {semantic_index_path.relative_to(git_root)}")
-            
+
             print(f"\n🆔 Project ID: {project_id}")
             print(f"📦 Project Name: {project_name}")
             if enable_beads:
                 print(f"🔗 BEADS: Enabled by default")
-            
+
             print("\n📋 Next steps:")
             if enable_beads:
                 print("   1. Initialize BEADS issue tracking:")
@@ -368,7 +368,7 @@ def handle_project_init_command(args):
                 print(f"      empirica session-create --ai-id myai")
                 print("   2. Start working with epistemic tracking:")
                 print(f"      empirica preflight-submit <assessment.json>")
-            
+
             if create_semantic_index:
                 print(f"\n📖 Semantic index template created!")
                 print(f"   Edit docs/SEMANTIC_INDEX.yaml to add your documentation metadata")

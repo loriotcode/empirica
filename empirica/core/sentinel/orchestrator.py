@@ -25,10 +25,11 @@ Usage:
 
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable
+from datetime import UTC, datetime
 from enum import Enum
-from datetime import datetime, UTC
+from typing import Any, Optional
 
 from .decision_logic import DecisionLogic, PersonaMatch
 
@@ -88,14 +89,14 @@ class NoeticFilter:
     """
     filter_id: str
     name: str
-    blocked_patterns: List[str] = field(default_factory=list)  # Regex patterns to block
-    blocked_domains: List[str] = field(default_factory=list)   # Domain areas to block
+    blocked_patterns: list[str] = field(default_factory=list)  # Regex patterns to block
+    blocked_domains: list[str] = field(default_factory=list)   # Domain areas to block
     allow_with_justification: bool = False  # If True, can proceed with explicit justification
     action_on_match: GateAction = GateAction.INVESTIGATE
     log_matches: bool = True
     description: Optional[str] = None
 
-    def evaluate(self, investigation_context: Dict[str, Any]) -> Optional[Dict]:
+    def evaluate(self, investigation_context: dict[str, Any]) -> Optional[dict]:
         """
         Evaluate if investigation should be filtered.
 
@@ -150,14 +151,14 @@ class AxiologicGate:
     """
     gate_id: str
     name: str
-    action_patterns: List[str] = field(default_factory=list)   # Action patterns to gate
-    value_constraints: Dict[str, Any] = field(default_factory=dict)  # Value thresholds
-    required_vectors: Dict[str, float] = field(default_factory=dict)  # Min vectors required
+    action_patterns: list[str] = field(default_factory=list)   # Action patterns to gate
+    value_constraints: dict[str, Any] = field(default_factory=dict)  # Value thresholds
+    required_vectors: dict[str, float] = field(default_factory=dict)  # Min vectors required
     action_on_violation: GateAction = GateAction.REQUIRE_HUMAN
     audit_required: bool = True
     description: Optional[str] = None
 
-    def evaluate(self, action_context: Dict[str, Any]) -> Optional[Dict]:
+    def evaluate(self, action_context: dict[str, Any]) -> Optional[dict]:
         """
         Evaluate if action should be gated.
 
@@ -212,7 +213,7 @@ class ComplianceGate:
     description: Optional[str] = None
     priority: str = "medium"  # low, medium, high, critical
 
-    def evaluate(self, context: Dict[str, Any]) -> bool:
+    def evaluate(self, context: dict[str, Any]) -> bool:
         """
         Evaluate if gate condition is met.
 
@@ -236,9 +237,7 @@ class ComplianceGate:
                 vectors = context.get("vectors", {})
                 value = vectors.get(vector_name, 0.5)
 
-                if operator == ">" and value > threshold:
-                    return True
-                elif operator == "<" and value < threshold:
+                if operator == ">" and value > threshold or operator == "<" and value < threshold:
                     return True
 
         # Flag-based conditions
@@ -269,22 +268,22 @@ class DomainProfile:
     signal_quality_min: float = 0.6
 
     # Compliance gates
-    gates: List[ComplianceGate] = field(default_factory=list)
+    gates: list[ComplianceGate] = field(default_factory=list)
 
     # Persona restrictions
-    allowed_personas: List[str] = field(default_factory=list)
-    required_personas: List[str] = field(default_factory=list)
+    allowed_personas: list[str] = field(default_factory=list)
+    required_personas: list[str] = field(default_factory=list)
 
     # Tool restrictions
-    restricted_tools: List[str] = field(default_factory=list)
-    allowed_tools: List[str] = field(default_factory=list)
+    restricted_tools: list[str] = field(default_factory=list)
+    allowed_tools: list[str] = field(default_factory=list)
 
     # Audit requirements
     audit_all_actions: bool = False
     audit_retention_days: int = 90
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'DomainProfile':
+    def from_dict(cls, data: dict[str, Any]) -> 'DomainProfile':
         """Load from dictionary"""
         gates = [
             ComplianceGate(
@@ -319,17 +318,17 @@ class OrchestrationResult:
     """Result of orchestrating a task"""
     ok: bool
     task: str
-    personas_selected: List[PersonaMatch]
-    agents_spawned: List[str]  # branch_ids
-    aggregated_findings: List[str] = field(default_factory=list)
-    aggregated_unknowns: List[str] = field(default_factory=list)
+    personas_selected: list[PersonaMatch]
+    agents_spawned: list[str]  # branch_ids
+    aggregated_findings: list[str] = field(default_factory=list)
+    aggregated_unknowns: list[str] = field(default_factory=list)
     merge_strategy: MergeStrategy = MergeStrategy.UNION
-    merged_vectors: Dict[str, float] = field(default_factory=dict)
-    compliance_check: Optional[Dict[str, Any]] = None
+    merged_vectors: dict[str, float] = field(default_factory=dict)
+    compliance_check: Optional[dict[str, Any]] = None
     error: Optional[str] = None
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert multi-persona result to dictionary representation."""
         return {
             "ok": self.ok,
@@ -350,15 +349,15 @@ class OrchestrationResult:
 class LoopRecord:
     """Record of a single epistemic loop (PREFLIGHT → POSTFLIGHT)"""
     loop_number: int
-    preflight_vectors: Dict[str, float]
-    postflight_vectors: Dict[str, float]
-    delta: Dict[str, float]
+    preflight_vectors: dict[str, float]
+    postflight_vectors: dict[str, float]
+    delta: dict[str, float]
     findings_count: int = 0
     unknowns_count: int = 0
     check_decision: str = "proceed"
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert loop record to dictionary representation."""
         return {
             "loop": self.loop_number,
@@ -407,9 +406,9 @@ class EpistemicLoopTracker:
 
     # State
     current_loop: int = 0
-    loop_history: List[LoopRecord] = field(default_factory=list)
-    cumulative_delta: Dict[str, float] = field(default_factory=dict)
-    _current_preflight: Optional[Dict[str, float]] = field(default=None, repr=False)
+    loop_history: list[LoopRecord] = field(default_factory=list)
+    cumulative_delta: dict[str, float] = field(default_factory=dict)
+    _current_preflight: Optional[dict[str, float]] = field(default=None, repr=False)
 
     def __post_init__(self):
         """Derive max_loops from scope if not specified"""
@@ -420,7 +419,7 @@ class EpistemicLoopTracker:
             scope_factor = (self.scope_breadth + self.scope_duration) / 2
             self.max_loops = max(2, min(10, int(scope_factor * 8) + 1))
 
-    def start_loop(self, preflight_vectors: Dict[str, float]) -> int:
+    def start_loop(self, preflight_vectors: dict[str, float]) -> int:
         """
         Start a new epistemic loop.
 
@@ -438,7 +437,7 @@ class EpistemicLoopTracker:
 
     def complete_loop(
         self,
-        postflight_vectors: Dict[str, float],
+        postflight_vectors: dict[str, float],
         findings_count: int = 0,
         unknowns_count: int = 0,
         check_decision: str = "proceed"
@@ -545,7 +544,7 @@ class EpistemicLoopTracker:
 
         return True
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get loop tracking summary"""
         return {
             "current_loop": self.current_loop,
@@ -712,7 +711,7 @@ class Sentinel:
 
         return self.loop_tracker
 
-    def start_loop(self, preflight_vectors: Dict[str, float]) -> int:
+    def start_loop(self, preflight_vectors: dict[str, float]) -> int:
         """Start an epistemic loop (call at PREFLIGHT)"""
         if not self.loop_tracker:
             self.init_loop_tracking()
@@ -720,10 +719,10 @@ class Sentinel:
 
     def complete_loop(
         self,
-        postflight_vectors: Dict[str, float],
+        postflight_vectors: dict[str, float],
         findings_count: int = 0,
         unknowns_count: int = 0
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Complete an epistemic loop (call at POSTFLIGHT).
 
@@ -745,7 +744,7 @@ class Sentinel:
             "converged": self.loop_tracker._is_converged()
         }
 
-    def get_loop_summary(self) -> Optional[Dict[str, Any]]:
+    def get_loop_summary(self) -> Optional[dict[str, Any]]:
         """Get current loop tracking summary"""
         if not self.loop_tracker:
             return None
@@ -754,7 +753,7 @@ class Sentinel:
     def load_domain_profile(
         self,
         profile_name: str,
-        custom_profile: Optional[Dict[str, Any]] = None
+        custom_profile: Optional[dict[str, Any]] = None
     ) -> DomainProfile:
         """
         Load a domain profile for compliance configuration.
@@ -785,7 +784,7 @@ class Sentinel:
         self,
         task: str,
         max_personas: int = 3
-    ) -> List[PersonaMatch]:
+    ) -> list[PersonaMatch]:
         """
         Select personas for a task using DecisionLogic.
 
@@ -923,11 +922,11 @@ class Sentinel:
 
     def check_compliance(
         self,
-        vectors: Dict[str, float],
-        findings: List[str],
-        unknowns: List[str],
-        flags: Optional[Dict[str, bool]] = None
-    ) -> Dict[str, Any]:
+        vectors: dict[str, float],
+        findings: list[str],
+        unknowns: list[str],
+        flags: Optional[dict[str, bool]] = None
+    ) -> dict[str, Any]:
         """
         Run compliance gates and return CHECK decision.
 
@@ -1017,8 +1016,8 @@ class Sentinel:
     def _build_rationale(
         self,
         decision: str,
-        triggered_gates: List[str],
-        vectors: Dict[str, float]
+        triggered_gates: list[str],
+        vectors: dict[str, float]
     ) -> str:
         """Build human-readable rationale for decision"""
         if triggered_gates:
@@ -1036,7 +1035,7 @@ class Sentinel:
         """Register function to aggregate agent results"""
         self._aggregate_fn = fn
 
-    def get_domain_stats(self) -> Dict[str, Any]:
+    def get_domain_stats(self) -> dict[str, Any]:
         """Get statistics about current domain configuration"""
         if not self.domain_profile:
             return {"profile": None}
@@ -1070,7 +1069,7 @@ class Sentinel:
             result = spawn_epistemic_agent(config)
             return result.get("branch_id", "")
 
-        def aggregate_fn(session_id: str, strategy: str = "union") -> Dict[str, Any]:
+        def aggregate_fn(session_id: str, strategy: str = "union") -> dict[str, Any]:
             """Aggregate agent results"""
             from empirica.core.agents.epistemic_agent import aggregate_branches
             return aggregate_branches(session_id, strategy=strategy)

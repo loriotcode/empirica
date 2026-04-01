@@ -1,9 +1,9 @@
 """Cascade repository for CASCADE workflow operations"""
-import sqlite3
 import json
 import uuid
-from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
+from typing import Any, Optional
+
 from .base import BaseRepository
 
 
@@ -14,9 +14,9 @@ class CascadeRepository(BaseRepository):
         self,
         session_id: str,
         task: str,
-        context: Dict[str, Any],
+        context: dict[str, Any],
         goal_id: Optional[str] = None,
-        goal: Optional[Dict[str, Any]] = None
+        goal: Optional[dict[str, Any]] = None
     ) -> str:
         """
         Create cascade record, return cascade_id
@@ -108,7 +108,7 @@ class CascadeRepository(BaseRepository):
             drift_monitored, cascade_id
         ))
 
-    def get_cascade(self, cascade_id: str) -> Optional[Dict]:
+    def get_cascade(self, cascade_id: str) -> Optional[dict]:
         """Get cascade by ID"""
         cursor = self._execute(
             "SELECT * FROM cascades WHERE cascade_id = ?",
@@ -117,7 +117,7 @@ class CascadeRepository(BaseRepository):
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def store_epistemic_delta(self, cascade_id: str, delta: Dict[str, float]):
+    def store_epistemic_delta(self, cascade_id: str, delta: dict[str, float]):
         """
         Store epistemic delta (PREFLIGHT vs POSTFLIGHT) for calibration tracking
 

@@ -20,9 +20,7 @@ Performance target: < 2 seconds (runs on every prompt).
 
 import json
 import sys
-import os
 from pathlib import Path
-
 
 # ============================================================================
 # Agent domain registry — keyword → agent mapping
@@ -162,7 +160,7 @@ def load_aap_config() -> dict:
         import yaml as _yaml
         protocol_path = Path.home() / '.empirica' / 'workflow-protocol.yaml'
         if protocol_path.exists():
-            with open(protocol_path, 'r') as f:
+            with open(protocol_path) as f:
                 protocol = _yaml.safe_load(f)
             return protocol.get('anti_agreement_protocol', {})
     except Exception:
@@ -193,7 +191,7 @@ def get_active_session_vectors():
         _lib_path = Path(__file__).parent.parent / 'lib'
         if str(_lib_path) not in sys.path:
             sys.path.insert(0, str(_lib_path))
-        from project_resolver import get_instance_id, _get_instance_suffix
+        from project_resolver import _get_instance_suffix, get_instance_id
         instance_id = get_instance_id()
         suffix = _get_instance_suffix()
 

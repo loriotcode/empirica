@@ -13,17 +13,13 @@ Design:
 - No heuristics, no confabulation - genuine LLM reasoning only
 """
 
-from dataclasses import dataclass, field, asdict
-from typing import Dict, Any, Optional, List
+from dataclasses import asdict, dataclass
 from enum import Enum
-from datetime import datetime, UTC
-import json
+from typing import Any, Optional
 
 # Import centralized thresholds
-from ..thresholds import ENGAGEMENT_THRESHOLD, CRITICAL_THRESHOLDS
 
 # Import NEW schema (this is now THE schema)
-from empirica.core.schemas.epistemic_assessment import EpistemicAssessmentSchema
 
 
 class Action(Enum):
@@ -60,7 +56,7 @@ class VectorState:
         if not 0.0 <= self.score <= 1.0:
             raise ValueError(f"Vector score must be 0.0-1.0, got {self.score}")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert vector state to dictionary representation."""
         return asdict(self)
 

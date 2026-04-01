@@ -13,9 +13,8 @@ Phase 3 Component: Makes handoffs coherent through mutual understanding
 """
 
 import logging
-from typing import Dict, List, Optional
 
-from .validation_utils import estimate_rehydration_boost, calculate_understanding_ratio
+from .validation_utils import calculate_understanding_ratio, estimate_rehydration_boost
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +35,9 @@ class EpistemicRehydration:
 
     def rehydrate_from_checkpoint(
         self,
-        checkpoint_data: Dict[str, any],
-        my_knowledge_assessment: Dict[str, float]
-    ) -> Dict[str, any]:
+        checkpoint_data: dict[str, any],
+        my_knowledge_assessment: dict[str, float]
+    ) -> dict[str, any]:
         """
         I'm resuming from a checkpoint. What should I understand before starting?
 
@@ -106,12 +105,12 @@ class EpistemicRehydration:
 
     def _identify_rehydration_warnings(
         self,
-        findings: List[Dict],
-        unknowns: List[Dict],
-        deadends: List[Dict],
+        findings: list[dict],
+        unknowns: list[dict],
+        deadends: list[dict],
         understanding_ratio: float,
-        my_knowledge: Dict[str, float]
-    ) -> List[str]:
+        my_knowledge: dict[str, float]
+    ) -> list[str]:
         """
         Identify potential issues during rehydration.
 
@@ -171,7 +170,7 @@ class EpistemicRehydration:
         self,
         understanding_ratio: float,
         confidence_boost: float,
-        warnings: List[str],
+        warnings: list[str],
         ready: bool
     ) -> str:
         """Format human-readable rehydration message"""
@@ -193,9 +192,9 @@ class EpistemicRehydration:
 
     def calculate_adjusted_preflight(
         self,
-        checkpoint_data: Dict[str, any],
-        my_base_assessment: Dict[str, float]
-    ) -> Dict[str, float]:
+        checkpoint_data: dict[str, any],
+        my_base_assessment: dict[str, float]
+    ) -> dict[str, float]:
         """
         Calculate adjusted PREFLIGHT vectors based on rehydration.
 

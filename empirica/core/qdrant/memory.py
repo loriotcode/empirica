@@ -2,15 +2,24 @@
 Core memory operations: embed, upsert, and search for memory items and docs.
 """
 from __future__ import annotations
-from typing import Dict, List
 
-from empirica.core.qdrant.connection import (
-    _check_qdrant_available, _get_qdrant_imports, _get_qdrant_client,
-    _get_embedding_safe, _get_embeddings_batch, _get_vector_size, _rest_search, logger,
-)
 from empirica.core.qdrant.collections import (
-    _docs_collection, _memory_collection, _eidetic_collection, _episodic_collection,
+    _docs_collection,
+    _eidetic_collection,
+    _episodic_collection,
+    _memory_collection,
 )
+from empirica.core.qdrant.connection import (
+    _check_qdrant_available,
+    _get_embedding_safe,
+    _get_embeddings_batch,
+    _get_qdrant_client,
+    _get_qdrant_imports,
+    _get_vector_size,
+    _rest_search,
+    logger,
+)
+
 
 def embed_single_memory_item(
     project_id: str,
@@ -81,7 +90,7 @@ def embed_single_memory_item(
         return False
 
 
-def upsert_docs(project_id: str, docs: List[Dict]) -> int:
+def upsert_docs(project_id: str, docs: list[dict]) -> int:
     """
     Upsert documentation embeddings.
     docs: List of {id, text, metadata:{doc_path, tags, concepts, questions, use_cases}}
@@ -125,7 +134,7 @@ def upsert_docs(project_id: str, docs: List[Dict]) -> int:
         return 0
 
 
-def upsert_memory(project_id: str, items: List[Dict]) -> int:
+def upsert_memory(project_id: str, items: list[dict]) -> int:
     """
     Upsert memory embeddings (findings, unknowns, mistakes, dead_ends).
     items: List of {id, text, type, goal_id, subtask_id, session_id, timestamp, ...}
@@ -198,7 +207,7 @@ def upsert_memory(project_id: str, items: List[Dict]) -> int:
         return 0
 
 
-def search(project_id: str, query_text: str, kind: str = "focused", limit: int = 5) -> Dict[str, List[Dict]]:
+def search(project_id: str, query_text: str, kind: str = "focused", limit: int = 5) -> dict[str, list[dict]]:
     """
     Semantic search over project knowledge.
 
@@ -227,7 +236,7 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
     if qvec is None:
         return empty_result
 
-    results: Dict[str, List[Dict]] = {}
+    results: dict[str, list[dict]] = {}
     client = _get_qdrant_client()
     if client is None:
         return empty_result

@@ -31,11 +31,10 @@ import json
 import logging
 import subprocess
 import time
-import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -55,18 +54,18 @@ class EvidenceItem:
     value: float
     raw_value: Any
     quality: EvidenceQuality
-    supports_vectors: List[str]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    supports_vectors: list[str]
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class EvidenceBundle:
     """Complete evidence collection for a session."""
     session_id: str
-    items: List[EvidenceItem] = field(default_factory=list)
+    items: list[EvidenceItem] = field(default_factory=list)
     collection_timestamp: float = 0.0
-    sources_available: List[str] = field(default_factory=list)
-    sources_failed: List[str] = field(default_factory=list)
+    sources_available: list[str] = field(default_factory=list)
+    sources_failed: list[str] = field(default_factory=list)
     coverage: float = 0.0
 
 
@@ -153,9 +152,9 @@ class PostTestCollector:
         self.work_context = work_context  # greenfield|iteration|investigation|refactor
         self._db = db
         self._owns_db = False
-        self._session_goal_ids: Optional[List[str]] = None
+        self._session_goal_ids: Optional[list[str]] = None
         self._project_root: Optional[str] = None  # Lazy-resolved
-        self._project_maturity: Optional[Dict[str, Any]] = None  # Lazy-resolved
+        self._project_maturity: Optional[dict[str, Any]] = None  # Lazy-resolved
 
     def _get_db(self):
         if self._db is None:
@@ -184,7 +183,7 @@ class PostTestCollector:
             return (f"AND {prefix}created_timestamp >= ?", (self.preflight_timestamp,))
         return ("", ())
 
-    def _get_session_goal_ids(self) -> List[str]:
+    def _get_session_goal_ids(self) -> list[str]:
         """Get goal IDs for this session (cached)."""
         if self._session_goal_ids is not None:
             return self._session_goal_ids
@@ -269,7 +268,7 @@ class PostTestCollector:
 
         return None
 
-    def _detect_project_maturity(self) -> Dict[str, Any]:
+    def _detect_project_maturity(self) -> dict[str, Any]:
         """Detect project maturity from git history for normalization curve selection.
 
         Returns cached dict with:
@@ -324,7 +323,7 @@ class PostTestCollector:
         self._project_maturity = result
         return result
 
-    def _get_prose_collectors(self) -> List[tuple]:
+    def _get_prose_collectors(self) -> list[tuple]:
         """Get prose-specific evidence collectors."""
         from .prose_collector import ProseEvidenceCollector
         prose = ProseEvidenceCollector(
@@ -341,7 +340,7 @@ class PostTestCollector:
             ("action_verification", prose._collect_action_verification),
         ]
 
-    def _get_web_collectors(self) -> List[tuple]:
+    def _get_web_collectors(self) -> list[tuple]:
         """Get web-specific evidence collectors."""
         from .web_collector import WebEvidenceCollector
         web = WebEvidenceCollector(
@@ -436,7 +435,7 @@ class PostTestCollector:
         self._close_db()
         return bundle
 
-    def _collect_noetic_metrics(self) -> List[EvidenceItem]:
+    def _collect_noetic_metrics(self) -> list[EvidenceItem]:
         """Collect investigation-phase evidence for noetic calibration.
 
         Noetic evidence measures epistemic process quality:
@@ -561,7 +560,7 @@ class PostTestCollector:
 
         return items
 
-    def _collect_goal_metrics(self) -> List[EvidenceItem]:
+    def _collect_goal_metrics(self) -> list[EvidenceItem]:
         """Collect goal/subtask completion ratios from SQLite."""
         items = []
         db = self._get_db()
@@ -661,7 +660,7 @@ class PostTestCollector:
 
         return items
 
-    def _collect_artifact_metrics(self) -> List[EvidenceItem]:
+    def _collect_artifact_metrics(self) -> list[EvidenceItem]:
         """Collect scope-weighted noetic artifact counts for this transaction.
 
         Artifacts linked to session goals count at full weight.
@@ -862,7 +861,7 @@ class PostTestCollector:
 
         return items
 
-    def _collect_issue_metrics(self) -> List[EvidenceItem]:
+    def _collect_issue_metrics(self) -> list[EvidenceItem]:
         """Collect auto-captured issues for this session.
 
         Maturity-aware: greenfield projects with zero issues produce no evidence
@@ -934,7 +933,7 @@ class PostTestCollector:
 
         return items
 
-    def _collect_triage_metrics(self) -> List[EvidenceItem]:
+    def _collect_triage_metrics(self) -> list[EvidenceItem]:
         """Collect evidence from epistemic triage work during this session.
 
         Triage is praxic work that doesn't produce code artifacts:
@@ -1061,7 +1060,7 @@ class PostTestCollector:
 
         return items
 
-    def _collect_codebase_model_metrics(self) -> List[EvidenceItem]:
+    def _collect_codebase_model_metrics(self) -> list[EvidenceItem]:
         """Collect codebase entity graph metrics for grounded calibration.
 
         Measures structural understanding of the codebase via entity extraction:
@@ -1152,7 +1151,7 @@ class PostTestCollector:
 
         return items
 
-    def _collect_non_git_file_metrics(self) -> List[EvidenceItem]:
+    def _collect_non_git_file_metrics(self) -> list[EvidenceItem]:
         """Collect evidence of file changes outside the git repository.
 
         When work happens in directories that aren't git-tracked (e.g.
@@ -1253,7 +1252,7 @@ class PostTestCollector:
 
         return items
 
-    def _get_transaction_edited_files(self) -> List[str]:
+    def _get_transaction_edited_files(self) -> list[str]:
         """Read edited_files list from the hook counters JSON.
 
         The Sentinel's _try_increment_tool_count appends file_path for
@@ -1276,7 +1275,7 @@ class PostTestCollector:
             counters_path = empirica_dir / f'hook_counters{suffix}.json'
             if counters_path.exists():
                 try:
-                    with open(counters_path, 'r') as f:
+                    with open(counters_path) as f:
                         return json.load(f).get('edited_files', [])
                 except Exception:
                     pass
@@ -1284,7 +1283,7 @@ class PostTestCollector:
             tx_path = empirica_dir / f'active_transaction{suffix}.json'
             if tx_path.exists():
                 try:
-                    with open(tx_path, 'r') as f:
+                    with open(tx_path) as f:
                         tx = json.load(f)
                     if 'edited_files' in tx:
                         return tx.get('edited_files', [])
@@ -1304,7 +1303,7 @@ class PostTestCollector:
         except (OSError, ValueError):
             return True
 
-    def _collect_sentinel_metrics(self) -> List[EvidenceItem]:
+    def _collect_sentinel_metrics(self) -> list[EvidenceItem]:
         """Collect sentinel gate decisions for this transaction."""
         items = []
         db = self._get_db()
@@ -1360,7 +1359,7 @@ class PostTestCollector:
 
         return items
 
-    def _collect_test_results(self) -> List[EvidenceItem]:
+    def _collect_test_results(self) -> list[EvidenceItem]:
         """Collect pytest results from JSON report if available."""
         items = []
         root = Path(self._resolve_project_root() or ".")
@@ -1456,7 +1455,7 @@ class PostTestCollector:
                 pass
         return None
 
-    def _collect_git_metrics(self) -> List[EvidenceItem]:
+    def _collect_git_metrics(self) -> list[EvidenceItem]:
         """Collect git-based metrics scoped to the current transaction.
 
         Transaction-scoped: uses PREFLIGHT timestamp (or CHECK for praxic)
@@ -1648,7 +1647,7 @@ class PostTestCollector:
         self,
         changed_files: set,
         project_root: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Compute modular change density: files touched / files in touched dirs.
 
         Instead of normalizing against the whole codebase (files/10), we measure
@@ -1711,7 +1710,7 @@ class PostTestCollector:
             "modules_touched": len(touched_dirs),
         }
 
-    def _collect_code_quality_metrics(self) -> List[EvidenceItem]:
+    def _collect_code_quality_metrics(self) -> list[EvidenceItem]:
         """Collect code quality evidence from static analysis tools.
 
         Runs ruff, radon, and pyright on files changed during this session.
@@ -1886,7 +1885,7 @@ class PostTestCollector:
 
         return items
 
-    def _get_session_changed_files(self) -> List[str]:
+    def _get_session_changed_files(self) -> list[str]:
         """Get files changed during this transaction/session via git.
 
         Combines three sources:
@@ -1967,7 +1966,7 @@ class PostTestCollector:
             pass
         return []
 
-    def _count_lines(self, file_paths: List[str]) -> int:
+    def _count_lines(self, file_paths: list[str]) -> int:
         """Count total lines across files (relative to project root)."""
         root = Path(self._resolve_project_root() or ".")
         total = 0

@@ -1,6 +1,7 @@
 """Multi-AI comparison endpoints"""
 
 import logging
+
 from flask import Blueprint, jsonify, request
 
 bp = Blueprint("comparison", __name__)

@@ -6,11 +6,12 @@ Loads and manages investigation profiles from YAML configuration.
 Handles profile selection, constraint validation, and runtime tuning.
 """
 
-from pathlib import Path
-from typing import Dict, Any, Optional, List
-import yaml
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+from typing import Any, Optional
+
+import yaml
 
 
 class ToolSuggestionMode(Enum):
@@ -37,7 +38,7 @@ class PostflightMode(Enum):
     COMPARATIVE_ASSESSMENT = "comparative_assessment"  # Compare pre/post
     FULL_AUDIT_TRAIL = "full_audit_trail"  # Complete audit
     REFLECTION = "reflection"  # Focus on learning
-    
+
 
 @dataclass
 class InvestigationConstraints:
@@ -98,8 +99,8 @@ class InvestigationProfile:
     tuning: TuningParameters
     strategy: StrategyConfig
     learning: LearningConfig
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {
             'name': self.name,
@@ -156,7 +157,7 @@ class UniversalConstraints:
 
 class ProfileLoader:
     """Loads and manages investigation profiles"""
-    
+
     def __init__(self, config_path: Optional[Path] = None):
         """
         Initialize profile loader
@@ -166,20 +167,20 @@ class ProfileLoader:
         """
         if config_path is None:
             config_path = Path(__file__).parent / "investigation_profiles.yaml"
-        
+
         self.config_path = config_path
-        self.config: Dict[str, Any] = {}
-        self.profiles: Dict[str, InvestigationProfile] = {}
+        self.config: dict[str, Any] = {}
+        self.profiles: dict[str, InvestigationProfile] = {}
         self.universal_constraints: Optional[UniversalConstraints] = None
-        
+
         if config_path.exists():
             self.load_config()
-    
+
     def load_config(self) -> None:
         """Load configuration from YAML file"""
-        with open(self.config_path, 'r') as f:
+        with open(self.config_path) as f:
             self.config = yaml.safe_load(f)
-        
+
         # Load universal constraints
         uc = self.config.get('universal_constraints', {})
         self.universal_constraints = UniversalConstraints(
@@ -192,25 +193,25 @@ class ProfileLoader:
             log_all_assessments=uc.get('log_all_assessments', True),
             log_tool_calls=uc.get('log_tool_calls', True),
         )
-        
+
         # Load profiles
         profiles_config = self.config.get('profiles', {})
         for profile_name, profile_data in profiles_config.items():
             self.profiles[profile_name] = self._parse_profile(profile_name, profile_data)
-    
-    def _parse_profile(self, name: str, data: Dict[str, Any]) -> InvestigationProfile:
+
+    def _parse_profile(self, name: str, data: dict[str, Any]) -> InvestigationProfile:
         """Parse profile from config data"""
-        
+
         # Parse investigation constraints
         inv = data.get('investigation', {})
         confidence_threshold = inv.get('confidence_threshold', 0.65)
         confidence_dynamic = False
-        
+
         if isinstance(confidence_threshold, str):
             if confidence_threshold in ('dynamic', 'adaptive'):
                 confidence_dynamic = True
                 confidence_threshold = inv.get('confidence_threshold_fallback', 0.65)
-        
+
         investigation = InvestigationConstraints(
             max_rounds=inv.get('max_rounds'),
             confidence_threshold=confidence_threshold,
@@ -220,7 +221,7 @@ class ProfileLoader:
             require_tool_approval=inv.get('require_tool_approval', False),
             encourage_experimentation=inv.get('encourage_experimentation', False),
         )
-        
+
         # Parse action thresholds
         at = data.get('action_thresholds', {})
         action_thresholds = ActionThresholds(
@@ -231,7 +232,7 @@ class ProfileLoader:
             override_allowed=at.get('override_allowed', True),
             escalate_on_uncertainty=at.get('escalate_on_uncertainty', False),
         )
-        
+
         # Parse tuning parameters
         tune = data.get('tuning', {})
         tuning = TuningParameters(
@@ -241,7 +242,7 @@ class ProfileLoader:
             execution_weight=tune.get('execution_weight', 1.0),
             uncertainty_weight=tune.get('uncertainty_weight', 1.0),
         )
-        
+
         # Parse strategy
         strat = data.get('strategy', {})
         strategy = StrategyConfig(
@@ -249,7 +250,7 @@ class ProfileLoader:
             tool_selection=strat.get('tool_selection', 'ai_guided'),
             gap_prioritization=strat.get('gap_prioritization', 'balanced'),
         )
-        
+
         # Parse learning
         learn = data.get('learning', {})
         learning = LearningConfig(
@@ -257,7 +258,7 @@ class ProfileLoader:
             confidence_gain_calculation=learn.get('confidence_gain_calculation', 'evidence_based'),
             require_validation=learn.get('require_validation', False),
         )
-        
+
         return InvestigationProfile(
             name=name,
             description=data.get('description', ''),
@@ -267,11 +268,11 @@ class ProfileLoader:
             strategy=strategy,
             learning=learning,
         )
-    
+
     def get_profile(self, profile_name: str) -> Optional[InvestigationProfile]:
         """Get profile by name"""
         return self.profiles.get(profile_name)
-    
+
     def select_profile(
         self,
         ai_model: Optional[str] = None,
@@ -292,7 +293,7 @@ class ProfileLoader:
         # Explicit profile takes precedence
         if explicit_profile and explicit_profile in self.profiles:
             return self.profiles[explicit_profile]
-        
+
         # Check domain-based selection
         if domain:
             domain_mapping = self.config.get('profile_selection', {}).get('by_domain', {})
@@ -301,7 +302,7 @@ class ProfileLoader:
                     profile_name = f"{profile_type}_domain" if profile_type == "critical" else profile_type
                     if profile_name in self.profiles:
                         return self.profiles[profile_name]
-        
+
         # Check AI capability-based selection
         if ai_model:
             capability_mapping = self.config.get('profile_selection', {}).get('by_ai_capability', {})
@@ -310,16 +311,16 @@ class ProfileLoader:
                     profile_name = f"{capability_type}_collaborative" if capability_type == "high_reasoning" else "autonomous_agent"
                     if profile_name in self.profiles:
                         return self.profiles[profile_name]
-        
+
         # Default profile
         default_name = self.config.get('profile_selection', {}).get('default', 'balanced')
         return self.profiles.get(default_name, list(self.profiles.values())[0])
-    
-    def list_profiles(self) -> List[str]:
+
+    def list_profiles(self) -> list[str]:
         """List available profile names"""
         return list(self.profiles.keys())
-    
-    def validate_constraints(self, profile: InvestigationProfile) -> List[str]:
+
+    def validate_constraints(self, profile: InvestigationProfile) -> list[str]:
         """
         Validate profile constraints against universal constraints
         
@@ -327,35 +328,35 @@ class ProfileLoader:
             List of validation errors (empty if valid)
         """
         errors = []
-        
+
         if not self.universal_constraints:
             return errors
-        
+
         # Universal constraints are always enforced
         # Profile constraints must not violate them
-        
+
         # Check engagement gate
         # (Universal gate is minimum, profiles can't go lower)
-        
+
         # Check tool call limits
         # (Universal max is enforced regardless of profile)
-        
+
         return errors
-    
+
     def export_profile(self, profile_name: str, output_path: Path) -> None:
         """Export profile to YAML file"""
         profile = self.get_profile(profile_name)
         if not profile:
             raise ValueError(f"Profile not found: {profile_name}")
-        
+
         with open(output_path, 'w') as f:
             yaml.dump(profile.to_dict(), f, default_flow_style=False)
-    
+
     def import_profile(self, input_path: Path, profile_name: Optional[str] = None) -> None:
         """Import profile from YAML file"""
-        with open(input_path, 'r') as f:
+        with open(input_path) as f:
             data = yaml.safe_load(f)
-        
+
         name = profile_name or data.get('name', 'imported')
         self.profiles[name] = self._parse_profile(name, data)
 

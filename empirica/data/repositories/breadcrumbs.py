@@ -9,7 +9,7 @@ import json
 import logging
 import time
 import uuid
-from typing import Dict, List, Optional
+from typing import Optional
 
 from .base import BaseRepository
 
@@ -20,7 +20,7 @@ class BreadcrumbRepository(BaseRepository):
     """Repository for knowledge artifact management (breadcrumbs for continuity)"""
 
     @staticmethod
-    def _dedupe_by_content(items: List[Dict], content_key: str) -> List[Dict]:
+    def _dedupe_by_content(items: list[dict], content_key: str) -> list[dict]:
         """
         Deduplicate items by content field, keeping the most recent entry.
 
@@ -158,7 +158,7 @@ class BreadcrumbRepository(BaseRepository):
         # Auto-extract source file references from finding text
         source_refs = {}
         try:
-            from empirica.utils.finding_refs import parse_file_references, parse_doc_references
+            from empirica.utils.finding_refs import parse_doc_references, parse_file_references
             file_refs = parse_file_references(finding)
             doc_refs = parse_doc_references(finding)
             if file_refs:
@@ -453,7 +453,7 @@ class BreadcrumbRepository(BaseRepository):
         subject: Optional[str] = None,
         depth: str = "moderate",
         uncertainty: Optional[float] = None
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Get findings for a project with deprecation filtering.
 
@@ -493,13 +493,13 @@ class BreadcrumbRepository(BaseRepository):
                 END DESC
             """
             params = (project_id,)
-        
+
         cursor = self._execute(query, params)
         findings = [dict(row) for row in cursor.fetchall()]
 
         # Apply deprecation filtering
         from empirica.core.findings_deprecation import FindingsDeprecationEngine
-        
+
         # Auto-depth based on uncertainty if requested
         if depth == "auto" and uncertainty is not None:
             if uncertainty > 0.5:
@@ -508,13 +508,13 @@ class BreadcrumbRepository(BaseRepository):
                 depth = "moderate"
             else:
                 depth = "minimal"
-        
+
         # Calculate relevance scores
         relevance_scores = [
             FindingsDeprecationEngine.calculate_relevance_score(f)
             for f in findings
         ]
-        
+
         # Filter by depth
         filtered = FindingsDeprecationEngine.filter_by_depth(
             findings,
@@ -522,14 +522,14 @@ class BreadcrumbRepository(BaseRepository):
             relevance_scores=relevance_scores,
             uncertainty=uncertainty or 0.5
         )
-        
+
         # Apply limit if specified
         if limit:
             filtered = filtered[:limit]
-        
+
         return filtered
 
-    def get_project_unknowns(self, project_id: str, resolved: Optional[bool] = None, subject: Optional[str] = None, limit: Optional[int] = None) -> List[Dict]:
+    def get_project_unknowns(self, project_id: str, resolved: Optional[bool] = None, subject: Optional[str] = None, limit: Optional[int] = None) -> list[dict]:
         """Get unknowns for a project (project-scoped)."""
         query = """
             SELECT id, session_id, goal_id, subtask_id, unknown, is_resolved, resolved_by,
@@ -555,7 +555,7 @@ class BreadcrumbRepository(BaseRepository):
         cursor = self._execute(query, tuple(params))
         return [dict(row) for row in cursor.fetchall()]
 
-    def get_project_dead_ends(self, project_id: str, limit: Optional[int] = None, subject: Optional[str] = None) -> List[Dict]:
+    def get_project_dead_ends(self, project_id: str, limit: Optional[int] = None, subject: Optional[str] = None) -> list[dict]:
         """Get all dead ends for a project (project-scoped)."""
         query = """
             SELECT id, session_id, goal_id, subtask_id, approach, why_failed,
@@ -577,7 +577,7 @@ class BreadcrumbRepository(BaseRepository):
         cursor = self._execute(query, tuple(params))
         return [dict(row) for row in cursor.fetchall()]
 
-    def get_project_reference_docs(self, project_id: str) -> List[Dict]:
+    def get_project_reference_docs(self, project_id: str) -> list[dict]:
         """Get all reference docs for a project"""
         cursor = self._execute("""
             SELECT * FROM project_reference_docs
@@ -659,7 +659,7 @@ class BreadcrumbRepository(BaseRepository):
         session_id: Optional[str] = None,
         goal_id: Optional[str] = None,
         limit: int = 10
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Retrieve logged mistakes.
 
@@ -701,7 +701,7 @@ class BreadcrumbRepository(BaseRepository):
 
         return [dict(row) for row in cursor.fetchall()]
 
-    def get_project_mistakes(self, project_id: str, limit: Optional[int] = None) -> List[Dict]:
+    def get_project_mistakes(self, project_id: str, limit: Optional[int] = None) -> list[dict]:
         """Get mistakes for a project (uses direct project_id column)"""
         query = """
             SELECT mistake, prevention, cost_estimate, root_cause_vector, created_timestamp

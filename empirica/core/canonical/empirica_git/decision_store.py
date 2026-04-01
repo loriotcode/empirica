@@ -12,7 +12,7 @@ import logging
 import os
 import subprocess
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ class GitDecisionStore:
             logger.warning(f"Failed to store decision in git: {e}")
             return False
 
-    def load_decision(self, decision_id: str) -> Optional[Dict[str, Any]]:
+    def load_decision(self, decision_id: str) -> Optional[dict[str, Any]]:
         if not self._git_available or not self._has_commits():
             return None
 
@@ -140,7 +140,7 @@ class GitDecisionStore:
         self,
         project_id: Optional[str] = None,
         session_id: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         if not self._git_available:
             return []
 

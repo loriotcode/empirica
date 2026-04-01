@@ -31,7 +31,7 @@ References:
 """
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ _FALLBACK_MIN_TRANSACTIONS = 5
 _FALLBACK_LOOKBACK = 20
 
 
-def _load_calibration_config() -> Dict:
+def _load_calibration_config() -> dict:
     """Load calibration gating config from MCO cascade_styles.yaml via ThresholdLoader.
 
     Returns dict with keys: baselines, ceilings, max_inflation, min_transactions, lookback.
@@ -114,7 +114,7 @@ class BrierDecomposition:
     n_bins: int              # Bins used for decomposition
 
 
-def compute_brier_score(predictions: List[Tuple[float, float]]) -> float:
+def compute_brier_score(predictions: list[tuple[float, float]]) -> float:
     """Compute raw Brier score from (predicted, observed) pairs.
 
     Args:
@@ -130,7 +130,7 @@ def compute_brier_score(predictions: List[Tuple[float, float]]) -> float:
 
 
 def compute_brier_decomposition(
-    predictions: List[Tuple[float, float]],
+    predictions: list[tuple[float, float]],
     n_bins: int = 10,
 ) -> BrierDecomposition:
     """Compute Murphy (1973) Brier score decomposition.
@@ -160,7 +160,7 @@ def compute_brier_decomposition(
     uncertainty = sum((o - o_bar) ** 2 for _, o in predictions) / n
 
     # Bin predictions by predicted probability
-    bins: Dict[int, List[Tuple[float, float]]] = {}
+    bins: dict[int, list[tuple[float, float]]] = {}
     for pred, obs in predictions:
         bin_idx = min(int(pred * n_bins), n_bins - 1)
         bins.setdefault(bin_idx, []).append((pred, obs))
@@ -191,10 +191,10 @@ def compute_brier_decomposition(
 def compute_dynamic_thresholds(
     ai_id: str,
     db,
-    base_thresholds: Optional[Dict] = None,
+    base_thresholds: Optional[dict] = None,
     min_transactions: Optional[int] = None,
     lookback: Optional[int] = None,
-) -> Dict:
+) -> dict:
     """Compute phase-aware dynamic thresholds using Brier score reliability.
 
     Threshold model:
@@ -336,7 +336,7 @@ def get_brier_profile(
     ai_id: str,
     db,
     lookback: int = 50,
-) -> Dict:
+) -> dict:
     """Get Brier score profile for an AI across phases.
 
     Useful for calibration-report and epistemic profiles.
@@ -483,7 +483,7 @@ def export_brier_to_breadcrumbs(
     try:
         existing_lines = []
         if os.path.exists(breadcrumbs_path):
-            with open(breadcrumbs_path, 'r') as f:
+            with open(breadcrumbs_path) as f:
                 existing_lines = f.readlines()
 
         section_start = -1

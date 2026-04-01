@@ -6,12 +6,9 @@ Provides progress tracking and completion verification for goals and tasks.
 Phase 2: Git notes integration for team coordination and lead AI queries.
 """
 
-from .types import (
-    CompletionRecord,
-    CompletionMetrics
-)
-from .tracker import CompletionTracker
 from .git_query import GitProgressQuery
+from .tracker import CompletionTracker
+from .types import CompletionMetrics, CompletionRecord
 
 __all__ = [
     'CompletionRecord',

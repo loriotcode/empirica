@@ -8,10 +8,9 @@ Prevents 80% of AI edit failures by assessing epistemic confidence BEFORE attemp
 import json
 import logging
 import re
-import subprocess
 from pathlib import Path
 
-from ..cli_utils import handle_cli_error, parse_json_safely
+from ..cli_utils import handle_cli_error
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +46,7 @@ def execute_edit_strategy_sync(strategy, file_path, old_str, new_str):
 def atomic_edit_sync(file_path, old_str, new_str):
     """Synchronous version of atomic_edit method."""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding='utf-8') as f:
             content = f.read()
 
         # Check if pattern exists
@@ -95,7 +94,7 @@ def atomic_edit_sync(file_path, old_str, new_str):
 def bash_line_replacement_sync(file_path, old_str, new_str):
     """Synchronous version of bash_line_replacement method."""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding='utf-8') as f:
             lines = f.readlines()
 
         # Try exact match first
@@ -158,7 +157,7 @@ def re_read_then_edit_sync(file_path, old_str, new_str):
     """Synchronous version of re_read_then_edit method."""
     try:
         # Read current file content
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding='utf-8') as f:
             content = f.read()
 
         # Verify the pattern exists
@@ -198,7 +197,6 @@ def handle_edit_with_confidence_command(args):
     """Handle edit-with-confidence command - Assess confidence before editing"""
     try:
         from empirica.components.edit_verification.confidence_assessor import EditConfidenceAssessor
-        from empirica.components.edit_verification.strategy_executor import EditStrategyExecutor
 
         # Parse arguments
         file_path = args.file_path

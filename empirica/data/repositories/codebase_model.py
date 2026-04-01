@@ -9,7 +9,7 @@ import json
 import time
 import uuid
 from fnmatch import fnmatch
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from .base import BaseRepository
 
@@ -29,7 +29,7 @@ class CodebaseModelRepository(BaseRepository):
         signature: Optional[str] = None,
         project_id: Optional[str] = None,
         session_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
     ) -> str:
         """Create or update an entity. Returns entity ID.
 
@@ -80,7 +80,7 @@ class CodebaseModelRepository(BaseRepository):
         file_path: Optional[str] = None,
         name_like: Optional[str] = None,
         active_only: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Query entities with optional filters."""
         query = "SELECT * FROM codebase_entities WHERE 1=1"
         params: list = []
@@ -121,7 +121,7 @@ class CodebaseModelRepository(BaseRepository):
         cursor = self._execute(query, tuple(params))
         return cursor.fetchone()[0]
 
-    def entities_for_file(self, file_path: str, project_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def entities_for_file(self, file_path: str, project_id: Optional[str] = None) -> list[dict[str, Any]]:
         """Get all active entities in a file."""
         query = "SELECT * FROM codebase_entities WHERE file_path = ? AND last_seen IS NULL"
         params: list = [file_path]
@@ -140,7 +140,7 @@ class CodebaseModelRepository(BaseRepository):
         fact_text: str,
         evidence_type: str = "source_code",
         evidence_path: str = "",
-        entity_ids: Optional[List[str]] = None,
+        entity_ids: Optional[list[str]] = None,
         confidence: float = 1.0,
         project_id: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -164,7 +164,7 @@ class CodebaseModelRepository(BaseRepository):
         project_id: Optional[str] = None,
         entity_id: Optional[str] = None,
         current_only: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Query facts with optional filters."""
         query = "SELECT * FROM codebase_facts WHERE 1=1"
         params: list = []
@@ -193,7 +193,7 @@ class CodebaseModelRepository(BaseRepository):
         )
         self.commit()
 
-    def facts_for_file(self, file_path: str, project_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def facts_for_file(self, file_path: str, project_id: Optional[str] = None) -> list[dict[str, Any]]:
         """Get current facts with evidence pointing to a file."""
         query = """SELECT * FROM codebase_facts
                    WHERE evidence_path LIKE ? AND invalid_at IS NULL"""
@@ -253,7 +253,7 @@ class CodebaseModelRepository(BaseRepository):
         self,
         entity_id: str,
         direction: str = "outgoing",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get relationships for an entity. direction: 'outgoing', 'incoming', or 'both'."""
         results = []
         if direction in ("outgoing", "both"):
@@ -280,7 +280,7 @@ class CodebaseModelRepository(BaseRepository):
         constraint_type: str = "convention",
         file_pattern: Optional[str] = None,
         description: str = "",
-        examples: Optional[List[Dict[str, str]]] = None,
+        examples: Optional[list[dict[str, str]]] = None,
         severity: str = "warning",
         project_id: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -328,7 +328,7 @@ class CodebaseModelRepository(BaseRepository):
         self,
         file_path: Optional[str] = None,
         project_id: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get constraints, optionally filtered by file glob pattern."""
         query = "SELECT * FROM codebase_constraints WHERE 1=1"
         params: list = []
@@ -362,7 +362,7 @@ class CodebaseModelRepository(BaseRepository):
     # Aggregate Queries (for grounded calibration evidence)
     # ========================================================================
 
-    def session_entity_stats(self, session_id: str) -> Dict[str, int]:
+    def session_entity_stats(self, session_id: str) -> dict[str, int]:
         """Get entity statistics for a session (for grounded calibration)."""
         cursor = self._execute(
             "SELECT entity_type, COUNT(*) FROM codebase_entities WHERE session_id = ? GROUP BY entity_type",

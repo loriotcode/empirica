@@ -6,10 +6,10 @@ Allows users to use project names instead of UUIDs across all CLI commands.
 Now also supports git-repo-based resolution for single-project-per-repo.
 """
 
-from typing import Optional
-import sys
 import re
 import subprocess
+import sys
+from typing import Optional
 
 
 def normalize_git_url(url: str) -> str:

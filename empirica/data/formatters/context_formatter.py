@@ -1,8 +1,7 @@
 """Context markdown formatter for AI prompt injection"""
-from typing import Dict
 
 
-def generate_context_markdown(breadcrumbs: Dict) -> str:
+def generate_context_markdown(breadcrumbs: dict) -> str:
     """
     Generate markdown-formatted context for injection into AI prompts.
 

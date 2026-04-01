@@ -18,12 +18,10 @@ Session: f729e984-71c9-4628-af2a-2415b6067224
 
 import json
 import logging
-import os
 import subprocess
-import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -38,19 +36,19 @@ class EpistemicDecisionEngine:
     - uncertainty > 0.4 + context > 0.5 → ASK_USER (have enough context to ask)
     - uncertainty < 0.3 + know > 0.7 → PROCEED (confident enough)
     """
-    
+
     @staticmethod
     def should_investigate(know: float, context: float, uncertainty: float) -> bool:
         """Decide if we should investigate deeper automatically"""
         # High uncertainty and low context = need more data
         return uncertainty > 0.7 and context < 0.3
-    
+
     @staticmethod
     def should_ask_user(know: float, context: float, uncertainty: float) -> bool:
         """Decide if we should ask user for clarification"""
         # Medium uncertainty with enough context = ask informed questions
         return uncertainty > 0.4 and context > 0.5 and know < 0.8
-    
+
     @staticmethod
     def can_proceed(know: float, context: float, uncertainty: float) -> bool:
         """Decide if we have enough confidence to proceed"""
@@ -60,7 +58,7 @@ class EpistemicDecisionEngine:
 
 class WorkspaceScanner:
     """Scans workspace and builds epistemic state"""
-    
+
     def __init__(self, workspace_path: Path):
         """Initialize workspace scanner with the target path."""
         self.workspace_path = workspace_path
@@ -68,23 +66,23 @@ class WorkspaceScanner:
         self.non_git_dirs = []
         self.findings = []
         self.unknowns = []
-    
-    def initial_scan(self) -> Dict:
+
+    def initial_scan(self) -> dict:
         """
         Initial directory scan - low epistemic confidence.
         Returns: Basic structure with high uncertainty
         """
         logger.info(f"Scanning workspace: {self.workspace_path}")
-        
+
         for item in self.workspace_path.iterdir():
             if not item.is_dir():
                 continue
-            
+
             if (item / '.git').exists():
                 self.git_repos.append(item)
             else:
                 self.non_git_dirs.append(item)
-        
+
         # Initial epistemic state: We know structure but not content
         return {
             "know": 0.2,  # Just discovered directories
@@ -101,32 +99,32 @@ class WorkspaceScanner:
                 "Are there nested repos?"
             ]
         }
-    
-    def deep_investigation(self) -> Dict:
+
+    def deep_investigation(self) -> dict:
         """
         Deep investigation - systematic gap filling.
         Returns: Enhanced understanding with lower uncertainty
         """
         logger.info("Conducting deep investigation...")
-        
+
         investigated_repos = []
-        
+
         for repo in self.git_repos:
             repo_info = self._investigate_repo(repo)
             investigated_repos.append(repo_info)
-            
+
             # Update findings and unknowns
             if repo_info['readme']:
                 self.findings.append(f"{repo.name}: {repo_info['description']}")
             else:
                 self.unknowns.append(f"{repo.name}: No README found, unclear purpose")
-        
+
         # Check non-git dirs for nested repos
         nested_repos = self._check_for_nested_repos()
         if nested_repos:
             self.findings.append(f"Found {len(nested_repos)} nested git repos")
             self.git_repos.extend(nested_repos)
-        
+
         # Updated epistemic state: Much better understanding
         return {
             "know": 0.65,  # Now understand project purposes
@@ -136,8 +134,8 @@ class WorkspaceScanner:
             "findings": self.findings,
             "unknowns": self.unknowns
         }
-    
-    def _investigate_repo(self, repo_path: Path) -> Dict:
+
+    def _investigate_repo(self, repo_path: Path) -> dict:
         """Investigate a single repository"""
         repo_info = {
             "path": str(repo_path),
@@ -149,7 +147,7 @@ class WorkspaceScanner:
             "tech_stack": [],
             "has_beads": False
         }
-        
+
         # Parse README
         readme_paths = ['README.md', 'README.rst', 'README.txt', 'README']
         for readme_name in readme_paths:
@@ -158,7 +156,7 @@ class WorkspaceScanner:
                 repo_info['readme'] = readme_name
                 repo_info['description'] = self._extract_description(readme_path)
                 break
-        
+
         # Analyze git history
         try:
             # Last commit date
@@ -171,7 +169,7 @@ class WorkspaceScanner:
             if result.returncode == 0 and result.stdout.strip():
                 timestamp = int(result.stdout.strip())
                 repo_info['last_commit'] = datetime.fromtimestamp(timestamp)
-            
+
             # Commit count in last 180 days
             since_date = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
             result = subprocess.run(
@@ -182,24 +180,24 @@ class WorkspaceScanner:
             )
             if result.returncode == 0:
                 repo_info['commit_count_180d'] = int(result.stdout.strip())
-        
+
         except Exception as e:
             logger.debug(f"Error analyzing git history for {repo_path.name}: {e}")
-        
+
         # Detect tech stack
         repo_info['tech_stack'] = self._detect_tech_stack(repo_path)
-        
+
         # Check for BEADS
         repo_info['has_beads'] = (repo_path / '.beads').exists()
-        
+
         return repo_info
-    
+
     def _extract_description(self, readme_path: Path) -> Optional[str]:
         """Extract first meaningful line from README as description"""
         try:
-            with open(readme_path, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(readme_path, encoding='utf-8', errors='ignore') as f:
                 lines = f.readlines()
-                
+
                 for line in lines:
                     line = line.strip()
                     # Skip empty lines, headers, badges
@@ -208,16 +206,16 @@ class WorkspaceScanner:
                     # Found first meaningful line
                     if len(line) > 10:
                         return line[:200]  # Truncate to 200 chars
-                
+
                 return None
         except Exception as e:
             logger.debug(f"Error reading README {readme_path}: {e}")
             return None
-    
-    def _detect_tech_stack(self, repo_path: Path) -> List[str]:
+
+    def _detect_tech_stack(self, repo_path: Path) -> list[str]:
         """Detect technology stack from key files"""
         tech_stack = []
-        
+
         tech_indicators = {
             'package.json': 'Node.js',
             'requirements.txt': 'Python',
@@ -230,17 +228,17 @@ class WorkspaceScanner:
             'Gemfile': 'Ruby',
             'composer.json': 'PHP'
         }
-        
+
         for filename, tech in tech_indicators.items():
             if (repo_path / filename).exists():
                 tech_stack.append(tech)
-        
+
         return tech_stack
-    
-    def _check_for_nested_repos(self) -> List[Path]:
+
+    def _check_for_nested_repos(self) -> list[Path]:
         """Check non-git directories for nested git repos"""
         nested = []
-        
+
         for dir_path in self.non_git_dirs:
             try:
                 for item in dir_path.iterdir():
@@ -248,7 +246,7 @@ class WorkspaceScanner:
                         nested.append(item)
             except Exception as e:
                 logger.debug(f"Error checking {dir_path}: {e}")
-        
+
         return nested
 
 
@@ -267,30 +265,30 @@ def handle_workspace_init_command(args):
     8. POSTFLIGHT: Measure learning delta
     """
     try:
-        from empirica.data.session_database import SessionDatabase
         from empirica.cli.cli_utils import handle_cli_error
-        
+        from empirica.data.session_database import SessionDatabase
+
         output_format = getattr(args, 'output', 'default')
         path_arg = getattr(args, 'path', None)
         workspace_path = Path(path_arg) if path_arg else Path.cwd()
-        
+
         # Create a session for this initialization (meta!)
         db = SessionDatabase()
         session_id = db.create_session(ai_id="workspace-init-agent")
-        
+
         if output_format != 'json':
             print("╔════════════════════════════════════════════════════════════════╗")
             print("║  Empirica Workspace Initialization - Epistemic Mode           ║")
             print("╚════════════════════════════════════════════════════════════════╝\n")
-        
+
         # ===== PREFLIGHT =====
         if output_format != 'json':
             print("🧠 PREFLIGHT Assessment...\n")
             print(f"Scanning workspace: {workspace_path}\n")
-        
+
         scanner = WorkspaceScanner(workspace_path)
         initial_state = scanner.initial_scan()
-        
+
         # Store PREFLIGHT assessment
         vectors = {
             'know': initial_state['know'],
@@ -313,7 +311,7 @@ def handle_workspace_init_command(args):
             vectors=vectors,
             uncertainty_notes="Initial workspace scan complete. Low knowledge and context, high uncertainty about project purposes and user preferences."
         )
-        
+
         if output_format != 'json':
             print(f"Initial epistemic state:")
             print(f"  know: {initial_state['know']:.2f}     (Low - just started scanning)")
@@ -326,10 +324,10 @@ def handle_workspace_init_command(args):
             for unknown in initial_state['unknowns']:
                 print(f"  • {unknown}")
             print("\n" + "━" * 64 + "\n")
-        
+
         # ===== CHECK #1: Should we investigate deeper? =====
         decision_engine = EpistemicDecisionEngine()
-        
+
         if decision_engine.should_investigate(
             initial_state['know'],
             initial_state['context'],
@@ -344,10 +342,10 @@ def handle_workspace_init_command(args):
                 print(f"  • Low context ({initial_state['context']:.2f})")
                 print("  • Need more data to make informed decisions\n")
                 print("Investigating...\n")
-            
+
             # Deep investigation
             investigation_state = scanner.deep_investigation()
-            
+
             # Store CHECK #1 with decision to investigate
             db.log_check_phase_assessment(
                 session_id=session_id,
@@ -360,7 +358,7 @@ def handle_workspace_init_command(args):
                 findings=investigation_state['findings'],
                 remaining_unknowns=investigation_state['unknowns']
             )
-            
+
             if output_format != 'json':
                 print(f"Updated epistemic state:")
                 print(f"  know: {investigation_state['know']:.2f} ↑    (Medium - now understand projects)")
@@ -375,14 +373,14 @@ def handle_workspace_init_command(args):
         else:
             investigation_state = initial_state
             investigation_state['investigated_repos'] = []
-        
+
         # ===== CHECK #2: Should we ask user? =====
         current_know = investigation_state['know']
         current_context = investigation_state['context']
         current_uncertainty = investigation_state['uncertainty']
-        
+
         user_preferences = {}
-        
+
         if decision_engine.should_ask_user(current_know, current_context, current_uncertainty):
             if output_format != 'json':
                 print("━" * 64 + "\n")
@@ -390,7 +388,7 @@ def handle_workspace_init_command(args):
                 print(f"Current confidence: {1 - current_uncertainty:.2f} (MEDIUM)")
                 print("Decision: ASK USER (uncertainty still present, have context to ask)\n")
                 print("Questions to resolve unknowns:\n")
-            
+
             # Store CHECK #2
             db.log_check_phase_assessment(
                 session_id=session_id,
@@ -403,10 +401,10 @@ def handle_workspace_init_command(args):
                 findings=investigation_state['findings'],
                 remaining_unknowns=investigation_state['unknowns']
             )
-            
+
             # Context-aware questions
             questions = _generate_context_aware_questions(investigation_state)
-            
+
             for q in questions:
                 if output_format != 'json':
                     print(f"❓ {q['question']}")
@@ -416,12 +414,12 @@ def handle_workspace_init_command(args):
                 else:
                     # In JSON mode, use defaults
                     user_preferences[q['key']] = q['default']
-            
+
             # Update epistemic state with user input
             current_know = 0.80  # User clarified preferences
             current_context = 0.85  # Complete picture now
             current_uncertainty = 0.15  # Ready to proceed
-            
+
             if output_format != 'json':
                 print("Updating with user input...")
                 print(f"  know: {current_know:.2f} ↑    (High - user clarified preferences)")
@@ -434,14 +432,14 @@ def handle_workspace_init_command(args):
                 'naming_strategy': 'infer-from-readme',
                 'duplicate_handling': 'keep-both'
             }
-        
+
         # ===== CHECK #3: Can we proceed? =====
         if output_format != 'json':
             print("━" * 64 + "\n")
             print("🔍 CHECK #3 - Final review before execution\n")
             print(f"Current confidence: {1 - current_uncertainty:.2f} (HIGH)")
             print("Decision: PROCEED\n")
-        
+
         # Store CHECK #3
         db.log_check_phase_assessment(
             session_id=session_id,
@@ -454,14 +452,14 @@ def handle_workspace_init_command(args):
             findings=investigation_state['findings'],
             remaining_unknowns=[]
         )
-        
+
         # ===== EXECUTION =====
         if output_format != 'json':
             print("🚀 Executing with high confidence...\n")
             print("Creating projects:\n")
-        
+
         created_projects = []
-        
+
         for repo_info in investigation_state.get('investigated_repos', []):
             # Filter based on user preferences
             if user_preferences.get('include_archived') == 'n':
@@ -522,15 +520,15 @@ def handle_workspace_init_command(args):
             if output_format != 'json':
                 desc = repo_info.get('description', 'No description')[:60]
                 print(f"  ✓ {project_name} ({desc}...) [{action}]")
-        
+
         if output_format != 'json':
             print(f"\n  ✓ {len(created_projects)} projects created\n")
-        
+
         # ===== POSTFLIGHT =====
         final_know = 0.95
         final_context = 0.95
         final_uncertainty = 0.05
-        
+
         final_vectors = {
             'know': final_know,
             'do': 0.9,
@@ -545,7 +543,7 @@ def handle_workspace_init_command(args):
             'impact': 0.90,
             'uncertainty': final_uncertainty
         }
-        
+
         db.log_postflight_assessment(
             session_id=session_id,
             cascade_id=None,
@@ -555,7 +553,7 @@ def handle_workspace_init_command(args):
             calibration_accuracy="high",
             learning_notes=f"Complete understanding achieved through systematic investigation and user input. Learning delta: know +{final_know - initial_state['know']:.2f}, uncertainty {final_uncertainty - initial_state['uncertainty']:.2f}"
         )
-        
+
         if output_format != 'json':
             print("━" * 64 + "\n")
             print("✅ POSTFLIGHT Assessment\n")
@@ -575,9 +573,9 @@ def handle_workspace_init_command(args):
             print("  • Epistemic health of all projects")
             print("  • Cross-project knowledge patterns")
             print("  • Recommended next actions\n")
-        
+
         db.close()
-        
+
         # Format output
         result = {
             "ok": True,
@@ -590,26 +588,26 @@ def handle_workspace_init_command(args):
             },
             "projects": created_projects
         }
-        
+
         if output_format == 'json':
             print(json.dumps(result, indent=2))
-        
+
         return result
-        
+
     except Exception as e:
         from ..cli_utils import handle_cli_error
         handle_cli_error(e, "Workspace init", getattr(args, 'verbose', False))
         return None
 
 
-def _generate_context_aware_questions(state: Dict) -> List[Dict]:
+def _generate_context_aware_questions(state: dict) -> list[dict]:
     """Generate questions based on current epistemic state"""
     questions = []
-    
+
     # Check for archived projects
-    archived_count = sum(1 for r in state.get('investigated_repos', []) 
+    archived_count = sum(1 for r in state.get('investigated_repos', [])
                         if r['commit_count_180d'] == 0)
-    
+
     if archived_count > 0:
         questions.append({
             'key': 'include_archived',
@@ -617,7 +615,7 @@ def _generate_context_aware_questions(state: Dict) -> List[Dict]:
             'prompt': '[y/n]',
             'default': 'n'
         })
-    
+
     # Naming strategy
     questions.append({
         'key': 'naming_strategy',
@@ -625,11 +623,11 @@ def _generate_context_aware_questions(state: Dict) -> List[Dict]:
         'prompt': '[git-dir-name/infer-from-readme]',
         'default': 'infer-from-readme'
     })
-    
+
     return questions
 
 
-def _infer_project_name(repo_info: Dict, strategy: str) -> str:
+def _infer_project_name(repo_info: dict, strategy: str) -> str:
     """Infer project name based on strategy"""
     if strategy == 'infer-from-readme' and repo_info.get('description'):
         # Try to extract name from description
@@ -641,7 +639,7 @@ def _infer_project_name(repo_info: Dict, strategy: str) -> str:
         name = ''.join(c if c.isalnum() or c == '-' else '' for c in name)
         if name:
             return name
-    
+
     # Fallback to directory name
     return Path(repo_info['path']).name
 
@@ -792,16 +790,16 @@ def _get_existing_project_id_from_local_db(repo_path: Path) -> Optional[str]:
         return None
 
 
-def _generate_project_config(repo_path: Path, project_id: str, repo_info: Dict):
+def _generate_project_config(repo_path: Path, project_id: str, repo_info: dict):
     """Generate .empirica-project/PROJECT_CONFIG.yaml"""
     config_dir = repo_path / '.empirica-project'
     config_dir.mkdir(exist_ok=True)
-    
+
     config_path = config_dir / 'PROJECT_CONFIG.yaml'
-    
+
     # Build config
     import yaml
-    
+
     config = {
         'project': {
             'name': repo_info['name'],
@@ -816,22 +814,22 @@ def _generate_project_config(repo_path: Path, project_id: str, repo_info: Dict):
             'has_beads': repo_info.get('has_beads', False)
         }
     }
-    
+
     with open(config_path, 'w') as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
 
-def _detect_docs(repo_path: Path) -> List[str]:
+def _detect_docs(repo_path: Path) -> list[str]:
     """Detect key documentation files"""
     docs = []
-    
+
     doc_files = [
         'README.md', 'CONTRIBUTING.md', 'CHANGELOG.md',
         'docs/README.md', 'docs/GETTING_STARTED.md'
     ]
-    
+
     for doc_file in doc_files:
         if (repo_path / doc_file).exists():
             docs.append(doc_file)
-    
+
     return docs[:5]  # Max 5

@@ -5,10 +5,9 @@ Calculates flow state metrics from epistemic vectors to measure AI work effectiv
 Flow state = optimal productivity characterized by focus, capability, and progress.
 """
 
-from typing import Dict, List, Optional, Tuple
 
 
-def calculate_flow_score(vectors: Dict[str, float]) -> float:
+def calculate_flow_score(vectors: dict[str, float]) -> float:
     """
     Calculate flow state score (0-100) from epistemic vectors.
 
@@ -62,7 +61,7 @@ def calculate_flow_score(vectors: Dict[str, float]) -> float:
     return round(flow_score, 1)
 
 
-def classify_flow_state(flow_score: float) -> Tuple[str, str]:
+def classify_flow_state(flow_score: float) -> tuple[str, str]:
     """
     Classify flow state into categories with emoji.
 
@@ -84,7 +83,7 @@ def classify_flow_state(flow_score: float) -> Tuple[str, str]:
         return ("Struggling", "⚠️")
 
 
-def identify_flow_blockers(vectors: Dict[str, float], threshold: float = 0.4) -> List[str]:
+def identify_flow_blockers(vectors: dict[str, float], threshold: float = 0.4) -> list[str]:
     """
     Identify what's blocking flow state.
 
@@ -122,7 +121,7 @@ def identify_flow_blockers(vectors: Dict[str, float], threshold: float = 0.4) ->
     return blockers
 
 
-def calculate_flow_trend(flow_scores: List[float]) -> Tuple[str, str]:
+def calculate_flow_trend(flow_scores: list[float]) -> tuple[str, str]:
     """
     Calculate flow trend from recent scores.
 
@@ -153,7 +152,7 @@ def calculate_flow_trend(flow_scores: List[float]) -> Tuple[str, str]:
         return ("Sharp decline", "📉")
 
 
-def get_flow_triggers() -> List[Dict[str, str]]:
+def get_flow_triggers() -> list[dict[str, str]]:
     """
     Get flow state triggers (conditions that enable flow).
 
@@ -194,7 +193,7 @@ def get_flow_triggers() -> List[Dict[str, str]]:
     ]
 
 
-def check_flow_triggers(vectors: Dict[str, float]) -> Dict[str, bool]:
+def check_flow_triggers(vectors: dict[str, float]) -> dict[str, bool]:
     """
     Check which flow triggers are present.
 

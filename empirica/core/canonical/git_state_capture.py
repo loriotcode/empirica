@@ -7,13 +7,13 @@ Enables attribution analysis - correlating code changes to knowledge changes.
 Part of the GitEnhancedReflexLogger refactoring (extracted from 1,156 line file).
 """
 
-import subprocess
 import logging
+import subprocess
 from pathlib import Path
-from typing import Dict, List, Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
-    from .git_enhanced_reflex_logger import GitEnhancedReflexLogger
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ class GitStateCapture:
 
         return self._is_git_repo
 
-    def capture_state(self, get_last_checkpoint_fn: Optional[callable] = None) -> Dict[str, Any]:
+    def capture_state(self, get_last_checkpoint_fn: Optional[callable] = None) -> dict[str, Any]:
         """
         Capture current git state at checkpoint time.
 
@@ -119,7 +119,7 @@ class GitStateCapture:
     def _get_commits_since_last_checkpoint(
         self,
         get_last_checkpoint_fn: callable
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get commits made since last checkpoint.
 
@@ -187,7 +187,7 @@ class GitStateCapture:
             logger.warning(f"Failed to get commits since last checkpoint: {e}")
             return []
 
-    def _get_uncommitted_changes(self) -> Dict[str, Any]:
+    def _get_uncommitted_changes(self) -> dict[str, Any]:
         """
         Get uncommitted working directory changes.
 

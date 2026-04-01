@@ -12,6 +12,7 @@ import logging
 import os
 import subprocess
 import time
+
 from flask import Blueprint, jsonify, request
 
 bp = Blueprint("deltas", __name__)

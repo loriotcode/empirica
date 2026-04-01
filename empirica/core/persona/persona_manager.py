@@ -11,11 +11,12 @@ Handles:
 import json
 import logging
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional
+
+from empirica.core.identity import AIIdentity
 
 from .persona_profile import PersonaProfile, SigningIdentityConfig
-from .validation import validate_persona_profile, ValidationError
-from empirica.core.identity import AIIdentity
+from .validation import validate_persona_profile
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +61,8 @@ class PersonaManager:
         version: str = "1.0.0",
         user_id: str = "unknown",
         identity_name: Optional[str] = None,
-        epistemic_priors: Optional[Dict[str, float]] = None,
-        focus_domains: Optional[List[str]] = None,
+        epistemic_priors: Optional[dict[str, float]] = None,
+        focus_domains: Optional[list[str]] = None,
         template: Optional[str] = None
     ) -> PersonaProfile:
         """
@@ -180,7 +181,7 @@ class PersonaManager:
                 f"Persona not found: {persona_id} (looked in {filepath})"
             )
 
-        with open(filepath, 'r') as f:
+        with open(filepath) as f:
             profile_dict = json.load(f)
 
         # Normalize for backward compatibility / emergent persona records
@@ -209,7 +210,7 @@ class PersonaManager:
         logger.info(f"✓ Loaded persona: {persona_id}")
         return profile
 
-    def list_personas(self) -> List[str]:
+    def list_personas(self) -> list[str]:
         """
         List all available personas
 
@@ -286,7 +287,7 @@ class PersonaManager:
             reputation_score=0.5
         )
 
-    def _get_default_priors(self) -> Dict[str, float]:
+    def _get_default_priors(self) -> dict[str, float]:
         """Get default epistemic priors (neutral)"""
         return {
             "engagement": 0.7,

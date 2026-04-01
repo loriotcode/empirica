@@ -27,11 +27,11 @@ import json
 import logging
 import os
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from empirica.core.epistemic_bus import (
-    EpistemicObserver,
     EpistemicEvent,
+    EpistemicObserver,
     get_global_bus,
 )
 
@@ -121,7 +121,7 @@ class SqliteBusObserver(EpistemicObserver):
         event_type: Optional[str] = None,
         since: Optional[float] = None,
         limit: int = 50,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Query persisted events from SQLite.
 
         Enables cross-session event discovery.
@@ -190,7 +190,8 @@ class QdrantBusObserver(EpistemicObserver):
         """Create events collection if needed."""
         try:
             from empirica.core.qdrant.vector_store import (
-                _get_qdrant_client, _get_vector_size,
+                _get_qdrant_client,
+                _get_vector_size,
             )
             client = _get_qdrant_client()
             if client is None:
@@ -219,10 +220,12 @@ class QdrantBusObserver(EpistemicObserver):
             return
 
         try:
-            from empirica.core.qdrant.vector_store import (
-                _get_qdrant_client, _get_embedding_safe,
-            )
             from qdrant_client.models import PointStruct
+
+            from empirica.core.qdrant.vector_store import (
+                _get_embedding_safe,
+                _get_qdrant_client,
+            )
 
             # Create searchable text from event
             event_text = (
@@ -264,7 +267,7 @@ class QdrantBusObserver(EpistemicObserver):
         query_text: str,
         limit: int = 10,
         event_type: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Semantic search over persisted events.
 
         The cross-node discovery mechanism: find events from other
@@ -274,10 +277,12 @@ class QdrantBusObserver(EpistemicObserver):
             return []
 
         try:
+            from qdrant_client.models import FieldCondition, Filter, MatchValue
+
             from empirica.core.qdrant.vector_store import (
-                _get_qdrant_client, _get_embedding_safe,
+                _get_embedding_safe,
+                _get_qdrant_client,
             )
-            from qdrant_client.models import Filter, FieldCondition, MatchValue
 
             embedding = _get_embedding_safe(query_text)
             if embedding is None:
@@ -317,7 +322,7 @@ class QdrantBusObserver(EpistemicObserver):
             return []
 
 
-def wire_persistent_observers(session_id: str) -> Dict[str, bool]:
+def wire_persistent_observers(session_id: str) -> dict[str, bool]:
     """
     Wire persistent observers into the global bus.
 

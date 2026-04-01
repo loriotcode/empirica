@@ -14,8 +14,9 @@ Usage:
 import json
 import logging
 import os
-import yaml
 from pathlib import Path
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,8 @@ logger = logging.getLogger(__name__)
 def handle_project_update_command(args):
     """Handle project-update command - update project.yaml fields."""
     try:
-        from empirica.config.project_config_loader import load_project_config, ProjectConfig
         from empirica.config.path_resolver import get_git_root
+        from empirica.config.project_config_loader import ProjectConfig
 
         output_format = getattr(args, 'output', 'human')
 
@@ -45,7 +46,7 @@ def handle_project_update_command(args):
             return None
 
         # Load current config
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             raw_config = yaml.safe_load(f) or {}
 
         config = ProjectConfig(raw_config)
@@ -273,6 +274,7 @@ def _sync_to_db(config: 'ProjectConfig', git_root: Path):
         # Sync to workspace.db (indexed fields + full v2.0 enrichment in metadata)
         try:
             import json as json_mod2
+
             from empirica.data.repositories.workspace_db import WorkspaceDBRepository
             repo = WorkspaceDBRepository()
             metadata = json_mod2.dumps({

@@ -21,8 +21,8 @@ Side effects:
 
 import json
 import sys
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 
 def get_parent_session_id():
@@ -135,11 +135,10 @@ def _create_default_budget(parent_session_id: str) -> dict:
     try:
         import sys
         sys.path.insert(0, str(Path.home() / 'empirical-ai' / 'empirica'))
-        from empirica.core.attention_budget import (
-            AttentionBudget, DomainAllocation, persist_budget
-        )
-        from empirica.data.session_database import SessionDatabase
         import uuid
+
+        from empirica.core.attention_budget import AttentionBudget, DomainAllocation, persist_budget
+        from empirica.data.session_database import SessionDatabase
 
         # Check if budget already exists (idempotent)
         db = SessionDatabase()

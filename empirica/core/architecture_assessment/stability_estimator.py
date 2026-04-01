@@ -17,11 +17,9 @@ Maps to vectors:
 """
 
 import subprocess
-import re
-from pathlib import Path
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from .schema import StabilityMetrics
 
@@ -139,7 +137,7 @@ class StabilityEstimator:
 
         return metrics
 
-    def _get_commits(self, rel_path: str) -> List[CommitInfo]:
+    def _get_commits(self, rel_path: str) -> list[CommitInfo]:
         """Get commit history for a path."""
         try:
             # Get commit list with stats
@@ -165,7 +163,7 @@ class StabilityEstimator:
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return []
 
-    def _parse_git_log(self, output: str) -> List[CommitInfo]:
+    def _parse_git_log(self, output: str) -> list[CommitInfo]:
         """Parse git log output into CommitInfo objects."""
         commits = []
         current_commit = None
@@ -218,7 +216,7 @@ class StabilityEstimator:
             except (OSError, UnicodeDecodeError):
                 return 0
 
-    def get_authors(self, component_path: str) -> List[Tuple[str, int]]:
+    def get_authors(self, component_path: str) -> list[tuple[str, int]]:
         """
         Get authors and their commit counts.
 
@@ -235,14 +233,14 @@ class StabilityEstimator:
             return []
 
         commits = self._get_commits(str(rel_path))
-        author_counts: Dict[str, int] = {}
+        author_counts: dict[str, int] = {}
 
         for commit in commits:
             author_counts[commit.author] = author_counts.get(commit.author, 0) + 1
 
         return sorted(author_counts.items(), key=lambda x: x[1], reverse=True)
 
-    def to_vectors(self, metrics: StabilityMetrics) -> Dict[str, float]:
+    def to_vectors(self, metrics: StabilityMetrics) -> dict[str, float]:
         """
         Convert stability metrics to epistemic vectors.
 

@@ -9,7 +9,6 @@ Commands:
 
 import json
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +16,7 @@ logger = logging.getLogger(__name__)
 def handle_sentinel_orchestrate_command(args):
     """Handle sentinel-orchestrate command - autonomous multi-agent orchestration"""
     try:
-        from empirica.core.sentinel import Sentinel, MergeStrategy
+        from empirica.core.sentinel import MergeStrategy, Sentinel
 
         session_id = args.session_id
         task = args.task
@@ -184,8 +183,9 @@ def handle_sentinel_status_command(args):
 def handle_sentinel_check_command(args):
     """Handle sentinel-check command - run compliance check with domain gates"""
     try:
-        from empirica.core.sentinel import Sentinel
         import sys
+
+        from empirica.core.sentinel import Sentinel
 
         session_id = args.session_id
         profile = getattr(args, 'profile', None)

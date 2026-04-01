@@ -9,13 +9,10 @@ Commands:
 
 import json
 import sys
-from typing import Optional
 
 from empirica.core.agents import (
     EpistemicAgentConfig,
     spawn_epistemic_agent,
-    aggregate_agent_results,
-    parse_postflight,
 )
 from empirica.data.session_database import SessionDatabase
 
@@ -182,9 +179,10 @@ def handle_agent_report_command(args) -> dict:
         # Embed to Qdrant for semantic search (graceful degradation if unavailable)
         embedded_count = 0
         try:
-            from empirica.core.qdrant.vector_store import embed_single_memory_item, upsert_epistemics
-            import uuid
             import time
+            import uuid
+
+            from empirica.core.qdrant.vector_store import embed_single_memory_item, upsert_epistemics
 
             # Get project_id from branch's session
             branch_data = db.branches.get_branch(branch_id)
@@ -431,7 +429,6 @@ def handle_agent_import_command(args) -> dict:
     Usage:
         empirica agent-import --session-id <ID> --input-file agent.json
     """
-    import time
 
     session_id = getattr(args, 'session_id', None)
     input_file = getattr(args, 'input_file', None)
@@ -445,7 +442,7 @@ def handle_agent_import_command(args) -> dict:
 
     # Load agent package
     try:
-        with open(input_file, 'r') as f:
+        with open(input_file) as f:
             agent_package = json.load(f)
     except Exception as e:
         return {"ok": False, "error": f"Failed to load agent file: {e}"}

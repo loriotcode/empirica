@@ -3,13 +3,13 @@ Agent Parsers - CLI argument parsers for epistemic agent commands.
 """
 
 from empirica.cli.command_handlers.agent_commands import (
-    handle_agent_spawn_command,
-    handle_agent_report_command,
     handle_agent_aggregate_command,
+    handle_agent_discover_command,
     handle_agent_export_command,
     handle_agent_import_command,
-    handle_agent_discover_command,
     handle_agent_parallel_command,
+    handle_agent_report_command,
+    handle_agent_spawn_command,
 )
 
 

@@ -11,22 +11,24 @@ from __future__ import annotations
 
 import ast
 import hashlib
-import logging
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
 
-from empirica.core.qdrant.connection import (
-    _check_qdrant_available, _get_qdrant_imports, _get_qdrant_client,
-    _get_embedding_safe, _get_vector_size, logger,
-)
 from empirica.core.qdrant.collections import _eidetic_collection
+from empirica.core.qdrant.connection import (
+    _check_qdrant_available,
+    _get_embedding_safe,
+    _get_qdrant_client,
+    _get_qdrant_imports,
+    _get_vector_size,
+    logger,
+)
 
 # Code embeddings go into the eidetic collection with fact_type="code_api"
 # This avoids collection bloat while keeping code searchable alongside facts.
 
 
-def _extract_function_signature(node) -> Dict:
+def _extract_function_signature(node) -> dict:
     """Extract function signature from AST node."""
     params = []
     for arg in node.args.args:
@@ -75,7 +77,7 @@ def _extract_function_signature(node) -> Dict:
     }
 
 
-def _extract_class_info(node: ast.ClassDef) -> Dict:
+def _extract_class_info(node: ast.ClassDef) -> dict:
     """Extract class info from AST node."""
     methods = []
     for item in node.body:
@@ -102,7 +104,7 @@ def _extract_class_info(node: ast.ClassDef) -> Dict:
     }
 
 
-def extract_module_api(file_path: Path, root_dir: Path = None) -> Dict:
+def extract_module_api(file_path: Path, root_dir: Path = None) -> dict:
     """
     Extract the public API surface from a Python file using AST.
 
@@ -184,7 +186,7 @@ def extract_module_api(file_path: Path, root_dir: Path = None) -> Dict:
 
 def embed_code_api(
     project_id: str,
-    module_info: Dict,
+    module_info: dict,
 ) -> bool:
     """
     Embed a module's API surface into eidetic memory as fact_type='code_api'.
@@ -254,7 +256,7 @@ def search_code_api(
     project_id: str,
     query: str,
     limit: int = 5,
-) -> List[Dict]:
+) -> list[dict]:
     """
     Search for code API surfaces semantically.
 
@@ -275,7 +277,7 @@ def search_code_api(
         if vector is None:
             return []
 
-        from qdrant_client.models import Filter, FieldCondition, MatchValue
+        from qdrant_client.models import FieldCondition, Filter, MatchValue
 
         results = client.query_points(
             collection_name=coll,
@@ -309,8 +311,8 @@ def embed_project_code(
     project_id: str,
     root_dir: Path,
     glob_pattern: str = "**/*.py",
-    exclude_patterns: List[str] = None,
-) -> Dict:
+    exclude_patterns: list[str] = None,
+) -> dict:
     """
     Extract and embed all Python module API surfaces for a project.
 

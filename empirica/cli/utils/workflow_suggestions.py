@@ -19,13 +19,13 @@ Author: Claude Code
 Date: 2025-12-25
 """
 
-from typing import List, Dict, Optional, Any
 import logging
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
 
-def calculate_completeness_score(session_id: str, db) -> Dict[str, Any]:
+def calculate_completeness_score(session_id: str, db) -> dict[str, Any]:
     """
     Calculate epistemic completeness score for session.
 
@@ -157,7 +157,7 @@ def get_workflow_suggestions(
     project_id: str,
     session_id: Optional[str] = None,
     db = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get contextual workflow suggestions based on session state.
 
@@ -265,7 +265,7 @@ def get_workflow_suggestions(
             db.close()
 
 
-def format_workflow_suggestions(suggestions_data: Dict[str, Any]) -> str:
+def format_workflow_suggestions(suggestions_data: dict[str, Any]) -> str:
     """
     Format workflow suggestions for human-readable output.
 

@@ -33,33 +33,24 @@ Usage:
     path = storage.get_learning_path(target_lesson_id, completed={})
 """
 
+from .hot_cache import LessonHotCache, get_hot_cache, initialize_hot_cache
 from .schema import (
-    Lesson,
-    LessonStep,
-    LessonPhase,
-    StepCriticality,
+    Correction,
     EpistemicDelta,
+    KnowledgeGraphEdge,
+    KnowledgeGraphNode,
+    Lesson,
+    LessonEpistemic,
+    LessonPhase,
+    LessonRelation,
+    LessonStep,
+    LessonValidation,
     Prerequisite,
     PrerequisiteType,
-    Correction,
-    LessonRelation,
     RelationType,
-    LessonEpistemic,
-    LessonValidation,
-    KnowledgeGraphNode,
-    KnowledgeGraphEdge
+    StepCriticality,
 )
-
-from .storage import (
-    LessonStorageManager,
-    get_lesson_storage
-)
-
-from .hot_cache import (
-    LessonHotCache,
-    get_hot_cache,
-    initialize_hot_cache
-)
+from .storage import LessonStorageManager, get_lesson_storage
 
 __all__ = [
     # Schema

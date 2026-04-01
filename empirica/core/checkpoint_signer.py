@@ -36,11 +36,11 @@ Usage:
 """
 
 import json
-import subprocess
 import logging
+import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
-from datetime import datetime, UTC
+from typing import Any, Optional
 
 from empirica.core.identity import AIIdentity
 
@@ -54,7 +54,7 @@ class CheckpointSigner:
     Provides cryptographic proof that checkpoints haven't been tampered with
     and were created by a specific AI identity.
     """
-    
+
     def __init__(
         self,
         ai_id: str,
@@ -71,7 +71,7 @@ class CheckpointSigner:
         """
         self.ai_id = ai_id
         self.git_repo_path = git_repo_path or Path.cwd()
-        
+
         # Load AI identity
         self.identity = AIIdentity(ai_id=ai_id, identity_dir=identity_dir)
         try:
@@ -80,13 +80,13 @@ class CheckpointSigner:
         except FileNotFoundError:
             logger.warning(f"Identity not found for {ai_id}. Create with: empirica identity-create --ai-id {ai_id}")
             raise
-    
+
     def sign_checkpoint(
         self,
         session_id: str,
         phase: str,
         round_num: int
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Sign a git checkpoint note
         
@@ -114,7 +114,7 @@ class CheckpointSigner:
         """
         # Get checkpoint ref
         checkpoint_ref = f"empirica/session/{session_id}/{phase}/{round_num}"
-        
+
         # Get checkpoint git note SHA
         try:
             result = subprocess.run(
@@ -123,27 +123,27 @@ class CheckpointSigner:
                 text=True,
                 cwd=self.git_repo_path
             )
-            
+
             if result.returncode != 0:
                 return {
                     "ok": False,
                     "error": "checkpoint_not_found",
                     "message": f"Checkpoint not found: {checkpoint_ref}"
                 }
-            
+
             checkpoint_sha = result.stdout.strip()
-            
+
         except Exception as e:
             return {
                 "ok": False,
                 "error": "git_error",
                 "message": str(e)
             }
-        
+
         # Sign the SHA
         signature = self.identity.sign(checkpoint_sha.encode('utf-8'))
         signature_hex = signature.hex()
-        
+
         # Create signature payload
         signature_payload = {
             "checkpoint_ref": checkpoint_ref,
@@ -154,28 +154,28 @@ class CheckpointSigner:
             "signed_at": datetime.now(UTC).isoformat(),
             "version": "1.0"
         }
-        
+
         # Store signature in git notes
         signature_ref = f"empirica/signatures/{session_id}/{phase}/{round_num}"
-        
+
         try:
             result = subprocess.run(
-                ["git", "notes", "--ref", signature_ref, "add", "-f", "-m", 
+                ["git", "notes", "--ref", signature_ref, "add", "-f", "-m",
                  json.dumps(signature_payload), "HEAD"],
                 capture_output=True,
                 text=True,
                 cwd=self.git_repo_path
             )
-            
+
             if result.returncode != 0:
                 return {
                     "ok": False,
                     "error": "git_notes_error",
                     "message": result.stderr
                 }
-            
+
             logger.info(f"✅ Signed checkpoint: {checkpoint_ref} ({checkpoint_sha[:8]})")
-            
+
             return {
                 "ok": True,
                 "checkpoint_ref": checkpoint_ref,
@@ -186,21 +186,21 @@ class CheckpointSigner:
                 "ai_id": self.ai_id,
                 "message": "Checkpoint signed successfully"
             }
-            
+
         except Exception as e:
             return {
                 "ok": False,
                 "error": "signing_error",
                 "message": str(e)
             }
-    
+
     def verify_checkpoint(
         self,
         session_id: str,
         phase: str,
         round_num: int,
         public_key_hex: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Verify a signed checkpoint
         
@@ -229,7 +229,7 @@ class CheckpointSigner:
         """
         checkpoint_ref = f"empirica/session/{session_id}/{phase}/{round_num}"
         signature_ref = f"empirica/signatures/{session_id}/{phase}/{round_num}"
-        
+
         # Get checkpoint SHA
         try:
             result = subprocess.run(
@@ -238,23 +238,23 @@ class CheckpointSigner:
                 text=True,
                 cwd=self.git_repo_path
             )
-            
+
             if result.returncode != 0:
                 return {
                     "ok": False,
                     "valid": False,
                     "error": "checkpoint_not_found"
                 }
-            
+
             checkpoint_sha = result.stdout.strip()
-            
+
         except Exception as e:
             return {
                 "ok": False,
                 "valid": False,
                 "error": str(e)
             }
-        
+
         # Get signature payload
         try:
             result = subprocess.run(
@@ -263,7 +263,7 @@ class CheckpointSigner:
                 text=True,
                 cwd=self.git_repo_path
             )
-            
+
             if result.returncode != 0:
                 return {
                     "ok": False,
@@ -271,9 +271,9 @@ class CheckpointSigner:
                     "error": "signature_not_found",
                     "message": f"No signature found for {checkpoint_ref}"
                 }
-            
+
             signature_payload = json.loads(result.stdout)
-            
+
         except json.JSONDecodeError:
             return {
                 "ok": False,
@@ -286,14 +286,14 @@ class CheckpointSigner:
                 "valid": False,
                 "error": str(e)
             }
-        
+
         # Extract signature info
         signature_hex = signature_payload.get("signature")
         stored_checkpoint_sha = signature_payload.get("checkpoint_sha")
         signed_by = signature_payload.get("ai_id")
         signed_at = signature_payload.get("signed_at")
         public_key_from_payload = signature_payload.get("public_key")
-        
+
         # Verify SHA matches
         if checkpoint_sha != stored_checkpoint_sha:
             return {
@@ -304,10 +304,10 @@ class CheckpointSigner:
                 "checkpoint_sha": checkpoint_sha,
                 "signed_sha": stored_checkpoint_sha
             }
-        
+
         # Use provided public key or extract from signature
         verify_public_key_hex = public_key_hex or public_key_from_payload
-        
+
         if not verify_public_key_hex:
             return {
                 "ok": False,
@@ -315,19 +315,19 @@ class CheckpointSigner:
                 "error": "no_public_key",
                 "message": "No public key provided for verification"
             }
-        
+
         # Verify signature
         try:
             signature_bytes = bytes.fromhex(signature_hex)
             public_key_bytes = bytes.fromhex(verify_public_key_hex)
             message = checkpoint_sha.encode('utf-8')
-            
+
             is_valid = AIIdentity.verify(
                 signature=signature_bytes,
                 message=message,
                 public_key_bytes=public_key_bytes
             )
-            
+
             result = {
                 "ok": True,
                 "valid": is_valid,
@@ -337,14 +337,14 @@ class CheckpointSigner:
                 "signed_at": signed_at,
                 "verified_with": verify_public_key_hex[:16] + "..."
             }
-            
+
             if is_valid:
                 logger.info(f"✅ Valid signature for {checkpoint_ref} by {signed_by}")
             else:
                 logger.warning(f"❌ Invalid signature for {checkpoint_ref}")
-            
+
             return result
-            
+
         except Exception as e:
             return {
                 "ok": False,
@@ -352,11 +352,11 @@ class CheckpointSigner:
                 "error": "verification_error",
                 "message": str(e)
             }
-    
+
     def list_signed_checkpoints(
         self,
         session_id: Optional[str] = None
-    ) -> list[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         List all signed checkpoints
         
@@ -367,13 +367,13 @@ class CheckpointSigner:
             List of signed checkpoint info dicts
         """
         signatures = []
-        
+
         # Build ref prefix
         if session_id:
             ref_prefix = f"refs/notes/empirica/signatures/{session_id}"
         else:
             ref_prefix = "refs/notes/empirica/signatures"
-        
+
         # Get all signature refs
         try:
             result = subprocess.run(
@@ -382,22 +382,22 @@ class CheckpointSigner:
                 text=True,
                 cwd=self.git_repo_path
             )
-            
+
             if result.returncode != 0:
                 return []
-            
+
             refs = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
-            
+
             for ref in refs:
                 # Parse ref: refs/notes/empirica/signatures/{session_id}/{phase}/{round}
                 ref_parts = ref.split('/')
                 if len(ref_parts) < 7:
                     continue
-                
+
                 sig_session_id = ref_parts[4]
                 phase = ref_parts[5]
                 round_num = ref_parts[6]
-                
+
                 # Get signature payload
                 note_ref = ref[11:]  # Strip "refs/notes/"
                 show_result = subprocess.run(
@@ -406,7 +406,7 @@ class CheckpointSigner:
                     text=True,
                     cwd=self.git_repo_path
                 )
-                
+
                 if show_result.returncode == 0:
                     try:
                         signature_payload = json.loads(show_result.stdout)
@@ -421,9 +421,9 @@ class CheckpointSigner:
                         })
                     except json.JSONDecodeError:
                         continue
-            
+
             return sorted(signatures, key=lambda x: x.get("signed_at", ""), reverse=True)
-            
+
         except Exception as e:
             logger.error(f"Failed to list signed checkpoints: {e}")
             return []

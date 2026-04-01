@@ -4,12 +4,12 @@ Project Commands - Multi-repo/multi-session project tracking
 
 import json
 import logging
-import os
 import sqlite3
-import subprocess
 from pathlib import Path
-from typing import Optional, Dict, List, Any
+from typing import Any, Optional
+
 from empirica.utils.session_resolver import InstanceResolver as R
+
 from ..cli_utils import handle_cli_error, run_empirica_subprocess
 
 logger = logging.getLogger(__name__)
@@ -131,7 +131,7 @@ def ensure_workspace_schema(conn) -> None:
     conn.commit()
 
 
-def get_workspace_projects() -> List[Dict[str, Any]]:
+def get_workspace_projects() -> list[dict[str, Any]]:
     """
     Get all projects from workspace database.
 
@@ -237,7 +237,7 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
             if instance_dir.exists():
                 for ip_file in instance_dir.glob('*.json'):
                     try:
-                        with open(ip_file, 'r') as f:
+                        with open(ip_file) as f:
                             ip_data = json.load(f)
                         if ip_data.get('claude_session_id') == claude_session_id:
                             instance_id = ip_file.stem  # e.g. "tmux_14", "x11_77663748"
@@ -262,7 +262,7 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
             existing_instance_file = marker_dir / 'instance_projects' / f'{instance_id}.json'
             if existing_instance_file.exists():
                 try:
-                    with open(existing_instance_file, 'r') as f:
+                    with open(existing_instance_file) as f:
                         existing_data = json.load(f)
                         claude_session_id = existing_data.get('claude_session_id')
                         logger.debug(f"Preserved claude_session_id from existing instance_projects: {claude_session_id}")
@@ -276,7 +276,7 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
         if not claude_session_id and empirica_session_id:
             for aw_file in marker_dir.glob('active_work_*.json'):
                 try:
-                    with open(aw_file, 'r') as f:
+                    with open(aw_file) as f:
                         aw_data = json.load(f)
                     if aw_data.get('empirica_session_id') == empirica_session_id:
                         claude_session_id = aw_file.stem.replace('active_work_', '')
@@ -317,7 +317,7 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
             tty_data = {}
             if tty_session_file.exists():
                 try:
-                    with open(tty_session_file, 'r') as f:
+                    with open(tty_session_file) as f:
                         tty_data = json.load(f)
                 except Exception:
                     pass
@@ -390,7 +390,7 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
         return False
 
 
-def resolve_workspace_project(identifier: str) -> Optional[Dict[str, Any]]:
+def resolve_workspace_project(identifier: str) -> Optional[dict[str, Any]]:
     """
     Resolve a project by name, folder name, or UUID from workspace database.
 
@@ -434,10 +434,10 @@ def _init_filesystem_at_path(target_path, project_id, name, description, project
     Creates config.yaml and project.yaml without duplicating the DB creation that
     project-create already did.
     """
-    import yaml
     import subprocess
     from datetime import datetime
-    from pathlib import Path
+
+    import yaml
 
     empirica_dir = target_path / '.empirica'
     empirica_dir.mkdir(exist_ok=True)
@@ -447,9 +447,10 @@ def _init_filesystem_at_path(target_path, project_id, name, description, project
     # Create config.yaml if missing
     config_path = empirica_dir / 'config.yaml'
     if not config_path.exists():
-        from empirica.config.path_resolver import create_default_config
         # Temporarily change cwd to target so create_default_config writes there
         import os
+
+        from empirica.config.path_resolver import create_default_config
         old_cwd = os.getcwd()
         try:
             os.chdir(str(target_path))
@@ -520,8 +521,8 @@ def _init_filesystem_at_path(target_path, project_id, name, description, project
 def handle_project_create_command(args):
     """Handle project-create command"""
     try:
-        from empirica.data.session_database import SessionDatabase
         from empirica.data.repositories.projects import ProjectRepository
+        from empirica.data.session_database import SessionDatabase
 
         # Parse arguments
         name = args.name
@@ -564,6 +565,7 @@ def handle_project_create_command(args):
         # Register in workspace.db for cross-project visibility (project-list, project-switch)
         try:
             from empirica.config.path_resolver import get_git_root
+
             from .workspace_init import _register_in_workspace_db
 
             # Determine trajectory_path: use git root if in repo, otherwise first repo path
@@ -654,7 +656,7 @@ def handle_project_handoff_command(args):
         key_decisions_str = getattr(args, 'key_decisions', None)
         patterns_str = getattr(args, 'patterns', None)
         remaining_work_str = getattr(args, 'remaining_work', None)
-        
+
         # Parse JSON arrays
         key_decisions = json.loads(key_decisions_str) if key_decisions_str else None
         patterns = json.loads(patterns_str) if patterns_str else None
@@ -669,10 +671,10 @@ def handle_project_handoff_command(args):
             patterns_discovered=patterns,
             remaining_work=remaining_work
         )
-        
+
         # Get aggregated learning deltas
         total_deltas = db.aggregate_project_learning_deltas(project_id)
-        
+
         db.close()
 
         # Format output
@@ -846,7 +848,7 @@ def handle_project_switch_command(args):
                 if instance_file.exists():
                     try:
                         import json as _json
-                        with open(instance_file, 'r') as f:
+                        with open(instance_file) as f:
                             inst_data = _json.load(f)
                         inst_project_path = inst_data.get('project_path')
                         if inst_project_path:
@@ -862,7 +864,7 @@ def handle_project_switch_command(args):
                 tx_path = current_empirica_root / f'active_transaction{suffix}.json'
                 if tx_path.exists():
                     import json as _json
-                    with open(tx_path, 'r') as f:
+                    with open(tx_path) as f:
                         tx_data = _json.load(f)
 
                     if tx_data.get('status') == 'open':
@@ -906,9 +908,10 @@ def handle_project_switch_command(args):
         # Project-switch just updates which project the session is working on.
         attached_session = None
         try:
-            from empirica.data.repositories.sessions import update_session_project
-            from empirica.core.statusline_cache import get_instance_id
             import sqlite3
+
+            from empirica.core.statusline_cache import get_instance_id
+            from empirica.data.repositories.sessions import update_session_project
 
             current_instance_id = get_instance_id()
 
@@ -1084,7 +1087,6 @@ def handle_project_switch_command(args):
         # 7. AUTO-BOOTSTRAP: Load context for the new project
         bootstrap_result = None
         try:
-            import subprocess
             # Run project-bootstrap for the new project
             # Use --output json to capture result, but don't print it in human mode
             # If we found an attached session, pass it to bootstrap
@@ -1152,7 +1154,7 @@ def handle_project_switch_command(args):
                 print(f"💡 For full context, run in project directory:")
                 print(f"   cd {project_path} && empirica project-bootstrap")
                 print()
-        
+
         # 10. Show next steps
         if output_format == 'human':
             print()
@@ -1199,9 +1201,9 @@ def handle_project_switch_command(args):
                 'preflight_result': preflight_result
             }
             print(json.dumps(result, indent=2))
-        
+
         return None
-        
+
     except Exception as e:
         logger.exception(f"Error in project-switch: {e}")
         if output_format == 'json':

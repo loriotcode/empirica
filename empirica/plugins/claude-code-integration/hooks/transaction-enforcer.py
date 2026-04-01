@@ -23,16 +23,15 @@ Date: 2026-02-10
 """
 
 import json
-import sys
 import os
-from pathlib import Path
+import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 # Import shared utilities from plugin lib
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from project_resolver import get_instance_id, _get_instance_suffix  # noqa: E402
-
+from project_resolver import _get_instance_suffix, get_instance_id
 
 # Thresholds (can be tuned via env vars)
 SOFT_THRESHOLD = int(os.environ.get('EMPIRICA_TX_SOFT_TURNS', '12'))
@@ -50,7 +49,7 @@ def _find_transaction_file(instance_id: str) -> Optional[Path]:
     instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
     if instance_file.exists():
         try:
-            with open(instance_file, 'r') as f:
+            with open(instance_file) as f:
                 data = json.load(f)
             project_path = data.get('project_path')
             if project_path:
@@ -64,7 +63,7 @@ def _find_transaction_file(instance_id: str) -> Optional[Path]:
     # Fallback: scan active_work files for project
     for aw_file in Path.home().glob('.empirica/active_work_*.json'):
         try:
-            with open(aw_file, 'r') as f:
+            with open(aw_file) as f:
                 data = json.load(f)
             project_path = data.get('project_path')
             if project_path:
@@ -88,7 +87,7 @@ def _read_turn_counter(instance_id: str) -> dict:
     counter_path = _get_turn_counter_path(instance_id)
     if counter_path.exists():
         try:
-            with open(counter_path, 'r') as f:
+            with open(counter_path) as f:
                 return json.load(f)
         except Exception:
             pass
@@ -131,7 +130,7 @@ def main():
 
     # Read transaction state
     try:
-        with open(tx_file, 'r') as f:
+        with open(tx_file) as f:
             tx_data = json.load(f)
     except Exception:
         print(json.dumps({}))

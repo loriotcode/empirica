@@ -27,18 +27,18 @@ Usage:
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Any, Optional
 
 from empirica.core.attention_budget import (
     AttentionBudget,
     AttentionBudgetCalculator,
     persist_budget,
 )
+from empirica.core.epistemic_rollup import RollupResult
 from empirica.core.information_gain import (
     estimate_information_gain,
     should_spawn_more,
 )
-from empirica.core.epistemic_rollup import RollupResult
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +52,10 @@ class AgentAllocation:
     budget: int  # Max findings this agent should produce
     priority: float  # 0.0-1.0
     expected_gain: float
-    priors: Dict[str, float] = field(default_factory=dict)
+    priors: dict[str, float] = field(default_factory=dict)
     task_focus: str = ""  # Specific task aspect for this agent
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "agent_name": self.agent_name,
             "domain": self.domain,
@@ -73,12 +73,12 @@ class OrchestrationPlan:
     """Plan for parallel agent execution."""
     task: str
     session_id: str
-    agents: List[AgentAllocation]
+    agents: list[AgentAllocation]
     budget: AttentionBudget
     strategy: str = "information_gain"
     max_rounds: int = 3
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "task": self.task,
             "session_id": self.session_id,
@@ -101,7 +101,7 @@ class RegulationDecision:
     gain_estimate: float
     rounds_without_novel: int
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "action": self.action,
             "reason": self.reason,
@@ -117,17 +117,17 @@ class RegulationDecision:
 @dataclass
 class AggregatedSynthesis:
     """Result of aggregating all parallel agent results."""
-    findings: List[str]
-    unknowns: List[str]
-    confidence_weighted_vectors: Dict[str, float]
+    findings: list[str]
+    unknowns: list[str]
+    confidence_weighted_vectors: dict[str, float]
     total_findings: int
     total_accepted: int
     total_rejected: int
-    agent_summaries: List[Dict[str, Any]]
-    consensus_domains: List[str]  # Domains where agents agree
-    conflict_domains: List[str]  # Domains where agents disagree
+    agent_summaries: list[dict[str, Any]]
+    consensus_domains: list[str]  # Domains where agents agree
+    conflict_domains: list[str]  # Domains where agents disagree
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "findings": self.findings,
             "unknowns": self.unknowns,
@@ -162,9 +162,9 @@ class ParallelOrchestrator:
     def plan(
         self,
         task: str,
-        domains: Optional[List[str]] = None,
+        domains: Optional[list[str]] = None,
         max_agents: Optional[int] = None,
-        current_vectors: Optional[Dict[str, float]] = None,
+        current_vectors: Optional[dict[str, float]] = None,
     ) -> OrchestrationPlan:
         """
         Plan parallel agent execution for a task.
@@ -250,7 +250,7 @@ class ParallelOrchestrator:
         self,
         rollup_result: RollupResult,
         round_number: int,
-        current_vectors: Optional[Dict[str, float]] = None,
+        current_vectors: Optional[dict[str, float]] = None,
     ) -> RegulationDecision:
         """
         After a round of agent execution, decide next action.
@@ -323,8 +323,8 @@ class ParallelOrchestrator:
 
     def aggregate(
         self,
-        agent_results: List[Dict[str, Any]],
-        agent_confidences: Optional[Dict[str, float]] = None,
+        agent_results: list[dict[str, Any]],
+        agent_confidences: Optional[dict[str, float]] = None,
     ) -> AggregatedSynthesis:
         """
         Aggregate results from all parallel agents.
@@ -346,8 +346,8 @@ class ParallelOrchestrator:
         all_findings = []
         all_unknowns = []
         agent_summaries = []
-        domain_findings: Dict[str, List[str]] = {}
-        weighted_vectors: Dict[str, float] = {}
+        domain_findings: dict[str, list[str]] = {}
+        weighted_vectors: dict[str, float] = {}
         total_weight = 0.0
 
         for result in agent_results:
@@ -417,7 +417,7 @@ class ParallelOrchestrator:
             conflict_domains=conflict,
         )
 
-    def _detect_domains(self, task: str) -> List[str]:
+    def _detect_domains(self, task: str) -> list[str]:
         """Detect investigation domains from task description."""
         try:
             from empirica.core.sentinel.decision_logic import DecisionLogic
@@ -427,7 +427,7 @@ class ParallelOrchestrator:
         except Exception:
             return ["general"]
 
-    def _get_prior_findings_by_domain(self, domains: List[str]) -> Dict[str, int]:
+    def _get_prior_findings_by_domain(self, domains: list[str]) -> dict[str, int]:
         """Count existing findings per domain."""
         counts = {}
         try:
@@ -446,7 +446,7 @@ class ParallelOrchestrator:
                 counts[domain] = 0
         return counts
 
-    def _get_dead_ends_by_domain(self, domains: List[str]) -> Dict[str, int]:
+    def _get_dead_ends_by_domain(self, domains: list[str]) -> dict[str, int]:
         """Count dead ends per domain."""
         counts = {}
         try:
@@ -479,7 +479,7 @@ class ParallelOrchestrator:
             pass
         return f"{domain}_expert"
 
-    def _get_domain_priors(self, persona_id: str) -> Dict[str, float]:
+    def _get_domain_priors(self, persona_id: str) -> dict[str, float]:
         """Get epistemic priors for a persona."""
         try:
             from empirica.core.persona import PersonaManager

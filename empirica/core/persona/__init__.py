@@ -26,16 +26,16 @@ Usage:
     priors = persona.epistemic_config.priors
 """
 
-from .persona_profile import (
-    PersonaProfile,
-    EpistemicConfig,
-    SigningIdentityConfig,
-    CapabilitiesConfig,
-    SentinelConfig,
-    PersonaMetadata
-)
 from .persona_manager import PersonaManager
-from .validation import validate_persona_profile, ValidationError
+from .persona_profile import (
+    CapabilitiesConfig,
+    EpistemicConfig,
+    PersonaMetadata,
+    PersonaProfile,
+    SentinelConfig,
+    SigningIdentityConfig,
+)
+from .validation import ValidationError, validate_persona_profile
 
 __all__ = [
     # Core

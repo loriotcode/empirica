@@ -29,10 +29,10 @@ Related but NOT consumed here:
   uses raw vectors. See workflow_commands.py for where this flag is consumed.
 """
 import json
-import sys
 import os
-from pathlib import Path
+import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 # Add lib folder to path for shared modules
@@ -40,7 +40,7 @@ _lib_path = Path(__file__).parent.parent / 'lib'
 if str(_lib_path) not in sys.path:
     sys.path.insert(0, str(_lib_path))
 
-from project_resolver import get_active_project_path, get_instance_id, get_active_session_id, detect_environment
+from project_resolver import detect_environment, get_active_project_path, get_instance_id
 
 # Noetic tools - read/investigate/search - always allowed (whitelist)
 NOETIC_TOOLS = {
@@ -130,6 +130,7 @@ DANGEROUS_SHELL_OPERATORS = (
 
 # Safe redirection patterns (stderr suppression, etc.)
 import re
+
 SAFE_REDIRECT_PATTERN = re.compile(r'2>/dev/null|2>&1|>/dev/null|2>\s*/dev/null')
 
 # Safe pipe targets - read-only commands that can receive piped input
@@ -413,7 +414,7 @@ def _find_transaction_file(empirica_dir: Path, suffix: str,
         try:
             for tx_file in sorted(empirica_dir.glob('active_transaction*.json')):
                 try:
-                    with open(tx_file, 'r') as f:
+                    with open(tx_file) as f:
                         tx_data = json.load(f)
                     if tx_data.get('session_id') == session_id:
                         return tx_file
@@ -432,7 +433,7 @@ def _resolve_empirica_session_id(claude_session_id: Optional[str]) -> Optional[s
     try:
         aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if aw_file.exists():
-            with open(aw_file, 'r') as f:
+            with open(aw_file) as f:
                 return json.load(f).get('empirica_session_id')
     except Exception:
         pass
@@ -464,7 +465,7 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
         aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if aw_file.exists():
             try:
-                with open(aw_file, 'r') as f:
+                with open(aw_file) as f:
                     pp = json.load(f).get('project_path')
                 if pp:
                     tx_path = _find_transaction_file(
@@ -489,7 +490,7 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
 
     try:
         # READ transaction file (read-only — never write back)
-        with open(tx_path, 'r') as f:
+        with open(tx_path) as f:
             tx = json.load(f)
 
         if tx.get('status') != 'open':
@@ -502,7 +503,7 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
         counters = {}
         if counters_path.exists():
             try:
-                with open(counters_path, 'r') as f:
+                with open(counters_path) as f:
                     counters = json.load(f)
             except Exception:
                 counters = {}
@@ -1468,7 +1469,7 @@ def _detect_subagent(claude_session_id: str) -> bool:
             if _as_file.exists():
                 # Read the active_session to get its empirica_session_id
                 try:
-                    with open(_as_file, 'r') as _asf:
+                    with open(_as_file) as _asf:
                         _as_data = json.load(_asf)
                     _as_session_id = _as_data.get('empirica_session_id')
 
@@ -1478,7 +1479,7 @@ def _detect_subagent(claude_session_id: str) -> bool:
                         # Check if any active_work file has this session
                         for _aw_candidate in Path.home().glob('.empirica/active_work_*.json'):
                             try:
-                                with open(_aw_candidate, 'r') as _awf:
+                                with open(_aw_candidate) as _awf:
                                     _aw_data = json.load(_awf)
                                 if _aw_data.get('empirica_session_id') == _as_session_id:
                                     _tx_session_match = True
@@ -1593,7 +1594,7 @@ def _handle_investigate_continuation(decision: str, tool_name: str, tool_input: 
         if not _inv_counters_path or not _inv_counters_path.exists():
             return {}
         try:
-            with open(_inv_counters_path, 'r') as _f:
+            with open(_inv_counters_path) as _f:
                 return json.load(_f)
         except Exception:
             return {}
@@ -1757,7 +1758,7 @@ def main():
         tx_file = _find_transaction_file(empirica_root, suffix, empirica_session_id)
         if tx_file:
             try:
-                with open(tx_file, 'r') as f:
+                with open(tx_file) as f:
                     tx_data = json.load(f)
 
                 # CLOSED TRANSACTION CHECK: Closed transactions persist as project anchors.
@@ -1805,7 +1806,7 @@ def main():
         try:
             active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
             if active_work_file.exists():
-                with open(active_work_file, 'r') as f:
+                with open(active_work_file) as f:
                     work_data = json.load(f)
                 session_id = work_data.get('empirica_session_id')
         except Exception:
@@ -1871,7 +1872,7 @@ def main():
             counter_file = Path.home() / '.empirica' / f'pre_tx_calls{suffix}.json'
             count = 0
             if counter_file.exists():
-                with open(counter_file, 'r') as f:
+                with open(counter_file) as f:
                     count = json.load(f).get('count', 0)
             count += 1
             with open(counter_file, 'w') as f:
@@ -1918,7 +1919,7 @@ def main():
                 empirica_root, suffix,
                 _resolve_empirica_session_id(claude_session_id))
             if _gl_tx_file:
-                with open(_gl_tx_file, 'r') as _gl_f:
+                with open(_gl_tx_file) as _gl_f:
                     _gl_tx = json.load(_gl_f)
                 _gl_count = _gl_tx.get('tool_call_count', 0)
 

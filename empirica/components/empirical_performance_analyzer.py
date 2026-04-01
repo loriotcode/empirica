@@ -7,9 +7,9 @@ The full implementation is planned for a future release.
 This stub prevents import errors and returns sensible defaults.
 """
 
-from typing import Dict, Any, Optional
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
+from typing import Any, Optional
 
 try:
     import psutil
@@ -22,11 +22,11 @@ except ImportError:
 class BenchmarkResult:
     """Result of a benchmark run."""
     overall_score: float
-    metrics: Dict[str, float]
-    component_performance: Dict[str, float]
-    memory_usage: Dict[str, float]
+    metrics: dict[str, float]
+    component_performance: dict[str, float]
+    memory_usage: dict[str, float]
     recommendations: list
-    detailed_breakdown: Dict[str, Any]
+    detailed_breakdown: dict[str, Any]
 
 
 class EmpiricalPerformanceAnalyzer:
@@ -46,7 +46,7 @@ class EmpiricalPerformanceAnalyzer:
         iterations: int = 10,
         include_memory: bool = True,
         verbose: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Run performance benchmark.
 
@@ -100,9 +100,9 @@ class EmpiricalPerformanceAnalyzer:
     def analyze_performance(
         self,
         target: str = "system",
-        context: Optional[Dict] = None,
+        context: Optional[dict] = None,
         detailed: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Analyze performance of a target component.
 

@@ -11,13 +11,12 @@ Data Quality Filtering:
 - Filters rapid-fire sessions (< 5 min duration)
 """
 
+import argparse
 import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
-import argparse
-
+from typing import Optional
 
 # AI IDs that indicate test/non-production sessions
 TEST_AI_PATTERNS = [
@@ -76,7 +75,7 @@ def is_test_session(ai_id: str) -> bool:
     )
 
 
-def load_pre_compact_snapshots(ref_docs_path: Path) -> List[Dict]:
+def load_pre_compact_snapshots(ref_docs_path: Path) -> list[dict]:
     """Load all pre-compact snapshots."""
     snapshots = []
 
@@ -86,7 +85,7 @@ def load_pre_compact_snapshots(ref_docs_path: Path) -> List[Dict]:
                 data = json.load(f)
                 data['_file'] = str(snapshot_file)
                 snapshots.append(data)
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             continue
 
     # Sort by timestamp
@@ -94,7 +93,7 @@ def load_pre_compact_snapshots(ref_docs_path: Path) -> List[Dict]:
     return snapshots
 
 
-def get_post_compact_sessions(db_path: Path, after_timestamp: float) -> List[Dict]:
+def get_post_compact_sessions(db_path: Path, after_timestamp: float) -> list[dict]:
     """
     Find sessions with PREFLIGHT shortly after a compact (within 30 minutes).
     Uses reflex timestamp since session start_time is ISO string.
@@ -141,7 +140,7 @@ def get_post_compact_sessions(db_path: Path, after_timestamp: float) -> List[Dic
     return sessions
 
 
-def get_post_check_vectors(db_path: Path, session_id: str) -> Optional[Dict]:
+def get_post_check_vectors(db_path: Path, session_id: str) -> Optional[dict]:
     """Get the first CHECK vectors for a session (post-context-load state)."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -167,7 +166,7 @@ def get_post_check_vectors(db_path: Path, session_id: str) -> Optional[Dict]:
     return None
 
 
-def get_session_quality_metrics(db_path: Path, session_id: str) -> Dict:
+def get_session_quality_metrics(db_path: Path, session_id: str) -> dict:
     """Get quality metrics for a session to filter out tests."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -212,7 +211,7 @@ def analyze_compact_events(
     include_tests: bool = False,
     min_findings: int = 0,
     limit: int = 20
-) -> List[Dict]:
+) -> list[dict]:
     """
     Analyze compact events by matching pre-compact snapshots to post-compact sessions.
 
@@ -334,7 +333,7 @@ def analyze_compact_events(
     return events
 
 
-def calculate_aggregate_stats(events: List[Dict]) -> Dict:
+def calculate_aggregate_stats(events: list[dict]) -> dict:
     """Calculate aggregate statistics across all compact events."""
     if not events:
         return {'error': 'No events to analyze'}
@@ -399,7 +398,7 @@ def calculate_aggregate_stats(events: List[Dict]) -> Dict:
     }
 
 
-def format_human_readable(events: List[Dict], stats: Dict) -> str:
+def format_human_readable(events: list[dict], stats: dict) -> str:
     """Format analysis results for human reading."""
     lines = []
     lines.append("=" * 60)
@@ -451,7 +450,7 @@ def format_human_readable(events: List[Dict], stats: Dict) -> str:
     return "\n".join(lines)
 
 
-def handle_compact_analysis(args: argparse.Namespace) -> Dict:
+def handle_compact_analysis(args: argparse.Namespace) -> dict:
     """CLI handler for compact-analysis command."""
     try:
         events = analyze_compact_events(

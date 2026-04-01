@@ -7,11 +7,9 @@ learning aggregation, and context bootstrap for multi-session work.
 
 import json
 import logging
-import os
 import time
 import uuid
-import yaml
-from typing import Dict, List, Optional
+from typing import Optional
 
 from .base import BaseRepository
 
@@ -33,9 +31,9 @@ class ProjectRepository(BaseRepository):
         self,
         name: str,
         description: Optional[str] = None,
-        repos: Optional[List[str]] = None,
+        repos: Optional[list[str]] = None,
         project_type: Optional[str] = None,
-        project_tags: Optional[List[str]] = None,
+        project_tags: Optional[list[str]] = None,
         parent_project_id: Optional[str] = None
     ) -> str:
         """
@@ -86,18 +84,18 @@ class ProjectRepository(BaseRepository):
 
         return project_id
 
-    def get_project(self, project_id: str) -> Optional[Dict]:
+    def get_project(self, project_id: str) -> Optional[dict]:
         """Get project data"""
         cursor = self._execute("SELECT * FROM projects WHERE id = ?", (project_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
-    
-    def get_project_by_name(self, name: str) -> Optional[Dict]:
+
+    def get_project_by_name(self, name: str) -> Optional[dict]:
         """Get project data by name (case-insensitive)"""
         cursor = self._execute("SELECT * FROM projects WHERE LOWER(name) = LOWER(?)", (name,))
         row = cursor.fetchone()
         return dict(row) if row else None
-    
+
     def resolve_project_id(self, project_id_or_name: str) -> Optional[str]:
         """
         Resolve project identifier to UUID.
@@ -142,14 +140,14 @@ class ProjectRepository(BaseRepository):
         self.commit()
         logger.info(f"🔗 Session {session_id[:8]}... linked to project {project_id[:8]}...")
 
-    def get_project_sessions(self, project_id: str) -> List[Dict]:
+    def get_project_sessions(self, project_id: str) -> list[dict]:
         """Get all sessions for a project"""
         cursor = self._execute("""
             SELECT * FROM sessions WHERE project_id = ? ORDER BY start_time DESC
         """, (project_id,))
         return [dict(row) for row in cursor.fetchall()]
 
-    def aggregate_project_learning_deltas(self, project_id: str) -> Dict[str, float]:
+    def aggregate_project_learning_deltas(self, project_id: str) -> dict[str, float]:
         """
         Compute total epistemic learning across all project sessions.
 
@@ -209,9 +207,9 @@ class ProjectRepository(BaseRepository):
         self,
         project_id: str,
         project_summary: str,
-        key_decisions: Optional[List[str]] = None,
-        patterns_discovered: Optional[List[str]] = None,
-        remaining_work: Optional[List[str]] = None
+        key_decisions: Optional[list[str]] = None,
+        patterns_discovered: Optional[list[str]] = None,
+        remaining_work: Optional[list[str]] = None
     ) -> str:
         """
         Create project-level handoff report by aggregating session handoffs.
@@ -295,7 +293,7 @@ class ProjectRepository(BaseRepository):
 
         return handoff_id
 
-    def get_latest_project_handoff(self, project_id: str) -> Optional[Dict]:
+    def get_latest_project_handoff(self, project_id: str) -> Optional[dict]:
         """Get the most recent project handoff"""
         cursor = self._execute("""
             SELECT * FROM project_handoffs
@@ -306,7 +304,7 @@ class ProjectRepository(BaseRepository):
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_ai_epistemic_handoff(self, project_id: str, ai_id: str) -> Optional[Dict]:
+    def get_ai_epistemic_handoff(self, project_id: str, ai_id: str) -> Optional[dict]:
         """Get latest epistemic handoff (POSTFLIGHT checkpoint) for a specific AI in this project.
         
         This loads the most recent session's POSTFLIGHT checkpoint for the given AI ID,
@@ -328,15 +326,15 @@ class ProjectRepository(BaseRepository):
             ORDER BY r.timestamp DESC
             LIMIT 1
         """, (project_id, ai_id))
-        
+
         postflight = cursor.fetchone()
         if not postflight:
             return None
-        
+
         # Convert to dict
         postflight_dict = dict(postflight)
         session_id = postflight_dict.get('session_id')
-        
+
         # Try to find corresponding PREFLIGHT to calculate deltas
         cursor = self._execute("""
             SELECT r.* FROM reflexes r
@@ -344,10 +342,10 @@ class ProjectRepository(BaseRepository):
             ORDER BY r.timestamp ASC
             LIMIT 1
         """, (session_id,))
-        
+
         preflight = cursor.fetchone()
         preflight_dict = dict(preflight) if preflight else None
-        
+
         # Build epistemic vectors dict from POSTFLIGHT
         vectors = {
             'engagement': postflight_dict.get('engagement'),
@@ -370,10 +368,10 @@ class ProjectRepository(BaseRepository):
             },
             'uncertainty': postflight_dict.get('uncertainty')
         }
-        
+
         # Remove None values
         vectors = {k: v for k, v in vectors.items() if v is not None}
-        
+
         # Calculate deltas if PREFLIGHT exists
         deltas = None
         if preflight_dict:
@@ -400,7 +398,7 @@ class ProjectRepository(BaseRepository):
             }
             # Remove None deltas
             deltas = {k: v for k, v in deltas.items() if v is not None}
-        
+
         result = {
             'checkpoint_id': postflight_dict.get('id'),
             'session_id': session_id,
@@ -411,12 +409,12 @@ class ProjectRepository(BaseRepository):
             'evidence': postflight_dict.get('evidence'),
             'timestamp': postflight_dict.get('timestamp')
         }
-        
+
         if deltas:
             result['deltas'] = deltas
-        
+
         return result
-    
+
     def _calculate_delta(self, before: Optional[float], after: Optional[float]) -> Optional[float]:
         """Calculate change from before to after, returning None if either is None"""
         if before is None or after is None:

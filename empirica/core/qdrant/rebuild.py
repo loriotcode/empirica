@@ -15,12 +15,12 @@ import logging
 import os
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def _get_all_projects() -> List[Dict]:
+def _get_all_projects() -> list[dict]:
     """Get all active projects from workspace.db."""
     workspace_db = Path.home() / '.empirica' / 'workspace' / 'workspace.db'
     if not workspace_db.exists():
@@ -43,7 +43,7 @@ def _get_all_projects() -> List[Dict]:
         return []
 
 
-def _embed_project_from_db(project_id: str, db_path: str, project_root: str) -> Dict[str, Any]:
+def _embed_project_from_db(project_id: str, db_path: str, project_root: str) -> dict[str, Any]:
     """Re-embed all artifacts for a project from its sessions.db into Qdrant.
 
     This is the core embed logic extracted for reuse by both project-embed
@@ -52,8 +52,8 @@ def _embed_project_from_db(project_id: str, db_path: str, project_root: str) -> 
     Returns dict with counts of embedded items per type.
     """
     from empirica.core.qdrant.connection import _check_qdrant_available
-    from empirica.core.qdrant.memory import upsert_memory
     from empirica.core.qdrant.eidetic import embed_eidetic
+    from empirica.core.qdrant.memory import upsert_memory
     from empirica.data.session_database import SessionDatabase
 
     if not _check_qdrant_available():
@@ -114,7 +114,7 @@ def _embed_project_from_db(project_id: str, db_path: str, project_root: str) -> 
         # Build memory items using ACTUAL artifact IDs from SQLite.
         # Must match embed_single_memory_item() ID scheme (string UUIDs →
         # md5 hash in upsert_memory). See project_embed.py for full rationale.
-        mem_items: List[Dict] = []
+        mem_items: list[dict] = []
 
         for f in findings:
             fid = f.get('finding_id') or str(f.get('id', ''))
@@ -236,7 +236,7 @@ def _embed_project_from_db(project_id: str, db_path: str, project_root: str) -> 
     return counts
 
 
-def rebuild_qdrant_from_db() -> Dict:
+def rebuild_qdrant_from_db() -> dict:
     """Rebuild all Qdrant collections from SQLite for all workspace projects.
 
     Steps:
@@ -246,11 +246,11 @@ def rebuild_qdrant_from_db() -> Dict:
 
     Returns summary dict with per-project results.
     """
-    from empirica.core.qdrant.connection import _check_qdrant_available
     from empirica.core.qdrant.collections import (
-        recreate_project_collections,
         recreate_global_collections,
+        recreate_project_collections,
     )
+    from empirica.core.qdrant.connection import _check_qdrant_available
 
     if not _check_qdrant_available():
         return {'ok': False, 'error': 'Qdrant not available'}

@@ -24,8 +24,8 @@ import json
 import logging
 import os
 import subprocess
-from typing import Optional, Dict, Any
 from pathlib import Path
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -309,7 +309,7 @@ def get_tty_key() -> Optional[str]:
     return None  # No fallback - fail safely
 
 
-def get_tty_session(warn_if_stale: bool = True) -> Optional[Dict[str, Any]]:
+def get_tty_session(warn_if_stale: bool = True) -> Optional[dict[str, Any]]:
     """Read session mapping from TTY-keyed file.
 
     Returns dict with:
@@ -338,7 +338,7 @@ def get_tty_session(warn_if_stale: bool = True) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        with open(session_file, 'r') as f:
+        with open(session_file) as f:
             session = json.load(f)
 
         # Validate and warn if stale
@@ -459,7 +459,7 @@ def get_claude_session_id() -> Optional[str]:
     return session.get('claude_session_id') if session else None
 
 
-def validate_tty_session(session: Dict[str, Any] = None) -> Dict[str, Any]:
+def validate_tty_session(session: dict[str, Any] = None) -> dict[str, Any]:
     """Validate a TTY session for staleness and warn if issues detected.
 
     Checks:
@@ -915,7 +915,7 @@ def get_active_project_path(claude_session_id: str = None) -> 'Optional[str]':
         active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if active_work_file.exists():
             try:
-                with open(active_work_file, 'r') as f:
+                with open(active_work_file) as f:
                     data = json.load(f)
                     active_work_path = data.get('project_path')
             except Exception:
@@ -927,7 +927,7 @@ def get_active_project_path(claude_session_id: str = None) -> 'Optional[str]':
         instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
         if instance_file.exists():
             try:
-                with open(instance_file, 'r') as f:
+                with open(instance_file) as f:
                     data = json.load(f)
                     instance_path = data.get('project_path')
             except Exception:
@@ -956,7 +956,7 @@ def get_active_project_path(claude_session_id: str = None) -> 'Optional[str]':
         generic_work_file = Path.home() / '.empirica' / 'active_work.json'
         if generic_work_file.exists():
             try:
-                with open(generic_work_file, 'r') as f:
+                with open(generic_work_file) as f:
                     data = json.load(f)
                     generic_path = data.get('project_path')
                 if generic_path:
@@ -995,8 +995,8 @@ def write_active_transaction(
         project_path: Absolute path to the project (git root) this transaction belongs to
     """
     import os
-    import time
     import tempfile
+    import time
 
     # Use instance-aware filename for multi-instance isolation
     suffix = _get_instance_suffix()
@@ -1048,7 +1048,6 @@ def increment_transaction_tool_count(claude_session_id: str = None) -> Optional[
     Returns None if no active transaction exists.
     """
     import tempfile
-
     from pathlib import Path
     suffix = _get_instance_suffix()
 
@@ -1063,7 +1062,7 @@ def increment_transaction_tool_count(claude_session_id: str = None) -> Optional[
         return None
 
     try:
-        with open(tx_path, 'r') as f:
+        with open(tx_path) as f:
             tx_data = json.load(f)
 
         if tx_data.get('status') != 'open':
@@ -1129,7 +1128,7 @@ def _find_transaction_file(empirica_dir: 'Path', suffix: str,
         try:
             for tx_file in sorted(empirica_dir.glob('active_transaction*.json')):
                 try:
-                    with open(tx_file, 'r') as f:
+                    with open(tx_file) as f:
                         tx_data = json.load(f)
                     if tx_data.get('session_id') == session_id:
                         logger.debug(
@@ -1168,7 +1167,7 @@ def read_active_transaction_full(claude_session_id: str = None) -> Optional[dict
         try:
             aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
             if aw_file.exists():
-                with open(aw_file, 'r') as f:
+                with open(aw_file) as f:
                     session_id = json.load(f).get('empirica_session_id')
         except Exception:
             pass
@@ -1180,7 +1179,7 @@ def read_active_transaction_full(claude_session_id: str = None) -> Optional[dict
         tx_file = _find_transaction_file(empirica_dir, suffix, session_id)
         if tx_file:
             try:
-                with open(tx_file, 'r') as f:
+                with open(tx_file) as f:
                     return json.load(f)
             except Exception:
                 pass
@@ -1190,7 +1189,7 @@ def read_active_transaction_full(claude_session_id: str = None) -> Optional[dict
     tx_file = _find_transaction_file(global_dir, suffix, session_id)
     if tx_file:
         try:
-            with open(tx_file, 'r') as f:
+            with open(tx_file) as f:
                 return json.load(f)
         except Exception:
             pass
@@ -1219,7 +1218,6 @@ def set_active_engagement(engagement_id: str, claude_session_id: str = None) -> 
     """
     import os
     import tempfile
-
     from pathlib import Path
     suffix = _get_instance_suffix()
 
@@ -1233,7 +1231,7 @@ def set_active_engagement(engagement_id: str, claude_session_id: str = None) -> 
         return False
 
     try:
-        with open(tx_path, 'r') as f:
+        with open(tx_path) as f:
             tx_data = json.load(f)
 
         if tx_data.get('status') != 'open':
@@ -1291,8 +1289,8 @@ def _validate_session_in_db(session_id: str, project_path: str = None) -> bool:
     if not session_id:
         return False
     try:
-        from pathlib import Path
         import sqlite3
+        from pathlib import Path
 
         # Use project-local DB when project_path is known
         if project_path:
@@ -1355,8 +1353,8 @@ def _find_session_for_project(project_path: str) -> Optional[str]:
     if not project_path:
         return None
     try:
-        from pathlib import Path
         import sqlite3
+        from pathlib import Path
 
         folder_name = Path(project_path).name
 
@@ -1470,7 +1468,7 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
         active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if active_work_file.exists():
             try:
-                with open(active_work_file, 'r') as f:
+                with open(active_work_file) as f:
                     data = json.load(f)
                     session_id = data.get('empirica_session_id')
                     project_path_for_fallback = data.get('project_path')
@@ -1490,7 +1488,7 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
         instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
         if instance_file.exists():
             try:
-                with open(instance_file, 'r') as f:
+                with open(instance_file) as f:
                     data = json.load(f)
                     session_id = data.get('empirica_session_id')
                     inst_project_path = data.get('project_path')
@@ -1527,7 +1525,7 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[st
         generic_work = Path.home() / '.empirica' / 'active_work.json'
         if generic_work.exists():
             try:
-                with open(generic_work, 'r') as f:
+                with open(generic_work) as f:
                     data = json.load(f)
                     session_id = data.get('empirica_session_id')
                     if not project_path_for_fallback:
@@ -1601,7 +1599,7 @@ def read_hook_counters(claude_session_id: str = None) -> Optional[dict]:
     if not path.exists():
         return None
     try:
-        with open(path, 'r') as f:
+        with open(path) as f:
             return json.load(f)
     except Exception:
         return None
@@ -1652,8 +1650,8 @@ def cleanup_stale_instance_projects() -> int:
 
     Returns number of files removed.
     """
-    from pathlib import Path
     import subprocess
+    from pathlib import Path
 
     instance_dir = Path.home() / '.empirica' / 'instance_projects'
     if not instance_dir.exists():
@@ -1716,8 +1714,8 @@ def cleanup_stale_active_work_files(current_claude_session_id: str = None) -> in
 
     Returns number of files removed.
     """
-    from pathlib import Path
     import sqlite3
+    from pathlib import Path
 
     marker_dir = Path.home() / '.empirica'
     removed = 0
@@ -1726,7 +1724,7 @@ def cleanup_stale_active_work_files(current_claude_session_id: str = None) -> in
     open_tx_sessions = set()
     for tx_file in marker_dir.glob('**/active_transaction_*.json'):
         try:
-            with open(tx_file, 'r') as f:
+            with open(tx_file) as f:
                 tx_data = json.load(f)
             if tx_data.get('status') == 'open':
                 sid = tx_data.get('session_id')
@@ -1740,13 +1738,13 @@ def cleanup_stale_active_work_files(current_claude_session_id: str = None) -> in
     if instance_dir.exists():
         for ip_file in instance_dir.glob('*.json'):
             try:
-                with open(ip_file, 'r') as f:
+                with open(ip_file) as f:
                     ip_data = json.load(f)
                 pp = ip_data.get('project_path')
                 if pp:
                     for tx_file in Path(pp).glob('.empirica/active_transaction_*.json'):
                         try:
-                            with open(tx_file, 'r') as f:
+                            with open(tx_file) as f:
                                 tx_data = json.load(f)
                             if tx_data.get('status') == 'open':
                                 sid = tx_data.get('session_id')
@@ -1796,7 +1794,7 @@ def cleanup_stale_active_work_files(current_claude_session_id: str = None) -> in
             continue  # Never delete current conversation
 
         try:
-            with open(aw_file, 'r') as f:
+            with open(aw_file) as f:
                 data = json.load(f)
             session_id = data.get('empirica_session_id')
             project_path = data.get('project_path')
@@ -1815,7 +1813,7 @@ def cleanup_stale_active_work_files(current_claude_session_id: str = None) -> in
                 continue  # Tmux cleanup handled by cleanup_stale_instance_projects()
 
             try:
-                with open(ip_file, 'r') as f:
+                with open(ip_file) as f:
                     data = json.load(f)
                 session_id = data.get('empirica_session_id')
                 project_path = data.get('project_path')
@@ -1835,7 +1833,7 @@ def cleanup_stale_active_work_files(current_claude_session_id: str = None) -> in
     # --- Clean stale active_session files ---
     for as_file in marker_dir.glob('active_session_*'):
         try:
-            with open(as_file, 'r') as f:
+            with open(as_file) as f:
                 data = json.load(f)
             session_id = data.get('session_id')
             project_path = data.get('project_path')
@@ -1917,7 +1915,7 @@ def get_active_context(claude_session_id: str = None) -> dict:
         instance_file = Path.home() / '.empirica' / 'instance_projects' / f"{context['instance_id']}.json"
         if instance_file.exists():
             try:
-                with open(instance_file, 'r') as f:
+                with open(instance_file) as f:
                     data = json.load(f)
                     if not context['project_path']:
                         context['project_path'] = data.get('project_path')
@@ -1934,7 +1932,7 @@ def get_active_context(claude_session_id: str = None) -> dict:
         active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if active_work_file.exists():
             try:
-                with open(active_work_file, 'r') as f:
+                with open(active_work_file) as f:
                     data = json.load(f)
                     if not context['project_path']:
                         context['project_path'] = data.get('project_path')
@@ -1981,8 +1979,8 @@ def update_active_context(
     Returns:
         True if successfully updated, False otherwise.
     """
-    from pathlib import Path
     import time
+    from pathlib import Path
 
     if not claude_session_id:
         logger.warning("update_active_context: claude_session_id required")
@@ -1996,7 +1994,7 @@ def update_active_context(
         data = {}
         if active_work_file.exists():
             try:
-                with open(active_work_file, 'r') as f:
+                with open(active_work_file) as f:
                     data = json.load(f)
             except Exception:
                 pass
@@ -2078,7 +2076,6 @@ def resolve_project_identifier(identifier: str) -> Optional[dict]:
          'project_path': '/home/user/empirica', 'source': 'workspace'}
     """
     from pathlib import Path as P
-    import sqlite3
 
     if not identifier:
         return None
@@ -2133,7 +2130,7 @@ def _get_project_id_from_local_db(project_path: 'Path') -> Optional[str]:
     if project_yaml.exists():
         try:
             import yaml
-            with open(project_yaml, 'r') as f:
+            with open(project_yaml) as f:
                 config = yaml.safe_load(f)
                 if config and config.get('project_id'):
                     return config['project_id']

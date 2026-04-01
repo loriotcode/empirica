@@ -31,7 +31,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from empirica.core.canonical.transcript_parser import ConversationTurn
@@ -97,11 +97,11 @@ class ExtractedUnknown:
 @dataclass
 class ExtractionResult:
     """Complete extraction output from a session or conversation."""
-    findings: List[ExtractedFinding] = field(default_factory=list)
-    decisions: List[ExtractedDecision] = field(default_factory=list)
-    dead_ends: List[ExtractedDeadEnd] = field(default_factory=list)
-    mistakes: List[ExtractedMistake] = field(default_factory=list)
-    unknowns: List[ExtractedUnknown] = field(default_factory=list)
+    findings: list[ExtractedFinding] = field(default_factory=list)
+    decisions: list[ExtractedDecision] = field(default_factory=list)
+    dead_ends: list[ExtractedDeadEnd] = field(default_factory=list)
+    mistakes: list[ExtractedMistake] = field(default_factory=list)
+    unknowns: list[ExtractedUnknown] = field(default_factory=list)
 
     # Metadata
     source: str = ""  # "claude-code" or "claude-ai"
@@ -116,7 +116,7 @@ class ExtractionResult:
             + len(self.mistakes) + len(self.unknowns)
         )
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         return {
             "findings": len(self.findings),
             "decisions": len(self.decisions),
@@ -128,7 +128,7 @@ class ExtractionResult:
             "source": self.source,
         }
 
-    def filter_by_confidence(self, min_confidence: float = 0.5) -> "ExtractionResult":
+    def filter_by_confidence(self, min_confidence: float = 0.5) -> ExtractionResult:
         """Return a new ExtractionResult with only high-confidence artifacts."""
         return ExtractionResult(
             findings=[f for f in self.findings if f.confidence >= min_confidence],
@@ -194,7 +194,7 @@ class ArtifactExtractor:
     def __init__(
         self,
         min_confidence: float = 0.3,
-        dedup_existing: Optional[Set[str]] = None,
+        dedup_existing: Optional[set[str]] = None,
     ):
         """
         Args:
@@ -202,7 +202,7 @@ class ArtifactExtractor:
             dedup_existing: Set of content hashes of existing artifacts (for deduplication).
         """
         self.min_confidence = min_confidence
-        self._seen_hashes: Set[str] = dedup_existing or set()
+        self._seen_hashes: set[str] = dedup_existing or set()
 
     def _content_hash(self, text: str) -> str:
         """Create a hash for deduplication."""
@@ -217,7 +217,7 @@ class ArtifactExtractor:
         self._seen_hashes.add(h)
         return False
 
-    def extract_findings(self, turns: List[ConversationTurn]) -> List[ExtractedFinding]:
+    def extract_findings(self, turns: list[ConversationTurn]) -> list[ExtractedFinding]:
         """Extract findings from conversation turns."""
         findings = []
 
@@ -258,7 +258,7 @@ class ArtifactExtractor:
 
         return [f for f in findings if f.confidence >= self.min_confidence]
 
-    def extract_decisions(self, turns: List[ConversationTurn]) -> List[ExtractedDecision]:
+    def extract_decisions(self, turns: list[ConversationTurn]) -> list[ExtractedDecision]:
         """Extract decisions from conversation turns."""
         decisions = []
 
@@ -296,7 +296,7 @@ class ArtifactExtractor:
 
         return [d for d in decisions if d.confidence >= self.min_confidence]
 
-    def extract_dead_ends(self, turns: List[ConversationTurn]) -> List[ExtractedDeadEnd]:
+    def extract_dead_ends(self, turns: list[ConversationTurn]) -> list[ExtractedDeadEnd]:
         """Extract dead ends from conversation turns."""
         dead_ends = []
 
@@ -364,7 +364,7 @@ class ArtifactExtractor:
 
         return [d for d in dead_ends if d.confidence >= self.min_confidence]
 
-    def extract_mistakes(self, turns: List[ConversationTurn]) -> List[ExtractedMistake]:
+    def extract_mistakes(self, turns: list[ConversationTurn]) -> list[ExtractedMistake]:
         """Extract mistakes from conversation turns."""
         mistakes = []
 
@@ -395,7 +395,7 @@ class ArtifactExtractor:
 
         return [m for m in mistakes if m.confidence >= self.min_confidence]
 
-    def extract_unknowns(self, turns: List[ConversationTurn]) -> List[ExtractedUnknown]:
+    def extract_unknowns(self, turns: list[ConversationTurn]) -> list[ExtractedUnknown]:
         """Extract unknowns/open questions from conversation turns."""
         unknowns = []
 
@@ -427,7 +427,7 @@ class ArtifactExtractor:
 
     def extract_all(
         self,
-        turns: List[ConversationTurn],
+        turns: list[ConversationTurn],
         source: str = "claude-code",
         session_id: str = "",
     ) -> ExtractionResult:
@@ -499,7 +499,7 @@ class ArtifactExtractor:
 # --- Deduplication Helpers ---
 
 
-def build_dedup_set_from_db(db, project_id: str) -> Set[str]:
+def build_dedup_set_from_db(db, project_id: str) -> set[str]:
     """Build a set of content hashes from existing artifacts in the database.
 
     Used to avoid importing duplicates of artifacts that already exist.

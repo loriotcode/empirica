@@ -10,28 +10,20 @@ Coordinates 4 storage layers for epistemic procedural knowledge:
 This module is the single entry point for all lesson storage operations.
 """
 
+import hashlib
 import json
 import logging
 import time
 import uuid
-import hashlib
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Set
-from dataclasses import asdict
+from typing import Optional
+
 import yaml
 
+from .hot_cache import get_hot_cache
 from .schema import (
     Lesson,
-    LessonStep,
-    EpistemicDelta,
-    Prerequisite,
-    Correction,
-    LessonRelation,
-    LessonEpistemic,
-    LessonValidation,
-    RelationType
 )
-from .hot_cache import LessonHotCache, get_hot_cache
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +82,7 @@ class LessonStorageManager:
             return
         try:
             from qdrant_client.models import Distance, VectorParams
+
             from empirica.core.qdrant.embeddings import get_vector_size
             # Check if collection exists
             collections = self._qdrant.get_collections().collections
@@ -166,7 +159,7 @@ class LessonStorageManager:
 
     # ==================== CREATE ====================
 
-    def create_lesson(self, lesson: Lesson) -> Dict:
+    def create_lesson(self, lesson: Lesson) -> dict:
         """
         Create a new lesson across all layers.
 
@@ -339,7 +332,7 @@ class LessonStorageManager:
 
         self._conn.commit()
 
-    def _generate_embedding(self, text: str) -> List[float]:
+    def _generate_embedding(self, text: str) -> list[float]:
         """Generate embedding vector for text using the core embeddings provider"""
         from empirica.core.qdrant.embeddings import get_embedding
         return get_embedding(text)
@@ -383,7 +376,7 @@ class LessonStorageManager:
         if not path.exists():
             return None
 
-        with open(path, 'r') as f:
+        with open(path) as f:
             data = yaml.safe_load(f)
 
         return Lesson.from_dict(data)
@@ -410,7 +403,7 @@ class LessonStorageManager:
         domain: str = None,
         improves_vector: str = None,
         limit: int = 10
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Search for lessons across layers.
 
@@ -498,8 +491,8 @@ class LessonStorageManager:
     def get_learning_path(
         self,
         target_lesson_id: str,
-        completed_lessons: Set[str] = None
-    ) -> List[str]:
+        completed_lessons: set[str] = None
+    ) -> list[str]:
         """
         Get ordered list of lessons to complete before target.
 
@@ -512,9 +505,9 @@ class LessonStorageManager:
 
     def find_best_lesson_for_gap(
         self,
-        epistemic_state: Dict[str, float],
+        epistemic_state: dict[str, float],
         threshold: float = 0.6
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Find lessons that address epistemic gaps.
 
@@ -541,7 +534,7 @@ class LessonStorageManager:
         lesson_id: str,
         session_id: str,
         ai_id: str = None,
-        epistemic_before: Dict[str, float] = None
+        epistemic_before: dict[str, float] = None
     ) -> str:
         """Start tracking a lesson replay"""
         cursor = self._conn.cursor()
@@ -567,7 +560,7 @@ class LessonStorageManager:
         replay_id: str,
         success: bool,
         steps_completed: int,
-        epistemic_after: Dict[str, float] = None,
+        epistemic_after: dict[str, float] = None,
         error_message: str = None
     ):
         """Mark a lesson replay as complete"""
@@ -610,7 +603,7 @@ class LessonStorageManager:
         decay_amount: float = 0.05,
         min_confidence: float = 0.3,
         keywords_threshold: int = 2
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Decay confidence of lessons related to a finding.
 
@@ -669,7 +662,7 @@ class LessonStorageManager:
         # Read all lessons from YAML cold storage (source of truth)
         for yaml_file in self._cold_path.glob('*.yaml'):
             try:
-                with open(yaml_file, 'r') as f:
+                with open(yaml_file) as f:
                     data = yaml.safe_load(f)
 
                 if not data:
@@ -738,7 +731,7 @@ class LessonStorageManager:
         target_id: str,
         relation_type: str,
         weight: float = 1.0,
-        metadata: Optional[Dict] = None
+        metadata: Optional[dict] = None
     ) -> Optional[str]:
         """
         Create an edge between two lessons in the knowledge graph.
@@ -760,8 +753,8 @@ class LessonStorageManager:
         Returns:
             Edge ID if created, None if failed
         """
-        import json
         import hashlib
+        import json
 
         # Generate deterministic edge ID
         edge_id = hashlib.md5(f"{source_id}:{relation_type}:{target_id}".encode()).hexdigest()[:16]
@@ -806,7 +799,7 @@ class LessonStorageManager:
         logger.info(f"Created edge {edge_id}: {source_id} --{relation_type}--> {target_id}")
         return edge_id
 
-    def get_lesson_map(self, domain: Optional[str] = None) -> Dict:
+    def get_lesson_map(self, domain: Optional[str] = None) -> dict:
         """
         Get orthogonal view of lessons organized by relationships.
 
@@ -1011,7 +1004,7 @@ class LessonStorageManager:
 
     # ==================== STATS ====================
 
-    def stats(self) -> Dict:
+    def stats(self) -> dict:
         """Get storage statistics across all layers (hot, warm, cold, search)."""
         cursor = self._conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM lessons")
@@ -1055,6 +1048,7 @@ def _try_get_qdrant_client():
     """
     try:
         import os
+
         from qdrant_client import QdrantClient
 
         # Priority 1: Explicit URL

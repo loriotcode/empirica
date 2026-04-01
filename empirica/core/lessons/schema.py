@@ -12,11 +12,11 @@ Architecture:
 - COLD layer: YAML full content (10ms)
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Literal
-from enum import Enum
 import hashlib
 import time
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Literal, Optional
 
 
 class LessonPhase(Enum):
@@ -65,7 +65,7 @@ class EpistemicDelta:
     signal: float = 0.0     # Signal/noise discrimination
     uncertainty: float = 0.0  # Uncertainty reduction (negative = good)
 
-    def to_dict(self) -> Dict[str, float]:
+    def to_dict(self) -> dict[str, float]:
         """Convert delta to dictionary representation."""
         return {
             'know': self.know,
@@ -78,7 +78,7 @@ class EpistemicDelta:
         }
 
     @classmethod
-    def from_dict(cls, d: Dict[str, float]) -> 'EpistemicDelta':
+    def from_dict(cls, d: dict[str, float]) -> 'EpistemicDelta':
         """Create delta from dictionary representation."""
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
@@ -99,7 +99,7 @@ class LessonStep:
     error_recovery: Optional[str] = None # What to do if step fails
     timeout_ms: Optional[int] = None     # Max time for this step
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert step to dictionary representation."""
         return {
             'order': self.order,
@@ -114,7 +114,7 @@ class LessonStep:
         }
 
     @classmethod
-    def from_dict(cls, d: Dict) -> 'LessonStep':
+    def from_dict(cls, d: dict) -> 'LessonStep':
         """Create step from dictionary representation."""
         return cls(
             order=d['order'],
@@ -137,7 +137,7 @@ class Prerequisite:
     name: str                            # Human-readable name
     required_level: float = 0.5          # Minimum level needed (0-1)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert prerequisite to dictionary representation."""
         return {
             'type': self.type.value,
@@ -147,7 +147,7 @@ class Prerequisite:
         }
 
     @classmethod
-    def from_dict(cls, d: Dict) -> 'Prerequisite':
+    def from_dict(cls, d: dict) -> 'Prerequisite':
         """Create prerequisite from dictionary representation."""
         return cls(
             type=PrerequisiteType(d['type']),
@@ -172,7 +172,7 @@ class Correction:
     corrector_id: Optional[str] = None
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert correction to dictionary representation."""
         return {
             'step_order': self.step_order,
@@ -185,7 +185,7 @@ class Correction:
         }
 
     @classmethod
-    def from_dict(cls, d: Dict) -> 'Correction':
+    def from_dict(cls, d: dict) -> 'Correction':
         """Create correction from dictionary representation."""
         return cls(**d)
 
@@ -198,7 +198,7 @@ class LessonRelation:
     target_id: str
     weight: float = 1.0                  # Relationship strength
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert relation to dictionary representation."""
         return {
             'relation_type': self.relation_type.value,
@@ -208,7 +208,7 @@ class LessonRelation:
         }
 
     @classmethod
-    def from_dict(cls, d: Dict) -> 'LessonRelation':
+    def from_dict(cls, d: dict) -> 'LessonRelation':
         """Create relation from dictionary representation."""
         return cls(
             relation_type=RelationType(d['relation_type']),
@@ -224,11 +224,11 @@ class LessonValidation:
     replay_count: int = 0                # Times successfully replayed
     success_rate: float = 0.0            # Success rate (0-1)
     avg_completion_time_ms: int = 0      # Average time to complete
-    test_cases: List[str] = field(default_factory=list)
+    test_cases: list[str] = field(default_factory=list)
     success_criteria: str = ""
     last_validated: Optional[float] = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert validation to dictionary representation."""
         return {
             'replay_count': self.replay_count,
@@ -240,7 +240,7 @@ class LessonValidation:
         }
 
     @classmethod
-    def from_dict(cls, d: Dict) -> 'LessonValidation':
+    def from_dict(cls, d: dict) -> 'LessonValidation':
         """Create validation from dictionary representation."""
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
@@ -253,7 +253,7 @@ class LessonEpistemic:
     reproducibility: float               # How reliably can it be replayed
     expected_delta: EpistemicDelta       # What vectors it improves
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert epistemic metadata to dictionary representation."""
         return {
             'source_confidence': self.source_confidence,
@@ -263,7 +263,7 @@ class LessonEpistemic:
         }
 
     @classmethod
-    def from_dict(cls, d: Dict) -> 'LessonEpistemic':
+    def from_dict(cls, d: dict) -> 'LessonEpistemic':
         """Create epistemic metadata from dictionary representation."""
         return cls(
             source_confidence=d['source_confidence'],
@@ -294,16 +294,16 @@ class Lesson:
     epistemic: LessonEpistemic
 
     # Prerequisites
-    prerequisites: List[Prerequisite] = field(default_factory=list)
+    prerequisites: list[Prerequisite] = field(default_factory=list)
 
     # Procedural steps
-    steps: List[LessonStep] = field(default_factory=list)
+    steps: list[LessonStep] = field(default_factory=list)
 
     # Relations in knowledge graph
-    relations: List[LessonRelation] = field(default_factory=list)
+    relations: list[LessonRelation] = field(default_factory=list)
 
     # Corrections received
-    corrections: List[Correction] = field(default_factory=list)
+    corrections: list[Correction] = field(default_factory=list)
 
     # Validation metrics
     validation: LessonValidation = field(default_factory=LessonValidation)
@@ -318,7 +318,7 @@ class Lesson:
     updated_timestamp: float = field(default_factory=time.time)
 
     # Tags for search
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     domain: Optional[str] = None         # e.g., 'browser-automation', 'git', 'api'
 
     @staticmethod
@@ -327,7 +327,7 @@ class Lesson:
         content = f"{name}:{version}"
         return hashlib.md5(content.encode()).hexdigest()[:16]
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Full serialization for COLD storage (YAML)"""
         return {
             'id': self.id,
@@ -349,7 +349,7 @@ class Lesson:
             'domain': self.domain
         }
 
-    def to_hot_dict(self) -> Dict:
+    def to_hot_dict(self) -> dict:
         """Minimal serialization for HOT cache (in-memory)"""
         return {
             'id': self.id,
@@ -360,7 +360,7 @@ class Lesson:
             'requires': [r.target_id for r in self.relations if r.relation_type == RelationType.REQUIRES],
         }
 
-    def to_warm_dict(self) -> Dict:
+    def to_warm_dict(self) -> dict:
         """Metadata for WARM storage (SQLite)"""
         return {
             'id': self.id,
@@ -384,7 +384,7 @@ class Lesson:
         }
 
     @classmethod
-    def from_dict(cls, d: Dict) -> 'Lesson':
+    def from_dict(cls, d: dict) -> 'Lesson':
         """Deserialize from COLD storage"""
         return cls(
             id=d['id'],
@@ -416,7 +416,7 @@ class KnowledgeGraphNode:
     name: str
     epistemic_delta: Optional[EpistemicDelta] = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert knowledge graph node to dictionary representation."""
         return {
             'id': self.id,
@@ -434,7 +434,7 @@ class KnowledgeGraphEdge:
     relation_type: RelationType
     weight: float = 1.0
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert knowledge graph edge to dictionary representation."""
         return {
             'source_id': self.source_id,

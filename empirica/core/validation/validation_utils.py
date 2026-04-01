@@ -6,14 +6,12 @@ and semantic understanding validation.
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple
 import subprocess
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
-def get_git_diff_summary(since_preflight: bool = False) -> Dict[str, any]:
+def get_git_diff_summary(since_preflight: bool = False) -> dict[str, any]:
     """
     Get summary of git changes since last checkpoint.
 
@@ -93,9 +91,9 @@ def get_git_diff_summary(since_preflight: bool = False) -> Dict[str, any]:
 
 
 def analyze_epistemic_trajectory(
-    preflight_vectors: Dict[str, float],
-    postflight_vectors: Dict[str, float]
-) -> Dict[str, any]:
+    preflight_vectors: dict[str, float],
+    postflight_vectors: dict[str, float]
+) -> dict[str, any]:
     """
     Analyze if epistemic trajectory is coherent.
 
@@ -162,7 +160,7 @@ def analyze_epistemic_trajectory(
     }
 
 
-def understand_finding(finding: Dict[str, any], my_knowledge: Dict[str, float]) -> bool:
+def understand_finding(finding: dict[str, any], my_knowledge: dict[str, float]) -> bool:
     """
     Estimate if I (next AI) can understand a previous AI's finding.
 
@@ -200,8 +198,8 @@ def understand_finding(finding: Dict[str, any], my_knowledge: Dict[str, float]) 
 
 
 def calculate_understanding_ratio(
-    findings: List[Dict],
-    my_knowledge: Dict[str, float]
+    findings: list[dict],
+    my_knowledge: dict[str, float]
 ) -> float:
     """
     Calculate what percentage of findings I understand.
@@ -221,8 +219,8 @@ def calculate_understanding_ratio(
 
 
 def estimate_rehydration_boost(
-    findings: List[Dict],
-    unknowns: List[Dict],
+    findings: list[dict],
+    unknowns: list[dict],
     my_know: float
 ) -> float:
     """

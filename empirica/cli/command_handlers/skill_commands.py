@@ -2,22 +2,23 @@
 Skill Commands - suggest and fetch skills into project_skills/*.yaml
 """
 from __future__ import annotations
-import os
+
 import json
 import logging
-from typing import Dict, List
+import os
+
 from ..cli_utils import handle_cli_error
 
 logger = logging.getLogger(__name__)
 
 
-def _load_skill_sources(root: str) -> List[Dict]:
+def _load_skill_sources(root: str) -> list[dict]:
     """Load available skill sources from SKILL_SOURCES.yaml."""
     import yaml  # type: ignore
     path = os.path.join(root, 'docs', 'skills', 'SKILL_SOURCES.yaml')
     if not os.path.exists(path):
         return []
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, encoding='utf-8') as f:
         data = yaml.safe_load(f) or {}
     return data.get('skills', [])
 
@@ -26,6 +27,7 @@ def handle_skill_suggest_command(args):
     """Handle skill-suggest command to find relevant skills for a task."""
     try:
         import yaml  # type: ignore
+
         from empirica.utils.session_resolver import InstanceResolver as R
         context_project = R.project_path()
         root = context_project if context_project else os.getcwd()
@@ -38,7 +40,7 @@ def handle_skill_suggest_command(args):
             for filename in os.listdir(skills_dir):
                 if filename.endswith(('.yaml', '.yml')):
                     try:
-                        with open(os.path.join(skills_dir, filename), 'r', encoding='utf-8') as f:
+                        with open(os.path.join(skills_dir, filename), encoding='utf-8') as f:
                             skill = yaml.safe_load(f)
                             if skill:
                                 local_skills.append({
@@ -73,9 +75,11 @@ def handle_skill_suggest_command(args):
 def handle_skill_fetch_command(args):
     """Handle skill-fetch command to download and save a skill definition."""
     try:
+        import zipfile
+
         import requests  # type: ignore
         import yaml  # type: ignore
-        import zipfile, io
+
         from empirica.core.skills.parser import parse_markdown_to_skill
         from empirica.utils.session_resolver import InstanceResolver as R
 
@@ -187,9 +191,8 @@ def handle_skill_extract_command(args):
     """Extract decision frameworks from skill(s) to meta-agent-config.yaml."""
     try:
         from pathlib import Path
-        from empirica.core.skills.extractor import (
-            SkillExtractor, extract_all_skills, extract_single_skill
-        )
+
+        from empirica.core.skills.extractor import extract_all_skills, extract_single_skill
 
         skill_dir = getattr(args, 'skill_dir', None)
         skills_dir = getattr(args, 'skills_dir', None)

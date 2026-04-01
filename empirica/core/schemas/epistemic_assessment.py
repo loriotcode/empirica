@@ -13,9 +13,9 @@ Used by:
 Format: Nested structure with foundation/comprehension/execution tiers
 """
 
-from dataclasses import dataclass, field, asdict
-from typing import Dict, Optional, Any
+from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Optional
 
 
 class AssessmentType(Enum):
@@ -82,7 +82,7 @@ class VectorAssessment:
         if not 0.0 <= self.score <= 1.0:
             raise ValueError(f"Score must be in [0.0, 1.0], got {self.score}")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         result = {
             "score": self.score,
@@ -96,7 +96,7 @@ class VectorAssessment:
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'VectorAssessment':
+    def from_dict(cls, data: dict[str, Any]) -> 'VectorAssessment':
         """Parse from dictionary"""
         return cls(
             score=float(data["score"]),
@@ -153,7 +153,7 @@ class EpistemicAssessmentSchema:
     round_num: int = 0
     investigation_count: int = 0
 
-    def to_nested_dict(self) -> Dict[str, Any]:
+    def to_nested_dict(self) -> dict[str, Any]:
         """
         Convert to nested format (for CLI/MCP)
 
@@ -192,7 +192,7 @@ class EpistemicAssessmentSchema:
             "uncertainty": self.uncertainty.to_dict()
         }
 
-    def to_flat_dict(self) -> Dict[str, float]:
+    def to_flat_dict(self) -> dict[str, float]:
         """
         Convert to flat score dictionary (for storage/comparison)
 
@@ -220,7 +220,7 @@ class EpistemicAssessmentSchema:
         }
 
     @classmethod
-    def from_nested_dict(cls, data: Dict[str, Any], phase: CascadePhase = CascadePhase.PREFLIGHT) -> 'EpistemicAssessmentSchema':
+    def from_nested_dict(cls, data: dict[str, Any], phase: CascadePhase = CascadePhase.PREFLIGHT) -> 'EpistemicAssessmentSchema':
         """
         Parse from nested format (CLI/MCP input)
 
@@ -248,7 +248,7 @@ class EpistemicAssessmentSchema:
             phase=phase
         )
 
-    def apply_persona_priors(self, persona_priors: Dict[str, float], strength: float = 1.0) -> 'EpistemicAssessmentSchema':
+    def apply_persona_priors(self, persona_priors: dict[str, float], strength: float = 1.0) -> 'EpistemicAssessmentSchema':
         """
         Apply persona priors to this assessment
 
@@ -296,7 +296,7 @@ class EpistemicAssessmentSchema:
             investigation_count=self.investigation_count
         )
 
-    def calculate_tier_confidences(self, weights: Optional[Dict[str, float]] = None) -> Dict[str, float]:
+    def calculate_tier_confidences(self, weights: Optional[dict[str, float]] = None) -> dict[str, float]:
         """
         Calculate tier-level confidence scores
 
@@ -350,7 +350,7 @@ class EpistemicAssessmentSchema:
             "overall_confidence": overall_confidence
         }
 
-    def determine_action(self, thresholds: Optional[Dict[str, float]] = None) -> str:
+    def determine_action(self, thresholds: Optional[dict[str, float]] = None) -> str:
         """
         Determine recommended action based on assessment
 
@@ -382,102 +382,102 @@ class EpistemicAssessmentSchema:
             return "investigate"
 
         return "proceed"
-    
+
     # ===== BACKWARDS COMPATIBILITY LAYER =====
     # Properties that map NEW field names to OLD field names
     # This allows database/dashboard code to keep using OLD names
-    
+
     @property
     def know(self):
         """Backwards compat: know → foundation_know"""
         return self.foundation_know
-    
+
     @property
     def do(self):
         """Backwards compat: do → foundation_do"""
         return self.foundation_do
-    
+
     @property
     def context(self):
         """Backwards compat: context → foundation_context"""
         return self.foundation_context
-    
+
     @property
     def clarity(self):
         """Backwards compat: clarity → comprehension_clarity"""
         return self.comprehension_clarity
-    
+
     @property
     def coherence(self):
         """Backwards compat: coherence → comprehension_coherence"""
         return self.comprehension_coherence
-    
+
     @property
     def signal(self):
         """Backwards compat: signal → comprehension_signal"""
         return self.comprehension_signal
-    
+
     @property
     def density(self):
         """Backwards compat: density → comprehension_density"""
         return self.comprehension_density
-    
+
     @property
     def state(self):
         """Backwards compat: state → execution_state"""
         return self.execution_state
-    
+
     @property
     def change(self):
         """Backwards compat: change → execution_change"""
         return self.execution_change
-    
+
     @property
     def completion(self):
         """Backwards compat: completion → execution_completion"""
         return self.execution_completion
-    
+
     @property
     def impact(self):
         """Backwards compat: impact → execution_impact"""
         return self.execution_impact
-    
+
     @property
     def engagement_gate_passed(self):
         """Backwards compat: Check if engagement >= 0.6"""
         return self.engagement.score >= 0.6
-    
+
     @property
     def assessment_id(self):
         """Backwards compat: Generate assessment ID from phase and timestamp"""
         import uuid
         return f"assessment_{self.phase.value}_{uuid.uuid4().hex[:8]}"
-    
+
     @property
     def foundation_confidence(self):
         """Backwards compat: Calculate foundation tier confidence"""
         return (self.foundation_know.score + self.foundation_do.score + self.foundation_context.score) / 3
-    
+
     @property
     def comprehension_confidence(self):
         """Backwards compat: Calculate comprehension tier confidence"""
         return (
-            self.comprehension_clarity.score + 
-            self.comprehension_coherence.score + 
-            self.comprehension_signal.score + 
+            self.comprehension_clarity.score +
+            self.comprehension_coherence.score +
+            self.comprehension_signal.score +
             (1.0 - self.comprehension_density.score)  # Density is inverted
         ) / 4
-    
+
     @property
     def execution_confidence(self):
         """Backwards compat: Calculate execution tier confidence"""
         return (
-            self.execution_state.score + 
-            self.execution_change.score + 
-            self.execution_completion.score + 
+            self.execution_state.score +
+            self.execution_change.score +
+            self.execution_completion.score +
             self.execution_impact.score
         ) / 4
-    
+
     @property
     def overall_confidence(self):
         """Backwards compat: Calculate overall confidence using canonical weights"""
@@ -488,16 +488,16 @@ class EpistemicAssessmentSchema:
             self.execution_confidence * 0.25 +
             self.engagement.score * 0.15
         )
-    
+
     @property
     def recommended_action(self):
         """Backwards compat: Determine recommended action based on thresholds"""
         from empirica.core.canonical.reflex_frame import Action
-        
+
         # Gate check
         if not self.engagement_gate_passed:
             return Action.CLARIFY
-        
+
         # Critical flags
         if self.comprehension_coherence.score < 0.5:
             return Action.RESET
@@ -505,35 +505,35 @@ class EpistemicAssessmentSchema:
             return Action.RESET
         if self.execution_change.score < 0.5:
             return Action.STOP
-        
+
         # Uncertainty-driven investigation
         if self.uncertainty.score > 0.7:
             return Action.INVESTIGATE
-        
+
         # Low foundation confidence
         if self.foundation_confidence < 0.6:
             return Action.INVESTIGATE
-        
+
         # Otherwise proceed
         return Action.PROCEED if self.overall_confidence >= 0.7 else Action.INVESTIGATE
-    
+
     @property
     def coherence_critical(self):
         """Backwards compat: Check if coherence score is below critical threshold"""
         return self.comprehension_coherence.score < 0.5
-    
-    @property 
+
+    @property
     def density_critical(self):
         """Backwards compat: Check if density score is above critical threshold"""
         return self.comprehension_density.score > 0.9
-    
+
     @property
     def change_critical(self):
         """Backwards compat: Check if change score is below critical threshold"""
         return self.execution_change.score < 0.5
 
 
-def validate_assessment(data: Dict[str, Any]) -> bool:
+def validate_assessment(data: dict[str, Any]) -> bool:
     """
     Validate assessment dictionary format
 
@@ -573,7 +573,7 @@ def validate_assessment(data: Dict[str, Any]) -> bool:
             raise ValueError(f"Missing execution key: {key}")
 
     # Validate all vectors have score + rationale
-    def check_vector(vector_data: Dict, vector_name: str) -> None:
+    def check_vector(vector_data: dict, vector_name: str) -> None:
         """Validate vector has required score and rationale fields."""
         if "score" not in vector_data:
             raise ValueError(f"Missing score in {vector_name}")
@@ -595,7 +595,7 @@ def validate_assessment(data: Dict[str, Any]) -> bool:
     return True
 
 
-def parse_assessment_dict(data: Dict[str, Any], phase: CascadePhase = CascadePhase.PREFLIGHT) -> EpistemicAssessmentSchema:
+def parse_assessment_dict(data: dict[str, Any], phase: CascadePhase = CascadePhase.PREFLIGHT) -> EpistemicAssessmentSchema:
     """
     Parse and validate assessment dictionary
 

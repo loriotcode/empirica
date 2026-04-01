@@ -20,9 +20,10 @@ Design Philosophy:
 
 import logging
 import time
-from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, Callable, List, Tuple
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ class SentinelState:
             experience_score * 0.05
         )
 
-    def get_turtle_status(self) -> Tuple[TurtleStatus, str]:
+    def get_turtle_status(self) -> tuple[TurtleStatus, str]:
         """Get the Sentinel's turtle status (moon phase)."""
         score = self.get_grounding_score()
 
@@ -207,7 +208,7 @@ class SentinelHooks:
         return cls._state
 
     @classmethod
-    def turtle_check(cls) -> Dict[str, Any]:
+    def turtle_check(cls) -> dict[str, Any]:
         """
         Perform recursive grounding check on the Sentinel itself.
 
@@ -310,7 +311,7 @@ class SentinelHooks:
         }
 
     @classmethod
-    def register_evaluator(cls, evaluator: Callable[[Dict[str, Any]], SentinelDecision]) -> None:
+    def register_evaluator(cls, evaluator: Callable[[dict[str, Any]], SentinelDecision]) -> None:
         """
         Register Sentinel evaluator function
         
@@ -320,22 +321,22 @@ class SentinelHooks:
         cls._evaluators.append(evaluator)
         cls._enabled = True
         logger.info(f"✓ Registered Sentinel evaluator: {evaluator.__name__}")
-    
+
     @classmethod
     def clear_evaluators(cls) -> None:
         """Clear all evaluators (for testing)"""
         cls._evaluators.clear()
         cls._enabled = False
-    
+
     @classmethod
     def is_enabled(cls) -> bool:
         """Check if Sentinel is enabled"""
         return cls._enabled and len(cls._evaluators) > 0
-    
+
     @classmethod
     def evaluate_checkpoint(
         cls,
-        checkpoint_data: Dict[str, Any],
+        checkpoint_data: dict[str, Any],
         blocking: bool = False,
         turtle: bool = None  # None = use class default, True/False = override
     ) -> Optional[SentinelDecision]:
@@ -384,7 +385,7 @@ class SentinelHooks:
                         healthy_evaluators += 1
                 except Exception as e:
                     logger.warning(f"Evaluator {evaluator.__name__} failed: {e}")
-            
+
             if not decisions:
                 return None
 
@@ -431,14 +432,14 @@ class SentinelHooks:
             # Reduce confidence on failures
             cls._state.confidence = max(0.5, cls._state.confidence - 0.1)
             return None
-    
+
     @classmethod
     def post_checkpoint_hook(
         cls,
         session_id: str,
         ai_id: str,
         phase: str,
-        checkpoint_data: Dict[str, Any]
+        checkpoint_data: dict[str, Any]
     ) -> Optional[SentinelDecision]:
         """
         Hook called automatically after checkpoint creation
@@ -454,16 +455,16 @@ class SentinelHooks:
         """
         if not cls.is_enabled():
             return None
-        
+
         logger.debug(f"🛡️ Sentinel evaluating checkpoint (session={session_id}, phase={phase})")
-        
+
         decision = cls.evaluate_checkpoint(checkpoint_data)
-        
+
         if decision:
             cls._log_decision(session_id, ai_id, phase, decision)
-        
+
         return decision
-    
+
     @classmethod
     def _log_decision(
         cls,
@@ -479,7 +480,7 @@ class SentinelHooks:
         )
 
 
-def _load_readiness_thresholds() -> Dict[str, float]:
+def _load_readiness_thresholds() -> dict[str, float]:
     """
     Load readiness gate thresholds from MCO config.
 
@@ -534,7 +535,7 @@ def _load_readiness_thresholds() -> Dict[str, float]:
 
 
 # Default evaluator for routing decisions
-def default_epistemic_evaluator(checkpoint_data: Dict[str, Any]) -> SentinelDecision:
+def default_epistemic_evaluator(checkpoint_data: dict[str, Any]) -> SentinelDecision:
     """
     Default Sentinel evaluator - routes based on RAW epistemic vectors.
 

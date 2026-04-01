@@ -8,11 +8,11 @@ MVP implementation: Simple database operations for task tracking.
 
 import json
 import logging
-from typing import List, Optional, Dict, Any
-from pathlib import Path
+from typing import Optional
 
 from empirica.data.session_database import SessionDatabase
-from .types import SubTask, TaskDecomposition, TaskStatus, EpistemicImportance
+
+from .types import EpistemicImportance, SubTask, TaskDecomposition, TaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class TaskRepository:
         except Exception as e:
             logger.error(f"Error resolving subtask ID {subtask_id}: {e}")
             return None
-    
+
     def _ensure_tables(self):
         """Create task-related tables if they don't exist"""
         try:
@@ -88,7 +88,7 @@ class TaskRepository:
                     FOREIGN KEY (goal_id) REFERENCES goals(id)
                 )
             """)
-            
+
             # Task dependencies table
             self.db.conn.execute("""
                 CREATE TABLE IF NOT EXISTS subtask_dependencies (
@@ -99,7 +99,7 @@ class TaskRepository:
                     FOREIGN KEY (depends_on_subtask_id) REFERENCES subtasks(id)
                 )
             """)
-            
+
             # Task decompositions (metadata)
             self.db.conn.execute("""
                 CREATE TABLE IF NOT EXISTS task_decompositions (
@@ -110,14 +110,14 @@ class TaskRepository:
                     FOREIGN KEY (goal_id) REFERENCES goals(id)
                 )
             """)
-            
+
             self.db.conn.commit()
             logger.info("Task tables ensured in database")
-            
+
         except Exception as e:
             logger.error(f"Error creating task tables: {e}")
             raise
-    
+
     def save_subtask(self, subtask: SubTask) -> bool:
         """
         Save subtask to database
@@ -131,7 +131,7 @@ class TaskRepository:
         try:
             # Serialize full subtask as JSON
             subtask_data = json.dumps(subtask.to_dict())
-            
+
             # Insert main subtask record
             self.db.conn.execute("""
                 INSERT OR REPLACE INTO subtasks 
@@ -153,7 +153,7 @@ class TaskRepository:
                 subtask.completed_timestamp,
                 subtask_data
             ))
-            
+
             # Insert dependencies (delete old ones first)
             self.db.conn.execute(
                 "DELETE FROM subtask_dependencies WHERE subtask_id = ?",
@@ -165,16 +165,16 @@ class TaskRepository:
                     (subtask_id, depends_on_subtask_id)
                     VALUES (?, ?)
                 """, (subtask.id, dep_id))
-            
+
             self.db.conn.commit()
             logger.info(f"Saved subtask {subtask.id}: {subtask.description[:50]}...")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error saving subtask {subtask.id}: {e}")
             self.db.conn.rollback()
             return False
-    
+
     def get_subtask(self, subtask_id: str) -> Optional[SubTask]:
         """
         Retrieve subtask by ID (supports partial UUID)
@@ -206,8 +206,8 @@ class TaskRepository:
         except Exception as e:
             logger.error(f"Error retrieving subtask {subtask_id}: {e}")
             return None
-    
-    def get_goal_subtasks(self, goal_id: str) -> List[SubTask]:
+
+    def get_goal_subtasks(self, goal_id: str) -> list[SubTask]:
         """
         Retrieve all subtasks for a goal
         
@@ -222,18 +222,18 @@ class TaskRepository:
                 "SELECT subtask_data FROM subtasks WHERE goal_id = ? ORDER BY created_timestamp",
                 (goal_id,)
             )
-            
+
             subtasks = []
             for row in cursor.fetchall():
                 subtask_dict = json.loads(row[0])
                 subtasks.append(SubTask.from_dict(subtask_dict))
-            
+
             return subtasks
-            
+
         except Exception as e:
             logger.error(f"Error retrieving goal subtasks: {e}")
             return []
-    
+
     def update_subtask_status(
         self,
         subtask_id: str,
@@ -267,7 +267,7 @@ class TaskRepository:
                 SET status = ?, completed_timestamp = ?, completion_evidence = ?
                 WHERE id = ?
             """, (status.value, timestamp, completion_evidence, resolved_id))
-            
+
             # Also update the subtask_data JSON
             subtask = self.get_subtask(resolved_id)
             if subtask:
@@ -285,12 +285,12 @@ class TaskRepository:
             self.db.conn.commit()
             logger.info(f"Updated subtask {resolved_id} status: {status.value}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error updating subtask status: {e}")
             self.db.conn.rollback()
             return False
-    
+
     def save_decomposition(self, decomposition: TaskDecomposition) -> bool:
         """
         Save task decomposition metadata
@@ -305,10 +305,10 @@ class TaskRepository:
             # Save all subtasks first
             for subtask in decomposition.subtasks:
                 self.save_subtask(subtask)
-            
+
             # Save decomposition metadata
             decomposition_data = json.dumps(decomposition.to_dict())
-            
+
             self.db.conn.execute("""
                 INSERT OR REPLACE INTO task_decompositions
                 (goal_id, total_estimated_tokens, created_timestamp, decomposition_data)
@@ -319,16 +319,16 @@ class TaskRepository:
                 decomposition.created_timestamp,
                 decomposition_data
             ))
-            
+
             self.db.conn.commit()
             logger.info(f"Saved decomposition for goal {decomposition.goal_id}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error saving decomposition: {e}")
             self.db.conn.rollback()
             return False
-    
+
     def get_decomposition(self, goal_id: str) -> Optional[TaskDecomposition]:
         """
         Retrieve task decomposition for a goal
@@ -345,23 +345,23 @@ class TaskRepository:
                 (goal_id,)
             )
             row = cursor.fetchone()
-            
+
             if row:
                 decomposition_dict = json.loads(row[0])
                 return TaskDecomposition.from_dict(decomposition_dict)
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Error retrieving decomposition: {e}")
             return None
-    
+
     def query_subtasks(
         self,
         goal_id: Optional[str] = None,
         status: Optional[TaskStatus] = None,
         epistemic_importance: Optional[EpistemicImportance] = None
-    ) -> List[SubTask]:
+    ) -> list[SubTask]:
         """
         Query subtasks with filters
         
@@ -376,34 +376,34 @@ class TaskRepository:
         try:
             query = "SELECT subtask_data FROM subtasks WHERE 1=1"
             params = []
-            
+
             if goal_id:
                 query += " AND goal_id = ?"
                 params.append(goal_id)
-            
+
             if status:
                 query += " AND status = ?"
                 params.append(status.value)
-            
+
             if epistemic_importance:
                 query += " AND epistemic_importance = ?"
                 params.append(epistemic_importance.value)
-            
+
             query += " ORDER BY created_timestamp"
-            
+
             cursor = self.db.conn.execute(query, params)
-            
+
             subtasks = []
             for row in cursor.fetchall():
                 subtask_dict = json.loads(row[0])
                 subtasks.append(SubTask.from_dict(subtask_dict))
-            
+
             return subtasks
-            
+
         except Exception as e:
             logger.error(f"Error querying subtasks: {e}")
             return []
-    
+
     def close(self):
         """Close database connection"""
         self.db.close()

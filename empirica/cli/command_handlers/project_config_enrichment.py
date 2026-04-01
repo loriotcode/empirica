@@ -6,10 +6,11 @@ PROJECT_CONFIG.yaml to build intelligence over time.
 """
 
 import logging
-import yaml
-from pathlib import Path
-from typing import Optional, List, Dict, Any
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Optional
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -25,27 +26,27 @@ def find_project_config(start_path: Optional[Path] = None) -> Optional[Path]:
         Path to PROJECT_CONFIG.yaml or None if not found
     """
     current = start_path or Path.cwd()
-    
+
     # Walk up directory tree looking for .empirica-project/
     for parent in [current] + list(current.parents):
         config_path = parent / '.empirica-project' / 'PROJECT_CONFIG.yaml'
         if config_path.exists():
             return config_path
-    
+
     return None
 
 
-def load_project_config(config_path: Path) -> Dict[str, Any]:
+def load_project_config(config_path: Path) -> dict[str, Any]:
     """Load PROJECT_CONFIG.yaml"""
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             return yaml.safe_load(f) or {}
     except Exception as e:
         logger.error(f"Error loading config: {e}")
         return {}
 
 
-def save_project_config(config_path: Path, config: Dict[str, Any]):
+def save_project_config(config_path: Path, config: dict[str, Any]):
     """Save PROJECT_CONFIG.yaml with formatting"""
     try:
         with open(config_path, 'w') as f:
@@ -69,17 +70,17 @@ def enrich_with_finding(finding: str, session_id: Optional[str] = None) -> bool:
     if not config_path:
         logger.debug("No PROJECT_CONFIG.yaml found in tree")
         return False
-    
+
     config = load_project_config(config_path)
-    
+
     # Ensure bootstrap section exists
     if 'bootstrap' not in config:
         config['bootstrap'] = {}
-    
+
     # Ensure key_discoveries exists
     if 'key_discoveries' not in config['bootstrap']:
         config['bootstrap']['key_discoveries'] = []
-    
+
     # Add finding with timestamp
     entry = {
         'finding': finding,
@@ -87,12 +88,12 @@ def enrich_with_finding(finding: str, session_id: Optional[str] = None) -> bool:
     }
     if session_id:
         entry['session_id'] = session_id
-    
+
     config['bootstrap']['key_discoveries'].append(entry)
-    
+
     # Keep last 20 findings (prevent bloat)
     config['bootstrap']['key_discoveries'] = config['bootstrap']['key_discoveries'][-20:]
-    
+
     save_project_config(config_path, config)
     logger.info(f"Enriched PROJECT_CONFIG with finding: {finding[:50]}...")
     return True
@@ -113,17 +114,17 @@ def enrich_with_unknown(unknown: str, session_id: Optional[str] = None) -> bool:
     if not config_path:
         logger.debug("No PROJECT_CONFIG.yaml found in tree")
         return False
-    
+
     config = load_project_config(config_path)
-    
+
     # Ensure bootstrap section exists
     if 'bootstrap' not in config:
         config['bootstrap'] = {}
-    
+
     # Ensure current_challenges exists
     if 'current_challenges' not in config['bootstrap']:
         config['bootstrap']['current_challenges'] = []
-    
+
     # Add unknown with timestamp
     entry = {
         'challenge': unknown,
@@ -132,12 +133,12 @@ def enrich_with_unknown(unknown: str, session_id: Optional[str] = None) -> bool:
     }
     if session_id:
         entry['session_id'] = session_id
-    
+
     config['bootstrap']['current_challenges'].append(entry)
-    
+
     # Keep last 15 challenges
     config['bootstrap']['current_challenges'] = config['bootstrap']['current_challenges'][-15:]
-    
+
     save_project_config(config_path, config)
     logger.info(f"Enriched PROJECT_CONFIG with unknown: {unknown[:50]}...")
     return True
@@ -159,17 +160,17 @@ def enrich_with_dead_end(approach: str, why_failed: str, session_id: Optional[st
     if not config_path:
         logger.debug("No PROJECT_CONFIG.yaml found in tree")
         return False
-    
+
     config = load_project_config(config_path)
-    
+
     # Ensure bootstrap section exists
     if 'bootstrap' not in config:
         config['bootstrap'] = {}
-    
+
     # Ensure dead_ends exists
     if 'dead_ends' not in config['bootstrap']:
         config['bootstrap']['dead_ends'] = []
-    
+
     # Add dead end with timestamp
     entry = {
         'approach': approach,
@@ -178,18 +179,18 @@ def enrich_with_dead_end(approach: str, why_failed: str, session_id: Optional[st
     }
     if session_id:
         entry['session_id'] = session_id
-    
+
     config['bootstrap']['dead_ends'].append(entry)
-    
+
     # Keep last 10 dead ends
     config['bootstrap']['dead_ends'] = config['bootstrap']['dead_ends'][-10:]
-    
+
     save_project_config(config_path, config)
     logger.info(f"Enriched PROJECT_CONFIG with dead end: {approach[:50]}...")
     return True
 
 
-def get_recent_learnings(limit: int = 5) -> Dict[str, List]:
+def get_recent_learnings(limit: int = 5) -> dict[str, list]:
     """
     Get recent learnings from PROJECT_CONFIG.yaml for display.
     
@@ -202,10 +203,10 @@ def get_recent_learnings(limit: int = 5) -> Dict[str, List]:
     config_path = find_project_config()
     if not config_path:
         return {'findings': [], 'challenges': [], 'dead_ends': []}
-    
+
     config = load_project_config(config_path)
     bootstrap = config.get('bootstrap', {})
-    
+
     return {
         'findings': bootstrap.get('key_discoveries', [])[-limit:],
         'challenges': [c for c in bootstrap.get('current_challenges', []) if not c.get('resolved', False)][-limit:],

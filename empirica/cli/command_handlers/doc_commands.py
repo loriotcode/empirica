@@ -2,7 +2,9 @@
 Doc Commands - compute documentation completeness and suggest update plan
 """
 from __future__ import annotations
+
 import json
+
 from ..cli_utils import handle_cli_error
 
 

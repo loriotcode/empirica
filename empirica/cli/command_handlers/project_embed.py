@@ -2,17 +2,17 @@
 Project Embed Command - Build Qdrant indices from docs + project memory.
 """
 from __future__ import annotations
-import os
+
 import json
 import logging
-from typing import List, Dict
+import os
 
 from ..cli_utils import handle_cli_error
 
 logger = logging.getLogger(__name__)
 
 
-def _load_semantic_index(root: str) -> Dict:
+def _load_semantic_index(root: str) -> dict:
     """Load semantic index (per-project, with graceful fallback)"""
     from empirica.config.semantic_index_loader import load_semantic_index
     index = load_semantic_index(root)
@@ -21,7 +21,7 @@ def _load_semantic_index(root: str) -> Dict:
 
 def _read_file(path: str) -> str:
     try:
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, encoding='utf-8') as f:
             return f.read()
     except Exception:
         return ""
@@ -53,7 +53,7 @@ def _resolve_doc_path(root: str, relpath: str) -> str:
     return candidates[0]
 
 
-def _build_embedding_text(relpath: str, meta: Dict, text: str) -> str:
+def _build_embedding_text(relpath: str, meta: dict, text: str) -> str:
     """Build compact embedding text from semantic-index metadata plus an excerpt."""
     parts = [f"File: {relpath}"]
 
@@ -88,19 +88,24 @@ def _build_embedding_text(relpath: str, meta: Dict, text: str) -> str:
     return "\n".join(parts)
 
 
-def _has_indexed_python_files(docs_cfg: Dict) -> bool:
+def _has_indexed_python_files(docs_cfg: dict) -> bool:
     return any(str(path).endswith(".py") for path in docs_cfg.keys())
 
 
 def handle_project_embed_command(args):
     """Handle project-embed command to sync docs and memory to Qdrant."""
     try:
-        from empirica.core.qdrant.vector_store import (
-            init_collections, upsert_docs, upsert_memory,
-            sync_high_impact_to_global, init_global_collection,
-            embed_eidetic, _check_qdrant_available
-        )
         import hashlib
+
+        from empirica.core.qdrant.vector_store import (
+            _check_qdrant_available,
+            embed_eidetic,
+            init_collections,
+            init_global_collection,
+            sync_high_impact_to_global,
+            upsert_docs,
+            upsert_memory,
+        )
         from empirica.data.session_database import SessionDatabase
         from empirica.utils.session_resolver import InstanceResolver as R
 
@@ -132,7 +137,7 @@ def handle_project_embed_command(args):
         # Prepare docs from semantic index
         idx = _load_semantic_index(root)
         docs_cfg = idx.get('index', {})
-        docs_to_upsert: List[Dict] = []
+        docs_to_upsert: list[dict] = []
         did = 1
         for relpath, meta in docs_cfg.items():
             doc_path = _resolve_doc_path(root, relpath)
@@ -236,7 +241,7 @@ def handle_project_embed_command(args):
         # which created duplicates: finding-log embedded with UUID-derived IDs
         # while project-embed embedded with sequential IDs. Same text, different
         # Qdrant point IDs = duplicate on every project-embed run.
-        mem_items: List[Dict] = []
+        mem_items: list[dict] = []
         for f in findings:
             fid = f.get('finding_id') or str(f.get('id', ''))
             if not fid:
@@ -367,8 +372,9 @@ def handle_project_embed_command(args):
         # CODE API EMBEDDING: Extract and embed Python API surfaces
         code_embedded = 0
         try:
-            from empirica.core.qdrant.code_embeddings import embed_project_code
             from pathlib import Path
+
+            from empirica.core.qdrant.code_embeddings import embed_project_code
             code_root = Path(root)
             if _has_indexed_python_files(docs_cfg) and code_root.is_dir():
                 code_result = embed_project_code(project_id, code_root)

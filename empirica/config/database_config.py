@@ -21,16 +21,16 @@ Example config.yaml:
         password: ${POSTGRES_PASSWORD}  # env var substitution
 """
 
-import os
-import yaml
 import logging
-from pathlib import Path
-from typing import Dict, Any
+import os
+from typing import Any
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
 
-def get_database_config() -> Dict[str, Any]:
+def get_database_config() -> dict[str, Any]:
     """
     Get database configuration from environment or config file
 

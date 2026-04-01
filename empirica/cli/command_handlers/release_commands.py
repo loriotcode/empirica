@@ -19,11 +19,10 @@ import json
 import os
 import re
 import subprocess
-import sys
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Dict, List, Optional, Any
 from enum import Enum
+from pathlib import Path
+from typing import Any, Optional
 
 from ..cli_utils import handle_cli_error
 
@@ -42,10 +41,10 @@ class CheckResult:
     name: str
     status: AssessmentStatus
     message: str
-    details: List[str] = field(default_factory=list)
+    details: list[str] = field(default_factory=list)
     moon: str = ""  # Moon phase indicator
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert check result to dictionary for JSON serialization."""
         return {
             "name": self.name,
@@ -70,7 +69,7 @@ class EpistemicReleaseAgent:
         """Initialize release agent with project root and quick mode setting."""
         self.root = project_root or Path.cwd()
         self.quick = quick
-        self.results: List[CheckResult] = []
+        self.results: list[CheckResult] = []
         self.version: Optional[str] = None
 
     def _score_to_moon(self, score: float) -> str:
@@ -311,7 +310,7 @@ class EpistemicReleaseAgent:
         result.moon = self._status_to_moon(status)
         return result
 
-    def _parse_gitignore(self) -> List[str]:
+    def _parse_gitignore(self) -> list[str]:
         """Parse .gitignore and return list of ignored patterns."""
         gitignore = self.root / ".gitignore"
         if not gitignore.exists():
@@ -327,7 +326,7 @@ class EpistemicReleaseAgent:
             patterns.append(line.rstrip('/'))
         return patterns
 
-    def _is_gitignored(self, path: Path, gitignore_patterns: List[str]) -> bool:
+    def _is_gitignored(self, path: Path, gitignore_patterns: list[str]) -> bool:
         """Check if a path matches any gitignore pattern."""
         path_str = str(path.relative_to(self.root)) if path.is_absolute() else str(path)
 
@@ -588,7 +587,7 @@ class EpistemicReleaseAgent:
     # =========================================================================
     # Main Run
     # =========================================================================
-    def run(self) -> Dict[str, Any]:
+    def run(self) -> dict[str, Any]:
         """Run all epistemic release checks."""
         checks = [
             self.check_version_sync,

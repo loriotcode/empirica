@@ -13,7 +13,8 @@ import logging
 import subprocess
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Optional
+
 from ..cli_utils import handle_cli_error
 
 logger = logging.getLogger(__name__)
@@ -41,13 +42,13 @@ def _get_workspace_root() -> str:
     return os.getcwd()
 
 
-def _load_sync_config() -> Dict[str, Any]:
+def _load_sync_config() -> dict[str, Any]:
     """Load sync config — reuses sync_commands logic."""
     from .sync_commands import _load_sync_config as load_config
     return load_config()
 
 
-def _fetch_notes(remote: str) -> Dict[str, Any]:
+def _fetch_notes(remote: str) -> dict[str, Any]:
     """Fetch all empirica git notes refs from remote.
 
     Returns dict with 'ok', 'fetched', 'errors' keys.
@@ -88,7 +89,7 @@ def _fetch_notes(remote: str) -> Dict[str, Any]:
     return results
 
 
-def _push_notes(remote: str) -> Dict[str, Any]:
+def _push_notes(remote: str) -> dict[str, Any]:
     """Push all empirica git notes refs to remote."""
     results = {'ok': True, 'pushed': {}, 'errors': []}
 
@@ -125,7 +126,7 @@ def _push_notes(remote: str) -> Dict[str, Any]:
     return results
 
 
-def _import_notes_to_sqlite() -> Dict[str, Any]:
+def _import_notes_to_sqlite() -> dict[str, Any]:
     """Import git notes artifacts into SQLite using ProfileImporter (idempotent)."""
     try:
         from empirica.core.canonical.empirica_git.profile_import import ProfileImporter
@@ -149,7 +150,7 @@ def _import_notes_to_sqlite() -> Dict[str, Any]:
         }
 
 
-def _rebuild_qdrant() -> Dict[str, Any]:
+def _rebuild_qdrant() -> dict[str, Any]:
     """Rebuild Qdrant semantic index from SQLite."""
     try:
         from empirica.core.qdrant.rebuild import rebuild_qdrant_from_db
@@ -293,7 +294,7 @@ def _write_prune_receipt(artifact_id: str, artifact_type: str, reason: str,
         return False
 
 
-def _prune_artifact(db, artifact_id: str, artifact_type: str, reason: str) -> Dict[str, Any]:
+def _prune_artifact(db, artifact_id: str, artifact_type: str, reason: str) -> dict[str, Any]:
     """Remove a single artifact from SQLite and write prune receipt."""
     table_map = {
         'finding': 'project_findings',
@@ -347,7 +348,7 @@ def _prune_artifact(db, artifact_id: str, artifact_type: str, reason: str) -> Di
 
 
 def _apply_prune_rule(db, rule: str, older_than_days: Optional[int] = None,
-                      dry_run: bool = False) -> Dict[str, Any]:
+                      dry_run: bool = False) -> dict[str, Any]:
     """Apply a mechanical pruning rule.
 
     Returns dict with 'ok', 'count', and 'pruned'/'candidates' keys.
@@ -640,6 +641,7 @@ def handle_profile_status_command(args):
         calibration = {}
         try:
             from pathlib import Path
+
             import yaml
             breadcrumbs_path = Path(workspace) / '.breadcrumbs.yaml'
             if breadcrumbs_path.exists():
@@ -790,10 +792,8 @@ def handle_profile_import_command(args):
         include_sidechains = getattr(args, 'include_sidechains', False)
         output_format = getattr(args, 'output', 'text')
 
-        from empirica.core.canonical.transcript_parser import (
-            TranscriptParser, SessionIndex, ClaudeAIParser
-        )
         from empirica.core.canonical.artifact_extractor import ArtifactExtractor
+        from empirica.core.canonical.transcript_parser import ClaudeAIParser, SessionIndex, TranscriptParser
 
         all_results = []
         sessions_scanned = 0
@@ -950,9 +950,10 @@ def handle_profile_import_command(args):
                 print(f"ℹ️  {msg}")
             return 0
 
+        import uuid as uuid_mod
+
         from empirica.data.session_database import SessionDatabase
         from empirica.utils.session_resolver import get_active_project_id
-        import uuid as uuid_mod
 
         db = SessionDatabase()
         project_id = get_active_project_id()

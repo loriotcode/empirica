@@ -7,17 +7,16 @@ epistemic assessment of a code component.
 This is the "turtles all the way down" module - Empirica assessing itself.
 """
 
-from pathlib import Path
-from typing import Optional, List
 from datetime import datetime
+from pathlib import Path
 
+from .coupling_analyzer import CouplingAnalyzer
 from .schema import (
-    ComponentAssessment,
     ArchitectureVectors,
+    ComponentAssessment,
     CouplingMetrics,
     StabilityMetrics,
 )
-from .coupling_analyzer import CouplingAnalyzer
 from .stability_estimator import StabilityEstimator
 
 
@@ -259,7 +258,7 @@ class ComponentAssessor:
         vectors: ArchitectureVectors,
         coupling: CouplingMetrics,
         stability: StabilityMetrics,
-    ) -> List[str]:
+    ) -> list[str]:
         """Generate actionable recommendations."""
         recommendations = []
 
@@ -330,7 +329,7 @@ class ComponentAssessor:
 
         return recommendations
 
-    def _prioritize_improvements(self, vectors: ArchitectureVectors) -> List[str]:
+    def _prioritize_improvements(self, vectors: ArchitectureVectors) -> list[str]:
         """Prioritize which vectors to improve first."""
         # Calculate which vectors are furthest from ideal
         scores = {
@@ -350,7 +349,7 @@ class ComponentAssessor:
         # Return top 3 needing improvement
         return [v[0] for v in sorted_vectors[:3]]
 
-    def assess_multiple(self, paths: List[str]) -> List[ComponentAssessment]:
+    def assess_multiple(self, paths: list[str]) -> list[ComponentAssessment]:
         """Assess multiple components."""
         return [self.assess(path) for path in paths]
 

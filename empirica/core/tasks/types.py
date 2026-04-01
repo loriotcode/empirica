@@ -6,11 +6,11 @@ Core dataclasses for task decomposition and tracking.
 MVP design: AI creates subtasks explicitly, no automatic decomposition yet.
 """
 
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
-from enum import Enum
 import time
 import uuid
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Optional
 
 
 class EpistemicImportance(Enum):
@@ -42,21 +42,21 @@ class SubTask:
     description: str                   # What to do
     status: TaskStatus
     epistemic_importance: EpistemicImportance
-    
+
     # Optional fields
-    dependencies: List[str] = field(default_factory=list)  # Other subtask IDs
+    dependencies: list[str] = field(default_factory=list)  # Other subtask IDs
     estimated_tokens: Optional[int] = None
     actual_tokens: Optional[int] = None
     completion_evidence: Optional[str] = None  # Git commit hash, file path, etc.
     notes: str = ""
     created_timestamp: float = field(default_factory=time.time)
     completed_timestamp: Optional[float] = None
-    
+
     # Epistemic investigation tracking (v4.0)
-    findings: List[str] = field(default_factory=list)  # Validated discoveries
-    unknowns: List[str] = field(default_factory=list)  # Remaining questions
-    dead_ends: List[str] = field(default_factory=list)  # Failed approaches
-    
+    findings: list[str] = field(default_factory=list)  # Validated discoveries
+    unknowns: list[str] = field(default_factory=list)  # Remaining questions
+    dead_ends: list[str] = field(default_factory=list)  # Failed approaches
+
     @staticmethod
     def create(
         goal_id: str,
@@ -73,8 +73,8 @@ class SubTask:
             epistemic_importance=epistemic_importance,
             **kwargs
         )
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary"""
         return {
             'id': self.id,
@@ -93,9 +93,9 @@ class SubTask:
             'unknowns': self.unknowns,
             'dead_ends': self.dead_ends
         }
-    
+
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'SubTask':
+    def from_dict(data: dict[str, Any]) -> 'SubTask':
         """Deserialize from dictionary"""
         return SubTask(
             id=data['id'],
@@ -125,13 +125,13 @@ class TaskDecomposition:
     Future: Add automatic decomposition, critical path analysis, etc.
     """
     goal_id: str
-    subtasks: List[SubTask]
-    critical_path: List[str] = field(default_factory=list)  # Subtask IDs in order
+    subtasks: list[SubTask]
+    critical_path: list[str] = field(default_factory=list)  # Subtask IDs in order
     total_estimated_tokens: int = 0
-    complexity_factors: Dict[str, Any] = field(default_factory=dict)
+    complexity_factors: dict[str, Any] = field(default_factory=dict)
     created_timestamp: float = field(default_factory=time.time)
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary"""
         return {
             'goal_id': self.goal_id,
@@ -141,9 +141,9 @@ class TaskDecomposition:
             'complexity_factors': self.complexity_factors,
             'created_timestamp': self.created_timestamp
         }
-    
+
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'TaskDecomposition':
+    def from_dict(data: dict[str, Any]) -> 'TaskDecomposition':
         """Deserialize from dictionary"""
         return TaskDecomposition(
             goal_id=data['goal_id'],

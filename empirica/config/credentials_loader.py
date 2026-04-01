@@ -10,11 +10,11 @@ Features:
 - Model validation
 """
 
+import logging
 import os
 import re
 from pathlib import Path
-from typing import Dict, Any, Optional
-import logging
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -94,10 +94,10 @@ class CredentialsLoader:
                         self._credentials_cache = self._load_from_dotfiles()
                         return
 
-                    with open(config_file, 'r') as f:
+                    with open(config_file) as f:
                         config = yaml.safe_load(f)
                 else:
-                    with open(config_file, 'r') as f:
+                    with open(config_file) as f:
                         config = json.load(f)
 
                 # Interpolate environment variables
@@ -113,7 +113,7 @@ class CredentialsLoader:
             logger.warning("⚠️ No credentials config found, falling back to legacy dotfiles")
             self._credentials_cache = self._load_from_dotfiles()
 
-    def _interpolate_env_vars(self, config: Dict) -> Dict:
+    def _interpolate_env_vars(self, config: dict) -> dict:
         """Replace ${VAR_NAME} with environment variable values"""
         def replace_vars(obj: Any) -> Any:
             """Recursively replace env vars in nested structure."""
@@ -140,7 +140,7 @@ class CredentialsLoader:
 
         return replace_vars(config)
 
-    def _load_from_dotfiles(self) -> Dict:
+    def _load_from_dotfiles(self) -> dict:
         """Fallback: Load from legacy dotfiles"""
         repo_root = Path(__file__).parent.parent.parent
 
@@ -165,7 +165,7 @@ class CredentialsLoader:
             dotfile_path = repo_root / dotfile
             if dotfile_path.exists():
                 try:
-                    with open(dotfile_path, 'r') as f:
+                    with open(dotfile_path) as f:
                         api_key = f.read().strip()
 
                     if api_key:
@@ -182,7 +182,7 @@ class CredentialsLoader:
         logger.info(f"   Loaded {loaded_count} API keys from dotfiles")
         return credentials
 
-    def get_provider_config(self, provider: str) -> Optional[Dict[str, Any]]:
+    def get_provider_config(self, provider: str) -> Optional[dict[str, Any]]:
         """
         Get configuration for a specific provider
 
@@ -208,7 +208,7 @@ class CredentialsLoader:
         config = self.get_provider_config(provider)
         return config.get('base_url') if config else None
 
-    def get_headers(self, provider: str) -> Dict[str, str]:
+    def get_headers(self, provider: str) -> dict[str, str]:
         """
         Get HTTP headers for provider
 

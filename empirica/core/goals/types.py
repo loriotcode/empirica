@@ -6,11 +6,11 @@ Core dataclasses for structured goal representation.
 Designed for explicit AI-driven goal creation (MVP - no automatic parsing).
 """
 
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
-from enum import Enum
 import time
 import uuid
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Optional
 
 
 @dataclass
@@ -23,7 +23,7 @@ class ScopeVector:
     breadth: float      # 0.0-1.0: How wide the goal spans (0=single function, 1=entire codebase)
     duration: float     # 0.0-1.0: Expected lifetime (0=minutes/hours, 1=weeks/months)
     coordination: float # 0.0-1.0: Multi-agent/session coordination needed
-    
+
     def __post_init__(self):
         """Validate ranges"""
         for field_name in ['breadth', 'duration', 'coordination']:
@@ -32,17 +32,17 @@ class ScopeVector:
                 raise ValueError(f"{field_name} must be numeric, got {type(value)}")
             if not (0.0 <= value <= 1.0):
                 raise ValueError(f"{field_name} must be 0.0-1.0, got {value}")
-    
-    def to_dict(self) -> Dict[str, float]:
+
+    def to_dict(self) -> dict[str, float]:
         """Serialize to dictionary"""
         return {
             'breadth': self.breadth,
             'duration': self.duration,
             'coordination': self.coordination
         }
-    
+
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'ScopeVector':
+    def from_dict(data: dict[str, Any]) -> 'ScopeVector':
         """Deserialize from dictionary"""
         return ScopeVector(
             breadth=float(data['breadth']),
@@ -88,38 +88,43 @@ class Goal:
     """
     id: str
     objective: str                       # Clear, actionable goal statement
-    success_criteria: List[SuccessCriterion]
+    success_criteria: list[SuccessCriterion]
     scope: ScopeVector
-    dependencies: List[Dependency] = field(default_factory=list)
-    constraints: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    dependencies: list[Dependency] = field(default_factory=list)
+    constraints: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     estimated_complexity: Optional[float] = None
     created_timestamp: float = field(default_factory=time.time)
     completed_timestamp: Optional[float] = None
     is_completed: bool = False
-    
+
     @staticmethod
     def create(
         objective: str,
-        success_criteria: List[SuccessCriterion],
+        success_criteria: list[SuccessCriterion],
         scope: ScopeVector = None,
         **kwargs
     ) -> 'Goal':
         """Convenience factory method with validation"""
-        from .validation import validate_objective, validate_success_criteria, validate_complexity, validate_scope_vector
-        
+        from .validation import (
+            validate_complexity,
+            validate_objective,
+            validate_scope_vector,
+            validate_success_criteria,
+        )
+
         # Validate inputs before creating
         validate_objective(objective)
         validate_success_criteria(success_criteria)
-        
+
         if scope is None:
             scope = ScopeVector(breadth=0.3, duration=0.2, coordination=0.1)  # Default: narrow, short, solo
         validate_scope_vector(scope)
-        
+
         complexity = kwargs.get('estimated_complexity')
         if complexity is not None:
             validate_complexity(complexity)
-        
+
         return Goal(
             id=str(uuid.uuid4()),
             objective=objective,
@@ -127,8 +132,8 @@ class Goal:
             scope=scope,
             **kwargs
         )
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary"""
         return {
             'id': self.id,
@@ -161,9 +166,9 @@ class Goal:
             'completed_timestamp': self.completed_timestamp,
             'is_completed': self.is_completed
         }
-    
+
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'Goal':
+    def from_dict(data: dict[str, Any]) -> 'Goal':
         """Deserialize from dictionary"""
         return Goal(
             id=data['id'],
@@ -196,7 +201,7 @@ class Goal:
             completed_timestamp=data.get('completed_timestamp'),
             is_completed=data.get('is_completed', False)
         )
-    
+
     def get_subtasks(self):
         """
         Get all subtasks for this goal
@@ -213,8 +218,8 @@ class Goal:
             return subtasks
         finally:
             repo.close()
-    
-    def calculate_progress(self) -> Dict[str, Any]:
+
+    def calculate_progress(self) -> dict[str, Any]:
         """
         Calculate goal progress based on subtasks
         
@@ -230,9 +235,9 @@ class Goal:
             }
         """
         from empirica.core.tasks.types import TaskStatus
-        
+
         subtasks = self.get_subtasks()
-        
+
         if not subtasks:
             # No subtasks - use success criteria or is_completed flag
             if self.is_completed:
@@ -257,7 +262,7 @@ class Goal:
                     'completion_percentage': 0.0,
                     'note': 'No subtasks created yet'
                 }
-        
+
         # Count by status
         status_counts = {
             TaskStatus.COMPLETED: 0,
@@ -266,13 +271,13 @@ class Goal:
             TaskStatus.BLOCKED: 0,
             TaskStatus.SKIPPED: 0
         }
-        
+
         for subtask in subtasks:
             status_counts[subtask.status] = status_counts.get(subtask.status, 0) + 1
-        
+
         total = len(subtasks)
         completed = status_counts[TaskStatus.COMPLETED] + status_counts[TaskStatus.SKIPPED]
-        
+
         return {
             'total_subtasks': total,
             'completed': status_counts[TaskStatus.COMPLETED],
@@ -282,7 +287,7 @@ class Goal:
             'skipped': status_counts[TaskStatus.SKIPPED],
             'completion_percentage': (completed / total * 100.0) if total > 0 else 0.0
         }
-    
+
     def is_ready_for_completion(self) -> bool:
         """
         Check if goal is ready to be marked complete
@@ -295,14 +300,14 @@ class Goal:
             True if ready for completion, False otherwise
         """
         progress = self.calculate_progress()
-        
+
         # If no subtasks, rely on is_completed flag
         if progress['total_subtasks'] == 0:
             return self.is_completed
-        
+
         # If subtasks exist, check if all are done
         all_done = (
             progress['completed'] + progress['skipped'] == progress['total_subtasks']
         )
-        
+
         return all_done

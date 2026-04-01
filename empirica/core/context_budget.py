@@ -41,13 +41,14 @@ import math
 import os
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Any, Callable
+from typing import Any, Optional
 
 from empirica.core.epistemic_bus import (
-    EpistemicObserver,
     EpistemicEvent,
+    EpistemicObserver,
     EventTypes,
     get_global_bus,
 )
@@ -128,7 +129,7 @@ class ContextItem:
     evictable: bool = True
 
     # Metadata
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def age(self) -> float:
@@ -166,7 +167,7 @@ class ContextItem:
         self.last_referenced = time.time()
         self.reference_count += 1
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "zone": self.zone.value,
@@ -201,12 +202,12 @@ class BudgetThresholds:
     pressure_threshold: float = 0.85
 
     @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> 'BudgetThresholds':
+    def from_dict(cls, d: dict[str, Any]) -> 'BudgetThresholds':
         """Create from dictionary, ignoring unknown keys."""
         known = {f.name for f in cls.__dataclass_fields__.values()}
         return cls(**{k: v for k, v in d.items() if k in known})
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -231,10 +232,10 @@ class BudgetReport:
     cache_items: int
     under_pressure: bool
     eviction_candidates: int
-    top_items: List[Dict[str, Any]]
-    bottom_items: List[Dict[str, Any]]
+    top_items: list[dict[str, Any]]
+    bottom_items: list[dict[str, Any]]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     def to_json(self) -> str:
@@ -244,7 +245,7 @@ class BudgetReport:
 @dataclass
 class EvictionResult:
     """Result of an eviction operation."""
-    evicted_items: List[ContextItem]
+    evicted_items: list[ContextItem]
     tokens_freed: int
     reason: str
     triggered_by: str
@@ -260,7 +261,7 @@ class InjectionRequest:
     estimated_tokens: int = 0
     epistemic_value: float = 0.5
     priority: str = "normal"  # "critical" | "normal" | "low"
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 # --- The Manager ---
@@ -286,9 +287,9 @@ class ContextBudgetManager(EpistemicObserver):
         self.session_id = session_id
         self.node_id = node_id or os.getenv("EMPIRICA_AI_ID", "unknown")
         self.thresholds = thresholds or BudgetThresholds()
-        self._inventory: Dict[str, ContextItem] = {}
-        self._eviction_log: List[EvictionResult] = []
-        self._injection_handlers: Dict[InjectionChannel, Callable] = {}
+        self._inventory: dict[str, ContextItem] = {}
+        self._eviction_log: list[EvictionResult] = []
+        self._injection_handlers: dict[InjectionChannel, Callable] = {}
         self._page_fault_count = 0
         self._eviction_count = 0
         self.created_at = time.time()
@@ -321,7 +322,7 @@ class ContextBudgetManager(EpistemicObserver):
             except Exception as e:
                 logger.error(f"Budget manager failed on {event.event_type}: {e}")
 
-    def _on_session_started(self, event: EpistemicEvent):  # noqa: ARG002
+    def _on_session_started(self, event: EpistemicEvent):
         """Initialize budget on session start."""
         logger.info(f"Budget manager: session {event.session_id} started")
 
@@ -346,12 +347,12 @@ class ContextBudgetManager(EpistemicObserver):
                 reason=f"uncertainty_spike_{value:.2f}"
             )
 
-    def _on_postflight_complete(self, event: EpistemicEvent):  # noqa: ARG002
+    def _on_postflight_complete(self, event: EpistemicEvent):
         """Decay stale items after postflight for session {event.session_id}."""
         self._decay_all_items()
         self._check_pressure()
 
-    def _on_drift_detected(self, event: EpistemicEvent):  # noqa: ARG002
+    def _on_drift_detected(self, event: EpistemicEvent):
         """Inject relevant protocols on calibration drift."""
         self._request_protocol_injection(
             "epistemic_conduct",
@@ -429,7 +430,7 @@ class ContextBudgetManager(EpistemicObserver):
         zone: Optional[MemoryZone] = None,
         content_type: Optional[ContentType] = None,
         min_priority: Optional[float] = None,
-    ) -> List[ContextItem]:
+    ) -> list[ContextItem]:
         """Find items matching criteria."""
         results = []
         for item in self._inventory.values():
@@ -746,7 +747,7 @@ class ContextBudgetManager(EpistemicObserver):
             ),
         )
 
-    def get_inventory_summary(self) -> Dict[str, Any]:
+    def get_inventory_summary(self) -> dict[str, Any]:
         """Quick inventory summary for statusline or monitoring."""
         total = self._get_total_usage()
         cap = self.thresholds.total_capacity
@@ -767,7 +768,7 @@ class ContextBudgetManager(EpistemicObserver):
 
     # --- Bus Publishing ---
 
-    def _publish_event(self, event_type: str, data: Dict[str, Any]):
+    def _publish_event(self, event_type: str, data: dict[str, Any]):
         """Publish event on the epistemic bus."""
         try:
             bus = get_global_bus()

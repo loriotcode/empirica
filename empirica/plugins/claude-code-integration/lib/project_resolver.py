@@ -38,7 +38,6 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-
 # =============================================================================
 # InstanceResolver — Hook-side facade that delegates to canonical
 # =============================================================================
@@ -175,8 +174,8 @@ def detect_environment() -> dict:
         is_trusted: bool|None - True if in trusted_hosts, False if remote+untrusted, None if local
         trust_source: str|None - why trusted/untrusted
     """
-    import socket
     import fnmatch
+    import socket
 
     hostname = socket.gethostname()
     is_remote = bool(os.environ.get('SSH_CONNECTION') or os.environ.get('SSH_CLIENT') or os.environ.get('SSH_TTY'))
@@ -252,7 +251,7 @@ def get_active_project_path(claude_session_id: str = None) -> Optional[str]:
         active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if active_work_file.exists():
             try:
-                with open(active_work_file, 'r') as f:
+                with open(active_work_file) as f:
                     data = json.load(f)
                     active_work_path = data.get('project_path')
             except Exception:
@@ -264,7 +263,7 @@ def get_active_project_path(claude_session_id: str = None) -> Optional[str]:
         instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
         if instance_file.exists():
             try:
-                with open(instance_file, 'r') as f:
+                with open(instance_file) as f:
                     data = json.load(f)
                     instance_path = data.get('project_path')
             except Exception:
@@ -312,7 +311,7 @@ def get_active_session_id(claude_session_id: str = None) -> Optional[str]:
         tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
         if tx_file.exists():
             try:
-                with open(tx_file, 'r') as f:
+                with open(tx_file) as f:
                     tx_data = json.load(f)
                     if tx_data.get('status') == 'open':
                         session_id = tx_data.get('session_id')
@@ -326,7 +325,7 @@ def get_active_session_id(claude_session_id: str = None) -> Optional[str]:
         active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if active_work_file.exists():
             try:
-                with open(active_work_file, 'r') as f:
+                with open(active_work_file) as f:
                     data = json.load(f)
                     session_id = data.get('empirica_session_id')
                     if session_id:
@@ -340,7 +339,7 @@ def get_active_session_id(claude_session_id: str = None) -> Optional[str]:
         instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
         if instance_file.exists():
             try:
-                with open(instance_file, 'r') as f:
+                with open(instance_file) as f:
                     data = json.load(f)
                     session_id = data.get('empirica_session_id')
                     if session_id:
@@ -363,7 +362,7 @@ def get_active_session_id(claude_session_id: str = None) -> Optional[str]:
     generic_work = Path.home() / '.empirica' / 'active_work.json'
     if generic_work.exists():
         try:
-            with open(generic_work, 'r') as f:
+            with open(generic_work) as f:
                 data = json.load(f)
                 session_id = data.get('empirica_session_id')
                 if session_id:
@@ -406,7 +405,7 @@ def _read_json_file(path: Path) -> Optional[dict]:
     """Read a JSON file, returning None on any error."""
     try:
         if path.exists():
-            with open(path, 'r') as f:
+            with open(path) as f:
                 return json.load(f)
     except Exception:
         pass

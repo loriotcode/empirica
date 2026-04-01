@@ -30,12 +30,12 @@ Usage:
 import logging
 import os
 import time
-from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, List, Optional
+from dataclasses import asdict, dataclass, field
+from typing import Any, Optional
 
 from empirica.core.epistemic_bus import (
-    EpistemicObserver,
     EpistemicEvent,
+    EpistemicObserver,
     EventTypes,
     get_global_bus,
 )
@@ -51,11 +51,11 @@ class ConfigStatus:
     model: str = "unknown"
     persona: str = "unknown"
     cascade_style: str = "default"
-    loaded_configs: List[str] = field(default_factory=list)
-    available_configs: List[str] = field(default_factory=list)
+    loaded_configs: list[str] = field(default_factory=list)
+    available_configs: list[str] = field(default_factory=list)
     load_count: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -74,7 +74,7 @@ class MemoryStatus:
     evictions: int = 0
     under_pressure: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -88,7 +88,7 @@ class BusStatus:
     sqlite_events: int = 0
     qdrant_events: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -102,7 +102,7 @@ class AttentionStatus:
     domains: int = 0
     strategy: str = "none"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -112,10 +112,10 @@ class IntegrityStatus:
     gaps_detected: bool = False
     gap_count: int = 0
     overall_gap: float = 0.0
-    severity_counts: Dict[str, int] = field(default_factory=dict)
+    severity_counts: dict[str, int] = field(default_factory=dict)
     confabulation_risk: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -129,7 +129,7 @@ class GateStatus:
     gate_passed: bool = False
     transaction_id: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -141,7 +141,7 @@ class NodeIdentity:
     uptime_seconds: float = 0.0
     started_at: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -157,7 +157,7 @@ class SystemStatus:
     integrity: IntegrityStatus = field(default_factory=IntegrityStatus)
     gate: GateStatus = field(default_factory=GateStatus)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "timestamp": self.timestamp,
             "node": self.node.to_dict(),
@@ -295,7 +295,7 @@ class SystemDashboard(EpistemicObserver):
         self.started_at = time.time()
 
         # Cached state from bus events (push)
-        self._memory_cache: Dict[str, Any] = {}
+        self._memory_cache: dict[str, Any] = {}
         self._bus_event_count = 0
         self._sqlite_events = 0
         self._qdrant_events = 0

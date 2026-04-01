@@ -6,6 +6,7 @@ Legacy modality_switcher config is deprecated and no longer available.
 """
 
 import json
+
 import yaml
 
 # MCO config loader (always available)

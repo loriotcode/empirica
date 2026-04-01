@@ -1,6 +1,7 @@
 """Crypto verification endpoints"""
 
 import logging
+
 from flask import Blueprint, jsonify, request
 
 bp = Blueprint("verification", __name__)

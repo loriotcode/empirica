@@ -35,17 +35,17 @@ Usage:
 """
 
 import json
-import subprocess
 import logging
+import subprocess
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta, UTC
+from typing import Any, Optional
 
-from .reflex_frame import VectorState, Action
-from .git_state_capture import GitStateCapture
-from .git_notes_storage import GitNotesStorage
-from .checkpoint_storage import CheckpointStorage
 from empirica.core.persona.signing_persona import SigningPersona
+
+from .checkpoint_storage import CheckpointStorage
+from .git_notes_storage import GitNotesStorage
+from .git_state_capture import GitStateCapture
 
 logger = logging.getLogger(__name__)
 
@@ -166,10 +166,10 @@ class GitEnhancedReflexLogger:
         self,
         phase: str,
         round_num: Optional[int] = None,
-        vectors: Optional[Dict[str, float]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        epistemic_tags: Optional[Dict[str, Any]] = None,
-        noema: Optional[Dict[str, Any]] = None
+        vectors: Optional[dict[str, float]] = None,
+        metadata: Optional[dict[str, Any]] = None,
+        epistemic_tags: Optional[dict[str, Any]] = None,
+        noema: Optional[dict[str, Any]] = None
     ) -> Optional[str]:
         """
         Add compressed checkpoint to git notes and SQLite with optional signing.
@@ -241,11 +241,11 @@ class GitEnhancedReflexLogger:
         self,
         phase: str,
         round_num: int,
-        vectors: Dict[str, float],
-        metadata: Optional[Dict[str, Any]] = None,
-        epistemic_tags: Optional[Dict[str, Any]] = None,
-        noema: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        vectors: dict[str, float],
+        metadata: Optional[dict[str, Any]] = None,
+        epistemic_tags: Optional[dict[str, Any]] = None,
+        noema: Optional[dict[str, Any]] = None
+    ) -> dict[str, Any]:
         """
         Create compressed checkpoint (target: 200-500 tokens).
 
@@ -285,13 +285,13 @@ class GitEnhancedReflexLogger:
 
         return checkpoint
 
-    def _estimate_token_count(self, data: Dict) -> int:
+    def _estimate_token_count(self, data: dict) -> int:
         """Estimate token count for checkpoint data."""
         text = json.dumps(data)
         word_count = len(text.split())
         return int(word_count * 1.3)
 
-    def _calculate_learning_delta(self, current_vectors: Dict[str, float]) -> Dict[str, Any]:
+    def _calculate_learning_delta(self, current_vectors: dict[str, float]) -> dict[str, Any]:
         """Calculate epistemic delta since last checkpoint."""
         try:
             last_checkpoint = self.get_last_checkpoint()
@@ -325,7 +325,7 @@ class GitEnhancedReflexLogger:
         self,
         max_age_hours: int = 24,
         phase: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """
         Load most recent checkpoint (git notes preferred, SQLite fallback).
 
@@ -345,7 +345,7 @@ class GitEnhancedReflexLogger:
         # Fallback to SQLite/JSON
         return self.checkpoint_storage.load_from_sqlite(phase=phase, max_age_hours=max_age_hours)
 
-    def _is_fresh(self, checkpoint: Dict[str, Any], max_age_hours: int) -> bool:
+    def _is_fresh(self, checkpoint: dict[str, Any], max_age_hours: int) -> bool:
         """Check if checkpoint is within acceptable age."""
         try:
             checkpoint_time = datetime.fromisoformat(checkpoint['timestamp'])
@@ -359,7 +359,7 @@ class GitEnhancedReflexLogger:
         session_id: Optional[str] = None,
         limit: Optional[int] = None,
         phase: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         List checkpoints from git notes (using hierarchical namespace).
 
@@ -381,9 +381,9 @@ class GitEnhancedReflexLogger:
 
     def get_vector_diff(
         self,
-        since_checkpoint: Dict[str, Any],
-        current_vectors: Dict[str, float]
-    ) -> Dict[str, Any]:
+        since_checkpoint: dict[str, Any],
+        current_vectors: dict[str, float]
+    ) -> dict[str, Any]:
         """
         Compute vector delta since last checkpoint.
 

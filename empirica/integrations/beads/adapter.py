@@ -5,26 +5,26 @@ Provides Python interface to BEADS issue tracker via subprocess calls.
 All methods gracefully handle missing bd CLI (returns None/empty).
 """
 
-import subprocess
 import json
 import logging
-from typing import Optional, Dict, List, Any
+import subprocess
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class BeadsAdapter:
     """Subprocess-based BEADS integration"""
-    
+
     def __init__(self):
         """Initialize BEADS adapter with availability caching."""
         self._available = None  # Cache availability check
-    
+
     def is_available(self) -> bool:
         """Check if bd CLI is installed and working"""
         if self._available is not None:
             return self._available
-        
+
         try:
             result = subprocess.run(
                 ['bd', '--version'],
@@ -40,14 +40,14 @@ class BeadsAdapter:
             self._available = False
             logger.debug(f"BEADS not available: {e}")
             return False
-    
+
     def create_issue(
         self,
         title: str,
         description: str = "",
         priority: int = 2,
         issue_type: str = "task",
-        labels: Optional[List[str]] = None
+        labels: Optional[list[str]] = None
     ) -> Optional[str]:
         """Create BEADS issue, return hash ID (e.g., bd-a1b2)
         
@@ -64,16 +64,16 @@ class BeadsAdapter:
         if not self.is_available():
             logger.warning("BEADS not available - cannot create issue")
             return None
-        
+
         try:
             cmd = ['bd', 'create', title, '-p', str(priority), '-t', issue_type, '--json']
-            
+
             if description:
                 cmd.extend(['-d', description])
-            
+
             if labels:
                 cmd.extend(['-l', ','.join(labels)])
-            
+
             result = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -81,20 +81,20 @@ class BeadsAdapter:
                 check=True,
                 timeout=10
             )
-            
+
             issue = json.loads(result.stdout)
             issue_id = issue.get('id')
-            
+
             logger.info(f"Created BEADS issue: {issue_id} - {title}")
             return issue_id
-            
+
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             logger.error(f"Failed to create BEADS issue: {e}")
             return None
         except (json.JSONDecodeError, KeyError) as e:
             logger.error(f"Failed to parse BEADS response: {e}")
             return None
-    
+
     def add_dependency(
         self,
         child_id: str,
@@ -113,7 +113,7 @@ class BeadsAdapter:
         """
         if not self.is_available():
             return False
-        
+
         try:
             subprocess.run(
                 ['bd', 'dep', 'add', child_id, parent_id, '--type', dep_type],
@@ -123,12 +123,12 @@ class BeadsAdapter:
             )
             logger.info(f"Added dependency: {child_id} {dep_type} {parent_id}")
             return True
-            
+
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to add dependency: {e.stderr}")
             return False
-    
-    def get_ready_work(self, limit: int = 10, priority: Optional[int] = None) -> List[Dict[str, Any]]:
+
+    def get_ready_work(self, limit: int = 10, priority: Optional[int] = None) -> list[dict[str, Any]]:
         """Get ready work from BEADS (issues with no open blockers)
         
         Args:
@@ -140,13 +140,13 @@ class BeadsAdapter:
         """
         if not self.is_available():
             return []
-        
+
         try:
             cmd = ['bd', 'ready', '--json', '--limit', str(limit)]
-            
+
             if priority is not None:
                 cmd.extend(['--priority', str(priority)])
-            
+
             result = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -154,18 +154,18 @@ class BeadsAdapter:
                 check=True,
                 timeout=10
             )
-            
+
             issues = json.loads(result.stdout)
             logger.debug(f"Found {len(issues)} ready issues")
             return issues if isinstance(issues, list) else []
-            
+
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to get ready work: {e.stderr}")
             return []
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse ready work response: {e}")
             return []
-    
+
     def update_status(self, issue_id: str, status: str) -> bool:
         """Update BEADS issue status
         
@@ -178,7 +178,7 @@ class BeadsAdapter:
         """
         if not self.is_available():
             return False
-        
+
         try:
             subprocess.run(
                 ['bd', 'update', issue_id, '--status', status],
@@ -188,11 +188,11 @@ class BeadsAdapter:
             )
             logger.info(f"Updated {issue_id} status to {status}")
             return True
-            
+
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to update status: {e.stderr}")
             return False
-    
+
     def close_issue(self, issue_id: str, reason: str = "Completed") -> bool:
         """Close BEADS issue
         
@@ -205,7 +205,7 @@ class BeadsAdapter:
         """
         if not self.is_available():
             return False
-        
+
         try:
             subprocess.run(
                 ['bd', 'close', issue_id, '--reason', reason],
@@ -215,12 +215,12 @@ class BeadsAdapter:
             )
             logger.info(f"Closed {issue_id}: {reason}")
             return True
-            
+
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to close issue: {e.stderr}")
             return False
-    
-    def get_issue(self, issue_id: str) -> Optional[Dict[str, Any]]:
+
+    def get_issue(self, issue_id: str) -> Optional[dict[str, Any]]:
         """Get BEADS issue details
         
         Args:
@@ -231,7 +231,7 @@ class BeadsAdapter:
         """
         if not self.is_available():
             return None
-        
+
         try:
             result = subprocess.run(
                 ['bd', 'show', issue_id, '--json'],
@@ -240,17 +240,17 @@ class BeadsAdapter:
                 check=True,
                 timeout=10
             )
-            
+
             issue = json.loads(result.stdout)
             return issue
-            
+
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to get issue {issue_id}: {e.stderr}")
             return None
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse issue response: {e}")
             return None
-    
+
     def get_dependency_tree(self, issue_id: str) -> Optional[str]:
         """Get dependency tree for an issue (ASCII tree output)
         
@@ -262,7 +262,7 @@ class BeadsAdapter:
         """
         if not self.is_available():
             return None
-        
+
         try:
             result = subprocess.run(
                 ['bd', 'dep', 'tree', issue_id],
@@ -272,7 +272,7 @@ class BeadsAdapter:
                 timeout=10
             )
             return result.stdout
-            
+
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to get dependency tree: {e.stderr}")
             return None

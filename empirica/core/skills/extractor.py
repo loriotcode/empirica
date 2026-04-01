@@ -16,9 +16,10 @@ Usage:
 """
 
 import re
-import yaml
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any
+
+import yaml
 
 
 class SkillExtractor:
@@ -30,7 +31,7 @@ class SkillExtractor:
         self.references_dir = self.skill_dir / "references"
         self.skill_md = self.skill_dir / "SKILL.md"
 
-    def extract(self) -> Dict[str, Any]:
+    def extract(self) -> dict[str, Any]:
         """Extract decision frameworks from all reference files."""
         domain = self.skill_dir.name
 
@@ -64,7 +65,7 @@ class SkillExtractor:
 
         return {domain: domain_knowledge}
 
-    def _extract_metadata(self, content: str) -> Dict[str, str]:
+    def _extract_metadata(self, content: str) -> dict[str, str]:
         """Extract YAML frontmatter metadata."""
         metadata = {}
 
@@ -84,7 +85,7 @@ class SkillExtractor:
 
         return {k: v for k, v in metadata.items() if v}
 
-    def _extract_from_content(self, content: str, domain_knowledge: Dict):
+    def _extract_from_content(self, content: str, domain_knowledge: dict):
         """Extract all knowledge types from markdown content."""
 
         # Extract decision frameworks
@@ -125,7 +126,7 @@ class SkillExtractor:
         refs = self._extract_references(content)
         domain_knowledge['references'].update(refs)
 
-    def _extract_section(self, content: str, header_pattern: str) -> List[str]:
+    def _extract_section(self, content: str, header_pattern: str) -> list[str]:
         """Extract bullet points from a section."""
         match = re.search(f"({header_pattern})(.*?)(?=##|$)", content, re.DOTALL | re.MULTILINE)
         if not match:
@@ -137,7 +138,7 @@ class SkillExtractor:
         bullets = re.findall(r"^[-*✅❌]\s+(.+)$", section, re.MULTILINE)
         return [b.strip() for b in bullets if b.strip()]
 
-    def _extract_anti_patterns(self, content: str) -> List[Dict]:
+    def _extract_anti_patterns(self, content: str) -> list[dict]:
         """Extract anti-patterns from Common Mistakes, Anti-patterns sections."""
         patterns = []
 
@@ -187,7 +188,7 @@ class SkillExtractor:
 
         return patterns
 
-    def _extract_costs(self, content: str) -> Dict[str, str]:
+    def _extract_costs(self, content: str) -> dict[str, str]:
         """Extract performance/token costs."""
         costs = {}
 
@@ -219,7 +220,7 @@ class SkillExtractor:
 
         return costs
 
-    def _extract_commands(self, content: str) -> List[Dict[str, str]]:
+    def _extract_commands(self, content: str) -> list[dict[str, str]]:
         """Extract key CLI commands."""
         commands = []
 
@@ -259,7 +260,7 @@ class SkillExtractor:
 
         return unique_commands[:10]  # Limit to 10 commands
 
-    def _extract_references(self, content: str) -> Dict[str, Any]:
+    def _extract_references(self, content: str) -> dict[str, Any]:
         """Extract doc references."""
         refs = {}
 
@@ -290,7 +291,7 @@ class SkillExtractor:
 
 
 def extract_all_skills(skills_dir: Path, output_file: Path,
-                       verbose: bool = False) -> Dict[str, Any]:
+                       verbose: bool = False) -> dict[str, Any]:
     """
     Extract all skills to meta-agent-config.yaml.
 
@@ -372,7 +373,7 @@ def extract_all_skills(skills_dir: Path, output_file: Path,
     return config
 
 
-def extract_single_skill(skill_path: Path, verbose: bool = False) -> Dict[str, Any]:
+def extract_single_skill(skill_path: Path, verbose: bool = False) -> dict[str, Any]:
     """
     Extract a single skill to dict format.
 

@@ -19,10 +19,11 @@ Providers:
 - local: Hash-based fallback for testing (no external deps)
 """
 from __future__ import annotations
-import os
+
 import logging
+import os
 import time
-from typing import List, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +140,7 @@ def _load_config_file() -> dict:
     config_yaml_path = os.path.expanduser("~/.empirica/config.yaml")
     try:
         import yaml
-        with open(config_yaml_path, 'r') as f:
+        with open(config_yaml_path) as f:
             full_config = yaml.safe_load(f) or {}
         emb_config = full_config.get("embeddings", {})
         if emb_config:
@@ -153,7 +154,7 @@ def _load_config_file() -> dict:
     conf_path = os.path.expanduser("~/.empirica/embeddings.conf")
     config = {}
     try:
-        with open(conf_path, 'r') as f:
+        with open(conf_path) as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith('#'):
@@ -257,7 +258,7 @@ class EmbeddingsProvider:
 
         logger.debug(f"Embeddings provider: {self.provider}, model: {self.model}")
 
-    def embed(self, text: str) -> List[float]:
+    def embed(self, text: str) -> list[float]:
         """Generate embedding vector for the given text using configured provider."""
         text = text or ""
 
@@ -286,7 +287,7 @@ class EmbeddingsProvider:
             return normalized
         return normalized[:max_chars].rsplit(" ", 1)[0] + " ..."
 
-    def _embed_ollama(self, text: str) -> List[float]:
+    def _embed_ollama(self, text: str) -> list[float]:
         """Embed using local Ollama server."""
         import requests
 
@@ -349,14 +350,14 @@ class EmbeddingsProvider:
                 logger.warning(f"Ollama embedding failed: {e} - falling back to local hash")
                 return self._embed_local_hash(text)
 
-    def batch_embed(self, texts: List[str], max_chars: int = 1200) -> List[Optional[List[float]]]:
+    def batch_embed(self, texts: list[str], max_chars: int = 1200) -> list[Optional[list[float]]]:
         """Batch embed multiple texts. Returns list of vectors (None for failures)."""
         if self.provider == "ollama":
             return self._batch_embed_ollama(texts, max_chars)
         # Fallback: sequential for non-Ollama providers
         return [self.embed(t) for t in texts]
 
-    def _batch_embed_ollama(self, texts: List[str], max_chars: int = 1200) -> List[Optional[List[float]]]:
+    def _batch_embed_ollama(self, texts: list[str], max_chars: int = 1200) -> list[Optional[list[float]]]:
         """Batch embed using Ollama /api/embed endpoint (accepts input list)."""
         import requests
 
@@ -390,7 +391,7 @@ class EmbeddingsProvider:
             logger.warning(f"Batch embed failed: {e} — falling back to sequential")
             return [self.embed(t) for t in texts]
 
-    def _embed_jina(self, text: str) -> List[float]:
+    def _embed_jina(self, text: str) -> list[float]:
         """Embed using Jina AI API (jina-embeddings-v3, etc.)."""
         import requests
 
@@ -426,7 +427,7 @@ class EmbeddingsProvider:
             logger.warning(f"Jina embedding failed: {e} - falling back to local hash")
             return self._embed_local_hash(text)
 
-    def _embed_voyage(self, text: str) -> List[float]:
+    def _embed_voyage(self, text: str) -> list[float]:
         """Embed using Voyage AI API (voyage-3.5, voyage-3-lite, etc.)."""
         import requests
 
@@ -462,7 +463,7 @@ class EmbeddingsProvider:
             logger.warning(f"Voyage embedding failed: {e} - falling back to local hash")
             return self._embed_local_hash(text)
 
-    def _embed_local_hash(self, text: str) -> List[float]:
+    def _embed_local_hash(self, text: str) -> list[float]:
         """Simple hashing embedding for testing/fallback (no external deps).
 
         Uses the configured vector size so fallback embeddings match
@@ -495,7 +496,7 @@ class EmbeddingsProvider:
 
 _provider_singleton: EmbeddingsProvider | None = None
 
-def get_embedding(text: str) -> List[float]:
+def get_embedding(text: str) -> list[float]:
     """Get embedding vector for text using the singleton provider instance."""
     global _provider_singleton
     if _provider_singleton is None:

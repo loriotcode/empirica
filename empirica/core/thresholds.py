@@ -143,7 +143,7 @@ def reload_thresholds():
     global STATE_MAPPING_THRESHOLD, COMPLETION_THRESHOLD, IMPACT_THRESHOLD
     global CONFIDENCE_HIGH, CONFIDENCE_MODERATE, CONFIDENCE_LOW
     global GOAL_CONFIDENCE_THRESHOLD, DENSITY_OVERLOAD
-    
+
     # Reload all constants
     ENGAGEMENT_THRESHOLD = _get_threshold('engagement_threshold', 0.60)
     CRITICAL_THRESHOLDS = get_critical_thresholds()
@@ -164,5 +164,5 @@ def reload_thresholds():
     CONFIDENCE_LOW = _get_threshold('confidence.low', 0.50)
     GOAL_CONFIDENCE_THRESHOLD = _get_threshold('confidence.goal_orchestrator', 0.70)
     DENSITY_OVERLOAD = _get_threshold('critical.density_max', 0.90)
-    
+
     logger.info("♻️  Thresholds reloaded from active profile")

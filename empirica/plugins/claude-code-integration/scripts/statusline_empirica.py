@@ -30,9 +30,8 @@ from typing import Optional
 EMPIRICA_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(EMPIRICA_ROOT))
 
-from empirica.config.path_resolver import get_empirica_root
-from empirica.data.session_database import SessionDatabase
 from empirica.core.signaling import format_vectors_compact
+from empirica.data.session_database import SessionDatabase
 
 
 # ANSI color codes
@@ -576,12 +575,13 @@ def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id:
     # Priority 0: instance_projects → empirica_session_id (most current after project-switch)
     try:
         import json as _json
+
         from empirica.utils.session_resolver import InstanceResolver as R
         _gas_inst_id = R.instance_id()
         if _gas_inst_id:
             _gas_inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{_gas_inst_id}.json'
             if _gas_inst_file.exists():
-                with open(_gas_inst_file, 'r') as f:
+                with open(_gas_inst_file) as f:
                     _gas_inst_data = _json.load(f)
                 _gas_session_id = _gas_inst_data.get('empirica_session_id')
                 if _gas_session_id:
@@ -611,7 +611,7 @@ def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id:
 
             active_work_path = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
             if active_work_path.exists():
-                with open(active_work_path, 'r') as f:
+                with open(active_work_path) as f:
                     active_work = _json.load(f)
                     empirica_session_id = active_work.get('empirica_session_id')
 
@@ -944,8 +944,8 @@ def format_context_window(stdin_context: dict) -> str:
     # Write state file for hooks to read
     try:
         state_file = Path.home() / '.empirica' / 'context_usage.json'
-        import time as _time
         import json as _json_ctx
+        import time as _time
         state_file.write_text(_json_ctx.dumps({
             'used_percentage': used_pct,
             'timestamp': _time.time(),
@@ -1232,8 +1232,8 @@ def main():
         stdin_context = {}
         stdin_claude_session_id = None
         try:
-            import select
             import json as _json
+            import select
             if not sys.stdin.isatty():
                 ready, _, _ = select.select([sys.stdin], [], [], 0.1)
                 if ready:
@@ -1256,13 +1256,14 @@ def main():
 
         # Priority 0: instance_projects (updated by BOTH hooks AND project-switch CLI)
         try:
-            from empirica.utils.session_resolver import InstanceResolver as R
             import json as _json
+
+            from empirica.utils.session_resolver import InstanceResolver as R
             _sl_inst_id = R.instance_id()
             if _sl_inst_id:
                 _sl_inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{_sl_inst_id}.json'
                 if _sl_inst_file.exists():
-                    with open(_sl_inst_file, 'r') as f:
+                    with open(_sl_inst_file) as f:
                         _sl_inst_data = _json.load(f)
                     _sl_inst_project = _sl_inst_data.get('project_path')
                     if _sl_inst_project:
@@ -1279,7 +1280,7 @@ def main():
                 import json as _json
                 active_work_path = Path.home() / '.empirica' / f'active_work_{stdin_claude_session_id}.json'
                 if active_work_path.exists():
-                    with open(active_work_path, 'r') as f:
+                    with open(active_work_path) as f:
                         active_work = _json.load(f)
                     aw_project_path = active_work.get('project_path')
                     if aw_project_path:
@@ -1399,7 +1400,7 @@ def main():
                 tx_path = Path.home() / '.empirica' / f'active_transaction{suffix}.json'
             if tx_path and tx_path.exists():
                 import json as _json
-                with open(tx_path, 'r') as f:
+                with open(tx_path) as f:
                     tx_data = _json.load(f)
                 # Only use transaction data if status is "open" (active transaction)
                 # If closed, fall back to current session_id

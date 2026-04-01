@@ -39,15 +39,15 @@ The holistic_calibration_score is a drift indicator, not a grade.
 import json
 import logging
 import uuid
-from datetime import datetime
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from datetime import datetime
+from typing import Optional
 
-from .collector import PostTestCollector, EvidenceBundle
+from .collector import EvidenceBundle, PostTestCollector
 from .mapper import (
+    UNGROUNDABLE_VECTORS,
     EvidenceMapper,
     GroundedAssessment,
-    UNGROUNDABLE_VECTORS,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,7 +92,7 @@ class GroundedCalibrationManager:
         self.db = db
         self.conn = db.conn
 
-    def get_grounded_beliefs(self, ai_id: str) -> Dict[str, GroundedBelief]:
+    def get_grounded_beliefs(self, ai_id: str) -> dict[str, GroundedBelief]:
         """Get current grounded beliefs for an AI, most recent per vector."""
         cursor = self.conn.cursor()
 
@@ -141,7 +141,7 @@ class GroundedCalibrationManager:
 
         return beliefs
 
-    def _get_disputed_vectors(self) -> Dict[str, Dict]:
+    def _get_disputed_vectors(self) -> dict[str, dict]:
         """Get vectors with open disputes. Returns {vector: {expected, reported}}."""
         try:
             cursor = self.conn.cursor()
@@ -167,7 +167,7 @@ class GroundedCalibrationManager:
         session_id: str,
         assessment: GroundedAssessment,
         phase: str = "combined",
-    ) -> Dict[str, Dict]:
+    ) -> dict[str, dict]:
         """
         Update grounded beliefs from a GroundedAssessment.
 
@@ -362,7 +362,7 @@ class GroundedCalibrationManager:
         self.conn.commit()
         return verification_id
 
-    def get_calibration_divergence(self, ai_id: str) -> Dict[str, Dict]:
+    def get_calibration_divergence(self, ai_id: str) -> dict[str, dict]:
         """
         Compare self-referential and grounded calibration tracks.
 
@@ -394,7 +394,7 @@ class GroundedCalibrationManager:
 
         return divergence
 
-    def get_grounded_adjustments(self, ai_id: str) -> Dict[str, float]:
+    def get_grounded_adjustments(self, ai_id: str) -> dict[str, float]:
         """
         Get calibration adjustments based on grounded evidence.
 
@@ -422,10 +422,10 @@ class GroundedCalibrationManager:
         self,
         ai_id: str,
         git_root: Optional[str] = None,
-        phase_weights: Optional[Dict] = None,
+        phase_weights: Optional[dict] = None,
         holistic_calibration_score: Optional[float] = None,
-        holistic_gaps: Optional[Dict] = None,
-        insights: Optional[List] = None,
+        holistic_gaps: Optional[dict] = None,
+        insights: Optional[list] = None,
     ) -> bool:
         """
         Export grounded calibration to .breadcrumbs.yaml as a new section.
@@ -550,7 +550,7 @@ class GroundedCalibrationManager:
         try:
             existing_lines = []
             if os.path.exists(breadcrumbs_path):
-                with open(breadcrumbs_path, 'r') as f:
+                with open(breadcrumbs_path) as f:
                     existing_lines = f.readlines()
 
             section_start = -1
@@ -593,7 +593,7 @@ class GroundedCalibrationManager:
 
 def _run_single_phase_verification(
     session_id: str,
-    vectors: Dict[str, float],
+    vectors: dict[str, float],
     db,
     phase: str,
     project_id: Optional[str] = None,
@@ -604,9 +604,9 @@ def _run_single_phase_verification(
     work_context: Optional[str] = None,
     work_type: Optional[str] = None,
     preflight_timestamp: Optional[float] = None,
-    per_vector_weights: Optional[Dict[str, float]] = None,
+    per_vector_weights: Optional[dict[str, float]] = None,
     transaction_id: Optional[str] = None,
-) -> Optional[Dict]:
+) -> Optional[dict]:
     """Run grounded verification for a single phase (noetic, praxic, or combined)."""
     collector = PostTestCollector(
         session_id=session_id,
@@ -669,10 +669,10 @@ def _run_single_phase_verification(
 
 
 def _compute_phase_weights(
-    phase_tool_counts: Optional[Dict[str, int]],
-    phase_boundary: Optional[Dict],
-    results: Dict,
-) -> Dict:
+    phase_tool_counts: Optional[dict[str, int]],
+    phase_boundary: Optional[dict],
+    results: dict,
+) -> dict:
     """Compute noetic/praxic weights from tool classification counts.
 
     Returns {'noetic': float, 'praxic': float, 'source': str}.
@@ -710,19 +710,19 @@ def _compute_phase_weights(
 
 def run_grounded_verification(
     session_id: str,
-    postflight_vectors: Dict[str, float],
+    postflight_vectors: dict[str, float],
     db,
     project_id: Optional[str] = None,
     domain: Optional[str] = None,
     goal_id: Optional[str] = None,
-    phase_boundary: Optional[Dict] = None,
+    phase_boundary: Optional[dict] = None,
     evidence_profile: Optional[str] = None,
-    phase_tool_counts: Optional[Dict[str, int]] = None,
+    phase_tool_counts: Optional[dict[str, int]] = None,
     work_context: Optional[str] = None,
     work_type: Optional[str] = None,
-    per_vector_weights: Optional[Dict[str, Dict[str, float]]] = None,
+    per_vector_weights: Optional[dict[str, dict[str, float]]] = None,
     transaction_id: Optional[str] = None,
-) -> Optional[Dict]:
+) -> Optional[dict]:
     """
     Full grounded verification pipeline.
 

@@ -9,7 +9,9 @@ import logging
 import sqlite3
 from pathlib import Path
 from typing import Optional
+
 from empirica.utils.session_resolver import InstanceResolver as R
+
 from ..cli_utils import handle_cli_error
 from .project_commands import get_workspace_db_path
 
@@ -26,6 +28,7 @@ def _parse_config_input(args):
     """Parse config from stdin, file, or None. Shared across all artifact handlers."""
     import os
     import sys
+
     from empirica.cli.cli_utils import parse_json_safely
 
     config_data = None
@@ -36,7 +39,7 @@ def _parse_config_input(args):
             if not os.path.exists(args.config):
                 print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
                 sys.exit(1)
-            with open(args.config, 'r') as f:
+            with open(args.config) as f:
                 config_data = parse_json_safely(f.read())
     return config_data
 
@@ -53,7 +56,7 @@ def _resolve_artifact_context(config_data, args, required_fields=None):
     Caller is responsible for closing db.
     """
     import sys
-    from empirica.data.session_database import SessionDatabase
+
 
     # Extract common fields from config or args
     output_format = 'json' if config_data else getattr(args, 'output', 'json')
@@ -226,8 +229,9 @@ def _get_db_for_project(project_name_or_id: str):
         SessionDatabase instance connected to the target project's DB,
         or None if the project can't be resolved.
     """
-    from empirica.data.session_database import SessionDatabase
     import sqlite3
+
+    from empirica.data.session_database import SessionDatabase
 
     workspace_db = get_workspace_db_path()
     if not workspace_db.exists():
@@ -507,8 +511,9 @@ def handle_finding_log_command(args):
         embedded = False
         if project_id and finding_id:
             try:
-                from empirica.core.qdrant.vector_store import embed_single_memory_item
                 from datetime import datetime
+
+                from empirica.core.qdrant.vector_store import embed_single_memory_item
                 embedded = embed_single_memory_item(
                     project_id=project_id,
                     item_id=finding_id,
@@ -529,11 +534,12 @@ def handle_finding_log_command(args):
         eidetic_result = None
         if project_id and finding_id:
             try:
-                from empirica.core.qdrant.vector_store import (
-                    embed_eidetic,
-                    confirm_eidetic_fact,
-                )
                 import hashlib
+
+                from empirica.core.qdrant.vector_store import (
+                    confirm_eidetic_fact,
+                    embed_eidetic,
+                )
 
                 # Content hash for deduplication
                 content_hash = hashlib.md5(finding.encode()).hexdigest()
@@ -736,8 +742,9 @@ def handle_unknown_log_command(args):
         embedded = False
         if project_id and unknown_id:
             try:
-                from empirica.core.qdrant.vector_store import embed_single_memory_item
                 from datetime import datetime
+
+                from empirica.core.qdrant.vector_store import embed_single_memory_item
                 embedded = embed_single_memory_item(
                     project_id=project_id,
                     item_id=unknown_id,
@@ -863,7 +870,7 @@ def handle_unknown_list_command(args):
 
             if not project_id:
                 try:
-        
+
                     context = R.context()
                     ctx_session = context.get('empirica_session_id')
                     if ctx_session:
@@ -1042,8 +1049,9 @@ def handle_deadend_log_command(args):
         embedded = False
         if project_id and dead_end_id:
             try:
-                from empirica.core.qdrant.vector_store import embed_single_memory_item
                 from datetime import datetime
+
+                from empirica.core.qdrant.vector_store import embed_single_memory_item
                 text = f"DEAD END: {approach} — Why failed: {why_failed}"
                 embedded = embed_single_memory_item(
                     project_id=project_id,
@@ -1140,7 +1148,7 @@ def handle_assumption_log_command(args):
         # Store to Qdrant (semantic search)
         embedded = False
         try:
-            from empirica.core.qdrant.vector_store import embed_assumption, _check_qdrant_available
+            from empirica.core.qdrant.vector_store import _check_qdrant_available, embed_assumption
             if _check_qdrant_available():
                 embed_assumption(
                     project_id=ctx['project_id'],
@@ -1264,7 +1272,7 @@ def handle_decision_log_command(args):
         # Qdrant (semantic search)
         embedded = False
         try:
-            from empirica.core.qdrant.vector_store import embed_decision, _check_qdrant_available
+            from empirica.core.qdrant.vector_store import _check_qdrant_available, embed_decision
             if _check_qdrant_available():
                 embed_decision(
                     project_id=ctx['project_id'],
@@ -1335,8 +1343,8 @@ def handle_refdoc_add_command(args):
     print("⚠️  refdoc-add is deprecated. Use 'empirica source-add' instead.", file=_sys.stderr)
     print("   Example: empirica source-add --title 'My Doc' --path ./doc.md --noetic", file=_sys.stderr)
     try:
-        from empirica.data.session_database import SessionDatabase
         from empirica.cli.utils.project_resolver import resolve_project_id
+        from empirica.data.session_database import SessionDatabase
 
         # Get project_id from args (required argument)
         project_id = args.project_id
@@ -1387,8 +1395,8 @@ def handle_source_add_command(args):
     try:
         import time
         import uuid
+
         from empirica.data.session_database import SessionDatabase
-        from empirica.cli.utils.project_resolver import resolve_project_id
 
         title = args.title
         description = getattr(args, 'description', None)

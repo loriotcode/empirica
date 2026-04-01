@@ -14,12 +14,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Any, TYPE_CHECKING
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from empirica.core.sentinel.orchestrator import EpistemicLoopTracker
@@ -36,9 +35,9 @@ class EmergedPersona:
     source_branch_id: Optional[str] = None
 
     # Vector profile
-    initial_vectors: Dict[str, float] = field(default_factory=dict)
-    final_vectors: Dict[str, float] = field(default_factory=dict)
-    delta_pattern: Dict[str, float] = field(default_factory=dict)
+    initial_vectors: dict[str, float] = field(default_factory=dict)
+    final_vectors: dict[str, float] = field(default_factory=dict)
+    delta_pattern: dict[str, float] = field(default_factory=dict)
 
     # Convergence characteristics
     loops_to_converge: int = 0
@@ -47,8 +46,8 @@ class EmergedPersona:
     scope_duration: float = 0.5
 
     # Task characteristics
-    task_domains: List[str] = field(default_factory=list)
-    task_keywords: List[str] = field(default_factory=list)
+    task_domains: list[str] = field(default_factory=list)
+    task_keywords: list[str] = field(default_factory=list)
 
     # Provenance
     extracted_at: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -60,12 +59,12 @@ class EmergedPersona:
     uses_count: int = 0
     success_count: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert persona to dictionary representation."""
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'EmergedPersona':
+    def from_dict(cls, data: dict[str, Any]) -> EmergedPersona:
         """Create persona from dictionary representation."""
         return cls(**data)
 
@@ -77,7 +76,7 @@ class EmergedPersona:
 
 def extract_persona_from_loop_tracker(
     session_id: str,
-    loop_tracker: 'EpistemicLoopTracker',
+    loop_tracker: EpistemicLoopTracker,
     task_description: str = "",
     branch_id: str = None
 ) -> Optional[EmergedPersona]:
@@ -152,10 +151,11 @@ def extract_persona_from_loop_tracker(
     return persona
 
 
-def _extract_domains(task: str) -> List[str]:
+def _extract_domains(task: str) -> list[str]:
     """Extract domain signals from task description."""
-    from empirica.core.sentinel.decision_logic import DOMAIN_PATTERNS
     import re
+
+    from empirica.core.sentinel.decision_logic import DOMAIN_PATTERNS
 
     task_lower = task.lower()
     domains = []
@@ -170,7 +170,7 @@ def _extract_domains(task: str) -> List[str]:
     return domains or ["general"]
 
 
-def _extract_keywords(task: str) -> List[str]:
+def _extract_keywords(task: str) -> list[str]:
     """Extract significant keywords from task description."""
     # Simple keyword extraction - could be enhanced with NLP
     import re
@@ -248,7 +248,7 @@ class EmergedPersonaStore:
             logger.warning(f"Failed to load persona from {filepath}: {e}")
             return None
 
-    def list_all(self) -> List[EmergedPersona]:
+    def list_all(self) -> list[EmergedPersona]:
         """List all emerged personas."""
         personas = []
         for filepath in self.base_path.glob("emerged_*.yaml"):
@@ -257,11 +257,11 @@ class EmergedPersonaStore:
                 personas.append(persona)
         return sorted(personas, key=lambda p: p.extracted_at, reverse=True)
 
-    def find_by_domain(self, domain: str) -> List[EmergedPersona]:
+    def find_by_domain(self, domain: str) -> list[EmergedPersona]:
         """Find personas that match a domain."""
         return [p for p in self.list_all() if domain in p.task_domains]
 
-    def find_similar(self, task: str, limit: int = 5) -> List[EmergedPersona]:
+    def find_similar(self, task: str, limit: int = 5) -> list[EmergedPersona]:
         """Find personas similar to a task description."""
         task_domains = _extract_domains(task)
         task_keywords = set(_extract_keywords(task))
@@ -303,7 +303,7 @@ class EmergedPersonaStore:
 
 def extract_and_store_persona(
     session_id: str,
-    loop_tracker: 'EpistemicLoopTracker',
+    loop_tracker: EpistemicLoopTracker,
     task_description: str = "",
     branch_id: str = None,
     store_path: str = None
@@ -332,7 +332,7 @@ def extract_and_store_persona(
 
 def sentinel_match_persona(
     task: str,
-    grounding_vectors: Dict[str, float] = None,
+    grounding_vectors: dict[str, float] = None,
     min_reputation: float = 0.5,
     store_path: str = None
 ) -> Optional[EmergedPersona]:
@@ -396,10 +396,10 @@ def sentinel_match_persona(
 def match_or_decompose(
     task: str,
     session_id: str,
-    grounding_vectors: Dict[str, float] = None,
+    grounding_vectors: dict[str, float] = None,
     min_reputation: float = 0.3,
     store_path: str = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Attempt to match a persona for a task. If no match, trigger decomposition.
 
@@ -466,7 +466,7 @@ def match_or_decompose(
     }
 
 
-def convert_emerged_to_persona_json(emerged: EmergedPersona) -> Dict[str, Any]:
+def convert_emerged_to_persona_json(emerged: EmergedPersona) -> dict[str, Any]:
     """
     Convert an EmergedPersona to the standard persona JSON format
     used by generate_agents.py for Claude Code agent generation.

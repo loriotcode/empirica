@@ -13,7 +13,6 @@ Phase 3 Component: Ensures multi-AI coordination coherence
 """
 
 import logging
-from typing import Dict, List, Optional
 
 from .validation_utils import get_git_diff_summary
 
@@ -36,9 +35,9 @@ class HandoffValidator:
 
     def validate_handoff(
         self,
-        checkpoint_data: Dict[str, any],
+        checkpoint_data: dict[str, any],
         previous_ai_id: str = "unknown"
-    ) -> Dict[str, any]:
+    ) -> dict[str, any]:
         """
         Before I trust previous AI's work, verify it makes sense.
 
@@ -117,7 +116,7 @@ class HandoffValidator:
             "ai_id": self.ai_id
         }
 
-    def _check_claim_vs_reality(self, checkpoint_data: Dict[str, any]) -> Dict[str, any]:
+    def _check_claim_vs_reality(self, checkpoint_data: dict[str, any]) -> dict[str, any]:
         """
         Did they do what they claimed?
 
@@ -168,9 +167,9 @@ class HandoffValidator:
 
     def _check_findings_credibility(
         self,
-        findings: List[Dict],
-        checkpoint_data: Dict[str, any]
-    ) -> Dict[str, any]:
+        findings: list[dict],
+        checkpoint_data: dict[str, any]
+    ) -> dict[str, any]:
         """
         Are findings credible given their assessment?
 
@@ -224,9 +223,9 @@ class HandoffValidator:
 
     def _check_unknowns_reasonableness(
         self,
-        unknowns: List[Dict],
-        findings: List[Dict]
-    ) -> Dict[str, any]:
+        unknowns: list[dict],
+        findings: list[dict]
+    ) -> dict[str, any]:
         """
         Do the remaining unknowns make sense?
 
@@ -274,10 +273,10 @@ class HandoffValidator:
 
     def _check_overall_coherence(
         self,
-        checkpoint_data: Dict[str, any],
-        findings: List[Dict],
-        unknowns: List[Dict]
-    ) -> Dict[str, any]:
+        checkpoint_data: dict[str, any],
+        findings: list[dict],
+        unknowns: list[dict]
+    ) -> dict[str, any]:
         """
         Does the overall checkpoint hang together coherently?
 
@@ -322,8 +321,8 @@ class HandoffValidator:
         self,
         valid: bool,
         trustworthy: bool,
-        issues: List[str],
-        recommendations: List[str]
+        issues: list[str],
+        recommendations: list[str]
     ) -> str:
         """Format human-readable validation message"""
         if valid and trustworthy:

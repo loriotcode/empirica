@@ -10,6 +10,7 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
+
 from ..cli_utils import handle_cli_error
 
 logger = logging.getLogger(__name__)

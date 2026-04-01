@@ -2,14 +2,17 @@
 Eidetic memory: stable facts with confidence scoring.
 """
 from __future__ import annotations
-import logging
-from typing import Dict, List, Optional
 
-from empirica.core.qdrant.connection import (
-    _check_qdrant_available, _get_qdrant_imports, _get_qdrant_client,
-    _get_embedding_safe, _get_vector_size, logger,
-)
 from empirica.core.qdrant.collections import _eidetic_collection
+from empirica.core.qdrant.connection import (
+    _check_qdrant_available,
+    _get_embedding_safe,
+    _get_qdrant_client,
+    _get_qdrant_imports,
+    _get_vector_size,
+    logger,
+)
+
 
 def embed_eidetic(
     project_id: str,
@@ -19,9 +22,9 @@ def embed_eidetic(
     domain: str = None,
     confidence: float = 0.5,
     confirmation_count: int = 1,
-    source_sessions: List[str] = None,
-    source_findings: List[str] = None,
-    tags: List[str] = None,
+    source_sessions: list[str] = None,
+    source_findings: list[str] = None,
+    tags: list[str] = None,
     timestamp: str = None,
 ) -> bool:
     """
@@ -87,7 +90,7 @@ def search_eidetic(
     domain: str = None,
     min_confidence: float = 0.0,
     limit: int = 5,
-) -> List[Dict]:
+) -> list[dict]:
     """
     Search eidetic memory for relevant facts.
 
@@ -119,7 +122,7 @@ def search_eidetic(
             return []
 
         # Build filter conditions
-        from qdrant_client.models import Filter, FieldCondition, MatchValue, Range
+        from qdrant_client.models import FieldCondition, Filter, MatchValue, Range
 
         conditions = []
         if fact_type:
@@ -192,7 +195,7 @@ def confirm_eidetic_fact(
         if not client.collection_exists(coll):
             return False
 
-        from qdrant_client.models import Filter, FieldCondition, MatchValue
+        from qdrant_client.models import FieldCondition, Filter, MatchValue
 
         # Find existing fact by content hash
         results = client.scroll(

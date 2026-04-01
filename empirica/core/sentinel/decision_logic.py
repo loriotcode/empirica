@@ -20,7 +20,7 @@ Usage:
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ class DomainSignal:
     """A detected domain signal from task analysis"""
     domain: str
     confidence: float
-    matched_terms: List[str] = field(default_factory=list)
+    matched_terms: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -87,10 +87,10 @@ class PersonaMatch:
     rationale: str
     domain_relevance: float  # How well domains match
     epistemic_fit: float  # How well epistemic profile fits
-    focus_domains: List[str] = field(default_factory=list)
-    priors: Dict[str, float] = field(default_factory=dict)
+    focus_domains: list[str] = field(default_factory=list)
+    priors: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert persona recommendation to dictionary representation."""
         return {
             "persona_id": self.persona_id,
@@ -158,7 +158,7 @@ class DecisionLogic:
                 self._registry = None
         return self._registry
 
-    def analyze_task(self, task: str) -> List[DomainSignal]:
+    def analyze_task(self, task: str) -> list[DomainSignal]:
         """
         Analyze a task description to extract domain signals.
 
@@ -204,10 +204,10 @@ class DecisionLogic:
         self,
         task: str,
         max_personas: int = 3,
-        required_domains: Optional[List[str]] = None,
-        excluded_personas: Optional[List[str]] = None,
-        epistemic_requirements: Optional[Dict[str, float]] = None
-    ) -> List[PersonaMatch]:
+        required_domains: Optional[list[str]] = None,
+        excluded_personas: Optional[list[str]] = None,
+        epistemic_requirements: Optional[dict[str, float]] = None
+    ) -> list[PersonaMatch]:
         """
         Select best personas for a task.
 
@@ -314,8 +314,8 @@ class DecisionLogic:
 
     def _score_persona(
         self,
-        persona: Dict[str, Any],
-        signals: List[DomainSignal],
+        persona: dict[str, Any],
+        signals: list[DomainSignal],
         primary_domain: str
     ) -> PersonaMatch:
         """Score a persona against task signals"""
@@ -364,8 +364,8 @@ class DecisionLogic:
 
     def _meets_epistemic_requirements(
         self,
-        persona: Dict[str, Any],
-        requirements: Optional[Dict[str, float]]
+        persona: dict[str, Any],
+        requirements: Optional[dict[str, float]]
     ) -> bool:
         """Check if persona meets epistemic requirements"""
         if not requirements:
@@ -400,8 +400,8 @@ class DecisionLogic:
 
     def get_domain_coverage(
         self,
-        personas: List[PersonaMatch]
-    ) -> Dict[str, List[str]]:
+        personas: list[PersonaMatch]
+    ) -> dict[str, list[str]]:
         """
         Analyze domain coverage of selected personas.
 
@@ -423,9 +423,9 @@ class DecisionLogic:
     def suggest_additional_personas(
         self,
         task: str,
-        current_personas: List[PersonaMatch],
-        uncovered_domains: List[str]
-    ) -> List[PersonaMatch]:
+        current_personas: list[PersonaMatch],
+        uncovered_domains: list[str]
+    ) -> list[PersonaMatch]:
         """
         Suggest additional personas to cover uncovered domains.
 

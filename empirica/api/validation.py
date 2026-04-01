@@ -14,9 +14,10 @@ Usage:
         ...
 """
 
-import re
 import logging
-from typing import Optional, Tuple, Any
+import re
+from typing import Any, Optional
+
 from flask import jsonify
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ MAX_AI_ID_LENGTH = 64
 MAX_REASONING_LENGTH = 5000
 
 
-def validation_error(message: str, param: str, status_code: int = 400) -> Tuple[Any, int]:
+def validation_error(message: str, param: str, status_code: int = 400) -> tuple[Any, int]:
     """Create standardized validation error response."""
     logger.warning(f"Validation error on {param}: {message}")
     return jsonify({
@@ -51,7 +52,7 @@ def validation_error(message: str, param: str, status_code: int = 400) -> Tuple[
     }), status_code
 
 
-def validate_session_id(session_id: str) -> Optional[Tuple[Any, int]]:
+def validate_session_id(session_id: str) -> Optional[tuple[Any, int]]:
     """
     Validate session ID format.
 
@@ -80,7 +81,7 @@ def validate_session_id(session_id: str) -> Optional[Tuple[Any, int]]:
     return None
 
 
-def validate_ai_id(ai_id: str) -> Optional[Tuple[Any, int]]:
+def validate_ai_id(ai_id: str) -> Optional[tuple[Any, int]]:
     """
     Validate AI ID format.
 
@@ -107,7 +108,7 @@ def validate_ai_id(ai_id: str) -> Optional[Tuple[Any, int]]:
     return None
 
 
-def validate_limit(limit: Any, default: int = 20) -> Tuple[int, Optional[Tuple[Any, int]]]:
+def validate_limit(limit: Any, default: int = 20) -> tuple[int, Optional[tuple[Any, int]]]:
     """
     Validate and sanitize limit parameter.
 
@@ -142,7 +143,7 @@ def validate_limit(limit: Any, default: int = 20) -> Tuple[int, Optional[Tuple[A
     return limit_int, None
 
 
-def validate_offset(offset: Any, default: int = 0) -> Tuple[int, Optional[Tuple[Any, int]]]:
+def validate_offset(offset: Any, default: int = 0) -> tuple[int, Optional[tuple[Any, int]]]:
     """
     Validate and sanitize offset parameter.
 
@@ -173,7 +174,7 @@ def validate_offset(offset: Any, default: int = 0) -> Tuple[int, Optional[Tuple[
     return offset_int, None
 
 
-def validate_timestamp(timestamp: Optional[str]) -> Optional[Tuple[Any, int]]:
+def validate_timestamp(timestamp: Optional[str]) -> Optional[tuple[Any, int]]:
     """
     Validate ISO timestamp format.
 
@@ -203,7 +204,7 @@ def validate_string_length(
     param_name: str,
     max_length: int = MAX_STRING_LENGTH,
     required: bool = False
-) -> Optional[Tuple[Any, int]]:
+) -> Optional[tuple[Any, int]]:
     """
     Validate string length.
 
@@ -230,7 +231,7 @@ def validate_string_length(
     return None
 
 
-def validate_phase(phase: Optional[str]) -> Optional[Tuple[Any, int]]:
+def validate_phase(phase: Optional[str]) -> Optional[tuple[Any, int]]:
     """
     Validate CASCADE phase.
 
@@ -250,7 +251,7 @@ def validate_phase(phase: Optional[str]) -> Optional[Tuple[Any, int]]:
     return None
 
 
-def validate_vectors(vectors: Optional[dict]) -> Optional[Tuple[Any, int]]:
+def validate_vectors(vectors: Optional[dict]) -> Optional[tuple[Any, int]]:
     """
     Validate epistemic vectors.
 

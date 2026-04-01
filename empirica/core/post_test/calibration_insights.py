@@ -21,7 +21,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class CalibrationInsight:
     severity: float                     # 0.0-1.0
     description: str
     suggestion: str                     # Machine-readable improvement hint
-    evidence_sources: List[str] = field(default_factory=list)
+    evidence_sources: list[str] = field(default_factory=list)
     observation_count: int = 0
 
 
@@ -51,7 +51,7 @@ class CalibrationInsightsAnalyzer:
         self.session_id = session_id
         self.lookback = lookback
 
-    def analyze(self) -> List[CalibrationInsight]:
+    def analyze(self) -> list[CalibrationInsight]:
         """Run all pattern detectors on recent verification records."""
         records = self._get_recent_verifications()
         if len(records) < self.MIN_OBSERVATIONS:
@@ -64,7 +64,7 @@ class CalibrationInsightsAnalyzer:
         insights.extend(self._detect_volatile_vectors(records))
         return [i for i in insights if i.severity >= self.MIN_SEVERITY]
 
-    def store_insights(self, insights: List[CalibrationInsight], transaction_id: Optional[str] = None):
+    def store_insights(self, insights: list[CalibrationInsight], transaction_id: Optional[str] = None):
         """Store insights in the calibration_insights table."""
         self._ensure_table()
         cursor = self.db.conn.cursor()
@@ -115,7 +115,7 @@ class CalibrationInsightsAnalyzer:
         """)
         self.db.conn.commit()
 
-    def _get_recent_verifications(self) -> List[Dict]:
+    def _get_recent_verifications(self) -> list[dict]:
         """Fetch the last N grounded verification records."""
         try:
             cursor = self.db.conn.cursor()
@@ -160,11 +160,11 @@ class CalibrationInsightsAnalyzer:
             logger.debug(f"Failed to fetch verification records: {e}")
             return []
 
-    def _detect_chronic_bias(self, records: List[Dict]) -> List[CalibrationInsight]:
+    def _detect_chronic_bias(self, records: list[dict]) -> list[CalibrationInsight]:
         """Detect vectors that are consistently over/under-estimated."""
         insights = []
         # Collect gap values per vector across all records
-        vector_gaps: Dict[str, List[float]] = {}
+        vector_gaps: dict[str, list[float]] = {}
         for record in records:
             for vector, gap in record.get('gaps', {}).items():
                 if isinstance(gap, (int, float)):
@@ -211,11 +211,11 @@ class CalibrationInsightsAnalyzer:
 
         return insights
 
-    def _detect_evidence_gaps(self, records: List[Dict]) -> List[CalibrationInsight]:
+    def _detect_evidence_gaps(self, records: list[dict]) -> list[CalibrationInsight]:
         """Detect vectors with consistently low evidence coverage."""
         insights = []
         # Track which vectors appear in gaps (meaning they had evidence)
-        vector_appearances: Dict[str, int] = {}
+        vector_appearances: dict[str, int] = {}
         total_records = len(records)
 
         for record in records:
@@ -253,12 +253,12 @@ class CalibrationInsightsAnalyzer:
 
         return insights
 
-    def _detect_phase_mismatch(self, records: List[Dict]) -> List[CalibrationInsight]:
+    def _detect_phase_mismatch(self, records: list[dict]) -> list[CalibrationInsight]:
         """Detect vectors with large gap in one phase but not the other."""
         insights = []
         # Separate noetic and praxic records
-        noetic_gaps: Dict[str, List[float]] = {}
-        praxic_gaps: Dict[str, List[float]] = {}
+        noetic_gaps: dict[str, list[float]] = {}
+        praxic_gaps: dict[str, list[float]] = {}
 
         for record in records:
             phase = record.get('phase', 'combined')
@@ -303,10 +303,10 @@ class CalibrationInsightsAnalyzer:
 
         return insights
 
-    def _detect_volatile_vectors(self, records: List[Dict]) -> List[CalibrationInsight]:
+    def _detect_volatile_vectors(self, records: list[dict]) -> list[CalibrationInsight]:
         """Detect vectors where gap direction flips frequently."""
         insights = []
-        vector_gaps: Dict[str, List[float]] = {}
+        vector_gaps: dict[str, list[float]] = {}
         for record in records:
             for vector, gap in record.get('gaps', {}).items():
                 if isinstance(gap, (int, float)) and abs(gap) > 0.02:

@@ -6,6 +6,7 @@ Split from project_commands.py for maintainability.
 
 import json
 import logging
+
 from ..cli_utils import handle_cli_error
 
 logger = logging.getLogger(__name__)
@@ -14,18 +15,18 @@ logger = logging.getLogger(__name__)
 def handle_workspace_overview_command(args):
     """Handle workspace-overview command - show epistemic health of all projects"""
     try:
+
         from empirica.data.session_database import SessionDatabase
-        from datetime import datetime, timedelta
-        
+
         db = SessionDatabase()
         overview = db.get_workspace_overview()
         db.close()
-        
+
         # Get output format and sorting options
         output_format = getattr(args, 'output', 'dashboard')
         sort_by = getattr(args, 'sort_by', 'activity')
         filter_status = getattr(args, 'filter', None)
-        
+
         # Sort projects
         projects = overview['projects']
         if sort_by == 'knowledge':
@@ -35,11 +36,11 @@ def handle_workspace_overview_command(args):
         elif sort_by == 'name':
             projects.sort(key=lambda p: p.get('name', ''))
         # Default: 'activity' - already sorted by last_activity_timestamp DESC
-        
+
         # Filter projects by status
         if filter_status:
             projects = [p for p in projects if p.get('status') == filter_status]
-        
+
         # JSON output
         if output_format == 'json':
             result = {
@@ -51,14 +52,14 @@ def handle_workspace_overview_command(args):
             print(json.dumps(result, indent=2))
             # Return None to avoid exit code issues and duplicate output
             return None
-        
+
         # Dashboard output (human-readable)
         stats = overview['workspace_stats']
-        
+
         print("╔════════════════════════════════════════════════════════════════╗")
         print("║  Empirica Workspace Overview - Epistemic Project Management    ║")
         print("╚════════════════════════════════════════════════════════════════╝\n")
-        
+
         print("📊 Workspace Summary")
         print(f"   Total Projects:    {stats['total_projects']}")
         print(f"   Total Sessions:    {stats['total_sessions']}")
@@ -66,48 +67,48 @@ def handle_workspace_overview_command(args):
         print(f"   Average Know:      {stats['avg_know']:.2f}")
         print(f"   Average Uncertainty: {stats['avg_uncertainty']:.2f}")
         print()
-        
+
         if not projects:
             print("   No projects found.")
             print(json.dumps({"projects": []}, indent=2))
             return 0
-        
+
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
         print("📁 Projects by Epistemic Health\n")
-        
+
         # Group by health tier
         high_health = [p for p in projects if p['health_score'] >= 0.7]
         medium_health = [p for p in projects if 0.5 <= p['health_score'] < 0.7]
         low_health = [p for p in projects if p['health_score'] < 0.5]
-        
+
         # Display high health projects
         if high_health:
             print("🟢 HIGH KNOWLEDGE (know ≥ 0.7)")
             for i, p in enumerate(high_health, 1):
                 _display_project(i, p)
             print()
-        
+
         # Display medium health projects
         if medium_health:
             print("🟡 MEDIUM KNOWLEDGE (0.5 ≤ know < 0.7)")
             for i, p in enumerate(medium_health, 1):
                 _display_project(i, p)
             print()
-        
+
         # Display low health projects
         if low_health:
             print("🔴 LOW KNOWLEDGE (know < 0.5)")
             for i, p in enumerate(low_health, 1):
                 _display_project(i, p)
             print()
-        
+
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
         print("💡 Quick Commands:")
         print(f"   • Bootstrap project:  empirica project-bootstrap --project-id <PROJECT_ID>")
         print(f"   • Check ready goals:  empirica goals-ready --session-id <SESSION_ID>")
         print(f"   • List all projects:  empirica project-list")
         print()
-        
+
         # Return None to avoid exit code issues and duplicate output
         return None
 
@@ -126,7 +127,7 @@ def _display_project(index, project):
     unknowns = project['unknowns_count']
     dead_ends = project['dead_ends_count']
     sessions = project['total_sessions']
-    
+
     # Format last activity
     last_activity = project.get('last_activity')
     if last_activity:
@@ -151,10 +152,10 @@ def _display_project(index, project):
             time_ago = "unknown"
     else:
         time_ago = "never"
-    
+
     print(f"   {index}. {name} │ Health: {health:.2f} │ Know: {know:.2f} │ Sessions: {sessions} │ ⏰ {time_ago}")
     print(f"      Findings: {findings}  Unknowns: {unknowns}  Dead Ends: {dead_ends}")
-    
+
     # Show warnings
     if uncertainty > 0.7:
         print(f"      ⚠️  High uncertainty ({uncertainty:.2f}) - needs investigation")
@@ -164,7 +165,7 @@ def _display_project(index, project):
             print(f"      🚨 High dead end ratio ({dead_end_ratio:.0%}) - many failed approaches")
     if unknowns > 20:
         print(f"      ❓ Many unresolved unknowns ({unknowns}) - systematically resolve them")
-    
+
     # Show project ID (shortened)
     project_id = project['project_id']
     print(f"      ID: {project_id[:8]}...")
@@ -173,28 +174,29 @@ def _display_project(index, project):
 def handle_workspace_map_command(args):
     """Handle workspace-map command - discover git repos and show epistemic status"""
     try:
-        from empirica.data.session_database import SessionDatabase
         import subprocess
         from pathlib import Path
-        
+
+        from empirica.data.session_database import SessionDatabase
+
         # Get current directory and scan parent
         current_dir = Path.cwd()
         parent_dir = current_dir.parent
-        
+
         output_format = getattr(args, 'output', 'dashboard')
-        
+
         # Find all git repositories in parent directory
         git_repos = []
         logger.info(f"Scanning {parent_dir} for git repositories...")
-        
+
         for item in parent_dir.iterdir():
             if not item.is_dir():
                 continue
-            
+
             git_dir = item / '.git'
             if not git_dir.exists():
                 continue
-            
+
             # This is a git repo - get remote URL
             try:
                 result = subprocess.run(
@@ -203,18 +205,18 @@ def handle_workspace_map_command(args):
                     text=True,
                     timeout=5
                 )
-                
+
                 remote_url = result.stdout.strip() if result.returncode == 0 else None
-                
+
                 repo_info = {
                     'path': str(item),
                     'name': item.name,
                     'remote_url': remote_url,
                     'has_remote': remote_url is not None
                 }
-                
+
                 git_repos.append(repo_info)
-                
+
             except Exception as e:
                 logger.debug(f"Error getting remote for {item.name}: {e}")
                 git_repos.append({
@@ -224,7 +226,7 @@ def handle_workspace_map_command(args):
                     'has_remote': False,
                     'error': str(e)
                 })
-        
+
         # Load ecosystem manifest (optional - enhances output with dependency info)
         eco_graph = None
         try:
@@ -236,12 +238,12 @@ def handle_workspace_map_command(args):
         # Match with Empirica projects
         db = SessionDatabase()
         cursor = db.conn.cursor()
-        
+
         for repo in git_repos:
             if not repo['has_remote']:
                 repo['empirica_project'] = None
                 continue
-            
+
             # Try to find matching project
             cursor.execute("""
                 SELECT id, name, status, total_sessions,
@@ -256,7 +258,7 @@ def handle_workspace_map_command(args):
                 FROM projects
                 WHERE repos LIKE ?
             """, (f'%{repo["remote_url"]}%',))
-            
+
             row = cursor.fetchone()
             if row:
                 repo['empirica_project'] = {
@@ -269,9 +271,9 @@ def handle_workspace_map_command(args):
                 }
             else:
                 repo['empirica_project'] = None
-        
+
         db.close()
-        
+
         # Enrich repos with ecosystem dependency info
         if eco_graph:
             for repo in git_repos:
@@ -308,25 +310,25 @@ def handle_workspace_map_command(args):
         # Dashboard output
         tracked = [r for r in git_repos if r['empirica_project']]
         untracked = [r for r in git_repos if not r['empirica_project']]
-        
+
         print("╔════════════════════════════════════════════════════════════════╗")
         print("║  Git Workspace Map - Epistemic Health                         ║")
         print("╚════════════════════════════════════════════════════════════════╝\n")
-        
+
         print(f"📂 Parent Directory: {parent_dir}")
         print(f"   Total Git Repos:  {len(git_repos)}")
         print(f"   Tracked:          {len(tracked)}")
         print(f"   Untracked:        {len(untracked)}")
         print()
-        
+
         if tracked:
             print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
             print("🟢 Tracked in Empirica\n")
-            
+
             for repo in tracked:
                 proj = repo['empirica_project']
                 status_icon = "🟢" if proj['status'] == 'active' else "🟡"
-                
+
                 print(f"{status_icon} {repo['name']}")
                 print(f"   Path: {repo['path']}")
                 print(f"   Project: {proj['name']}")
@@ -336,11 +338,11 @@ def handle_workspace_map_command(args):
                 if eco:
                     print(f"   Role: {eco['role']} | Deps: {eco['upstream_count']} upstream, {eco['downstream_count']} downstream")
                 print()
-        
+
         if untracked:
             print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
             print("⚪ Not Tracked in Empirica\n")
-            
+
             for repo in untracked:
                 print(f"⚪ {repo['name']}")
                 print(f"   Path: {repo['path']}")
@@ -350,7 +352,7 @@ def handle_workspace_map_command(args):
                 else:
                     print(f"   ⚠️  No remote configured")
                 print()
-        
+
         if eco_graph:
             print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
             summary = eco_graph.summary()
@@ -365,7 +367,7 @@ def handle_workspace_map_command(args):
         print(f"   empirica ecosystem-check --file F     # Impact analysis for file F")
         print()
         return 0
-        
+
     except Exception as e:
         handle_cli_error(e, "Workspace map", getattr(args, 'verbose', False))
         return 1
@@ -374,8 +376,8 @@ def handle_workspace_map_command(args):
 def handle_workspace_list_command(args):
     """Handle workspace-list command - list projects with types, tags, and hierarchy"""
     try:
-        from empirica.data.session_database import SessionDatabase
         from empirica.data.repositories.projects import ProjectRepository
+        from empirica.data.session_database import SessionDatabase
 
         db = SessionDatabase()
         cursor = db.conn.cursor()

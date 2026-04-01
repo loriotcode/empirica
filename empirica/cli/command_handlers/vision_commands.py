@@ -12,9 +12,9 @@ Future enhancements: Playwright MCP, vision APIs, video analysis
 """
 
 import json
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, asdict
+from typing import Optional
 
 try:
     from PIL import Image
@@ -28,30 +28,30 @@ class BasicImageAssessment:
     """Basic image assessment without OCR"""
     image_path: str
     slide_number: Optional[int]
-    
+
     # Basic metadata
     width: int
     height: int
     format: str
     mode: str
     file_size_kb: float
-    
+
     # Simple visual heuristics
     aspect_ratio: float
     pixel_count: int
     is_presentation_size: bool  # Common slide dimensions
-    
+
     # Epistemic placeholder (for manual annotation)
     notes: str = ""
-    
-    def to_dict(self) -> Dict:
+
+    def to_dict(self) -> dict:
         """Convert image assessment to dictionary representation."""
         return asdict(self)
 
 
 class VisionAnalyzer:
     """Simple vision analyzer for core Empirica"""
-    
+
     def __init__(self):
         """Initialize vision analyzer, requiring PIL/Pillow installation."""
         if not HAS_PIL:
@@ -59,22 +59,22 @@ class VisionAnalyzer:
                 "PIL/Pillow required for vision analysis. "
                 "Install: pip install pillow"
             )
-    
+
     def analyze_image(self, image_path: Path, slide_number: Optional[int] = None) -> BasicImageAssessment:
         """Analyze single image - basic metadata only"""
         img = Image.open(image_path)
         file_size = image_path.stat().st_size / 1024  # KB
-        
+
         width, height = img.size
         aspect_ratio = width / height if height > 0 else 0
         pixel_count = width * height
-        
+
         # Common presentation sizes: 16:9, 4:3, 16:10
         is_presentation_size = (
             0.55 < aspect_ratio < 0.80 or  # 4:3 region
             1.5 < aspect_ratio < 1.85       # 16:9, 16:10 region
         )
-        
+
         return BasicImageAssessment(
             image_path=str(image_path),
             slide_number=slide_number,
@@ -87,37 +87,37 @@ class VisionAnalyzer:
             pixel_count=pixel_count,
             is_presentation_size=is_presentation_size,
         )
-    
-    def analyze_deck(self, pattern: str) -> List[BasicImageAssessment]:
+
+    def analyze_deck(self, pattern: str) -> list[BasicImageAssessment]:
         """Analyze slide deck matching pattern"""
         slide_files = sorted(Path('.').glob(pattern))
-        
+
         if not slide_files:
             raise FileNotFoundError(f"No images found matching: {pattern}")
-        
+
         assessments = []
         for idx, slide_path in enumerate(slide_files, start=1):
             assessment = self.analyze_image(slide_path, slide_number=idx)
             assessments.append(assessment)
-        
+
         return assessments
 
 
 def handle_vision_analyze(args):
     """Handle vision-analyze command"""
     from empirica.data.session_database import SessionDatabase
-    
+
     analyzer = VisionAnalyzer()
-    
+
     # Analyze image(s)
     if args.pattern:
         assessments = analyzer.analyze_deck(args.pattern)
     else:
         assessments = [analyzer.analyze_image(Path(args.image))]
-    
+
     # Output format
     output = args.output or "json"
-    
+
     if output == "json":
         result = {
             "ok": True,
@@ -136,7 +136,7 @@ def handle_vision_analyze(args):
             print(f"  Size: {a.width}x{a.height} ({a.format})")
             print(f"  Aspect: {a.aspect_ratio} {'(presentation)' if a.is_presentation_size else ''}")
             print(f"  File: {a.file_size_kb} KB")
-    
+
     # Auto-log to session if provided
     if args.session_id:
         db = SessionDatabase()
@@ -145,25 +145,25 @@ def handle_vision_analyze(args):
                 finding = f"Analyzed {Path(a.image_path).name}: {a.width}x{a.height} {a.format}"
                 if a.slide_number:
                     finding = f"Slide #{a.slide_number}: {finding}"
-                
+
                 db.log_finding(
                     session_id=args.session_id,
                     finding=finding,
                     source="vision-analyze"
                 )
-            
+
             if output != "json":
                 print(f"\n✓ Logged {len(assessments)} findings to session")
         finally:
             db.close()
-    
+
     return 0
 
 
 def handle_vision_log(args):
     """Handle vision-log command - manually log visual observation"""
     from empirica.data.session_database import SessionDatabase
-    
+
     db = SessionDatabase()
     try:
         # Log as finding
@@ -172,12 +172,12 @@ def handle_vision_log(args):
             finding=args.observation,
             source="vision-log"
         )
-        
+
         if args.output == "json":
             print(json.dumps({"ok": True, "logged": True}))
         else:
             print(f"✓ Visual observation logged to session")
-        
+
         return 0
     finally:
         db.close()
@@ -185,7 +185,7 @@ def handle_vision_log(args):
 
 def add_vision_parsers(subparsers):
     """Add vision command parsers"""
-    
+
     # vision-analyze: Analyze image(s) with optional session logging
     vision_analyze = subparsers.add_parser(
         'vision-analyze',
@@ -197,7 +197,7 @@ def add_vision_parsers(subparsers):
     vision_analyze.add_argument('--output', choices=['json', 'human'], default='json',
                                help='Output format')
     vision_analyze.set_defaults(func=handle_vision_analyze)
-    
+
     # vision-log: Manually log visual observation to session
     vision_log = subparsers.add_parser(
         'vision-log',

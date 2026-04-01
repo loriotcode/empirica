@@ -6,9 +6,9 @@ Core dataclasses for tracking goal and task completion.
 MVP design: Simple completion tracking with manual evidence recording.
 """
 
-from dataclasses import dataclass, field
-from typing import List, Dict, Any
 import time
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -20,15 +20,15 @@ class CompletionRecord:
     """
     goal_id: str
     completion_percentage: float         # 0.0 to 1.0
-    completed_subtasks: List[str]        # SubTask IDs
-    remaining_subtasks: List[str]        # SubTask IDs
-    blocked_subtasks: List[str]          # SubTask IDs
+    completed_subtasks: list[str]        # SubTask IDs
+    remaining_subtasks: list[str]        # SubTask IDs
+    blocked_subtasks: list[str]          # SubTask IDs
     estimated_remaining_tokens: int
     actual_tokens_used: int
-    completion_evidence: Dict[str, str]  # subtask_id -> evidence (commit hash, file path, etc.)
+    completion_evidence: dict[str, str]  # subtask_id -> evidence (commit hash, file path, etc.)
     last_updated: float = field(default_factory=time.time)
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary"""
         return {
             'goal_id': self.goal_id,
@@ -41,9 +41,9 @@ class CompletionRecord:
             'completion_evidence': self.completion_evidence,
             'last_updated': self.last_updated
         }
-    
+
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'CompletionRecord':
+    def from_dict(data: dict[str, Any]) -> 'CompletionRecord':
         """Deserialize from dictionary"""
         return CompletionRecord(
             goal_id=data['goal_id'],
@@ -71,8 +71,8 @@ class CompletionMetrics:
     total_tokens_used: int
     average_completion_rate: float
     efficiency_score: float              # actual vs estimated tokens (lower is better)
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary"""
         return {
             'goals_completed': self.goals_completed,

@@ -7,6 +7,7 @@ It delegates to cli_core.main() which contains the full command routing logic.
 """
 
 import sys
+
 from .cli_core import main
 
 if __name__ == '__main__':

@@ -2,14 +2,17 @@
 Episodic memory: session narratives with temporal decay.
 """
 from __future__ import annotations
-import logging
-from typing import Dict, List, Optional
 
-from empirica.core.qdrant.connection import (
-    _check_qdrant_available, _get_qdrant_imports, _get_qdrant_client,
-    _get_embedding_safe, _get_vector_size, logger,
-)
 from empirica.core.qdrant.collections import _episodic_collection
+from empirica.core.qdrant.connection import (
+    _check_qdrant_available,
+    _get_embedding_safe,
+    _get_qdrant_client,
+    _get_qdrant_imports,
+    _get_vector_size,
+    logger,
+)
+
 
 def embed_episodic(
     project_id: str,
@@ -19,10 +22,10 @@ def embed_episodic(
     session_id: str = None,
     ai_id: str = None,
     goal_id: str = None,
-    learning_delta: Dict[str, float] = None,
+    learning_delta: dict[str, float] = None,
     outcome: str = None,
-    key_moments: List[str] = None,
-    tags: List[str] = None,
+    key_moments: list[str] = None,
+    tags: list[str] = None,
     timestamp: float = None,
 ) -> bool:
     """
@@ -91,7 +94,7 @@ def search_episodic(
     min_recency_weight: float = 0.0,
     limit: int = 5,
     apply_recency_decay: bool = True,
-) -> List[Dict]:
+) -> list[dict]:
     """
     Search episodic memory for relevant narratives.
 
@@ -124,7 +127,7 @@ def search_episodic(
         if vector is None:
             return []
 
-        from qdrant_client.models import Filter, FieldCondition, MatchValue, Range
+        from qdrant_client.models import FieldCondition, Filter, MatchValue
 
         conditions = []
         if episode_type:
@@ -205,10 +208,10 @@ def create_session_episode(
     session_id: str,
     ai_id: str,
     goal_objective: str = None,
-    preflight_vectors: Dict[str, float] = None,
-    postflight_vectors: Dict[str, float] = None,
-    findings: List[str] = None,
-    unknowns: List[str] = None,
+    preflight_vectors: dict[str, float] = None,
+    postflight_vectors: dict[str, float] = None,
+    findings: list[str] = None,
+    unknowns: list[str] = None,
     outcome: str = None,
 ) -> bool:
     """
@@ -231,8 +234,8 @@ def create_session_episode(
     Returns:
         True if episode created successfully
     """
-    import uuid
     import time
+    import uuid
 
     # Calculate learning delta
     learning_delta = {}

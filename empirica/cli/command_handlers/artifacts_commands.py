@@ -297,7 +297,7 @@ def _read_lessons(workspace):
                 data = yaml.safe_load(fh)
                 if data:
                     lessons.append((f.stem, data))
-        except (yaml.YAMLError, IOError):
+        except (OSError, yaml.YAMLError):
             pass
     return lessons
 
@@ -322,7 +322,7 @@ def _read_calibration(workspace):
     try:
         with open(bc_path) as f:
             return yaml.safe_load(f)
-    except (yaml.YAMLError, IOError):
+    except (OSError, yaml.YAMLError):
         return None
 
 

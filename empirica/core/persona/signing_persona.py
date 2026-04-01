@@ -26,12 +26,12 @@ Design:
 
 import json
 import logging
-from datetime import datetime, UTC
-from typing import Dict, Any, Optional
 from dataclasses import asdict
+from datetime import UTC, datetime
+from typing import Any, Optional
 
-from empirica.core.persona.persona_profile import PersonaProfile
 from empirica.core.identity.ai_identity import AIIdentity
+from empirica.core.persona.persona_profile import PersonaProfile
 
 logger = logging.getLogger(__name__)
 
@@ -101,10 +101,10 @@ class SigningPersona:
 
     def _create_canonical_state(
         self,
-        epistemic_vectors: Dict[str, float],
+        epistemic_vectors: dict[str, float],
         phase: str,
         timestamp: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Create canonical representation of epistemic state
 
@@ -151,11 +151,11 @@ class SigningPersona:
 
     def sign_epistemic_state(
         self,
-        epistemic_vectors: Dict[str, float],
+        epistemic_vectors: dict[str, float],
         phase: str,
-        additional_data: Optional[Dict[str, Any]] = None,
+        additional_data: Optional[dict[str, Any]] = None,
         timestamp: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Sign an epistemic state with the persona's private key
 
@@ -204,7 +204,7 @@ class SigningPersona:
 
         return result
 
-    def verify_signature(self, signed_state: Dict[str, Any]) -> bool:
+    def verify_signature(self, signed_state: dict[str, Any]) -> bool:
         """
         Verify a previously signed epistemic state
 
@@ -264,7 +264,7 @@ class SigningPersona:
             logger.error(f"Error verifying signature: {e}")
             return False
 
-    def get_persona_info(self) -> Dict[str, Any]:
+    def get_persona_info(self) -> dict[str, Any]:
         """
         Get public information about this persona
 
@@ -282,7 +282,7 @@ class SigningPersona:
             "created_at": self.identity.created_at
         }
 
-    def export_public_persona(self) -> Dict[str, Any]:
+    def export_public_persona(self) -> dict[str, Any]:
         """
         Export persona for public registry (Qdrant)
 

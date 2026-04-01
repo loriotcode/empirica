@@ -22,15 +22,15 @@ Usage:
 
 from .decision_logic import DecisionLogic, PersonaMatch
 from .orchestrator import (
-    Sentinel,
-    OrchestrationResult,
-    EpistemicLoopTracker,
-    LoopRecord,
-    LoopMode,
-    DomainProfile,
     ComplianceGate,
+    DomainProfile,
+    EpistemicLoopTracker,
     GateAction,
+    LoopMode,
+    LoopRecord,
     MergeStrategy,
+    OrchestrationResult,
+    Sentinel,
 )
 
 __all__ = [

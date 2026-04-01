@@ -11,7 +11,9 @@ import json
 import logging
 import re
 import sys
+
 from empirica.utils.session_resolver import InstanceResolver as R
+
 from ..cli_utils import handle_cli_error
 
 logger = logging.getLogger(__name__)
@@ -165,7 +167,9 @@ def handle_session_create_command(args):
     try:
         import os
         import subprocess
+
         from empirica.data.session_database import SessionDatabase
+
         from ..cli_utils import parse_json_safely
 
         # AI-FIRST MODE: Check if config file provided
@@ -177,7 +181,7 @@ def handle_session_create_command(args):
                 if not os.path.exists(args.config):
                     print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
                     sys.exit(1)
-                with open(args.config, 'r') as f:
+                with open(args.config) as f:
                     config_data = parse_json_safely(f.read())
 
         # Extract parameters from config or fall back to legacy flags
@@ -219,7 +223,7 @@ def handle_session_create_command(args):
         subject = config_data.get('subject') if config_data else getattr(args, 'subject', None)
         if subject is None:
             subject = get_current_subject()  # Auto-detect from directory
-        
+
         # Show project context before creating session
         if output_format != 'json':
             from empirica.cli.cli_utils import print_project_context
@@ -253,8 +257,9 @@ def handle_session_create_command(args):
                     print("🔧 Auto-initializing Empirica in this repository...")
 
                 try:
-                    from empirica.cli.command_handlers.project_init import handle_project_init_command
                     from types import SimpleNamespace
+
+                    from empirica.cli.command_handlers.project_init import handle_project_init_command
 
                     # Use defaults: directory name, no description
                     init_args = SimpleNamespace(
@@ -383,7 +388,7 @@ def handle_session_create_command(args):
                         project_yaml = os.path.join(project_path, '.empirica', 'project.yaml')
                         if os.path.exists(project_yaml):
                             try:
-                                with open(project_yaml, 'r') as f:
+                                with open(project_yaml) as f:
                                     config = yaml.safe_load(f)
                                     if config and config.get('project_id'):
                                         return config['project_id']
@@ -402,7 +407,7 @@ def handle_session_create_command(args):
                         'instance_projects', f'{_sc_instance_id}.json'
                     )
                     if os.path.exists(instance_file):
-                        with open(instance_file, 'r') as f:
+                        with open(instance_file) as f:
                             instance_data = _json.load(f)
                             early_project_id = _get_project_id_from_context(instance_data)
 
@@ -417,7 +422,7 @@ def handle_session_create_command(args):
                                 f'active_work_{claude_session_id}.json'
                             )
                             if os.path.exists(active_work_path):
-                                with open(active_work_path, 'r') as f:
+                                with open(active_work_path) as f:
                                     active_work = _json.load(f)
                                     early_project_id = _get_project_id_from_context(active_work)
 
@@ -425,7 +430,7 @@ def handle_session_create_command(args):
                 if not early_project_id:
                     canonical_path = os.path.join(os.path.expanduser('~'), '.empirica', 'active_work.json')
                     if os.path.exists(canonical_path):
-                        with open(canonical_path, 'r') as f:
+                        with open(canonical_path) as f:
                             active_work = _json.load(f)
                             early_project_id = _get_project_id_from_context(active_work)
             except Exception:
@@ -445,7 +450,7 @@ def handle_session_create_command(args):
                         import yaml
                         project_yaml = os.path.join(context_project, '.empirica', 'project.yaml')
                         if os.path.exists(project_yaml):
-                            with open(project_yaml, 'r') as f:
+                            with open(project_yaml) as f:
                                 project_config = yaml.safe_load(f)
                                 if project_config and project_config.get('project_id'):
                                     early_project_id = project_config['project_id']
@@ -543,8 +548,8 @@ def handle_session_create_command(args):
         # Atomic write: temp file + rename prevents partial reads from concurrent access
         # Store JSON with session_id AND project_path so statusline can find
         # the correct DB even when cwd changes (prevents user confusion about data loss)
-        import tempfile
         import json as _json
+        import tempfile
         resolved_project_path = R.project_path()
         if not resolved_project_path:
             # NO CWD FALLBACK - CWD is unreliable (may be launch dir, not project dir)
@@ -611,7 +616,7 @@ def handle_session_create_command(args):
                 UPDATE sessions SET project_id = ? WHERE session_id = ?
             """, (project_id, session_id))
             db.conn.commit()
-            
+
             # Show confirmation that session is linked to this project
             if output_format != 'json':
                 cursor.execute("SELECT name FROM projects WHERE id = ?", (project_id,))
@@ -674,7 +679,7 @@ def handle_session_create_command(args):
 
             print(f"\nNext steps:")
             print(f"   empirica preflight --session-id {session_id} --prompt \"Your task\"")
-        
+
     except Exception as e:
         if getattr(args, 'output', 'default') == 'json':
             print(json.dumps({"ok": False, "error": str(e)}, indent=2))

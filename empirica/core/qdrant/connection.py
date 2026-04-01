@@ -5,9 +5,10 @@ This module is OPTIONAL. Empirica core works without Qdrant.
 Set EMPIRICA_ENABLE_EMBEDDINGS=true to enable semantic search features.
 """
 from __future__ import annotations
-import os
+
 import logging
-from typing import Dict, List, Optional
+import os
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +44,11 @@ def _check_qdrant_available() -> bool:
 def _get_qdrant_imports():
     """Lazy import Qdrant dependencies."""
     from qdrant_client import QdrantClient
-    from qdrant_client.models import Distance, VectorParams, PointStruct
+    from qdrant_client.models import Distance, PointStruct, VectorParams
     return QdrantClient, Distance, VectorParams, PointStruct
 
 
-def _get_embedding_safe(text: str) -> Optional[List[float]]:
+def _get_embedding_safe(text: str) -> Optional[list[float]]:
     """Get embedding with graceful fallback."""
     try:
         from .embeddings import get_embedding
@@ -57,7 +58,7 @@ def _get_embedding_safe(text: str) -> Optional[List[float]]:
         return None
 
 
-def _get_embeddings_batch(texts: List[str]) -> List[Optional[List[float]]]:
+def _get_embeddings_batch(texts: list[str]) -> list[Optional[list[float]]]:
     """Batch embed multiple texts. Returns list of vectors (None for failures)."""
     try:
         from .embeddings import get_embedding_provider
@@ -116,7 +117,7 @@ def _service_url() -> Optional[str]:
     return os.getenv("EMPIRICA_QDRANT_URL")
 
 
-def _rest_search(collection: str, vector: List[float], limit: int) -> List[Dict]:
+def _rest_search(collection: str, vector: list[float], limit: int) -> list[dict]:
     """REST-based search (requires EMPIRICA_QDRANT_URL)."""
     try:
         import requests

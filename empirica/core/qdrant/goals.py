@@ -2,15 +2,19 @@
 Goal and subtask semantic search and embedding.
 """
 from __future__ import annotations
-import json
-import logging
-from typing import Dict, List, Optional
 
-from empirica.core.qdrant.connection import (
-    _check_qdrant_available, _get_qdrant_imports, _get_qdrant_client,
-    _get_embedding_safe, _get_vector_size, logger,
-)
+import json
+
 from empirica.core.qdrant.collections import _goals_collection
+from empirica.core.qdrant.connection import (
+    _check_qdrant_available,
+    _get_embedding_safe,
+    _get_qdrant_client,
+    _get_qdrant_imports,
+    _get_vector_size,
+    logger,
+)
+
 
 def embed_goal(
     project_id: str,
@@ -22,9 +26,9 @@ def embed_goal(
     scope_duration: float = None,
     scope_coordination: float = None,
     estimated_complexity: float = None,
-    success_criteria: List[str] = None,
+    success_criteria: list[str] = None,
     status: str = "in_progress",
-    tags: List[str] = None,
+    tags: list[str] = None,
     timestamp: float = None,
 ) -> bool:
     """
@@ -120,8 +124,8 @@ def embed_subtask(
     epistemic_importance: str = "medium",
     status: str = "pending",
     completion_evidence: str = None,
-    findings: List[str] = None,
-    unknowns: List[str] = None,
+    findings: list[str] = None,
+    unknowns: list[str] = None,
     timestamp: float = None,
 ) -> bool:
     """
@@ -213,7 +217,7 @@ def search_goals(
     ai_id: str = None,
     include_subtasks: bool = True,
     limit: int = 10,
-) -> List[Dict]:
+) -> list[dict]:
     """
     Semantic search for goals and subtasks across all sessions.
 
@@ -250,7 +254,7 @@ def search_goals(
         if vector is None:
             return []
 
-        from qdrant_client.models import Filter, FieldCondition, MatchValue, MatchAny
+        from qdrant_client.models import FieldCondition, Filter, MatchValue
 
         conditions = []
 

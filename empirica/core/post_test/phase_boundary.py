@@ -10,12 +10,11 @@ treating the entire transaction as one undifferentiated block.
 """
 import json
 import logging
-from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 
-def detect_phase_boundary(session_id: str, db) -> Dict:
+def detect_phase_boundary(session_id: str, db) -> dict:
     """Find the CHECK proceed boundary in a transaction.
 
     Queries the reflexes table for PREFLIGHT, CHECK, POSTFLIGHT entries.

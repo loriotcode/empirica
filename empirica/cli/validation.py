@@ -11,10 +11,10 @@ Usage:
     # validated is now a PreflightInput instance or raises ValidationError
 """
 
-from typing import Dict, Optional, Any, Type, TypeVar, List
-from pydantic import BaseModel, Field, field_validator
 import json
+from typing import Any, Optional, TypeVar
 
+from pydantic import BaseModel, Field, field_validator
 
 T = TypeVar('T', bound=BaseModel)
 
@@ -43,7 +43,7 @@ class VectorValues(BaseModel):
 class PreflightInput(BaseModel):
     """Input model for preflight-submit command."""
     session_id: str = Field(min_length=1, max_length=100, description="Session identifier")
-    vectors: Dict[str, float] = Field(description="Epistemic vector values")
+    vectors: dict[str, float] = Field(description="Epistemic vector values")
     reasoning: Optional[str] = Field(default="", max_length=5000, description="Reasoning for assessment")
     task_context: Optional[str] = Field(default="", max_length=2000, description="Context for pattern retrieval")
     work_context: Optional[str] = Field(
@@ -66,7 +66,7 @@ class PreflightInput(BaseModel):
 
     @field_validator('vectors')
     @classmethod
-    def validate_vectors(cls, v: Dict[str, float]) -> Dict[str, float]:
+    def validate_vectors(cls, v: dict[str, float]) -> dict[str, float]:
         """Validate vector values are in valid range."""
         if not v:
             raise ValueError('vectors cannot be empty')
@@ -93,7 +93,7 @@ class PreflightInput(BaseModel):
 class CheckInput(BaseModel):
     """Input model for check-submit command."""
     session_id: str = Field(min_length=1, max_length=100, description="Session identifier")
-    vectors: Optional[Dict[str, float]] = Field(default=None, description="Updated vector values")
+    vectors: Optional[dict[str, float]] = Field(default=None, description="Updated vector values")
     approach: Optional[str] = Field(default="", max_length=2000, description="Planned approach")
     reasoning: Optional[str] = Field(default="", max_length=5000, description="Reasoning for check")
 
@@ -107,7 +107,7 @@ class CheckInput(BaseModel):
 
     @field_validator('vectors')
     @classmethod
-    def validate_vectors(cls, v: Optional[Dict[str, float]]) -> Optional[Dict[str, float]]:
+    def validate_vectors(cls, v: Optional[dict[str, float]]) -> Optional[dict[str, float]]:
         """Validate optional vector values are in valid 0.0-1.0 range."""
         if v is None:
             return v
@@ -122,7 +122,7 @@ class CheckInput(BaseModel):
 class PostflightInput(BaseModel):
     """Input model for postflight-submit command."""
     session_id: str = Field(min_length=1, max_length=100, description="Session identifier")
-    vectors: Dict[str, float] = Field(description="Final epistemic vector values")
+    vectors: dict[str, float] = Field(description="Final epistemic vector values")
     reasoning: Optional[str] = Field(default="", max_length=5000, description="Reasoning for assessment")
     learnings: Optional[str] = Field(default="", max_length=5000, description="Key learnings from session")
     goal_id: Optional[str] = Field(default=None, max_length=100, description="Associated goal ID")
@@ -137,7 +137,7 @@ class PostflightInput(BaseModel):
 
     @field_validator('vectors')
     @classmethod
-    def validate_vectors(cls, v: Dict[str, float]) -> Dict[str, float]:
+    def validate_vectors(cls, v: dict[str, float]) -> dict[str, float]:
         """Validate required vector values are in valid 0.0-1.0 range."""
         if not v:
             raise ValueError('vectors cannot be empty')
@@ -174,7 +174,7 @@ class UnknownInput(BaseModel):
 # Validation Utilities
 # =============================================================================
 
-def validate_json_input(raw_json: str, model: Type[T]) -> T:
+def validate_json_input(raw_json: str, model: type[T]) -> T:
     """
     Parse and validate JSON input against a Pydantic model.
 
@@ -196,7 +196,7 @@ def validate_json_input(raw_json: str, model: Type[T]) -> T:
     return model.model_validate(data)
 
 
-def validate_dict_input(data: Dict[str, Any], model: Type[T]) -> T:
+def validate_dict_input(data: dict[str, Any], model: type[T]) -> T:
     """
     Validate a dictionary against a Pydantic model.
 
@@ -213,7 +213,7 @@ def validate_dict_input(data: Dict[str, Any], model: Type[T]) -> T:
     return model.model_validate(data)
 
 
-def safe_validate(data: Dict[str, Any], model: Type[T]) -> tuple[Optional[T], Optional[str]]:
+def safe_validate(data: dict[str, Any], model: type[T]) -> tuple[Optional[T], Optional[str]]:
     """
     Safely validate data, returning (validated, None) or (None, error_message).
 

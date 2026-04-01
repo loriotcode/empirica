@@ -3,8 +3,8 @@ Project Search Commands - semantic search over docs & memory (Qdrant-backed)
 Path A: command scaffolding; embedding/provider assumed available via env.
 """
 from __future__ import annotations
+
 import json
-from typing import List, Dict
 
 from ..cli_utils import handle_cli_error
 
@@ -12,10 +12,13 @@ from ..cli_utils import handle_cli_error
 def handle_project_search_command(args):
     """Handle project-search command for semantic search over docs and memory."""
     try:
-        from empirica.core.qdrant.vector_store import (
-            init_collections, search, search_global, search_cross_project,
-        )
         from empirica.cli.utils.project_resolver import resolve_project_id
+        from empirica.core.qdrant.vector_store import (
+            init_collections,
+            search,
+            search_cross_project,
+            search_global,
+        )
 
         project_id = resolve_project_id(args.project_id)
         task = args.task
@@ -54,13 +57,13 @@ def handle_project_search_command(args):
                 for i, m in enumerate(results['memory'], 1):
                     text = (m.get('text') or '')[:60]
                     print(f"  {i}. [{m.get('type')}] {text}... (score: {m.get('score'):.3f})")
-            if 'eidetic' in results and results['eidetic']:
+            if results.get('eidetic'):
                 print("\n💎 Eidetic (facts):")
                 for i, e in enumerate(results['eidetic'], 1):
                     content = (e.get('content') or '')[:60]
                     conf = e.get('confidence', 0)
                     print(f"  {i}. [{e.get('type')}] {content}... (conf: {conf:.2f}, score: {e.get('score'):.3f})")
-            if 'episodic' in results and results['episodic']:
+            if results.get('episodic'):
                 print("\n📖 Episodic (session arcs):")
                 for i, ep in enumerate(results['episodic'], 1):
                     narr = (ep.get('narrative') or '')[:60]

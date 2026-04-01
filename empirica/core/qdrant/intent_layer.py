@@ -3,16 +3,21 @@ Epistemic Intent Layer: assumptions, decisions, and intent edges.
 Forward-compatible collections (populated when CLI commands exist).
 """
 from __future__ import annotations
-import logging
-from typing import Dict, List, Optional
 
-from empirica.core.qdrant.connection import (
-    _check_qdrant_available, _get_qdrant_imports, _get_qdrant_client,
-    _get_embedding_safe, _get_vector_size, logger,
-)
 from empirica.core.qdrant.collections import (
-    _assumptions_collection, _decisions_collection, _intents_collection,
+    _assumptions_collection,
+    _decisions_collection,
+    _intents_collection,
 )
+from empirica.core.qdrant.connection import (
+    _check_qdrant_available,
+    _get_embedding_safe,
+    _get_qdrant_client,
+    _get_qdrant_imports,
+    _get_vector_size,
+    logger,
+)
+
 
 def embed_assumption(
     project_id: str,
@@ -182,8 +187,8 @@ def embed_intent_edge(
 
     try:
         import hashlib
-        import time as _time
         import json as _json
+        import time as _time
         _, _, VectorParams, PointStruct = _get_qdrant_imports()
         client = _get_qdrant_client()
         if client is None:
@@ -242,7 +247,7 @@ def search_assumptions(
     entity_type: str = None,
     min_urgency: float = 0.0,
     limit: int = 5,
-) -> List[Dict]:
+) -> list[dict]:
     """Search assumptions by semantic similarity with optional filters.
 
     Args:
@@ -317,7 +322,7 @@ def search_decisions(
     reversibility: str = None,
     entity_type: str = None,
     limit: int = 5,
-) -> List[Dict]:
+) -> list[dict]:
     """Search decisions by semantic similarity with optional filters."""
     if not _check_qdrant_available():
         return []
@@ -379,7 +384,7 @@ def search_intents(
     direction: str = None,
     cascade_phase: str = None,
     limit: int = 5,
-) -> List[Dict]:
+) -> list[dict]:
     """Search IntentEdges by semantic similarity with optional filters."""
     if not _check_qdrant_available():
         return []

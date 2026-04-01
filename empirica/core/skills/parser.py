@@ -3,12 +3,11 @@ Skill Parser - normalize markdown skill cards into YAML runtime objects.
 Very simple heuristic parser for headings/lists.
 """
 from __future__ import annotations
-import os
+
 import re
-from typing import Dict, List
 
 
-def parse_markdown_to_skill(md_text: str, name: str, tags: List[str] | None = None) -> Dict:
+def parse_markdown_to_skill(md_text: str, name: str, tags: list[str] | None = None) -> dict:
     """Parse markdown text into a skill dictionary."""
     # Heuristic: extract sections by headings
     sections = {}
@@ -22,10 +21,10 @@ def parse_markdown_to_skill(md_text: str, name: str, tags: List[str] | None = No
         else:
             sections[current].append(line)
 
-    def extract_list(sec_key: str) -> List[str]:
+    def extract_list(sec_key: str) -> list[str]:
         """Extract list items from a section."""
         lines = sections.get(sec_key, [])
-        items: List[str] = []
+        items: list[str] = []
         for ln in lines:
             s = ln.strip()
             if s.startswith(('- ', '* ', '• ')):

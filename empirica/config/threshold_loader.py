@@ -31,11 +31,12 @@ Usage:
     })
 """
 
-import logging
-import yaml
-from pathlib import Path
-from typing import Any, Dict, Optional
 import copy
+import logging
+from pathlib import Path
+from typing import Any, Optional
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +51,10 @@ class ThresholdLoader:
     - Custom profile creation for Sentinel orchestration
     - Fallback to hardcoded defaults if YAML fails
     """
-    
+
     _instance: Optional['ThresholdLoader'] = None
     _initialized: bool = False
-    
+
     def __init__(self, config_path: Optional[Path] = None):
         """
         Initialize threshold loader.
@@ -65,17 +66,17 @@ class ThresholdLoader:
         """
         if config_path is None:
             config_path = Path(__file__).parent / 'mco' / 'cascade_styles.yaml'
-        
+
         self.config_path = config_path
-        self.profiles: Dict[str, Dict[str, Any]] = {}
+        self.profiles: dict[str, dict[str, Any]] = {}
         self.current_profile_name: str = 'default'
-        self.current_profile: Dict[str, Any] = {}
-        self.overrides: Dict[str, Any] = {}
-        self.metadata: Dict[str, Any] = {}
-        
+        self.current_profile: dict[str, Any] = {}
+        self.overrides: dict[str, Any] = {}
+        self.metadata: dict[str, Any] = {}
+
         # Load profiles from YAML
         self._load_profiles()
-    
+
     @classmethod
     def get_instance(cls, config_path: Optional[Path] = None) -> 'ThresholdLoader':
         """
@@ -91,13 +92,13 @@ class ThresholdLoader:
             cls._instance = cls(config_path)
             cls._initialized = True
         return cls._instance
-    
+
     @classmethod
     def reset_instance(cls):
         """Reset singleton instance (for testing)"""
         cls._instance = None
         cls._initialized = False
-    
+
     def _load_profiles(self):
         """Load all profiles from YAML configuration file"""
         try:
@@ -105,18 +106,18 @@ class ThresholdLoader:
                 logger.warning(f"Threshold config not found: {self.config_path}")
                 self._load_hardcoded_defaults()
                 return
-            
+
             with open(self.config_path) as f:
                 data = yaml.safe_load(f)
-                
+
                 if not data or 'profiles' not in data:
                     logger.error("Invalid threshold config: missing 'profiles' key")
                     self._load_hardcoded_defaults()
                     return
-                
+
                 self.profiles = data.get('profiles', {})
                 self.metadata = data.get('metadata', {})
-                
+
                 # Set default profile
                 default_profile_name = self.metadata.get('default_profile', 'default')
                 if default_profile_name in self.profiles:
@@ -126,14 +127,14 @@ class ThresholdLoader:
                     logger.warning(f"Default profile '{default_profile_name}' not found, using 'default'")
                     self.current_profile_name = 'default'
                     self.current_profile = self.profiles.get('default', {})
-                
+
                 logger.info(f"✅ Loaded {len(self.profiles)} threshold profiles from {self.config_path}")
                 logger.info(f"   Active profile: {self.current_profile_name}")
-                
+
         except Exception as e:
             logger.error(f"Failed to load threshold config: {e}")
             self._load_hardcoded_defaults()
-    
+
     def _load_hardcoded_defaults(self):
         """
         Fallback to hardcoded defaults if YAML loading fails.
@@ -142,10 +143,10 @@ class ThresholdLoader:
         we fall back to the original hardcoded values from thresholds.py.
         """
         logger.warning("⚠️  Using hardcoded threshold defaults (YAML config unavailable)")
-        
+
         try:
             from empirica.core import thresholds
-            
+
             # Build default profile from hardcoded constants
             self.profiles['default'] = {
                 'name': 'Default (Hardcoded)',
@@ -181,12 +182,12 @@ class ThresholdLoader:
                     'check_confidence_to_proceed': 0.70,
                 },
             }
-            
+
             self.current_profile_name = 'default'
             self.current_profile = self.profiles['default']
-            
+
             logger.info("✅ Hardcoded defaults loaded successfully")
-            
+
         except ImportError as e:
             logger.error(f"Cannot load hardcoded defaults: {e}")
             # Absolute fallback - minimal hardcoded values
@@ -198,7 +199,7 @@ class ThresholdLoader:
                 'cascade': {'max_investigation_rounds': 7, 'check_confidence_to_proceed': 0.70},
             }
             self.current_profile = self.profiles['default']
-    
+
     def load_profile(self, profile_name: str) -> bool:
         """
         Load a specific profile by name.
@@ -212,11 +213,11 @@ class ThresholdLoader:
         if profile_name not in self.profiles:
             logger.error(f"❌ Profile '{profile_name}' not found. Available: {list(self.profiles.keys())}")
             return False
-        
+
         self.current_profile_name = profile_name
         self.current_profile = self.profiles[profile_name]
         self.overrides = {}  # Clear overrides when switching profiles
-        
+
         logger.info(f"✅ Loaded threshold profile: {profile_name}")
         logger.info(f"   Description: {self.current_profile.get('description', 'N/A')}")
 
@@ -295,19 +296,19 @@ class ThresholdLoader:
         # Check overrides first (highest priority)
         if key_path in self.overrides:
             return self.overrides[key_path]
-        
+
         # Navigate nested dictionary
         keys = key_path.split('.')
         value = self.current_profile
-        
+
         for key in keys:
             if isinstance(value, dict) and key in value:
                 value = value[key]
             else:
                 return default
-        
+
         return value
-    
+
     def override(self, key_path: str, value: Any):
         """
         Override a specific threshold value for current session.
@@ -324,15 +325,15 @@ class ThresholdLoader:
         """
         self.overrides[key_path] = value
         logger.info(f"🔧 Threshold override: {key_path} = {value}")
-    
+
     def clear_overrides(self):
         """Clear all threshold overrides"""
         if self.overrides:
             logger.info(f"🔧 Cleared {len(self.overrides)} threshold overrides")
             self.overrides = {}
-    
-    def create_custom_profile(self, name: str, base: str = 'default', 
-                            overrides: Optional[Dict[str, Any]] = None) -> bool:
+
+    def create_custom_profile(self, name: str, base: str = 'default',
+                            overrides: Optional[dict[str, Any]] = None) -> bool:
         """
         Create a custom profile based on existing profile with overrides.
         
@@ -361,31 +362,31 @@ class ThresholdLoader:
         if base not in self.profiles:
             logger.error(f"❌ Base profile '{base}' not found")
             return False
-        
+
         # Deep copy base profile
         custom = copy.deepcopy(self.profiles[base])
         custom['name'] = name
         custom['description'] = f"Custom profile based on {base}"
-        
+
         # Apply overrides
         if overrides:
             for key_path, value in overrides.items():
                 self._set_nested_value(custom, key_path, value)
-        
+
         # Save custom profile
         self.profiles[name] = custom
         logger.info(f"✅ Created custom profile: {name} (base: {base}, {len(overrides or {})} overrides)")
-        
+
         return True
-    
+
     def _set_nested_value(self, d: dict, key_path: str, value: Any):
         """Set value in nested dictionary using dot notation"""
         keys = key_path.split('.')
         for key in keys[:-1]:
             d = d.setdefault(key, {})
         d[keys[-1]] = value
-    
-    def get_profile_info(self) -> Dict[str, Any]:
+
+    def get_profile_info(self) -> dict[str, Any]:
         """
         Get current profile metadata.
         
@@ -398,8 +399,8 @@ class ThresholdLoader:
             'overrides': self.overrides,
             'override_count': len(self.overrides)
         }
-    
-    def list_profiles(self) -> Dict[str, str]:
+
+    def list_profiles(self) -> dict[str, str]:
         """
         List all available profiles with descriptions.
         
@@ -410,8 +411,8 @@ class ThresholdLoader:
             name: profile.get('description', '')
             for name, profile in self.profiles.items()
         }
-    
-    def get_all_thresholds(self) -> Dict[str, Any]:
+
+    def get_all_thresholds(self) -> dict[str, Any]:
         """
         Get all thresholds from current profile (including overrides).
         
@@ -420,14 +421,14 @@ class ThresholdLoader:
         """
         # Start with current profile
         result = copy.deepcopy(self.current_profile)
-        
+
         # Apply overrides
         for key_path, value in self.overrides.items():
             self._set_nested_value(result, key_path, value)
-        
+
         return result
-    
-    def export_for_handoff(self) -> Dict[str, Any]:
+
+    def export_for_handoff(self) -> dict[str, Any]:
         """
         Export threshold configuration for epistemic handoff.
         

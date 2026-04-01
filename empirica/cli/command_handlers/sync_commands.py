@@ -11,11 +11,12 @@ Commands:
 
 import json
 import logging
-import os
 import subprocess
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Any, Optional
+
 import yaml
+
 from ..cli_utils import handle_cli_error
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ def _get_config_path() -> Path:
     return Path(workspace_root) / '.empirica' / 'config.yaml'
 
 
-def _load_sync_config() -> Dict[str, Any]:
+def _load_sync_config() -> dict[str, Any]:
     """Load sync configuration from .empirica/config.yaml"""
     config_path = _get_config_path()
 
@@ -61,7 +62,7 @@ def _load_sync_config() -> Dict[str, Any]:
         return DEFAULT_SYNC_CONFIG.copy()
 
 
-def _save_sync_config(sync_config: Dict[str, Any]) -> bool:
+def _save_sync_config(sync_config: dict[str, Any]) -> bool:
     """Save sync configuration to .empirica/config.yaml"""
     config_path = _get_config_path()
 
@@ -132,7 +133,7 @@ def _is_public_repo() -> Optional[bool]:
     return None
 
 
-def _list_remotes() -> Dict[str, str]:
+def _list_remotes() -> dict[str, str]:
     """List all git remotes and their URLs"""
     try:
         result = subprocess.run(
@@ -207,7 +208,7 @@ def _check_remote(remote: str = 'origin') -> bool:
         return False
 
 
-def _count_local_notes() -> Dict[str, int]:
+def _count_local_notes() -> dict[str, int]:
     """Count notes in each ref locally"""
     counts = {}
     for ref in EMPIRICA_NOTES_REFS:
@@ -688,7 +689,7 @@ def handle_sync_status_command(args):
         return 1
 
 
-def _rebuild_from_notes() -> Dict[str, Any]:
+def _rebuild_from_notes() -> dict[str, Any]:
     """
     Rebuild database from git notes.
 
@@ -709,13 +710,13 @@ def _rebuild_from_notes() -> Dict[str, Any]:
     try:
         import json
         import time
-        import uuid
-        from empirica.data.session_database import SessionDatabase
-        from empirica.core.canonical.empirica_git.finding_store import GitFindingStore
-        from empirica.core.canonical.empirica_git.unknown_store import GitUnknownStore
+
         from empirica.core.canonical.empirica_git.dead_end_store import GitDeadEndStore
-        from empirica.core.canonical.empirica_git.mistake_store import GitMistakeStore
+        from empirica.core.canonical.empirica_git.finding_store import GitFindingStore
         from empirica.core.canonical.empirica_git.goal_store import GitGoalStore
+        from empirica.core.canonical.empirica_git.mistake_store import GitMistakeStore
+        from empirica.core.canonical.empirica_git.unknown_store import GitUnknownStore
+        from empirica.data.session_database import SessionDatabase
 
         db = SessionDatabase()
 

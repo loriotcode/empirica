@@ -20,8 +20,8 @@ Vector Mappings:
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
 from datetime import datetime
+from typing import Any, Optional
 
 
 @dataclass
@@ -54,7 +54,7 @@ class ArchitectureVectors:
     impact: float = 0.5        # Blast radius (inverted: low impact = isolated)
     do: float = 0.5            # Actionability (clear improvement path)
 
-    def to_dict(self) -> Dict[str, float]:
+    def to_dict(self) -> dict[str, float]:
         """Convert to dictionary."""
         return {
             'know': self.know,
@@ -120,7 +120,7 @@ class CouplingMetrics:
 
     # Boundary clarity
     clear_interface: bool = True
-    leaked_internals: List[str] = field(default_factory=list)
+    leaked_internals: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -166,10 +166,10 @@ class ComponentAssessment:
 
     # Recommendations
     risk_level: str = "unknown"  # 'low', 'medium', 'high', 'critical'
-    recommendations: List[str] = field(default_factory=list)
-    improvement_priority: List[str] = field(default_factory=list)
+    recommendations: list[str] = field(default_factory=list)
+    improvement_priority: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage/display."""
         return {
             'component_path': self.component_path,

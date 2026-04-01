@@ -16,9 +16,8 @@ Activated via evidence_profile: "prose" in project.yaml or --evidence-profile fl
 
 import json
 import logging
-import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 from .collector import EvidenceItem, EvidenceQuality
 
@@ -51,7 +50,7 @@ class ProseEvidenceCollector:
             self._db = None
             self._owns_db = False
 
-    def collect_all(self) -> List[EvidenceItem]:
+    def collect_all(self) -> list[EvidenceItem]:
         """Collect prose-specific evidence from all available sources."""
         items = []
 
@@ -75,7 +74,7 @@ class ProseEvidenceCollector:
 
     # --- Prose Quality (replaces ruff/radon/pyright) ---
 
-    def _collect_prose_quality(self) -> List[EvidenceItem]:
+    def _collect_prose_quality(self) -> list[EvidenceItem]:
         """Analyze prose quality of session artifacts using textstat and proselint.
 
         Runs on:
@@ -103,7 +102,7 @@ class ProseEvidenceCollector:
 
         return items
 
-    def _run_textstat(self, text: str, text_count: int) -> List[EvidenceItem]:
+    def _run_textstat(self, text: str, text_count: int) -> list[EvidenceItem]:
         """Run textstat readability analysis."""
         items = []
         try:
@@ -171,11 +170,12 @@ class ProseEvidenceCollector:
 
         return items
 
-    def _run_proselint(self, text: str) -> List[EvidenceItem]:
+    def _run_proselint(self, text: str) -> list[EvidenceItem]:
         """Run proselint prose linting."""
         items = []
         try:
             import tempfile
+
             from proselint.tools import LintFile
 
             # proselint >= 0.14 uses LintFile API
@@ -218,7 +218,7 @@ class ProseEvidenceCollector:
 
         return items
 
-    def _run_vale(self, texts: List[str]) -> List[EvidenceItem]:
+    def _run_vale(self, texts: list[str]) -> list[EvidenceItem]:
         """Run vale style guide checking on prose artifacts.
 
         Requires vale binary and a .vale.ini config. Skipped if not available.
@@ -251,7 +251,7 @@ class ProseEvidenceCollector:
             if result.stdout.strip():
                 vale_data = json.loads(result.stdout)
                 total_issues = 0
-                by_severity: Dict[str, int] = {"error": 0, "warning": 0, "suggestion": 0}
+                by_severity: dict[str, int] = {"error": 0, "warning": 0, "suggestion": 0}
                 for _file, issues in vale_data.items():
                     total_issues += len(issues)
                     for issue in issues:
@@ -284,7 +284,7 @@ class ProseEvidenceCollector:
 
     # --- Document Metrics (replaces git metrics) ---
 
-    def _collect_document_metrics(self) -> List[EvidenceItem]:
+    def _collect_document_metrics(self) -> list[EvidenceItem]:
         """Measure document output volume and growth.
 
         For non-code users, "lines changed" equivalent is:
@@ -370,7 +370,7 @@ class ProseEvidenceCollector:
 
     # --- Source Quality (replaces pytest/test coverage) ---
 
-    def _collect_source_quality(self) -> List[EvidenceItem]:
+    def _collect_source_quality(self) -> list[EvidenceItem]:
         """Measure quality and breadth of research sources.
 
         For non-code users, "test coverage" equivalent is:
@@ -425,7 +425,7 @@ class ProseEvidenceCollector:
 
     # --- Action Verification (replaces integration tests) ---
 
-    def _collect_action_verification(self) -> List[EvidenceItem]:
+    def _collect_action_verification(self) -> list[EvidenceItem]:
         """Verify that research led to concrete actions.
 
         For non-code users, "tests passing" equivalent is:
@@ -500,7 +500,7 @@ class ProseEvidenceCollector:
 
     # --- Text Extraction Helpers ---
 
-    def _get_session_texts(self) -> List[str]:
+    def _get_session_texts(self) -> list[str]:
         """Get prose texts written during this session for quality analysis."""
         texts = []
         db = self._get_db()

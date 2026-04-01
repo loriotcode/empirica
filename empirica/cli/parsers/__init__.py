@@ -39,36 +39,36 @@ def format_help_text(text, required=False, default=None):
     else:
         return f"{text} (optional)"
 
-from .cascade_parsers import add_cascade_parsers
-from .investigation_parsers import add_investigation_parsers
-from .performance_parsers import add_performance_parsers
-from .skill_parsers import add_skill_parsers
-from .utility_parsers import add_utility_parsers
-from .config_parsers import add_config_parsers
-from .monitor_parsers import add_monitor_parsers
-from .session_parsers import add_session_parsers
 from .action_parsers import add_action_parsers
-from .checkpoint_parsers import add_checkpoint_parsers
-from .user_interface_parsers import add_user_interface_parsers
-from .vision_parsers import add_vision_parsers
-from .epistemics_parsers import add_epistemics_parsers
-from .edit_verification_parsers import add_edit_verification_parsers
-from .issue_capture_parsers import add_issue_capture_parsers
-from .architecture_parsers import add_architecture_parsers
-from .query_parsers import add_query_parsers
 from .agent_parsers import add_agent_parsers
-from .sentinel_parsers import add_sentinel_parsers
-from .persona_parsers import add_persona_parsers
-from .release_parsers import add_release_parsers
-from .lesson_parsers import add_lesson_parsers
-from .onboarding_parsers import add_onboarding_parsers
-from .trajectory_parsers import add_trajectory_parsers
+from .architecture_parsers import add_architecture_parsers
+from .cascade_parsers import add_cascade_parsers
+from .checkpoint_parsers import add_checkpoint_parsers
 from .concept_graph_parsers import add_concept_graph_parsers
+from .config_parsers import add_config_parsers
+from .edit_verification_parsers import add_edit_verification_parsers
+from .epistemics_parsers import add_epistemics_parsers
+from .investigation_parsers import add_investigation_parsers
+from .issue_capture_parsers import add_issue_capture_parsers
+from .lesson_parsers import add_lesson_parsers
 from .mcp_parsers import add_mcp_parsers
-from .message_parsers import add_message_parsers
 from .memory_parsers import add_memory_parsers
+from .message_parsers import add_message_parsers
+from .monitor_parsers import add_monitor_parsers
+from .onboarding_parsers import add_onboarding_parsers
+from .performance_parsers import add_performance_parsers
+from .persona_parsers import add_persona_parsers
 from .profile_parsers import add_profile_parsers
+from .query_parsers import add_query_parsers
+from .release_parsers import add_release_parsers
+from .sentinel_parsers import add_sentinel_parsers
 from .serve_parsers import add_serve_parsers
+from .session_parsers import add_session_parsers
+from .skill_parsers import add_skill_parsers
+from .trajectory_parsers import add_trajectory_parsers
+from .user_interface_parsers import add_user_interface_parsers
+from .utility_parsers import add_utility_parsers
+from .vision_parsers import add_vision_parsers
 
 __all__ = [
     'format_help_text',

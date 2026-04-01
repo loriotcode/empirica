@@ -11,10 +11,10 @@ Sub-agent orchestration with Turtle Principle:
 from .epistemic_agent import (
     EpistemicAgentConfig,
     EpistemicAgentResult,
-    spawn_epistemic_agent,
     aggregate_agent_results,
     format_agent_prompt,
     parse_postflight,
+    spawn_epistemic_agent,
 )
 
 __all__ = [

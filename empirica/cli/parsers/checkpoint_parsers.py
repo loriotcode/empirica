@@ -140,7 +140,7 @@ def add_checkpoint_parsers(subparsers):
     checkpoint_signatures_parser.add_argument('--verbose', action='store_true', help='Show detailed operation info')
 
     # Handoff Reports Commands (Phase 1.6)
-    
+
     # Handoff create command
     handoff_create_parser = subparsers.add_parser(
         'handoff-create',
@@ -177,7 +177,7 @@ def add_checkpoint_parsers(subparsers):
     handoff_query_parser.add_argument('--verbose', action='store_true', help='Show detailed operation info')
 
     # Mistake Logging Commands (Learning from Failures)
-    
+
     # Mistake log command
     mistake_log_parser = subparsers.add_parser(
         'mistake-log',
@@ -208,7 +208,7 @@ def add_checkpoint_parsers(subparsers):
     mistake_query_parser.add_argument('--verbose', action='store_true', help='Show detailed operation info')
 
     # Project Tracking Commands (Multi-repo/multi-session)
-    
+
     # Project init command (NEW: initialize Empirica in a new repo)
     project_init_parser = subparsers.add_parser(
         'project-init',
@@ -717,7 +717,7 @@ def add_checkpoint_parsers(subparsers):
     goals_complete_subtask_parser.add_argument('--task-id', help='Subtask UUID (deprecated, use --subtask-id)')
     goals_complete_subtask_parser.add_argument('--evidence', help='Completion evidence (commit hash, file path, etc.)')
     goals_complete_subtask_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
-    
+
     # Goals progress command
     goals_progress_parser = subparsers.add_parser(
         'goals-progress',
@@ -732,7 +732,7 @@ def add_checkpoint_parsers(subparsers):
     goals_get_subtasks_parser = subparsers.add_parser('goals-get-subtasks', help='Get detailed subtask information')
     goals_get_subtasks_parser.add_argument('--goal-id', required=True, help='Goal UUID')
     goals_get_subtasks_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
-    
+
     # Goals list command
     goals_list_parser = subparsers.add_parser(
         'goals-list',
@@ -850,11 +850,11 @@ def add_checkpoint_parsers(subparsers):
 
     identity_list_parser = subparsers.add_parser('identity-list', help='List all AI identities')
     identity_list_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
-    
+
     identity_export_parser = subparsers.add_parser('identity-export', help='Export public key for sharing')
     identity_export_parser.add_argument('--ai-id', required=True, help='AI identifier')
     identity_export_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
-    
+
     identity_verify_parser = subparsers.add_parser('identity-verify', help='Verify signed session')
     identity_verify_parser.add_argument('session_id', help='Session ID to verify')
     identity_verify_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')

@@ -23,8 +23,7 @@ Usage:
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
-
+from typing import Optional
 
 # Tool mapping: persona capabilities -> Claude Code tool names
 TOOL_MAPPING = {
@@ -56,7 +55,7 @@ PHASE_DESCRIPTIONS = {
 }
 
 
-def load_persona(path: Path) -> Optional[Dict]:
+def load_persona(path: Path) -> Optional[dict]:
     """Load a persona JSON file."""
     try:
         with open(path) as f:
@@ -66,7 +65,7 @@ def load_persona(path: Path) -> Optional[Dict]:
         return None
 
 
-def resolve_tools(capabilities: Dict) -> List[str]:
+def resolve_tools(capabilities: dict) -> list[str]:
     """Map persona capabilities to Claude Code tool names."""
     tools = list(NOETIC_TOOLS)  # All agents get read access
 
@@ -84,7 +83,7 @@ def resolve_tools(capabilities: Dict) -> List[str]:
     return [t for t in tools if not (t in seen or seen.add(t))]
 
 
-def resolve_color(persona: Dict) -> str:
+def resolve_color(persona: dict) -> str:
     """Determine agent color from persona domains."""
     domains = persona.get("epistemic_config", {}).get("focus_domains", [])
     for domain_key, color in DOMAIN_COLORS.items():
@@ -93,7 +92,7 @@ def resolve_color(persona: Dict) -> str:
     return "blue"  # Default
 
 
-def resolve_phase(capabilities: Dict) -> str:
+def resolve_phase(capabilities: dict) -> str:
     """Determine if agent is primarily noetic or praxic."""
     if capabilities.get("can_modify_code", False):
         return "praxic"
@@ -110,7 +109,7 @@ def agent_name_from_file(filepath: Path) -> str:
     return name
 
 
-def build_description(persona: Dict, phase: str, agent_name: str) -> str:
+def build_description(persona: dict, phase: str, agent_name: str) -> str:
     """Build the agent description with example blocks."""
     name = persona.get("name", "Unknown")
     domains = persona.get("epistemic_config", {}).get("focus_domains", [])
@@ -155,7 +154,7 @@ Noetic investigation matching {name}'s focus domains - read-only deep analysis.
 {chr(10).join(examples)}"""
 
 
-def build_system_prompt(persona: Dict, phase: str) -> str:
+def build_system_prompt(persona: dict, phase: str) -> str:
     """Build the markdown system prompt from persona config."""
     name = persona.get("name", "Unknown Expert")
     domains = persona.get("epistemic_config", {}).get("focus_domains", [])
@@ -246,7 +245,7 @@ As a praxic agent, you can implement changes directly:
     return prompt
 
 
-def generate_agent_md(persona: Dict, agent_name: str) -> Optional[str]:
+def generate_agent_md(persona: dict, agent_name: str) -> Optional[str]:
     """Generate a complete agent .md file from persona JSON."""
     capabilities = persona.get("capabilities", {})
     phase = resolve_phase(capabilities)
@@ -269,7 +268,7 @@ tools: {tools_str}
     return f"{frontmatter}\n\n{system_prompt}\n"
 
 
-def should_generate(persona: Dict, filepath: Path) -> bool:
+def should_generate(persona: dict, filepath: Path) -> bool:
     """Filter personas that should become agents."""
     stem = filepath.stem
 

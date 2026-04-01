@@ -12,15 +12,15 @@ Commands:
 """
 
 import json
-import sys
 import logging
-from typing import Dict, Any, Optional
+import sys
 from argparse import Namespace
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def handle_lesson_create_command(args: Namespace) -> Dict[str, Any]:
+def handle_lesson_create_command(args: Namespace) -> dict[str, Any]:
     """
     Create a new lesson from JSON input.
 
@@ -48,8 +48,12 @@ def handle_lesson_create_command(args: Namespace) -> Dict[str, Any]:
     }
     """
     from empirica.core.lessons import (
-        Lesson, LessonStep, LessonPhase, EpistemicDelta,
-        LessonEpistemic, LessonValidation, get_lesson_storage
+        EpistemicDelta,
+        Lesson,
+        LessonEpistemic,
+        LessonPhase,
+        LessonStep,
+        get_lesson_storage,
     )
 
     output_format = getattr(args, 'output', 'json')
@@ -63,7 +67,7 @@ def handle_lesson_create_command(args: Namespace) -> Dict[str, Any]:
             input_data = json.load(sys.stdin)
         # From file
         elif getattr(args, 'input', None):
-            with open(args.input, 'r') as f:
+            with open(args.input) as f:
                 input_data = json.load(f)
         # From inline JSON
         elif getattr(args, 'json', None):
@@ -151,7 +155,7 @@ def handle_lesson_create_command(args: Namespace) -> Dict[str, Any]:
         return {'ok': False, 'error': str(e)}
 
 
-def handle_lesson_load_command(args: Namespace) -> Dict[str, Any]:
+def handle_lesson_load_command(args: Namespace) -> dict[str, Any]:
     """
     Load and display a lesson.
 
@@ -187,7 +191,7 @@ def handle_lesson_load_command(args: Namespace) -> Dict[str, Any]:
     }
 
 
-def handle_lesson_list_command(args: Namespace) -> Dict[str, Any]:
+def handle_lesson_list_command(args: Namespace) -> dict[str, Any]:
     """
     List all lessons.
 
@@ -211,7 +215,7 @@ def handle_lesson_list_command(args: Namespace) -> Dict[str, Any]:
     }
 
 
-def handle_lesson_search_command(args: Namespace) -> Dict[str, Any]:
+def handle_lesson_search_command(args: Namespace) -> dict[str, Any]:
     """
     Search for lessons.
 
@@ -243,7 +247,7 @@ def handle_lesson_search_command(args: Namespace) -> Dict[str, Any]:
     }
 
 
-def handle_lesson_recommend_command(args: Namespace) -> Dict[str, Any]:
+def handle_lesson_recommend_command(args: Namespace) -> dict[str, Any]:
     """
     Get lesson recommendations based on current epistemic state.
 
@@ -302,7 +306,7 @@ def handle_lesson_recommend_command(args: Namespace) -> Dict[str, Any]:
     }
 
 
-def handle_lesson_path_command(args: Namespace) -> Dict[str, Any]:
+def handle_lesson_path_command(args: Namespace) -> dict[str, Any]:
     """
     Get learning path to reach a target lesson.
 
@@ -342,7 +346,7 @@ def handle_lesson_path_command(args: Namespace) -> Dict[str, Any]:
     }
 
 
-def handle_lesson_replay_start_command(args: Namespace) -> Dict[str, Any]:
+def handle_lesson_replay_start_command(args: Namespace) -> dict[str, Any]:
     """
     Start tracking a lesson replay.
 
@@ -396,7 +400,7 @@ def handle_lesson_replay_start_command(args: Namespace) -> Dict[str, Any]:
     }
 
 
-def handle_lesson_replay_end_command(args: Namespace) -> Dict[str, Any]:
+def handle_lesson_replay_end_command(args: Namespace) -> dict[str, Any]:
     """
     End a lesson replay and record results.
 
@@ -431,7 +435,7 @@ def handle_lesson_replay_end_command(args: Namespace) -> Dict[str, Any]:
     }
 
 
-def handle_lesson_stats_command(args: Namespace) -> Dict[str, Any]:
+def handle_lesson_stats_command(args: Namespace) -> dict[str, Any]:
     """
     Show lesson storage statistics.
 
@@ -449,7 +453,7 @@ def handle_lesson_stats_command(args: Namespace) -> Dict[str, Any]:
     }
 
 
-def handle_lesson_embed_command(args: Namespace) -> Dict[str, Any]:
+def handle_lesson_embed_command(args: Namespace) -> dict[str, Any]:
     """
     Embed all lessons into Qdrant for semantic search.
 
@@ -457,8 +461,8 @@ def handle_lesson_embed_command(args: Namespace) -> Dict[str, Any]:
         empirica lesson-embed
         empirica lesson-embed --force  # Re-embed all
     """
-    from empirica.core.lessons import get_lesson_storage
     import empirica.core.lessons.storage as mod
+    from empirica.core.lessons import get_lesson_storage
 
     # Clear singleton to force fresh Qdrant connection
     mod._storage = None

@@ -22,7 +22,7 @@ import logging
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +32,9 @@ class ProfileImporter:
 
     def __init__(self, workspace_root: Optional[str] = None):
         self.workspace_root = workspace_root or str(Path.cwd())
-        self._stats: Dict[str, Dict[str, int]] = {}
+        self._stats: dict[str, dict[str, int]] = {}
 
-    def _git_cmd(self, args: List[str]) -> subprocess.CompletedProcess:
+    def _git_cmd(self, args: list[str]) -> subprocess.CompletedProcess:
         """Run a git command in the workspace."""
         return subprocess.run(
             ['git'] + args,
@@ -44,7 +44,7 @@ class ProfileImporter:
             timeout=30
         )
 
-    def _discover_refs(self, prefix: str) -> List[str]:
+    def _discover_refs(self, prefix: str) -> list[str]:
         """List all git notes refs under a prefix.
 
         Args:
@@ -70,7 +70,7 @@ class ProfileImporter:
                 ids.append(artifact_id)
         return ids
 
-    def _load_note(self, ref: str) -> Optional[Dict[str, Any]]:
+    def _load_note(self, ref: str) -> Optional[dict[str, Any]]:
         """Load JSON payload from a git note ref."""
         # List which commit has the note
         result = self._git_cmd(['notes', f'--ref={ref}', 'list'])
@@ -361,7 +361,7 @@ class ProfileImporter:
         self._stats['goals'] = {'imported': imported, 'skipped': skipped, 'total': len(ids)}
         return imported
 
-    def import_all(self, db) -> Dict[str, Dict[str, int]]:
+    def import_all(self, db) -> dict[str, dict[str, int]]:
         """Import all artifact types from git notes.
 
         Args:
@@ -396,6 +396,6 @@ class ProfileImporter:
         return self._stats
 
     @property
-    def stats(self) -> Dict[str, Dict[str, int]]:
+    def stats(self) -> dict[str, dict[str, int]]:
         """Get import statistics from last run."""
         return self._stats

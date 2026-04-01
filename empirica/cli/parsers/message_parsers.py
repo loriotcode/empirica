@@ -3,13 +3,13 @@ Message Parsers - CLI argument parsers for inter-agent messaging commands.
 """
 
 from empirica.cli.command_handlers.message_commands import (
-    handle_message_send_command,
+    handle_message_channels_command,
+    handle_message_cleanup_command,
     handle_message_inbox_command,
     handle_message_read_command,
     handle_message_reply_command,
+    handle_message_send_command,
     handle_message_thread_command,
-    handle_message_channels_command,
-    handle_message_cleanup_command,
 )
 
 

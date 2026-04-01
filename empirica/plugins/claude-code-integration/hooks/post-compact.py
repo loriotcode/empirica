@@ -13,14 +13,15 @@ The recovery action depends on WHERE in the cycle compact occurred.
 """
 
 import json
-import sys
-import subprocess
 import os
-from pathlib import Path
+import subprocess
+import sys
 from datetime import datetime
+from pathlib import Path
+
 # Import shared utilities from plugin lib
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from project_resolver import get_instance_id, _get_instance_suffix, find_project_root  # noqa: E402
+from project_resolver import _get_instance_suffix, find_project_root, get_instance_id
 
 # Import epistemic summarizer for confidence-weighted context
 try:
@@ -397,7 +398,7 @@ def _get_empirica_session(claude_session_id: str = None):
         try:
             active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
             if active_work_file.exists():
-                with open(active_work_file, 'r') as f:
+                with open(active_work_file) as f:
                     work_data = json.load(f)
                 empirica_session_id = work_data.get('empirica_session_id')
                 if empirica_session_id:
@@ -482,7 +483,7 @@ def _load_pre_snapshot():
         ref_docs_dir = Path.cwd() / ".empirica" / "ref-docs"
         snapshots = sorted(ref_docs_dir.glob("pre_summary_*.json"), reverse=True)
         if snapshots:
-            with open(snapshots[0], 'r') as f:
+            with open(snapshots[0]) as f:
                 return json.load(f)
     except Exception:
         pass

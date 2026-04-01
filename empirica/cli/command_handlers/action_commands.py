@@ -8,8 +8,8 @@ Storage: SQLite (cascade context_json) + Git notes (optional)
 import json
 import logging
 import subprocess
-import uuid
 from datetime import datetime, timezone
+
 from ..cli_utils import handle_cli_error, parse_json_safely
 
 logger = logging.getLogger(__name__)
@@ -174,10 +174,10 @@ def handle_act_log_command(args):
                 print("❌ No active cascade found")
             db.close()
             return
-        
+
         cascade_id, context_json_str = result
         context = json.loads(context_json_str) if context_json_str else {}
-        
+
         # Append to act log
         context.setdefault("act_log", []).append({
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -185,10 +185,10 @@ def handle_act_log_command(args):
             "artifacts": artifacts,
             "goal_id": goal_id
         })
-        
+
         # Set final_action
         final_action = "; ".join(actions) if isinstance(actions, list) else actions
-        
+
         # Save to SQLite
         cursor.execute("""
             UPDATE cascades 
@@ -197,10 +197,10 @@ def handle_act_log_command(args):
                 final_action = ?
             WHERE cascade_id = ?
         """, (json.dumps(context), final_action, cascade_id))
-        
+
         db.conn.commit()
         db.close()
-        
+
         # Optional: Save to git notes
         try:
             note_ref = f"refs/notes/empirica/cascades/{session_id}/{cascade_id}"

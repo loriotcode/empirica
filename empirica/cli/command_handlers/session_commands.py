@@ -9,9 +9,10 @@ Provides commands for:
 
 import json
 import logging
-import os
 from datetime import datetime
+
 from empirica.utils.session_resolver import InstanceResolver as R
+
 from ..cli_utils import handle_cli_error, print_header
 
 # Set up logging for session commands
@@ -25,7 +26,7 @@ def handle_sessions_list_command(args):
 
         db = SessionDatabase()  # Use path resolver
         cursor = db.conn.cursor()
-        
+
         # Build query with optional AI ID filter
         query = """
             SELECT
@@ -44,11 +45,11 @@ def handle_sessions_list_command(args):
         params.append(args.limit if hasattr(args, 'limit') else 50)
 
         cursor.execute(query, params)
-        
+
         sessions = cursor.fetchall()
-        
+
         logger.info(f"Found {len(sessions)} sessions to display")
-        
+
         # Check output format FIRST (before any printing)
         if hasattr(args, 'output') and args.output == 'json':
             # JSON output only
@@ -71,22 +72,22 @@ def handle_sessions_list_command(args):
                 print(json.dumps({"ok": True, "sessions": sessions_list, "count": len(sessions)}))
             db.close()
             return
-        
+
         # Pretty output (terminal)
         print_header("📋 Empirica Sessions")
-        
+
         if not sessions:
             logger.info("No sessions found in database")
             print("\n📭 No sessions found")
             print("💡 Create a session with: empirica preflight <task>")
             db.close()
             return
-        
+
         print(f"\n📊 Found {len(sessions)} sessions:\n")
-        
+
         for row in sessions:
             session_id, ai_id, user_id, start_time, end_time, cascades, conf, drift = row
-            
+
             # Format timestamps - handle various types (str, datetime, float/timestamp)
             def format_timestamp(ts):
                 """Format timestamp handling str, datetime, or numeric timestamp"""
@@ -108,14 +109,14 @@ def handle_sessions_list_command(args):
                 except (ValueError, AttributeError, OSError) as e:
                     # Invalid timestamp, return as string
                     return str(ts) if ts else None
-            
+
             start = format_timestamp(start_time) or "N/A"
             end = format_timestamp(end_time) or "Active"
-            
+
             # Status indicator
             status = "✅" if end_time else "⏳"
             drift_icon = "⚠️" if drift else ""
-            
+
             print(f"{status} {session_id[:8]}")
             print(f"   🤖 AI: {ai_id}")
             if user_id:
@@ -128,14 +129,14 @@ def handle_sessions_list_command(args):
             if drift:
                 print(f"   {drift_icon} Drift Detected")
             print()
-        
+
         if len(sessions) >= 50 and not hasattr(args, 'limit'):
             print("💡 Showing 50 most recent sessions. Use --limit to see more.")
-        
+
         print(f"💡 View details: empirica sessions show <session_id>")
-        
+
         db.close()
-        
+
     except Exception as e:
         handle_cli_error(e, "Listing sessions", getattr(args, 'verbose', False))
 
@@ -143,8 +144,9 @@ def handle_sessions_list_command(args):
 def handle_sessions_show_command(args):
     """Show detailed session information including epistemic vectors"""
     try:
-        from empirica.data.session_database import SessionDatabase
         import json
+
+        from empirica.data.session_database import SessionDatabase
 
         # Support both positional and named argument for session ID
         session_id_arg = args.session_id or getattr(args, 'session_id_named', None)
@@ -173,7 +175,7 @@ def handle_sessions_show_command(args):
 
         # Get session summary (use resolved session_id)
         summary = db.get_session_summary(session_id, detail_level="detailed")
-        
+
         if not summary:
             logger.warning(f"Session not found: {session_id_arg}")
             if getattr(args, 'output', None) == 'json':
@@ -183,15 +185,15 @@ def handle_sessions_show_command(args):
                 print(f"💡 List sessions with: empirica sessions list")
             db.close()
             return
-        
+
         # If JSON output requested, return early
         if getattr(args, 'output', None) == 'json':
             print(json.dumps({"ok": True, "session": summary}))
             db.close()
             return
-        
+
         print_header(f"📊 Session Details: {session_id[:8]}")
-        
+
         # Basic info
         print(f"\n🆔 Session ID: {summary['session_id']}")
         print(f"🤖 AI: {summary['ai_id']}")
@@ -200,12 +202,12 @@ def handle_sessions_show_command(args):
             print(f"🏁 Ended: {summary['end_time']}")
         else:
             print(f"⏳ Status: Active")
-        
+
         # Cascades
         print(f"\n🔄 Total Cascades: {summary['total_cascades']}")
         if summary.get('avg_confidence'):
             print(f"📊 Average Confidence: {summary['avg_confidence']:.2f}")
-        
+
         # Show cascade tasks
         if args.verbose and isinstance(summary.get('cascades'), list):
             print(f"\n📋 Cascade Tasks:")
@@ -218,10 +220,10 @@ def handle_sessions_show_command(args):
                         print(f"      Confidence: {conf:.2f}")
                 else:
                     print(f"   {i}. {cascade}")
-            
+
             if summary['total_cascades'] > 10:
                 print(f"   ... and {summary['total_cascades'] - 10} more")
-        
+
         # Epistemic vectors (preflight)
         if summary.get('preflight'):
             print(f"\n🚀 Preflight Epistemic State:")
@@ -229,24 +231,24 @@ def handle_sessions_show_command(args):
             print(f"   • KNOW:    {vectors.get('know', 0.5):.2f}")
             print(f"   • DO:      {vectors.get('do', 0.5):.2f}")
             print(f"   • CONTEXT: {vectors.get('context', 0.5):.2f}")
-            
+
             if args.verbose:
                 print(f"\n   Comprehension:")
                 print(f"   • CLARITY:   {vectors.get('clarity', 0.5):.2f}")
                 print(f"   • COHERENCE: {vectors.get('coherence', 0.5):.2f}")
                 print(f"   • SIGNAL:    {vectors.get('signal', 0.5):.2f}")
                 print(f"   • DENSITY:   {vectors.get('density', 0.5):.2f}")
-                
+
                 print(f"\n   Execution:")
                 print(f"   • STATE:      {vectors.get('state', 0.5):.2f}")
                 print(f"   • CHANGE:     {vectors.get('change', 0.5):.2f}")
                 print(f"   • COMPLETION: {vectors.get('completion', 0.5):.2f}")
                 print(f"   • IMPACT:     {vectors.get('impact', 0.5):.2f}")
-                
+
                 print(f"\n   Meta-Cognitive:")
                 print(f"   • ENGAGEMENT:  {vectors.get('engagement', 0.5):.2f}")
                 print(f"   • UNCERTAINTY: {vectors.get('uncertainty', 0.5):.2f}")
-        
+
         # Epistemic vectors (postflight)
         if summary.get('postflight'):
             print(f"\n🏁 Postflight Epistemic State:")
@@ -254,80 +256,81 @@ def handle_sessions_show_command(args):
             print(f"   • KNOW:    {vectors.get('know', 0.5):.2f}")
             print(f"   • DO:      {vectors.get('do', 0.5):.2f}")
             print(f"   • CONTEXT: {vectors.get('context', 0.5):.2f}")
-            
+
             if args.verbose:
                 print(f"\n   Comprehension:")
                 print(f"   • CLARITY:   {vectors.get('clarity', 0.5):.2f}")
                 print(f"   • COHERENCE: {vectors.get('coherence', 0.5):.2f}")
                 print(f"   • SIGNAL:    {vectors.get('signal', 0.5):.2f}")
                 print(f"   • DENSITY:   {vectors.get('density', 0.5):.2f}")
-                
+
                 print(f"\n   Execution:")
                 print(f"   • STATE:      {vectors.get('state', 0.5):.2f}")
                 print(f"   • CHANGE:     {vectors.get('change', 0.5):.2f}")
                 print(f"   • COMPLETION: {vectors.get('completion', 0.5):.2f}")
                 print(f"   • IMPACT:     {vectors.get('impact', 0.5):.2f}")
-                
+
                 print(f"\n   Meta-Cognitive:")
                 print(f"   • ENGAGEMENT:  {vectors.get('engagement', 0.5):.2f}")
                 print(f"   • UNCERTAINTY: {vectors.get('uncertainty', 0.5):.2f}")
-        
+
         # Epistemic delta (learning)
         if summary.get('epistemic_delta'):
             print(f"\n📈 Learning Delta (Preflight → Postflight):")
             delta = summary['epistemic_delta']
-            
+
             # Show significant changes
             significant = {k: v for k, v in delta.items() if abs(v) >= 0.05}
-            
+
             if significant:
                 for key, value in sorted(significant.items(), key=lambda x: abs(x[1]), reverse=True):
                     icon = "↗" if value > 0 else "↘"
                     print(f"   {icon} {key.upper():12s} {value:+.2f}")
             else:
                 print(f"   ➖ Minimal change (all < ±0.05)")
-        
+
         # Tools used
         if summary.get('tools_used'):
             print(f"\n🔧 Investigation Tools Used:")
             for tool in summary['tools_used']:
                 print(f"   • {tool['tool']}: {tool['count']} times")
-        
+
         # Export hint
         print(f"\n💡 Export to JSON: empirica sessions export {session_id_arg}")
-        
+
         db.close()
-        
+
     except Exception as e:
         handle_cli_error(e, "Showing session details", getattr(args, 'verbose', False))
 
 
 def handle_session_snapshot_command(args):
     """Handle session-snapshot command - show where you left off"""
-    from empirica.data.session_database import SessionDatabase
     import json
+
+    from empirica.data.session_database import SessionDatabase
 
     # Resolve session ID (supports aliases)
     session_id = R.resolve_session(args.session_id)
-    
+
     db = SessionDatabase()
     snapshot = db.get_session_snapshot(session_id)
     db.close()
-    
+
     if not snapshot:
         print(f"❌ Session not found: {args.session_id}")
         return 1
-    
+
     if args.output == 'json':
         print(json.dumps(snapshot, indent=2))
         return 0
-    
+
     # Human-readable output
     print(f"\n📸 Session Snapshot: {session_id[:8]}...")
     print(f"   AI: {snapshot['ai_id']}")
     if snapshot.get('subject'):
         print(f"   Subject: {snapshot['subject']}")
-    
+
     # Git state
     git = snapshot['git_state']
     if 'error' not in git:
@@ -339,7 +342,7 @@ def handle_session_snapshot_command(args):
             print(f"   Recent commits:")
             for commit in git['last_5_commits'][:3]:
                 print(f"      {commit}")
-    
+
     # Epistemic trajectory
     trajectory = snapshot['epistemic_trajectory']
     if trajectory:
@@ -352,7 +355,7 @@ def handle_session_snapshot_command(args):
         if 'postflight' in trajectory:
             post = trajectory['postflight']
             print(f"   POSTFLIGHT: know={post.get('know', 0):.2f}, uncertainty={post.get('uncertainty', 0):.2f}")
-    
+
     # Learning delta
     delta = snapshot.get('learning_delta', {})
     if delta:
@@ -361,21 +364,21 @@ def handle_session_snapshot_command(args):
         for key, value in sorted(significant.items(), key=lambda x: abs(x[1]), reverse=True)[:5]:
             sign = '+' if value > 0 else ''
             print(f"   {key}: {sign}{value:.3f}")
-    
+
     # Active goals
     goals = snapshot.get('active_goals', [])
     if goals:
         print(f"\n🎯 Active Goals ({len(goals)}):")
         for goal in goals[:3]:
             print(f"   - {goal['objective']} ({goal['progress']})")
-    
+
     # Sources
     sources = snapshot.get('sources_referenced', [])
     if sources:
         print(f"\n📚 Sources Referenced ({len(sources)}):")
         for src in sources[:5]:
             print(f"   - {src['title']} ({src['type']}, confidence={src['confidence']:.2f})")
-    
+
     return 0
 
 def handle_sessions_export_command(args):
@@ -405,13 +408,13 @@ def handle_sessions_export_command(args):
 
         # Get full session summary (use resolved session_id)
         summary = db.get_session_summary(session_id, detail_level="full")
-        
+
         if not summary:
             logger.warning(f"Session not found for export: {session_id_arg}")
             print(f"\n❌ Session not found: {session_id_arg}")
             db.close()
             return
-        
+
         # Check if output format is JSON (to stdout)
         output_format = getattr(args, 'output_format', 'file')
         if output_format == 'json' or getattr(args, 'format', None) == 'json':
@@ -419,20 +422,20 @@ def handle_sessions_export_command(args):
             print(json.dumps({"ok": True, "session": summary}))
             db.close()
             return
-        
+
         # Determine output file
         output_file = args.output if hasattr(args, 'output') and args.output else f"session_{session_id_arg[:8]}.json"
-        
+
         # Write to file
         with open(output_file, 'w') as f:
             json.dump(summary, f, indent=2, default=str)
-        
+
         logger.info(f"Session data exported to {output_file}")
-        
+
         print(f"\n✅ Session exported successfully")
         print(f"📄 File: {output_file}")
         print(f"📊 Size: {len(json.dumps(summary, default=str))} bytes")
-        
+
         # Summary stats
         print(f"\n📋 Exported Data:")
         print(f"   • Session ID: {summary['session_id']}")
@@ -444,9 +447,9 @@ def handle_sessions_export_command(args):
             print(f"   • Postflight vectors: ✅")
         if summary.get('epistemic_delta'):
             print(f"   • Learning delta: ✅")
-        
+
         db.close()
-        
+
     except Exception as e:
         handle_cli_error(e, "Exporting session", getattr(args, 'verbose', False))
 
@@ -473,6 +476,7 @@ def handle_memory_compact_command(args):
     """
     try:
         import sys
+
         from empirica.data.session_database import SessionDatabase
 
         # Read JSON config from stdin or file
@@ -482,7 +486,7 @@ def handle_memory_compact_command(args):
                 config = json.load(sys.stdin)
             else:
                 # Read from file
-                with open(args.config, 'r') as f:
+                with open(args.config) as f:
                     config = json.load(f)
         else:
             # No argument provided, read from stdin (AI-first mode)
@@ -760,7 +764,7 @@ def handle_transaction_adopt_command(args):
         from_instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{from_instance}.json'
         if from_instance_file.exists():
             try:
-                with open(from_instance_file, 'r') as f:
+                with open(from_instance_file) as f:
                     data = json.load(f)
                 project_path = data.get('project_path')
                 result["actions"].append(f"Found project in instance_projects: {project_path}")
@@ -831,7 +835,7 @@ def handle_transaction_adopt_command(args):
 
     # Read the transaction data
     try:
-        with open(from_tx_file, 'r') as f:
+        with open(from_tx_file) as f:
             tx_data = json.load(f)
         result["transaction"] = {
             "transaction_id": tx_data.get('transaction_id', 'unknown')[:8],

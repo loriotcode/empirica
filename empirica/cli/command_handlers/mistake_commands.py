@@ -4,7 +4,7 @@ Mistake Commands - Log and query mistakes for learning from failures
 
 import json
 import logging
-from typing import Optional
+
 from ..cli_utils import handle_cli_error
 
 logger = logging.getLogger(__name__)
@@ -134,8 +134,9 @@ def handle_mistake_log_command(args):
         embedded = False
         if project_id and mistake_id:
             try:
-                from empirica.core.qdrant.vector_store import embed_single_memory_item
                 from datetime import datetime
+
+                from empirica.core.qdrant.vector_store import embed_single_memory_item
                 text = f"MISTAKE: {mistake} Prevention: {prevention or 'none specified'}"
                 embedded = embed_single_memory_item(
                     project_id=project_id,

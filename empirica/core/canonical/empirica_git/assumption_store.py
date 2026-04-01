@@ -12,7 +12,7 @@ import logging
 import os
 import subprocess
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ class GitAssumptionStore:
             logger.warning(f"Failed to store assumption in git: {e}")
             return False
 
-    def load_assumption(self, assumption_id: str) -> Optional[Dict[str, Any]]:
+    def load_assumption(self, assumption_id: str) -> Optional[dict[str, Any]]:
         if not self._git_available or not self._has_commits():
             return None
 
@@ -137,7 +137,7 @@ class GitAssumptionStore:
         self,
         project_id: Optional[str] = None,
         session_id: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         if not self._git_available:
             return []
 

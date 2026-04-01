@@ -7,7 +7,8 @@ Validates persona profiles against the JSON schema and additional business logic
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
+
 import jsonschema
 
 logger = logging.getLogger(__name__)
@@ -16,17 +17,17 @@ class ValidationError(Exception):
     """Raised when persona profile validation fails"""
     pass
 
-def load_schema() -> Dict:
+def load_schema() -> dict:
     """Load the persona JSON schema"""
     schema_path = Path(__file__).parent / "schemas" / "persona_schema.json"
 
     if not schema_path.exists():
         raise FileNotFoundError(f"Schema not found: {schema_path}")
 
-    with open(schema_path, 'r') as f:
+    with open(schema_path) as f:
         return json.load(f)
 
-def validate_persona_profile(profile_data: Dict[str, Any]) -> None:
+def validate_persona_profile(profile_data: dict[str, Any]) -> None:
     """
     Validate persona profile against JSON schema
 
@@ -52,7 +53,7 @@ def validate_persona_profile(profile_data: Dict[str, Any]) -> None:
     # Additional business logic validation
     _validate_business_logic(profile_data)
 
-def _validate_business_logic(profile_data: Dict) -> None:
+def _validate_business_logic(profile_data: dict) -> None:
     """
     Additional validation beyond JSON schema
 
@@ -88,7 +89,7 @@ def _validate_business_logic(profile_data: Dict) -> None:
     for trigger in profile_data.get('sentinel_config', {}).get('escalation_triggers', []):
         _validate_escalation_trigger(trigger)
 
-def _validate_escalation_trigger(trigger: Dict) -> None:
+def _validate_escalation_trigger(trigger: dict) -> None:
     """Validate escalation trigger condition syntax"""
     condition = trigger['condition']
 

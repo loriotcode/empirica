@@ -8,7 +8,6 @@ Tracks branch creation, checkpoints, scoring, and automatic merge decisions.
 import json
 import time
 import uuid
-from typing import Dict
 
 from .base import BaseRepository
 
@@ -17,7 +16,7 @@ class BranchRepository(BaseRepository):
     """Repository for investigation branch management (Phase 2 branching)"""
 
     def create_branch(self, session_id: str, branch_name: str, investigation_path: str,
-                     git_branch_name: str, preflight_vectors: Dict,
+                     git_branch_name: str, preflight_vectors: dict,
                      transaction_id: str = None) -> str:
         """Create a new investigation branch
 
@@ -46,7 +45,7 @@ class BranchRepository(BaseRepository):
         self.commit()
         return branch_id
 
-    def checkpoint_branch(self, branch_id: str, postflight_vectors: Dict,
+    def checkpoint_branch(self, branch_id: str, postflight_vectors: dict,
                          tokens_spent: int, time_spent_minutes: int) -> bool:
         """Checkpoint a branch after investigation
 
@@ -71,7 +70,7 @@ class BranchRepository(BaseRepository):
         self.commit()
         return True
 
-    def get_branch(self, branch_id: str) -> Dict:
+    def get_branch(self, branch_id: str) -> dict:
         """Get branch by ID
 
         Args:
@@ -103,7 +102,7 @@ class BranchRepository(BaseRepository):
             "transaction_id": row[8]
         }
 
-    def calculate_branch_merge_score(self, branch_id: str) -> Dict:
+    def calculate_branch_merge_score(self, branch_id: str) -> dict:
         """Calculate epistemic merge score for a branch
 
         Score = (learning_delta × quality × confidence) / cost_penalty
@@ -158,7 +157,7 @@ class BranchRepository(BaseRepository):
             "uncertainty_dampener": round(uncertainty, 4)
         }
 
-    def merge_branches(self, session_id: str, investigation_round: int = 1) -> Dict:
+    def merge_branches(self, session_id: str, investigation_round: int = 1) -> dict:
         """Auto-merge best branch based on epistemic scores
 
         Returns:

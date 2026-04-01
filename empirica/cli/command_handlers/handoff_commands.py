@@ -6,7 +6,7 @@ Enables session continuity through compressed semantic summaries.
 
 import json
 import logging
-from typing import Optional, Dict
+
 from ..cli_utils import handle_cli_error
 
 logger = logging.getLogger(__name__)
@@ -24,11 +24,13 @@ def handle_handoff_create_command(args):
     - Legacy: CLI flags (backward compatible)
     """
     try:
-        import sys
         import os
+        import sys
+
         from empirica.core.handoff.report_generator import EpistemicHandoffReportGenerator
         from empirica.core.handoff.storage import HybridHandoffStorage
         from empirica.data.session_database import SessionDatabase
+
         from ..cli_utils import parse_json_safely
 
         # AI-FIRST MODE: Check if config file provided
@@ -40,7 +42,7 @@ def handle_handoff_create_command(args):
                 if not os.path.exists(args.config):
                     print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
                     sys.exit(1)
-                with open(args.config, 'r') as f:
+                with open(args.config) as f:
                     config_data = parse_json_safely(f.read())
 
         # Extract parameters from config or fall back to legacy flags
@@ -95,7 +97,7 @@ def handle_handoff_create_command(args):
         preflight = db.get_preflight_assessment(session_id)
         checks = db.get_check_phase_assessments(session_id)
         postflight = db.get_postflight_assessment(session_id)
-        
+
         # Determine handoff type
         if planning_only:
             handoff_type = "planning"
@@ -269,7 +271,7 @@ def handle_handoff_query_command(args):
 
         # Query handoffs
         storage = HybridHandoffStorage()
-        
+
         if session_id:
             # Query by session ID (works from either storage)
             handoff = storage.load_handoff(session_id)
@@ -313,9 +315,9 @@ def handle_handoff_query_command(args):
                 print(f"   Task: {h['task_summary'][:60]}...")
                 print(f"   Calibration: {h['calibration_status']}")
                 print(f"   Token count: ~{len(h.get('compressed_json', '')) // 4}")
-            
+
             print(json.dumps({"handoffs": handoffs}, indent=2))
-        
+
         return 0
 
     except Exception as e:

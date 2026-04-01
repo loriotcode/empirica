@@ -5,17 +5,15 @@ Epistemically assesses project structure against common patterns.
 This is DYNAMIC context (what's in THIS project), not static prescription.
 """
 
-import os
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class StructureHealthAnalyzer:
     """Analyze project structure and detect patterns"""
-    
+
     # Known project patterns (static knowledge)
     PATTERNS = {
         'python_package': {
@@ -54,15 +52,15 @@ class StructureHealthAnalyzer:
             'description': 'Empirica framework extension'
         }
     }
-    
+
     def __init__(self, project_root: str):
         """
         Args:
             project_root: Path to project root directory
         """
         self.project_root = Path(project_root)
-    
-    def analyze(self) -> Dict:
+
+    def analyze(self) -> dict:
         """Analyze project structure and detect pattern
         
         Returns:
@@ -76,24 +74,24 @@ class StructureHealthAnalyzer:
         # Scan directory structure
         folders = self._scan_folders()
         files = self._scan_files()
-        
+
         # Match against patterns
         pattern_scores = {}
         for pattern_id, pattern in self.PATTERNS.items():
             score = self._calculate_pattern_match(folders, files, pattern)
             pattern_scores[pattern_id] = score
-        
+
         # Get best match
         detected_type = max(pattern_scores, key=pattern_scores.get)
         confidence = pattern_scores[detected_type]
-        
+
         # Calculate conformance to detected pattern
         pattern = self.PATTERNS[detected_type]
         conformance, violations = self._check_conformance(folders, files, pattern)
-        
+
         # Generate suggestions
         suggestions = self._generate_suggestions(detected_type, violations)
-        
+
         return {
             'detected_type': detected_type,
             'detected_name': pattern['name'],
@@ -105,8 +103,8 @@ class StructureHealthAnalyzer:
             'folders_found': len(folders),
             'files_found': len(files)
         }
-    
-    def _scan_folders(self) -> List[str]:
+
+    def _scan_folders(self) -> list[str]:
         """Scan for top-level folders (depth 1)"""
         folders = []
         try:
@@ -116,8 +114,8 @@ class StructureHealthAnalyzer:
         except Exception as e:
             logger.debug(f"Error scanning folders: {e}")
         return folders
-    
-    def _scan_files(self) -> List[str]:
+
+    def _scan_files(self) -> list[str]:
         """Scan for top-level files (depth 0-1)"""
         files = []
         try:
@@ -125,7 +123,7 @@ class StructureHealthAnalyzer:
             for item in self.project_root.iterdir():
                 if item.is_file():
                     files.append(item.name)
-            
+
             # One level deep (for manage.py, settings.py, etc.)
             for folder in self.project_root.iterdir():
                 if folder.is_dir():
@@ -135,8 +133,8 @@ class StructureHealthAnalyzer:
         except Exception as e:
             logger.debug(f"Error scanning files: {e}")
         return files
-    
-    def _calculate_pattern_match(self, folders: List[str], files: List[str], pattern: Dict) -> float:
+
+    def _calculate_pattern_match(self, folders: list[str], files: list[str], pattern: dict) -> float:
         """Calculate how well structure matches a pattern
         
         Returns:
@@ -145,57 +143,57 @@ class StructureHealthAnalyzer:
         expected_folders = pattern['expected_folders']
         expected_files = pattern['expected_files']
         optional = pattern.get('optional', [])
-        
+
         # Count matches
         folder_matches = sum(1 for f in expected_folders if f in folders)
         file_matches = sum(1 for f in expected_files if f in files)
         optional_matches = sum(1 for o in optional if o in folders or o in files)
-        
+
         # Calculate score
         required_total = len(expected_folders) + len(expected_files)
         required_matches = folder_matches + file_matches
-        
+
         if required_total == 0:
             return 0.0
-        
+
         # Base score from required matches
         base_score = required_matches / required_total
-        
+
         # Bonus from optional matches (up to 0.2)
         optional_bonus = min(optional_matches * 0.05, 0.2)
-        
+
         return min(base_score + optional_bonus, 1.0)
-    
-    def _check_conformance(self, folders: List[str], files: List[str], pattern: Dict) -> Tuple[float, List[str]]:
+
+    def _check_conformance(self, folders: list[str], files: list[str], pattern: dict) -> tuple[float, list[str]]:
         """Check conformance to detected pattern
         
         Returns:
             (conformance_score, violations)
         """
         violations = []
-        
+
         # Check for missing expected folders
         for expected in pattern['expected_folders']:
             if expected not in folders:
                 violations.append(f"Missing expected folder: {expected}")
-        
+
         # Check for missing expected files
         for expected in pattern['expected_files']:
             if expected not in files:
                 violations.append(f"Missing expected file: {expected}")
-        
+
         # Calculate conformance (inverse of violations)
         required_total = len(pattern['expected_folders']) + len(pattern['expected_files'])
         conformance = 1.0 - (len(violations) / required_total) if required_total > 0 else 1.0
-        
+
         return max(conformance, 0.0), violations
-    
-    def _generate_suggestions(self, pattern_type: str, violations: List[str]) -> List[str]:
+
+    def _generate_suggestions(self, pattern_type: str, violations: list[str]) -> list[str]:
         """Generate actionable suggestions based on violations"""
         suggestions = []
-        
+
         pattern = self.PATTERNS[pattern_type]
-        
+
         if violations:
             suggestions.append(f"Consider adopting {pattern['name']} conventions:")
             for violation in violations[:3]:  # Top 3
@@ -207,11 +205,11 @@ class StructureHealthAnalyzer:
                     suggestions.append(f"  • Add {file}")
         else:
             suggestions.append(f"✅ Structure conforms well to {pattern['name']} pattern")
-        
+
         return suggestions
 
 
-def analyze_structure_health(project_root: str) -> Dict:
+def analyze_structure_health(project_root: str) -> dict:
     """Convenience function to analyze project structure
     
     Args:

@@ -20,16 +20,16 @@ Author: Rovo Dev
 Date: 2025-12-19
 """
 
-import os
-import yaml
 import logging
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Optional
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
 
-def load_semantic_index(project_root: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def load_semantic_index(project_root: Optional[str] = None) -> Optional[dict[str, Any]]:
     """
     Load SEMANTIC_INDEX.yaml from project root.
     
@@ -47,29 +47,29 @@ def load_semantic_index(project_root: Optional[str] = None) -> Optional[Dict[str
             logger.debug("Not in git repo, cannot load semantic index")
             return None
         project_root = str(git_root)
-    
+
     # Try standard location: docs/SEMANTIC_INDEX.yaml
     docs_path = Path(project_root) / 'docs' / 'SEMANTIC_INDEX.yaml'
     if docs_path.exists():
         try:
-            with open(docs_path, 'r', encoding='utf-8') as f:
+            with open(docs_path, encoding='utf-8') as f:
                 index = yaml.safe_load(f)
             logger.debug(f"✅ Loaded semantic index from {docs_path}")
             return index or {}
         except Exception as e:
             logger.warning(f"⚠️  Failed to load semantic index from {docs_path}: {e}")
-    
+
     # Try alternative location: .empirica/SEMANTIC_INDEX.yaml
     empirica_path = Path(project_root) / '.empirica' / 'SEMANTIC_INDEX.yaml'
     if empirica_path.exists():
         try:
-            with open(empirica_path, 'r', encoding='utf-8') as f:
+            with open(empirica_path, encoding='utf-8') as f:
                 index = yaml.safe_load(f)
             logger.debug(f"✅ Loaded semantic index from {empirica_path}")
             return index or {}
         except Exception as e:
             logger.warning(f"⚠️  Failed to load semantic index from {empirica_path}: {e}")
-    
+
     # Graceful degradation
     logger.debug(f"No semantic index found in {project_root}")
     return None
@@ -91,27 +91,26 @@ def get_semantic_index_path(project_root: Optional[str] = None) -> Optional[Path
         if not git_root:
             return None
         project_root = str(git_root)
-    
+
     # Check both locations
     docs_path = Path(project_root) / 'docs' / 'SEMANTIC_INDEX.yaml'
     if docs_path.exists():
         return docs_path
-    
+
     empirica_path = Path(project_root) / '.empirica' / 'SEMANTIC_INDEX.yaml'
     if empirica_path.exists():
         return empirica_path
-    
+
     return None
 
 
 if __name__ == '__main__':
     # Test/debug mode
-    import json
-    
+
     logging.basicConfig(level=logging.DEBUG)
-    
+
     print("🔍 Semantic Index Loader Debug\n")
-    
+
     index = load_semantic_index()
     if index:
         print(f"✅ Semantic index loaded")
@@ -120,6 +119,6 @@ if __name__ == '__main__':
         print(f"   Index entries: {len(index.get('index', {}))}")
     else:
         print("❌ No semantic index found")
-    
+
     path = get_semantic_index_path()
     print(f"\n📍 Semantic index path: {path}")

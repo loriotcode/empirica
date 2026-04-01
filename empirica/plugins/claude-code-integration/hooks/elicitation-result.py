@@ -11,11 +11,10 @@ Input: TBD (new hook — logging all input for discovery)
 """
 
 import json
-import sys
-import subprocess
 import logging
+import subprocess
+import sys
 from pathlib import Path
-from datetime import datetime
 
 LOG_DIR = Path.home() / '.empirica' / 'logs'
 LOG_DIR.mkdir(parents=True, exist_ok=True)

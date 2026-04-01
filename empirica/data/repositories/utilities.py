@@ -1,9 +1,9 @@
 """Utility repositories for token savings, command usage, and workspace stats"""
-import sqlite3
-import uuid
 import json
-from typing import Dict, List, Optional
+import uuid
 from datetime import datetime, timezone
+from typing import Optional
+
 from .base import BaseRepository
 
 
@@ -44,7 +44,7 @@ class TokenRepository(BaseRepository):
 
         return saving_id
 
-    def get_session_token_savings(self, session_id: str) -> Dict:
+    def get_session_token_savings(self, session_id: str) -> dict:
         """
         Get token savings summary for a session
 
@@ -84,7 +84,7 @@ class CommandRepository(BaseRepository):
         self,
         session_id: str,
         command: str,
-        args: Optional[Dict] = None,
+        args: Optional[dict] = None,
         success: bool = True,
         error_msg: Optional[str] = None
     ) -> str:
@@ -113,7 +113,7 @@ class CommandRepository(BaseRepository):
         ))
         return usage_id
 
-    def get_command_usage_stats(self, days: int = 30) -> Dict:
+    def get_command_usage_stats(self, days: int = 30) -> dict:
         """Get command usage statistics for legacy detection
 
         Args:
@@ -180,7 +180,7 @@ class CommandRepository(BaseRepository):
 class WorkspaceRepository(BaseRepository):
     """Handles workspace-level operations"""
 
-    def get_workspace_overview(self) -> Dict:
+    def get_workspace_overview(self) -> dict:
         """
         Get epistemic overview of all projects in workspace.
 
@@ -259,7 +259,7 @@ class WorkspaceRepository(BaseRepository):
             'workspace_stats': workspace_stats
         }
 
-    def _get_workspace_aggregate_stats(self) -> Dict:
+    def _get_workspace_aggregate_stats(self) -> dict:
         """Get workspace-level aggregated statistics"""
         cursor = self._execute("""
             SELECT
@@ -282,7 +282,7 @@ class WorkspaceRepository(BaseRepository):
             'avg_uncertainty': round(row[4], 2) if row[4] else 0.5
         }
 
-    def get_workspace_stats(self, project_ids: List[str]) -> Dict:
+    def get_workspace_stats(self, project_ids: list[str]) -> dict:
         """
         Get aggregated workspace statistics for specific projects
 

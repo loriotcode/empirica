@@ -3,10 +3,9 @@ CLI command handlers for epistemic trajectory queries.
 """
 import json
 import sys
-from typing import Optional
 
-from empirica.data.session_database import SessionDatabase
 from empirica.core.epistemic_trajectory import search_trajectories
+from empirica.data.session_database import SessionDatabase
 
 
 def handle_epistemics_search_command(args):
@@ -24,14 +23,14 @@ def handle_epistemics_search_command(args):
         calibration = getattr(args, 'calibration', None)
         limit = getattr(args, 'limit', 5)
         output_format = getattr(args, 'output', 'json')
-        
+
         if not project_id:
             print(json.dumps({
                 "ok": False,
                 "error": "project_id is required"
             }))
             sys.exit(1)
-        
+
         # Search trajectories
         results = search_trajectories(
             project_id=project_id,
@@ -40,7 +39,7 @@ def handle_epistemics_search_command(args):
             calibration_quality=calibration,
             limit=limit
         )
-        
+
         if output_format == 'json':
             print(json.dumps({
                 "ok": True,
@@ -62,7 +61,7 @@ def handle_epistemics_search_command(args):
             if calibration:
                 print(f"Calibration quality: {calibration}")
             print(f"\nFound {len(results)} trajectories:\n")
-            
+
             for i, traj in enumerate(results, 1):
                 score = traj.get('score', 0.0)
                 session_id = traj.get('session_id', 'unknown')
@@ -71,14 +70,14 @@ def handle_epistemics_search_command(args):
                 know_delta = deltas.get('know', 0.0)
                 uncertainty_delta = deltas.get('uncertainty', 0.0)
                 calibration_acc = traj.get('calibration_accuracy', 'unknown')
-                
+
                 print(f"{i}. Session: {session_id[:8]}...")
                 print(f"   Score: {score:.3f}")
                 print(f"   Task: {task}")
                 print(f"   Learning: know={know_delta:+.2f}, uncertainty={uncertainty_delta:+.2f}")
                 print(f"   Calibration: {calibration_acc}")
                 print()
-        
+
     except Exception as e:
         print(json.dumps({
             "ok": False,
@@ -116,11 +115,11 @@ def handle_epistemics_stats_command(args):
         # Get reflexes from database
         db = SessionDatabase()
         cursor = db.conn.cursor()
-        
+
         # First get session info
         cursor.execute("SELECT project_id, ai_id FROM sessions WHERE session_id = ?", (session_id,))
         session_row = cursor.fetchone()
-        
+
         if not session_row:
             print(json.dumps({
                 "ok": False,
@@ -128,10 +127,10 @@ def handle_epistemics_stats_command(args):
             }))
             db.close()
             sys.exit(1)
-        
+
         project_id = session_row['project_id']
         ai_id = session_row['ai_id']
-        
+
         # Get reflexes with optional phase filter
         if phase_filter:
             cursor.execute("""
@@ -151,7 +150,7 @@ def handle_epistemics_stats_command(args):
                 WHERE session_id = ?
                 ORDER BY timestamp ASC
             """, (session_id,))
-        
+
         reflexes = []
         for row in cursor.fetchall():
             reflexes.append({
@@ -174,9 +173,9 @@ def handle_epistemics_stats_command(args):
                 "reasoning": row['reasoning'],
                 "timestamp": row['timestamp']
             })
-        
+
         db.close()
-        
+
         if output_format == 'json':
             print(json.dumps({
                 "ok": True,
@@ -195,7 +194,7 @@ def handle_epistemics_stats_command(args):
             if phase_filter:
                 print(f"Phase Filter: {phase_filter}")
             print(f"\nTotal Reflexes: {len(reflexes)}\n")
-            
+
             for i, reflex in enumerate(reflexes, 1):
                 print(f"{i}. Phase: {reflex['phase']}")
                 print(f"   Time: {reflex['timestamp']}")
@@ -205,7 +204,7 @@ def handle_epistemics_stats_command(args):
                 if reflex['reasoning']:
                     print(f"   Reasoning: {reflex['reasoning'][:80]}...")
                 print()
-        
+
     except Exception as e:
         print(json.dumps({
             "ok": False,
@@ -222,8 +221,8 @@ def handle_epistemics_list_command(args):
         empirica epistemics-list --session-id <UUID> --output json
     """
     try:
-        from empirica.data.session_database import SessionDatabase
         from empirica.cli.cli_utils import handle_cli_error
+        from empirica.data.session_database import SessionDatabase
 
         session_id = getattr(args, 'session_id', None)
         output_format = getattr(args, 'output', 'json')
@@ -244,11 +243,11 @@ def handle_epistemics_list_command(args):
         # Get trajectories directly from database
         db = SessionDatabase()
         cursor = db.conn.cursor()
-        
+
         # First get session info
         cursor.execute("SELECT project_id, ai_id FROM sessions WHERE session_id = ?", (session_id,))
         session_row = cursor.fetchone()
-        
+
         if not session_row:
             print(json.dumps({
                 "ok": False,
@@ -256,10 +255,10 @@ def handle_epistemics_list_command(args):
             }))
             db.close()
             sys.exit(1)
-        
+
         project_id = session_row['project_id']
         ai_id = session_row['ai_id']
-        
+
         # Get all reflexes for this session
         cursor.execute("""
             SELECT phase, engagement, know, do, context, clarity, coherence,
@@ -269,7 +268,7 @@ def handle_epistemics_list_command(args):
             WHERE session_id = ?
             ORDER BY timestamp ASC
         """, (session_id,))
-        
+
         reflexes = []
         for row in cursor.fetchall():
             reflexes.append({
@@ -292,9 +291,9 @@ def handle_epistemics_list_command(args):
                 "reasoning": row['reasoning'],
                 "timestamp": row['timestamp']
             })
-        
+
         db.close()
-        
+
         if output_format == 'json':
             print(json.dumps({
                 "ok": True,
@@ -316,7 +315,7 @@ def handle_epistemics_list_command(args):
                 if vectors:
                     print(f"   Know: {vectors.get('know', 'N/A')}, Uncertainty: {vectors.get('uncertainty', 'N/A')}")
                 print()
-        
+
     except Exception as e:
         from empirica.cli.cli_utils import handle_cli_error
         handle_cli_error(e, "List epistemics", getattr(args, 'verbose', False))

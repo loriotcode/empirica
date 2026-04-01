@@ -10,9 +10,10 @@ Defines the structure of an AI persona with:
 - Sentinel configuration (how to manage)
 """
 
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional
-from datetime import datetime, UTC
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
+from typing import Optional
+
 
 @dataclass
 class SigningIdentityConfig:
@@ -22,7 +23,7 @@ class SigningIdentityConfig:
     public_key: str
     reputation_score: float = 0.5
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary representation."""
         return asdict(self)
 
@@ -31,10 +32,10 @@ class EpistemicConfig:
     """Epistemic configuration for a persona"""
 
     # Prior epistemic state (13 vectors)
-    priors: Dict[str, float]
+    priors: dict[str, float]
 
     # Decision thresholds
-    thresholds: Dict[str, float] = field(default_factory=lambda: {
+    thresholds: dict[str, float] = field(default_factory=lambda: {
         "uncertainty_trigger": 0.4,
         "confidence_to_proceed": 0.75,
         "signal_quality_min": 0.6,
@@ -42,7 +43,7 @@ class EpistemicConfig:
     })
 
     # Tier weights (must sum to 1.0)
-    weights: Dict[str, float] = field(default_factory=lambda: {
+    weights: dict[str, float] = field(default_factory=lambda: {
         "foundation": 0.35,
         "comprehension": 0.25,
         "execution": 0.25,
@@ -50,7 +51,7 @@ class EpistemicConfig:
     })
 
     # Focus domains (areas of expertise)
-    focus_domains: List[str] = field(default_factory=list)
+    focus_domains: list[str] = field(default_factory=list)
 
     def __post_init__(self):
         """Validate epistemic config"""
@@ -74,7 +75,7 @@ class EpistemicConfig:
         if not (0.99 <= weight_sum <= 1.01):
             raise ValueError(f"Weights must sum to 1.0, got {weight_sum}")
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary representation."""
         return asdict(self)
 
@@ -87,9 +88,9 @@ class CapabilitiesConfig:
     can_read_files: bool = True
     requires_human_approval: bool = False
     max_investigation_depth: int = 5
-    restricted_operations: List[str] = field(default_factory=list)
+    restricted_operations: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary representation."""
         return asdict(self)
 
@@ -100,7 +101,7 @@ class EscalationTrigger:
     action: str     # notify, pause, handoff, escalate, terminate
     priority: str = "medium"  # low, medium, high, critical
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary representation."""
         return asdict(self)
 
@@ -108,12 +109,12 @@ class EscalationTrigger:
 class SentinelConfig:
     """How Sentinel should manage this persona"""
     reporting_frequency: str = "per_phase"  # per_phase, per_round, on_completion, realtime
-    escalation_triggers: List[EscalationTrigger] = field(default_factory=list)
+    escalation_triggers: list[EscalationTrigger] = field(default_factory=list)
     timeout_minutes: int = 60
     max_cost_usd: float = 10.0
     requires_sentinel_approval_before_act: bool = False
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert sentinel config to dictionary representation."""
         result = asdict(self)
         # Convert escalation triggers
@@ -127,7 +128,7 @@ class PersonaMetadata:
     created_at: Optional[str] = None
     modified_at: Optional[str] = None
     description: Optional[str] = None
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     parent_persona: Optional[str] = None
     derived_from: Optional[str] = None
     verified_sessions: int = 0
@@ -139,7 +140,7 @@ class PersonaMetadata:
         if self.modified_at is None:
             self.modified_at = self.created_at
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary representation."""
         return asdict(self)
 
@@ -220,7 +221,7 @@ class PersonaProfile:
         if not re.match(r'^[0-9a-f]{64}$', self.signing_identity.public_key):
             raise ValueError(f"public_key must be 64 hex chars (Ed25519), got length: {len(self.signing_identity.public_key)}")
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization"""
         return {
             "persona_id": self.persona_id,
@@ -234,7 +235,7 @@ class PersonaProfile:
         }
 
     @classmethod
-    def _parse_sentinel_config(cls, sentinel_data: Dict) -> 'SentinelConfig':
+    def _parse_sentinel_config(cls, sentinel_data: dict) -> 'SentinelConfig':
         """Parse sentinel config from dictionary"""
         # Extract escalation_triggers separately to avoid double-pass
         escalation_triggers = [
@@ -252,7 +253,7 @@ class PersonaProfile:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'PersonaProfile':
+    def from_dict(cls, data: dict) -> 'PersonaProfile':
         """Load persona profile from dictionary"""
         return cls(
             persona_id=data['persona_id'],

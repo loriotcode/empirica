@@ -23,20 +23,17 @@ Security:
 - If no password is provided, keys are stored unencrypted (development mode only)
 """
 
-import os
+import base64
 import json
 import logging
-import base64
+import os
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
-from datetime import datetime, UTC
+from typing import Any, Optional
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import (
-    Ed25519PrivateKey,
-    Ed25519PublicKey
-)
-from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +69,7 @@ class AIIdentity:
         signature = identity.sign(message)
         verified = identity.verify(signature, message, public_key)
     """
-    
+
     def __init__(self, ai_id: str, identity_dir: Optional[str] = None):
         """
         Initialize AI Identity
@@ -86,18 +83,18 @@ class AIIdentity:
         self.private_key: Optional[Ed25519PrivateKey] = None
         self.public_key: Optional[Ed25519PublicKey] = None
         self.created_at: Optional[str] = None
-        self.metadata: Dict[str, Any] = {}
-        
+        self.metadata: dict[str, Any] = {}
+
     @property
     def keypair_path(self) -> Path:
         """Path to keypair file"""
         return self.identity_dir / f"{self.ai_id}.key"
-    
+
     @property
     def public_key_path(self) -> Path:
         """Path to public key file (for distribution)"""
         return self.identity_dir / f"{self.ai_id}.pub"
-    
+
     def generate_keypair(self) -> None:
         """
         Generate new Ed25519 keypair
@@ -107,14 +104,14 @@ class AIIdentity:
         """
         if self.private_key is not None:
             raise RuntimeError(f"Keypair already exists for {self.ai_id}")
-        
+
         # Generate Ed25519 keypair
         self.private_key = Ed25519PrivateKey.generate()
         self.public_key = self.private_key.public_key()
         self.created_at = datetime.now(UTC).isoformat()
-        
+
         logger.info(f"✓ Generated Ed25519 keypair for {self.ai_id}")
-    
+
     def save_keypair(self, overwrite: bool = False, password: Optional[bytes] = None) -> None:
         """
         Save keypair to disk with optional encryption.
@@ -205,7 +202,7 @@ class AIIdentity:
         encryption_status = "encrypted" if encrypted else "unencrypted"
         logger.info(f"✓ Saved keypair ({encryption_status}) to {self.keypair_path}")
         logger.info(f"✓ Saved public key to {self.public_key_path}")
-    
+
     def load_keypair(self, password: Optional[bytes] = None) -> None:
         """
         Load keypair from disk.
@@ -224,7 +221,7 @@ class AIIdentity:
             )
 
         # Load keypair JSON
-        with open(self.keypair_path, 'r') as f:
+        with open(self.keypair_path) as f:
             keypair_data = json.load(f)
 
         # Verify ai_id matches
@@ -279,7 +276,7 @@ class AIIdentity:
 
         self.created_at = keypair_data['created_at']
         self.metadata = keypair_data.get('metadata', {})
-    
+
     def sign(self, message: bytes) -> bytes:
         """
         Sign message with private key
@@ -295,9 +292,9 @@ class AIIdentity:
         """
         if self.private_key is None:
             raise RuntimeError("No private key loaded. Call load_keypair() first.")
-        
+
         return self.private_key.sign(message)
-    
+
     @staticmethod
     def verify(signature: bytes, message: bytes, public_key_bytes: bytes) -> bool:
         """
@@ -317,18 +314,18 @@ class AIIdentity:
             return True
         except Exception:
             return False
-    
+
     def public_key_hex(self) -> str:
         """Get public key as hex string"""
         if self.public_key is None:
             raise RuntimeError("No public key loaded")
-        
+
         return self.public_key.public_bytes(
             encoding=serialization.Encoding.Raw,
             format=serialization.PublicFormat.Raw
         ).hex()
-    
-    def export_public_key(self) -> Dict[str, Any]:
+
+    def export_public_key(self) -> dict[str, Any]:
         """
         Export public key for sharing
         
@@ -337,7 +334,7 @@ class AIIdentity:
         """
         if self.public_key is None:
             raise RuntimeError("No public key loaded")
-        
+
         return {
             'ai_id': self.ai_id,
             'created_at': self.created_at,
@@ -362,12 +359,12 @@ class IdentityManager:
         # Create identity
         identity = manager.create_identity("new-agent")
     """
-    
+
     def __init__(self, identity_dir: Optional[str] = None):
         """Initialize identity manager"""
         self.identity_dir = Path(identity_dir or ".empirica/identity")
-    
-    def list_identities(self) -> list[Dict[str, Any]]:
+
+    def list_identities(self) -> list[dict[str, Any]]:
         """
         List all identities
         
@@ -376,14 +373,14 @@ class IdentityManager:
         """
         if not self.identity_dir.exists():
             return []
-        
+
         identities = []
-        
+
         for key_file in self.identity_dir.glob("*.key"):
             try:
-                with open(key_file, 'r') as f:
+                with open(key_file) as f:
                     data = json.load(f)
-                
+
                 identities.append({
                     'ai_id': data['ai_id'],
                     'created_at': data['created_at'],
@@ -392,9 +389,9 @@ class IdentityManager:
                 })
             except Exception as e:
                 logger.warning(f"Failed to load {key_file}: {e}")
-        
+
         return identities
-    
+
     def load_identity(self, ai_id: str) -> AIIdentity:
         """
         Load existing identity
@@ -408,7 +405,7 @@ class IdentityManager:
         identity = AIIdentity(ai_id, str(self.identity_dir))
         identity.load_keypair()
         return identity
-    
+
     def create_identity(self, ai_id: str, overwrite: bool = False) -> AIIdentity:
         """
         Create new identity
@@ -424,7 +421,7 @@ class IdentityManager:
         identity.generate_keypair()
         identity.save_keypair(overwrite=overwrite)
         return identity
-    
+
     def identity_exists(self, ai_id: str) -> bool:
         """Check if identity exists"""
         return (self.identity_dir / f"{ai_id}.key").exists()

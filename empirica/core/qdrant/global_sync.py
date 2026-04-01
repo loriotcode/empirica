@@ -2,17 +2,22 @@
 Global learnings: cross-project knowledge aggregation and dead-end detection.
 """
 from __future__ import annotations
-import logging
-from typing import Dict, List, Optional
 
-from empirica.core.qdrant.connection import (
-    _check_qdrant_available, _get_qdrant_imports, _get_qdrant_client,
-    _get_embedding_safe, _get_vector_size, logger,
-)
 from empirica.core.qdrant.collections import (
-    _global_learnings_collection, _memory_collection,
-    _eidetic_collection, _episodic_collection,
+    _eidetic_collection,
+    _episodic_collection,
+    _global_learnings_collection,
+    _memory_collection,
 )
+from empirica.core.qdrant.connection import (
+    _check_qdrant_available,
+    _get_embedding_safe,
+    _get_qdrant_client,
+    _get_qdrant_imports,
+    _get_vector_size,
+    logger,
+)
+
 
 def embed_to_global(
     item_id: str,
@@ -23,7 +28,7 @@ def embed_to_global(
     impact: float = None,
     resolved_by: str = None,
     timestamp: str = None,
-    tags: List[str] = None
+    tags: list[str] = None
 ) -> bool:
     """
     Embed a high-impact item to global learnings collection.
@@ -76,10 +81,10 @@ def embed_to_global(
 
 def search_global(
     query_text: str,
-    item_types: List[str] = None,
+    item_types: list[str] = None,
     min_impact: float = None,
     limit: int = 10
-) -> List[Dict]:
+) -> list[dict]:
     """
     Search global learnings across all projects.
 
@@ -111,7 +116,7 @@ def search_global(
         # Build filter if needed
         query_filter = None
         if item_types or min_impact:
-            from qdrant_client.models import Filter, FieldCondition, MatchAny, Range
+            from qdrant_client.models import FieldCondition, Filter, MatchAny, Range
             conditions = []
             if item_types:
                 conditions.append(FieldCondition(key="type", match=MatchAny(any=item_types)))
@@ -148,10 +153,10 @@ def search_global(
 def search_cross_project(
     query_text: str,
     exclude_project_id: str = None,
-    collections_to_search: List[str] = None,
+    collections_to_search: list[str] = None,
     limit: int = 5,
     min_points: int = 1,
-) -> List[Dict]:
+) -> list[dict]:
     """
     Search across ALL registered projects' Qdrant collections.
 
@@ -372,8 +377,8 @@ def embed_dead_end_with_branch_context(
     branch_id: str = None,
     winning_branch_id: str = None,
     score_diff: float = None,
-    preflight_vectors: Dict = None,
-    postflight_vectors: Dict = None,
+    preflight_vectors: dict = None,
+    postflight_vectors: dict = None,
     timestamp: str = None
 ) -> bool:
     """
@@ -451,7 +456,7 @@ def search_similar_dead_ends(
     query_approach: str,
     include_branch_deadends: bool = True,
     limit: int = 5
-) -> List[Dict]:
+) -> list[dict]:
     """
     Search for similar past dead ends before starting a new approach.
     Use this in NOETIC phase to avoid repeating known failures.
@@ -473,7 +478,7 @@ def search_similar_dead_ends(
         return []
 
     try:
-        from qdrant_client.models import Filter, FieldCondition, MatchValue
+        from qdrant_client.models import FieldCondition, Filter, MatchValue
         client = _get_qdrant_client()
         if client is None:
             return []
@@ -519,7 +524,7 @@ def search_similar_dead_ends(
 def search_global_dead_ends(
     query_approach: str,
     limit: int = 5
-) -> List[Dict]:
+) -> list[dict]:
     """
     Search for similar dead ends across ALL projects (global learnings).
     Use to avoid repeating mistakes made in other projects.

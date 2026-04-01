@@ -20,7 +20,7 @@ import subprocess
 import time
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 from .collector import EvidenceItem, EvidenceQuality
@@ -36,15 +36,15 @@ class _HTMLStructureValidator(HTMLParser):
 
     def __init__(self):
         super().__init__()
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
-        self._stack: List[str] = []
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
+        self._stack: list[str] = []
         self._has_html = False
         self._has_head = False
         self._has_title = False
         self._has_body = False
         self._has_charset = False
-        self._empty_attrs: List[str] = []
+        self._empty_attrs: list[str] = []
 
     # Self-closing tags that don't need a closing tag
     VOID_ELEMENTS = frozenset({
@@ -125,7 +125,7 @@ class WebEvidenceCollector:
         self._db = db
         self._owns_db = False
         self._project_path: Optional[Path] = None
-        self._web_config: Optional[Dict[str, Any]] = None
+        self._web_config: Optional[dict[str, Any]] = None
 
     def _get_db(self):
         if self._db is None:
@@ -156,7 +156,7 @@ class WebEvidenceCollector:
             pass
         return None
 
-    def _get_web_config(self) -> Dict[str, Any]:
+    def _get_web_config(self) -> dict[str, Any]:
         """Load web_evidence config from project.yaml."""
         if self._web_config is not None:
             return self._web_config
@@ -177,7 +177,7 @@ class WebEvidenceCollector:
             pass
         return self._web_config
 
-    def _detect_build_tool(self) -> Optional[Dict[str, str]]:
+    def _detect_build_tool(self) -> Optional[dict[str, str]]:
         """Auto-detect the build tool from project structure."""
         project_path = self._get_project_path()
         if not project_path:
@@ -245,7 +245,7 @@ class WebEvidenceCollector:
             return project_path / output_dir_name
         return None
 
-    def _get_changed_html_files(self) -> List[Path]:
+    def _get_changed_html_files(self) -> list[Path]:
         """Get HTML files changed during this session."""
         output_dir = self._get_output_dir()
         if not output_dir or not output_dir.exists():
@@ -256,7 +256,7 @@ class WebEvidenceCollector:
         #  which varies by framework. For now, check all output HTML.)
         return list(output_dir.rglob("*.html"))
 
-    def collect_all(self) -> List[EvidenceItem]:
+    def collect_all(self) -> list[EvidenceItem]:
         """Collect web-specific evidence from all available sources."""
         items = []
 
@@ -281,7 +281,7 @@ class WebEvidenceCollector:
 
     # --- Build Verification ---
 
-    def _collect_build_verification(self) -> List[EvidenceItem]:
+    def _collect_build_verification(self) -> list[EvidenceItem]:
         """Run project build and check exit code."""
         items = []
         build_info = self._detect_build_tool()
@@ -336,7 +336,7 @@ class WebEvidenceCollector:
 
     # --- HTML Validation ---
 
-    def _collect_html_validation(self) -> List[EvidenceItem]:
+    def _collect_html_validation(self) -> list[EvidenceItem]:
         """Validate HTML structure of output files."""
         items = []
         html_files = self._get_changed_html_files()
@@ -388,7 +388,7 @@ class WebEvidenceCollector:
 
     # --- Link Integrity ---
 
-    def _collect_link_integrity(self) -> List[EvidenceItem]:
+    def _collect_link_integrity(self) -> list[EvidenceItem]:
         """Check that internal links in HTML output resolve to existing files."""
         items = []
         output_dir = self._get_output_dir()
@@ -468,7 +468,7 @@ class WebEvidenceCollector:
 
     # --- Terminology Consistency ---
 
-    def _collect_terminology_consistency(self) -> List[EvidenceItem]:
+    def _collect_terminology_consistency(self) -> list[EvidenceItem]:
         """Check glossary term consistency in changed HTML files."""
         items = []
         project_path = self._get_project_path()
@@ -543,7 +543,7 @@ class WebEvidenceCollector:
 
     # --- Asset Verification ---
 
-    def _collect_asset_verification(self) -> List[EvidenceItem]:
+    def _collect_asset_verification(self) -> list[EvidenceItem]:
         """Check that referenced assets (images, SVGs, PDFs) exist."""
         items = []
         output_dir = self._get_output_dir()
@@ -581,9 +581,7 @@ class WebEvidenceCollector:
                     clean_path = asset.lstrip('/')
 
                     # Try output dir, then public dir
-                    if (output_dir / clean_path).exists():
-                        found_assets += 1
-                    elif (public_dir / clean_path).exists():
+                    if (output_dir / clean_path).exists() or (public_dir / clean_path).exists():
                         found_assets += 1
                     else:
                         missing_assets.append({

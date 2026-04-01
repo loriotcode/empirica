@@ -12,14 +12,14 @@ Key Features:
 - Thread support for conversations
 """
 
-import os
-import subprocess
 import json
 import logging
-import uuid
+import os
 import socket
-from typing import Dict, Any, Optional, List
-from datetime import datetime, timezone, timedelta
+import subprocess
+import uuid
+from datetime import datetime, timedelta, timezone
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ class GitMessageStore:
         except Exception:
             return None
 
-    def _is_expired(self, message: Dict) -> bool:
+    def _is_expired(self, message: dict) -> bool:
         """Check if a message has expired based on TTL"""
         ttl = message.get('ttl', 86400)
         if ttl == 0:
@@ -110,7 +110,7 @@ class GitMessageStore:
         thread_id: Optional[str] = None,
         ttl: int = 86400,
         priority: str = "normal",
-        metadata: Optional[Dict] = None,
+        metadata: Optional[dict] = None,
     ) -> Optional[str]:
         """
         Send a message to another agent.
@@ -171,7 +171,7 @@ class GitMessageStore:
             logger.warning(f"Failed to send message: {e}")
             return None
 
-    def load_message(self, channel: str, message_id: str) -> Optional[Dict[str, Any]]:
+    def load_message(self, channel: str, message_id: str) -> Optional[dict[str, Any]]:
         """Load a single message by channel and ID."""
         if not self._git_available:
             return None
@@ -219,7 +219,7 @@ class GitMessageStore:
         status: str = "unread",
         include_expired: bool = False,
         limit: int = 50,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get messages addressed to this agent.
 
@@ -361,7 +361,7 @@ class GitMessageStore:
         message_type: str = "response",
         from_session_id: Optional[str] = None,
         ttl: int = 86400,
-        metadata: Optional[Dict] = None,
+        metadata: Optional[dict] = None,
     ) -> Optional[str]:
         """Reply to an existing message."""
         original = self.load_message(original_channel, original_message_id)
@@ -389,7 +389,7 @@ class GitMessageStore:
         self,
         thread_id: str,
         channel: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get all messages in a thread, ordered by timestamp."""
         if not self._git_available:
             return []
@@ -431,7 +431,7 @@ class GitMessageStore:
             logger.warning(f"Failed to get thread: {e}")
             return []
 
-    def discover_channels(self) -> List[str]:
+    def discover_channels(self) -> list[str]:
         """List all channels with messages."""
         if not self._git_available:
             return []
@@ -460,7 +460,7 @@ class GitMessageStore:
         except Exception:
             return []
 
-    def count_unread(self, ai_id: str, machine: Optional[str] = None) -> Dict[str, int]:
+    def count_unread(self, ai_id: str, machine: Optional[str] = None) -> dict[str, int]:
         """Count unread messages per channel."""
         channels = self.discover_channels()
         counts = {}
@@ -470,7 +470,7 @@ class GitMessageStore:
                 counts[ch] = len(msgs)
         return counts
 
-    def cleanup_expired(self, dry_run: bool = False) -> List[Dict[str, Any]]:
+    def cleanup_expired(self, dry_run: bool = False) -> list[dict[str, Any]]:
         """
         Remove expired messages.
 

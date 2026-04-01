@@ -6,14 +6,8 @@ Provides structured goal tracking with success criteria, dependencies, and const
 MVP implementation focuses on explicit goal creation (AI creates goals directly via MCP).
 """
 
-from .types import (
-    Goal,
-    SuccessCriterion,
-    Dependency,
-    ScopeVector,
-    DependencyType
-)
 from .repository import GoalRepository
+from .types import Dependency, DependencyType, Goal, ScopeVector, SuccessCriterion
 
 __all__ = [
     'Goal',

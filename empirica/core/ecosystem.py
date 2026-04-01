@@ -9,7 +9,7 @@ Reads ecosystem.yaml from the workspace root and provides:
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ def find_ecosystem_manifest(start_path: str = None) -> Optional[Path]:
     return None
 
 
-def load_manifest(manifest_path: str = None) -> Dict:
+def load_manifest(manifest_path: str = None) -> dict:
     """Load and parse ecosystem.yaml.
 
     Returns the raw parsed YAML dict.
@@ -73,7 +73,7 @@ def load_manifest(manifest_path: str = None) -> Dict:
             "ecosystem.yaml not found. Create one at your workspace root."
         )
 
-    with open(path, 'r') as f:
+    with open(path) as f:
         data = yaml.safe_load(f)
 
     if not data or 'projects' not in data:
@@ -91,14 +91,14 @@ class EcosystemGraph:
     - impact_of(file_or_module): which projects are affected
     """
 
-    def __init__(self, manifest: Dict):
+    def __init__(self, manifest: dict):
         self.manifest = manifest
         self.workspace_root = manifest.get('workspace_root', '')
         self.projects = manifest.get('projects', {})
 
         # Build adjacency lists
-        self._depends_on: Dict[str, Set[str]] = {}  # project -> set of deps
-        self._depended_by: Dict[str, Set[str]] = {}  # project -> set of dependents
+        self._depends_on: dict[str, set[str]] = {}  # project -> set of deps
+        self._depended_by: dict[str, set[str]] = {}  # project -> set of dependents
         self._build_graph()
 
     def _build_graph(self):
@@ -133,7 +133,7 @@ class EcosystemGraph:
                         self._depended_by[dep_name] = set()
                     self._depended_by[dep_name].add(name)
 
-    def downstream(self, project: str, transitive: bool = True) -> Set[str]:
+    def downstream(self, project: str, transitive: bool = True) -> set[str]:
         """Get projects that depend on this project (directly or transitively).
 
         These are the projects that could break if `project` changes.
@@ -155,7 +155,7 @@ class EcosystemGraph:
 
         return visited
 
-    def upstream(self, project: str, transitive: bool = True) -> Set[str]:
+    def upstream(self, project: str, transitive: bool = True) -> set[str]:
         """Get projects that this project depends on (directly or transitively)."""
         if project not in self._depends_on:
             return set()
@@ -197,7 +197,7 @@ class EcosystemGraph:
 
         return best_match
 
-    def impact_of(self, file_path: str) -> Dict:
+    def impact_of(self, file_path: str) -> dict:
         """Analyze impact of changing a file.
 
         Returns:
@@ -235,21 +235,21 @@ class EcosystemGraph:
             "exports_affected": exports_affected,
         }
 
-    def by_role(self, role: str) -> List[str]:
+    def by_role(self, role: str) -> list[str]:
         """Get all projects with a given role."""
         return [
             name for name, config in self.projects.items()
             if config.get('role') == role
         ]
 
-    def by_tag(self, tag: str) -> List[str]:
+    def by_tag(self, tag: str) -> list[str]:
         """Get all projects with a given tag."""
         return [
             name for name, config in self.projects.items()
             if tag in config.get('tags', [])
         ]
 
-    def validate(self) -> List[str]:
+    def validate(self) -> list[str]:
         """Validate the ecosystem manifest.
 
         Returns list of warnings/errors (empty = valid).
@@ -278,7 +278,7 @@ class EcosystemGraph:
 
         return issues
 
-    def summary(self) -> Dict:
+    def summary(self) -> dict:
         """Get ecosystem summary statistics."""
         roles = {}
         types = {}

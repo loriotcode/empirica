@@ -2,13 +2,13 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 
 def export_to_reflex_logs(
     session_id: str,
     phase: str,
-    assessment_data: Dict[str, Any],
+    assessment_data: dict[str, Any],
     log_dir: str = ".empirica_reflex_logs"
 ) -> Optional[Path]:
     """
@@ -34,7 +34,7 @@ def export_to_reflex_logs(
             # Load the confidence weights configuration
             config_path = Path(__file__).parent.parent.parent / "config" / "mco" / "confidence_weights.yaml"
             if config_path.exists():
-                with open(config_path, 'r') as f:
+                with open(config_path) as f:
                     config = yaml.safe_load(f)
 
                 foundation_weights = config.get("foundation_confidence_weights", {
@@ -204,7 +204,7 @@ def export_to_reflex_logs(
         return None
 
 
-def determine_action(vectors: Dict[str, float]) -> str:
+def determine_action(vectors: dict[str, float]) -> str:
     """
     Determine recommended action based on epistemic vectors
 

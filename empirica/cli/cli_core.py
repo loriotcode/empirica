@@ -16,26 +16,29 @@ import argparse
 import json
 import sys
 import time
-from .cli_utils import handle_cli_error, print_header
+
+from .cli_utils import handle_cli_error
 from .command_handlers import *
-from .command_handlers.utility_commands import (
-    handle_log_token_saving, handle_efficiency_report,
-    handle_qdrant_cleanup_command, handle_qdrant_status_command,
-)
 from .command_handlers.edit_verification_command import handle_edit_with_confidence_command
 from .command_handlers.issue_capture_commands import (
-    handle_issue_list_command,
-    handle_issue_show_command,
-    handle_issue_handoff_command,
-    handle_issue_resolve_command,
     handle_issue_export_command,
+    handle_issue_handoff_command,
+    handle_issue_list_command,
+    handle_issue_resolve_command,
+    handle_issue_show_command,
     handle_issue_stats_command,
+)
+from .command_handlers.utility_commands import (
+    handle_efficiency_report,
+    handle_log_token_saving,
+    handle_qdrant_cleanup_command,
+    handle_qdrant_status_command,
 )
 
 
 class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
     """Custom formatter that groups subcommands by category"""
-    
+
     def _format_action(self, action):
         """Format action with grouped subcommands by category."""
         try:
@@ -70,7 +73,7 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
                     'Memory': ['memory-prime', 'memory-scope', 'memory-value', 'pattern-check', 'session-rollup', 'memory-report'],
                     'Server': ['serve'],
                 }
-                
+
                 parts = ['\nAvailable Commands (grouped by category):\n', '=' * 70 + '\n']
                 for category, commands in categories.items():
                     parts.append(f'\n{category} ({len(commands)} commands):\n')
@@ -83,106 +86,110 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
                 return ''.join(parts)
         except Exception:
             pass
-        
+
         return super()._format_action(action)
 
 # Import all parser modules
-from .parsers import (
-    add_cascade_parsers,
-    add_investigation_parsers,
-    add_performance_parsers,
-    add_skill_parsers,
-    add_utility_parsers,
-    add_config_parsers,
-    add_monitor_parsers,
-    add_session_parsers,
-    add_action_parsers,
-    add_checkpoint_parsers,
-    add_user_interface_parsers,
-    add_vision_parsers,
-    add_epistemics_parsers,
-    add_edit_verification_parsers,
-    add_issue_capture_parsers,
-    add_architecture_parsers,
-    add_query_parsers,
-    add_agent_parsers,
-    add_sentinel_parsers,
-    add_persona_parsers,
-    add_release_parsers,
-    add_lesson_parsers,
-    add_onboarding_parsers,
-    add_trajectory_parsers,
-    add_concept_graph_parsers,
-    add_mcp_parsers,
-    add_message_parsers,
-    add_memory_parsers,
-    add_profile_parsers,
-    add_serve_parsers,
-)
-from .command_handlers.architecture_commands import (
-    handle_assess_component_command,
-    handle_assess_compare_command,
-    handle_assess_directory_command,
-)
-from .command_handlers.query_commands import handle_query_command
 from .command_handlers.agent_commands import (
-    handle_agent_spawn_command,
-    handle_agent_report_command,
     handle_agent_aggregate_command,
-    handle_agent_parallel_command,
+    handle_agent_discover_command,
     handle_agent_export_command,
     handle_agent_import_command,
-    handle_agent_discover_command,
+    handle_agent_parallel_command,
+    handle_agent_report_command,
+    handle_agent_spawn_command,
 )
-from .command_handlers.sentinel_commands import (
-    handle_sentinel_orchestrate_command,
-    handle_sentinel_load_profile_command,
-    handle_sentinel_status_command,
-    handle_sentinel_check_command,
-)
-from .command_handlers.persona_commands import (
-    handle_persona_list_command,
-    handle_persona_show_command,
-    handle_persona_promote_command,
-    handle_persona_find_command,
-)
-from .command_handlers.release_commands import handle_release_ready_command
-from .command_handlers.docs_commands import handle_docs_assess, handle_docs_explain
-from .command_handlers.mcp_commands import (
-    handle_mcp_start_command,
-    handle_mcp_stop_command,
-    handle_mcp_status_command,
-    handle_mcp_test_command,
-    handle_mcp_list_tools_command,
-    handle_mcp_call_command,
-)
-from .command_handlers.trajectory_commands import (
-    handle_trajectory_show as handle_trajectory_show_command,
-    handle_trajectory_stats as handle_trajectory_stats_command,
-    handle_trajectory_backfill as handle_trajectory_backfill_command,
+from .command_handlers.architecture_commands import (
+    handle_assess_compare_command,
+    handle_assess_component_command,
+    handle_assess_directory_command,
 )
 from .command_handlers.concept_graph_commands import (
     handle_concept_build,
+    handle_concept_related,
     handle_concept_stats,
     handle_concept_top,
-    handle_concept_related,
 )
-from .command_handlers.message_commands import (
-    handle_message_send_command,
-    handle_message_inbox_command,
-    handle_message_read_command,
-    handle_message_reply_command,
-    handle_message_thread_command,
-    handle_message_channels_command,
-    handle_message_cleanup_command,
+from .command_handlers.docs_commands import handle_docs_assess, handle_docs_explain
+from .command_handlers.mcp_commands import (
+    handle_mcp_call_command,
+    handle_mcp_list_tools_command,
+    handle_mcp_start_command,
+    handle_mcp_status_command,
+    handle_mcp_stop_command,
+    handle_mcp_test_command,
 )
 from .command_handlers.memory_commands import (
     handle_memory_prime_command,
+    handle_memory_report_command,
     handle_memory_scope_command,
     handle_memory_value_command,
     handle_pattern_check_command,
     handle_session_rollup_command,
-    handle_memory_report_command,
+)
+from .command_handlers.message_commands import (
+    handle_message_channels_command,
+    handle_message_cleanup_command,
+    handle_message_inbox_command,
+    handle_message_read_command,
+    handle_message_reply_command,
+    handle_message_send_command,
+    handle_message_thread_command,
+)
+from .command_handlers.persona_commands import (
+    handle_persona_find_command,
+    handle_persona_list_command,
+    handle_persona_promote_command,
+    handle_persona_show_command,
+)
+from .command_handlers.query_commands import handle_query_command
+from .command_handlers.release_commands import handle_release_ready_command
+from .command_handlers.sentinel_commands import (
+    handle_sentinel_check_command,
+    handle_sentinel_load_profile_command,
+    handle_sentinel_orchestrate_command,
+    handle_sentinel_status_command,
+)
+from .command_handlers.trajectory_commands import (
+    handle_trajectory_backfill as handle_trajectory_backfill_command,
+)
+from .command_handlers.trajectory_commands import (
+    handle_trajectory_show as handle_trajectory_show_command,
+)
+from .command_handlers.trajectory_commands import (
+    handle_trajectory_stats as handle_trajectory_stats_command,
+)
+from .parsers import (
+    add_action_parsers,
+    add_agent_parsers,
+    add_architecture_parsers,
+    add_cascade_parsers,
+    add_checkpoint_parsers,
+    add_concept_graph_parsers,
+    add_config_parsers,
+    add_edit_verification_parsers,
+    add_epistemics_parsers,
+    add_investigation_parsers,
+    add_issue_capture_parsers,
+    add_lesson_parsers,
+    add_mcp_parsers,
+    add_memory_parsers,
+    add_message_parsers,
+    add_monitor_parsers,
+    add_onboarding_parsers,
+    add_performance_parsers,
+    add_persona_parsers,
+    add_profile_parsers,
+    add_query_parsers,
+    add_release_parsers,
+    add_sentinel_parsers,
+    add_serve_parsers,
+    add_session_parsers,
+    add_skill_parsers,
+    add_trajectory_parsers,
+    add_user_interface_parsers,
+    add_utility_parsers,
+    add_vision_parsers,
 )
 
 
@@ -191,12 +198,12 @@ def _get_version():
     try:
         import empirica
         version = empirica.__version__
-        
+
         # Add Python version and install location
         import sys
         python_version = f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         install_path = empirica.__file__.rsplit('/', 2)[0] if '/' in empirica.__file__ else empirica.__file__
-        
+
         return f"{version}\n{python_version}\nInstall: {install_path}"
     except Exception:
         return "1.0.5 (version info unavailable)"
@@ -210,12 +217,12 @@ def create_argument_parser():
         formatter_class=GroupedHelpFormatter,
         epilog="Global Flags (must come BEFORE command name):\n  empirica [--version] [--verbose] <command> [args]\n\nExamples:\n  empirica session-create --ai-id myai      # Create session\n  empirica --verbose sessions-list          # Show debug info\n  empirica preflight-submit --session-id xyz # PREFLIGHT\n  empirica --verbose check --session-id xyz # CHECK with debugging"
     )
-    
+
     # Global options (must come before subcommand)
     parser.add_argument('--version', action='version', version=f'%(prog)s {_get_version()}')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output (shows DB path, execution time, etc.). Must come before command name.')
     parser.add_argument('--config', help='Path to configuration file')
-    
+
     # Create subcommands
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
@@ -257,10 +264,10 @@ def create_argument_parser():
 def main(args=None):
     """Main CLI entry point"""
     start_time = time.time()
-    
+
     parser = create_argument_parser()
     parsed_args = parser.parse_args(args)
-    
+
     if not parsed_args.command:
         parser.print_help()
         sys.exit(1)
@@ -285,7 +292,7 @@ def main(args=None):
             db.close()
         except Exception as e:
             print(f"[VERBOSE] Database: (unavailable: {e})", file=sys.stderr)
-    
+
     # Command handler mapping
     try:
         command_handlers = {
@@ -298,13 +305,13 @@ def main(args=None):
             'session-snapshot': handle_session_snapshot_command,
             'memory-compact': handle_memory_compact_command,
             'transaction-adopt': handle_transaction_adopt_command,
-            
+
             # CASCADE commands (working -submit variants only)
             'preflight-submit': handle_preflight_submit_command,
             'check': handle_check_command,
             'check-submit': handle_check_submit_command,
             'postflight-submit': handle_postflight_submit_command,
-            
+
             # Investigation commands
             'investigate': handle_investigate_command,
             'investigate-log': handle_investigate_log_command,
@@ -312,29 +319,29 @@ def main(args=None):
             'investigate-checkpoint-branch': handle_investigate_checkpoint_branch_command,
             'investigate-merge-branches': handle_investigate_merge_branches_command,
             'investigate-multi': handle_investigate_multi_command,
-            
+
             # Action commands
             'act-log': handle_act_log_command,
-            
+
             # Performance commands
             'performance': handle_performance_command,
-            
+
             # Skill commands
             'skill-suggest': handle_skill_suggest_command,
             'skill-fetch': handle_skill_fetch_command,
             'skill-extract': handle_skill_extract_command,
-            
+
             # Utility commands
             'log-token-saving': handle_log_token_saving,
             'efficiency-report': handle_efficiency_report,
-            
+
             # Qdrant maintenance commands
             'qdrant-cleanup': handle_qdrant_cleanup_command,
             'qdrant-status': handle_qdrant_status_command,
 
             # Config commands
             'config': handle_config_command,
-            
+
             # Monitor commands
             'monitor': handle_monitor_command,
             'system-status': handle_system_status_command,
@@ -353,21 +360,21 @@ def main(args=None):
             'checkpoint-sign': handle_checkpoint_sign_command,
             'checkpoint-verify': handle_checkpoint_verify_command,
             'checkpoint-signatures': handle_checkpoint_signatures_command,
-            
+
             # Identity commands
             'identity-create': handle_identity_create_command,
             'identity-export': handle_identity_export_command,
             'identity-list': handle_identity_list_command,
             'identity-verify': handle_identity_verify_command,
-            
+
             # Handoff commands
             'handoff-create': handle_handoff_create_command,
             'handoff-query': handle_handoff_query_command,
-            
+
             # Mistake logging
             'mistake-log': handle_mistake_log_command,
             'mistake-query': handle_mistake_query_command,
-            
+
             # Project commands
             'project-init': handle_project_init_command,
             'project-update': handle_project_update_command,
@@ -389,7 +396,7 @@ def main(args=None):
             'project-embed': handle_project_embed_command,
             'code-embed': handle_code_embed_command,
             'doc-check': handle_doc_check_command,
-            
+
             # Finding/unknown/deadend/assumption/decision logging
             'finding-log': handle_finding_log_command,
             'unknown-log': handle_unknown_log_command,
@@ -433,14 +440,14 @@ def main(args=None):
 
             # Vision commands
             'vision': handle_vision_analyze,
-            
+
             # Epistemics commands
             'epistemics-list': handle_epistemics_list_command,
             'epistemics-show': handle_epistemics_stats_command,
 
             # Edit verification commands
             'edit-with-confidence': handle_edit_with_confidence_command,
-            
+
             # Issue capture commands
             'issue-list': handle_issue_list_command,
             'issue-show': handle_issue_show_command,
@@ -584,7 +591,7 @@ def main(args=None):
             'mr': handle_message_read_command,
             'msg-reply': handle_message_reply_command,
         }
-        
+
         if parsed_args.command in command_handlers:
             handler = command_handlers[parsed_args.command]
             result = handler(parsed_args)
@@ -618,7 +625,7 @@ def main(args=None):
         else:
             print(f"❌ Unknown command: {parsed_args.command}")
             sys.exit(1)
-            
+
     except Exception as e:
         handle_cli_error(e, parsed_args.command)
         sys.exit(1)

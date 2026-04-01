@@ -24,11 +24,12 @@ Architecture:
 
 import json
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ class ContentBlock:
     block_type: ContentBlockType
     text: str = ""
     tool_name: str = ""
-    tool_input: Dict[str, Any] = field(default_factory=dict)
+    tool_input: dict[str, Any] = field(default_factory=dict)
     tool_use_id: str = ""
     thinking: str = ""
 
@@ -82,7 +83,7 @@ class TranscriptRecord:
 
     # For user/assistant records
     role: str = ""
-    content_blocks: List[ContentBlock] = field(default_factory=list)
+    content_blocks: list[ContentBlock] = field(default_factory=list)
     raw_content: str = ""  # For simple string content (user messages)
     model: str = ""
 
@@ -96,14 +97,14 @@ class TranscriptRecord:
     level: str = ""
 
     # Raw data for anything we don't parse
-    raw: Dict[str, Any] = field(default_factory=dict)
+    raw: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class ToolChain:
     """A tool invocation paired with its result."""
     tool_name: str
-    tool_input: Dict[str, Any]
+    tool_input: dict[str, Any]
     tool_use_id: str
     result_content: str = ""
     timestamp: str = ""
@@ -117,7 +118,7 @@ class ConversationTurn:
     user_message: str
     assistant_text: str = ""
     thinking: str = ""
-    tool_chains: List[ToolChain] = field(default_factory=list)
+    tool_chains: list[ToolChain] = field(default_factory=list)
     timestamp: str = ""
     model: str = ""
     is_sidechain: bool = False
@@ -154,7 +155,7 @@ class SessionIndex:
     def __init__(self, claude_dir: Optional[str] = None):
         self.claude_dir = Path(claude_dir or Path.home() / ".claude")
 
-    def discover_projects(self) -> List[str]:
+    def discover_projects(self) -> list[str]:
         """List all project directories under .claude/projects/."""
         projects_dir = self.claude_dir / "projects"
         if not projects_dir.exists():
@@ -164,7 +165,7 @@ class SessionIndex:
             if d.is_dir() and not d.name.startswith('.')
         ]
 
-    def get_sessions(self, project_name: str) -> List[SessionMetadata]:
+    def get_sessions(self, project_name: str) -> list[SessionMetadata]:
         """Read sessions-index.json for a project.
 
         Falls back to direct .jsonl file discovery if index doesn't exist.
@@ -214,7 +215,7 @@ class SessionIndex:
             ))
         return sessions
 
-    def get_all_sessions(self, min_messages: int = 2) -> List[SessionMetadata]:
+    def get_all_sessions(self, min_messages: int = 2) -> list[SessionMetadata]:
         """Get sessions across all projects, filtered by minimum message count."""
         all_sessions = []
         for project in self.discover_projects():
@@ -235,7 +236,7 @@ class TranscriptParser:
     # Record types that carry epistemic signal (vs operational noise)
     SIGNAL_TYPES = {RecordType.USER, RecordType.ASSISTANT, RecordType.SYSTEM, RecordType.SUMMARY}
 
-    def parse_session(self, jsonl_path: str) -> List[TranscriptRecord]:
+    def parse_session(self, jsonl_path: str) -> list[TranscriptRecord]:
         """Parse all records from a .jsonl transcript file.
 
         Args:
@@ -268,7 +269,7 @@ class TranscriptParser:
 
         return sorted(records, key=lambda r: r.timestamp)
 
-    def _parse_record(self, raw: Dict[str, Any]) -> Optional[TranscriptRecord]:
+    def _parse_record(self, raw: dict[str, Any]) -> Optional[TranscriptRecord]:
         """Parse a single JSON record into a TranscriptRecord."""
         raw_type = raw.get("type", "unknown")
         try:
@@ -304,7 +305,7 @@ class TranscriptParser:
 
         return record
 
-    def _parse_user_record(self, record: TranscriptRecord, raw: Dict[str, Any]):
+    def _parse_user_record(self, record: TranscriptRecord, raw: dict[str, Any]):
         """Parse user message content."""
         record.role = "user"
         message = raw.get("message", {})
@@ -334,7 +335,7 @@ class TranscriptParser:
                         parts.append(block.get("text", ""))
             record.raw_content = "\n".join(parts)
 
-    def _parse_assistant_record(self, record: TranscriptRecord, raw: Dict[str, Any]):
+    def _parse_assistant_record(self, record: TranscriptRecord, raw: dict[str, Any]):
         """Parse assistant message content blocks."""
         record.role = "assistant"
         message = raw.get("message", {})
@@ -372,13 +373,13 @@ class TranscriptParser:
                     thinking=block.get("thinking", ""),
                 ))
 
-    def _parse_system_record(self, record: TranscriptRecord, raw: Dict[str, Any]):
+    def _parse_system_record(self, record: TranscriptRecord, raw: dict[str, Any]):
         """Parse system record."""
         record.subtype = raw.get("subtype", "")
         record.system_content = raw.get("content", "")
         record.level = raw.get("level", "")
 
-    def _parse_summary_record(self, record: TranscriptRecord, raw: Dict[str, Any]):
+    def _parse_summary_record(self, record: TranscriptRecord, raw: dict[str, Any]):
         """Parse summary record (post-compaction)."""
         record.role = "summary"
         message = raw.get("message", {})
@@ -394,7 +395,7 @@ class TranscriptParser:
                 record.raw_content = "\n".join(parts)
 
     def iter_conversation_turns(
-        self, records: List[TranscriptRecord], include_sidechains: bool = False
+        self, records: list[TranscriptRecord], include_sidechains: bool = False
     ) -> Iterator[ConversationTurn]:
         """Thread records into conversation turns (user → assistant pairs).
 
@@ -415,9 +416,9 @@ class TranscriptParser:
         turn_index = 0
         current_user_msg = ""
         current_user_ts = ""
-        current_assistant_text_parts: List[str] = []
-        current_thinking_parts: List[str] = []
-        current_tool_uses: Dict[str, ContentBlock] = {}  # tool_use_id -> block
+        current_assistant_text_parts: list[str] = []
+        current_thinking_parts: list[str] = []
+        current_tool_uses: dict[str, ContentBlock] = {}  # tool_use_id -> block
         current_model = ""
         current_branch = ""
         compact_in_turn = False
@@ -488,13 +489,13 @@ class TranscriptParser:
 
     def _resolve_tool_chains(
         self,
-        tool_uses: Dict[str, ContentBlock],
-        all_records: List[TranscriptRecord],
-    ) -> List[ToolChain]:
+        tool_uses: dict[str, ContentBlock],
+        all_records: list[TranscriptRecord],
+    ) -> list[ToolChain]:
         """Match tool_use blocks with their tool_result responses."""
         chains = []
         # Build a lookup of tool results from user records
-        result_lookup: Dict[str, str] = {}
+        result_lookup: dict[str, str] = {}
         for record in all_records:
             if record.record_type == RecordType.USER:
                 for block in record.content_blocks:
@@ -519,14 +520,14 @@ class TranscriptParser:
 
         return chains
 
-    def extract_tool_chains(self, records: List[TranscriptRecord]) -> List[ToolChain]:
+    def extract_tool_chains(self, records: list[TranscriptRecord]) -> list[ToolChain]:
         """Extract all tool chains from a session (flat list)."""
         all_chains = []
         for turn in self.iter_conversation_turns(records):
             all_chains.extend(turn.tool_chains)
         return all_chains
 
-    def session_stats(self, records: List[TranscriptRecord]) -> Dict[str, Any]:
+    def session_stats(self, records: list[TranscriptRecord]) -> dict[str, Any]:
         """Compute statistics for a session's records."""
         user_count = sum(1 for r in records if r.record_type == RecordType.USER)
         assistant_count = sum(1 for r in records if r.record_type == RecordType.ASSISTANT)
@@ -534,7 +535,7 @@ class TranscriptParser:
             r.output_tokens for r in records if r.record_type == RecordType.ASSISTANT
         )
 
-        tools_used: Dict[str, int] = {}
+        tools_used: dict[str, int] = {}
         for r in records:
             if r.record_type == RecordType.ASSISTANT:
                 for block in r.content_blocks:
@@ -594,7 +595,7 @@ class ClaudeAIParser:
     interface used by TranscriptParser.
     """
 
-    def parse_export(self, file_path: str) -> Tuple[List[ConversationTurn], Dict[str, Any]]:
+    def parse_export(self, file_path: str) -> tuple[list[ConversationTurn], dict[str, Any]]:
         """Parse a Claude.ai export (ZIP archive or JSON file).
 
         Args:
@@ -658,7 +659,7 @@ class ClaudeAIParser:
         metadata["total_turns"] = len(all_turns)
         return all_turns, metadata
 
-    def _extract_zip(self, zip_path: Path) -> Tuple[Optional[Any], Optional[Any], Optional[Any]]:
+    def _extract_zip(self, zip_path: Path) -> tuple[Optional[Any], Optional[Any], Optional[Any]]:
         """Extract conversations, memories, and projects from a ZIP export."""
         import zipfile
         conversations = None
@@ -688,7 +689,7 @@ class ClaudeAIParser:
 
         return conversations, memories, projects
 
-    def _parse_conversation(self, conv: Dict[str, Any]) -> List[ConversationTurn]:
+    def _parse_conversation(self, conv: dict[str, Any]) -> list[ConversationTurn]:
         """Parse a single conversation from Claude.ai export."""
         turns = []
 
@@ -731,7 +732,7 @@ class ClaudeAIParser:
 
         return turns
 
-    def _extract_message_content(self, msg: Dict[str, Any]) -> str:
+    def _extract_message_content(self, msg: dict[str, Any]) -> str:
         """Extract text content from a message using content[] as canonical source."""
         # Prefer content[] blocks over text field (text has ~13% mismatch rate)
         content = msg.get("content")
@@ -778,15 +779,15 @@ class ClaudeAIParser:
 
         return ""
 
-    def _extract_tool_chains(self, msg: Dict[str, Any]) -> List[ToolChain]:
+    def _extract_tool_chains(self, msg: dict[str, Any]) -> list[ToolChain]:
         """Extract tool chains from a Claude.ai message's content blocks."""
         content = msg.get("content")
         if not isinstance(content, list):
             return []
 
         # Build lookup of tool_use blocks by id
-        tool_uses: Dict[str, Dict[str, Any]] = {}
-        tool_results: Dict[str, Dict[str, Any]] = {}
+        tool_uses: dict[str, dict[str, Any]] = {}
+        tool_results: dict[str, dict[str, Any]] = {}
 
         for block in content:
             if not isinstance(block, dict):

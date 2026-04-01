@@ -13,9 +13,9 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Optional
 
-from .mapper import GroundedAssessment, UNGROUNDABLE_VECTORS
+from .mapper import UNGROUNDABLE_VECTORS, GroundedAssessment
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ class TrajectoryTracker:
         vector_name: str,
         lookback: int = 20,
         phase: Optional[str] = None,
-    ) -> List[TrajectoryPoint]:
+    ) -> list[TrajectoryPoint]:
         """Get recent trajectory points for a vector, optionally filtered by phase."""
         cursor = self.conn.cursor()
 
@@ -163,7 +163,7 @@ class TrajectoryTracker:
         ai_id: str,
         lookback: int = 10,
         phase: Optional[str] = None,
-    ) -> Dict[str, CalibrationTrend]:
+    ) -> dict[str, CalibrationTrend]:
         """
         Detect calibration trend per vector, optionally filtered by phase.
 
@@ -239,7 +239,7 @@ class TrajectoryTracker:
 
         return trends
 
-    def get_trajectory_summary(self, ai_id: str) -> Dict:
+    def get_trajectory_summary(self, ai_id: str) -> dict:
         """
         Get a summary of calibration trajectory for reporting.
 

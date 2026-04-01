@@ -8,7 +8,6 @@ Encapsulates all database operations for goals/subtasks domain.
 import json
 import time
 import uuid
-from typing import Dict, List
 
 from .base import BaseRepository
 
@@ -22,7 +21,7 @@ class GoalDataRepository(BaseRepository):
     """
 
     @staticmethod
-    def _dedupe_by_objective(items: List[Dict]) -> List[Dict]:
+    def _dedupe_by_objective(items: list[dict]) -> list[dict]:
         """
         Deduplicate goals by objective text, keeping the most recent entry.
 
@@ -99,7 +98,7 @@ class GoalDataRepository(BaseRepository):
         self.commit()
         return subtask_id
 
-    def update_subtask_findings(self, subtask_id: str, findings: List[str]):
+    def update_subtask_findings(self, subtask_id: str, findings: list[str]):
         """Update findings for a subtask
 
         Args:
@@ -121,7 +120,7 @@ class GoalDataRepository(BaseRepository):
 
         self.commit()
 
-    def update_subtask_unknowns(self, subtask_id: str, unknowns: List[str]):
+    def update_subtask_unknowns(self, subtask_id: str, unknowns: list[str]):
         """Update unknowns for a subtask
 
         Args:
@@ -143,7 +142,7 @@ class GoalDataRepository(BaseRepository):
 
         self.commit()
 
-    def update_subtask_dead_ends(self, subtask_id: str, dead_ends: List[str]):
+    def update_subtask_dead_ends(self, subtask_id: str, dead_ends: list[str]):
         """Update dead ends for a subtask
 
         Args:
@@ -182,7 +181,7 @@ class GoalDataRepository(BaseRepository):
 
         self.commit()
 
-    def get_goal_tree(self, session_id: str) -> List[Dict]:
+    def get_goal_tree(self, session_id: str) -> list[dict]:
         """Get complete goal tree for a session
 
         Returns list of goals with nested subtasks
@@ -249,7 +248,7 @@ class GoalDataRepository(BaseRepository):
 
         return goals
 
-    def query_unknowns_summary(self, session_id: str) -> Dict:
+    def query_unknowns_summary(self, session_id: str) -> dict:
         """Get summary of all unknowns in a session (for CHECK decisions)
 
         Args:
@@ -290,7 +289,7 @@ class GoalDataRepository(BaseRepository):
             'unknowns_by_goal': list(unknowns_by_goal.values())
         }
 
-    def get_project_goals(self, project_id: str) -> Dict:
+    def get_project_goals(self, project_id: str) -> dict:
         """Get incomplete and active goals for a project"""
         # Get incomplete goals
         cursor = self._execute("""
@@ -364,7 +363,7 @@ class GoalDataRepository(BaseRepository):
         self.commit()
         return count
 
-    def get_stale_goals(self, session_id: str = None, project_id: str = None) -> List[Dict]:
+    def get_stale_goals(self, session_id: str = None, project_id: str = None) -> list[dict]:
         """Get stale goals for a session or project
 
         Args:

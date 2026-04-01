@@ -122,9 +122,11 @@ def handle_persona_show_command(args):
 def handle_persona_promote_command(args):
     """Handle persona-promote command - promote emerged persona to MCO."""
     try:
-        from empirica.core.emerged_personas import EmergedPersonaStore
         from pathlib import Path
+
         import yaml
+
+        from empirica.core.emerged_personas import EmergedPersonaStore
 
         persona_id = args.persona_id
         output_format = getattr(args, 'output', 'human')

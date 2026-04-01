@@ -12,8 +12,8 @@ Phase 3 Components:
 """
 
 from .coherence_validator import CoherenceValidator
-from .rehydration import EpistemicRehydration
 from .handoff_validator import HandoffValidator
+from .rehydration import EpistemicRehydration
 
 __all__ = [
     'CoherenceValidator',

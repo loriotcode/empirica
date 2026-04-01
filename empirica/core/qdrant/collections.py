@@ -2,12 +2,15 @@
 Qdrant collection naming, initialization, and migration utilities.
 """
 from __future__ import annotations
-from typing import List
 
 from empirica.core.qdrant.connection import (
-    _check_qdrant_available, _get_qdrant_imports, _get_qdrant_client,
-    _get_vector_size, logger,
+    _check_qdrant_available,
+    _get_qdrant_client,
+    _get_qdrant_imports,
+    _get_vector_size,
+    logger,
 )
+
 
 def _docs_collection(project_id: str) -> str:
     return f"project_{project_id}_docs"
@@ -179,7 +182,7 @@ def recreate_global_collections() -> dict:
     return results
 
 
-def get_collection_info() -> List[dict]:
+def get_collection_info() -> list[dict]:
     """
     Get info about all Qdrant collections including dimensions and point counts.
     Useful for diagnosing dimension mismatches.

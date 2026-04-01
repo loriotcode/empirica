@@ -59,7 +59,7 @@ def _get_file_content(file_path: str) -> str:
     """Read file content, returning empty string on failure."""
     try:
         return Path(file_path).read_text(encoding='utf-8', errors='replace')
-    except (OSError, IOError) as e:
+    except OSError as e:
         logger.debug(f"  Cannot read {file_path}: {e}")
         return ""
 

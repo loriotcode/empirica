@@ -22,15 +22,15 @@ Usage:
     print(assessment.summary())
 """
 
+from .assessor import ComponentAssessor
+from .coupling_analyzer import CouplingAnalyzer
 from .schema import (
-    ComponentAssessment,
     ArchitectureVectors,
+    ComponentAssessment,
     CouplingMetrics,
     StabilityMetrics,
 )
-from .coupling_analyzer import CouplingAnalyzer
 from .stability_estimator import StabilityEstimator
-from .assessor import ComponentAssessor
 
 __all__ = [
     "ComponentAssessor",

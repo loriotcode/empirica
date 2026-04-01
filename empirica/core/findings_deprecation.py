@@ -9,22 +9,22 @@ Key insight: Not all findings are equally relevant. Recent high-impact
 findings should be prioritized, while old low-impact findings fade.
 """
 
+import logging
 import math
 from datetime import datetime
-from typing import Dict, List, Optional
-import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
 class FindingsDeprecationEngine:
     """Calculate relevance scores and filter findings by depth."""
-    
+
     # Deprecation constants
     TIME_DECAY_HALF_LIFE = 30  # days - half-life for time decay
     COMPLETION_PENALTY = 0.3   # completed goals reduced by 30%
     DELTA_BOOST_FACTOR = 0.2   # execution state delta boost
-    
+
     # Tier thresholds
     TIER_THRESHOLDS = {
         "minimal": 0.80,    # Only high relevance (Tier 0)
@@ -32,7 +32,7 @@ class FindingsDeprecationEngine:
         "full": 0.40,       # Extended history (Tiers 0-2)
         "complete": 0.0     # All findings (Tiers 0-3+)
     }
-    
+
     @staticmethod
     def calculate_time_decay(created_timestamp) -> float:
         """
@@ -56,15 +56,15 @@ class FindingsDeprecationEngine:
             except (ValueError, TypeError):
                 # If can't parse, assume recent (score = 0.5)
                 return 0.5
-        
+
         now = datetime.now().timestamp()
         age_seconds = now - created_timestamp
         age_days = age_seconds / 86400
-        
+
         # Exponential decay: e^(-age / half_life)
         decay = math.exp(-age_days / FindingsDeprecationEngine.TIME_DECAY_HALF_LIFE)
         return max(0.0, min(1.0, decay))
-    
+
     @staticmethod
     def calculate_completion_factor(goal_completion: Optional[float]) -> float:
         """
@@ -81,15 +81,15 @@ class FindingsDeprecationEngine:
         """
         if goal_completion is None:
             return 1.0
-        
+
         # 1.0 - (completion * 0.3)
         # completion=0: factor=1.0
         # completion=1: factor=0.7
         return max(0.7, 1.0 - (goal_completion * FindingsDeprecationEngine.COMPLETION_PENALTY))
-    
+
     @staticmethod
     def calculate_relevance_score(
-        finding: Dict,
+        finding: dict,
         current_task: Optional[str] = None,
         execution_state_delta: float = 0.0,
         goal_completion: Optional[float] = None
@@ -118,24 +118,24 @@ class FindingsDeprecationEngine:
             time_score = 0.5
         else:
             time_score = FindingsDeprecationEngine.calculate_time_decay(created_ts)
-        
+
         # Component 2: Impact weight * completion factor (30%)
         impact = finding.get('impact')
         if impact is None:
             impact = 0.5  # Default for NULL values
-        
+
         completion_factor = FindingsDeprecationEngine.calculate_completion_factor(goal_completion)
         impact_score = impact * completion_factor
-        
+
         # Component 3: Execution state delta (20%)
         # Boost relevance if there's significant learning happening
         delta_score = 1.0 + (execution_state_delta * FindingsDeprecationEngine.DELTA_BOOST_FACTOR)
         delta_score = max(0.8, min(1.2, delta_score))  # Clamp 0.8-1.2
-        
+
         # Component 4: Task semantic match (10%)
         # TODO: Implement semantic similarity when task_description provided
         task_match = 0.5  # Default neutral
-        
+
         # Weighted combination
         relevance = (
             0.40 * time_score +
@@ -143,16 +143,16 @@ class FindingsDeprecationEngine:
             0.20 * delta_score +
             0.10 * task_match
         )
-        
+
         return max(0.0, min(1.0, relevance))
-    
+
     @staticmethod
     def filter_by_depth(
-        findings: List[Dict],
+        findings: list[dict],
         depth: str = "auto",
-        relevance_scores: Optional[List[float]] = None,
+        relevance_scores: Optional[list[float]] = None,
         uncertainty: float = 0.5
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Filter findings by depth tier and relevance threshold.
         
@@ -177,14 +177,14 @@ class FindingsDeprecationEngine:
         """
         if not findings:
             return []
-        
+
         # Calculate scores if not provided
         if relevance_scores is None:
             relevance_scores = [
                 FindingsDeprecationEngine.calculate_relevance_score(f)
                 for f in findings
             ]
-        
+
         # Determine actual depth
         if depth == "auto":
             if uncertainty > 0.5:
@@ -193,28 +193,28 @@ class FindingsDeprecationEngine:
                 depth = "moderate"
             else:
                 depth = "minimal"
-        
+
         # Get threshold
         threshold = FindingsDeprecationEngine.TIER_THRESHOLDS.get(depth, 0.0)
-        
+
         # Filter by threshold
         filtered = [
             finding for finding, score in zip(findings, relevance_scores)
             if score >= threshold
         ]
-        
+
         logger.info(
             f"Filtered findings: {len(filtered)}/{len(findings)} "
             f"(depth={depth}, threshold={threshold:.2f})"
         )
-        
+
         return filtered
-    
+
     @staticmethod
     def get_findings_summary(
-        findings: List[Dict],
-        relevance_scores: Optional[List[float]] = None
-    ) -> Dict:
+        findings: list[dict],
+        relevance_scores: Optional[list[float]] = None
+    ) -> dict:
         """
         Generate summary statistics about findings relevance distribution.
         
@@ -228,13 +228,13 @@ class FindingsDeprecationEngine:
                 "avg_relevance": 0.0,
                 "tier_distribution": {}
             }
-        
+
         if relevance_scores is None:
             relevance_scores = [
                 FindingsDeprecationEngine.calculate_relevance_score(f)
                 for f in findings
             ]
-        
+
         # Count by tier
         tiers = {
             "Tier 0 (high)": sum(1 for s in relevance_scores if s >= 0.80),
@@ -242,7 +242,7 @@ class FindingsDeprecationEngine:
             "Tier 2 (low)": sum(1 for s in relevance_scores if 0.40 <= s < 0.60),
             "Tier 3+ (archive)": sum(1 for s in relevance_scores if s < 0.40),
         }
-        
+
         return {
             "total": len(findings),
             "loaded": len(findings),

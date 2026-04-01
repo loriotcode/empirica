@@ -2,9 +2,10 @@
 Investigation Commands - Analysis, investigation, and exploration functionality
 """
 
-import os
 import json
-from ..cli_utils import print_component_status, handle_cli_error, parse_json_safely, run_empirica_subprocess
+import os
+
+from ..cli_utils import handle_cli_error, parse_json_safely, run_empirica_subprocess
 
 
 def _get_recalibration_attempts(session_id: str) -> int:
@@ -20,21 +21,21 @@ def _get_recalibration_attempts(session_id: str) -> int:
         from empirica.data.session_database import SessionDatabase
         db = SessionDatabase()
         session_data = db.get_session(session_id)
-        
+
         if not session_data:
             return 0
-        
+
         # Count CHECK commands with 'investigate' decision in this session
         # This is tracked in the reflexes table
         from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
         git_logger = GitEnhancedReflexLogger(session_id=session_id, enable_git_notes=True)
         checkpoints = git_logger.list_checkpoints(limit=100)
-        
+
         investigate_count = 0
         for checkpoint in checkpoints:
             if checkpoint and checkpoint.get('metadata', {}).get('decision') == 'investigate':
                 investigate_count += 1
-        
+
         return investigate_count
     except Exception:
         return 0
@@ -44,14 +45,14 @@ def _get_profile_thresholds():
     """Get thresholds from investigation profiles instead of using hardcoded values"""
     try:
         from empirica.config.profile_loader import ProfileLoader
-        
+
         loader = ProfileLoader()
         universal = loader.universal_constraints
-        
+
         try:
             profile = loader.get_profile('balanced')
             constraints = profile.constraints
-            
+
             return {
                 'confidence_low': getattr(constraints, 'confidence_low_threshold', 0.5),
                 'confidence_high': getattr(constraints, 'confidence_high_threshold', 0.7),
@@ -67,7 +68,7 @@ def _get_profile_thresholds():
             }
     except Exception:
         return {
-            'confidence_low': 0.5, 
+            'confidence_low': 0.5,
             'confidence_high': 0.7,
             'engagement_gate': 0.6,
             'coherence_min': 0.5,
@@ -93,17 +94,17 @@ def handle_investigate_command(args):
         session_id = getattr(args, 'session_id', None)
         bootstrap_context = {}
         recalibration_attempt = 0
-        
+
         if session_id:
             # Check recalibration attempt count to prevent infinite loops
             recalibration_attempt = _get_recalibration_attempts(session_id)
-            
+
             if recalibration_attempt >= 3:
                 print(f"⚠️  Recalibration attempt limit reached ({recalibration_attempt})")
                 print(f"   Consider: pausing investigation, taking a snapshot, or starting fresh")
                 print(f"   Further investigation may not resolve drift")
                 return None
-            
+
             try:
                 result = run_empirica_subprocess(
                     ['empirica', 'project-bootstrap', '--session-id', session_id, '--output', 'json'],
@@ -120,8 +121,6 @@ def handle_investigate_command(args):
                 # Bootstrap failure is non-fatal
                 pass
 
-        from empirica.components.code_intelligence_analyzer import CodeIntelligenceAnalyzer
-        from empirica.components.workspace_awareness import WorkspaceNavigator
 
         target = args.target
         print(f"🔍 Investigating: {target}")
@@ -147,30 +146,30 @@ def handle_investigate_command(args):
             result = _investigate_concept(target, getattr(args, 'context', None), getattr(args, 'verbose', False))
         else:
             result = {"error": f"Unknown investigation type: {investigation_type}"}
-        
+
         # Display results
         print(f"✅ Investigation complete")
         print(f"   🎯 Target: {target}")
         print(f"   📊 Type: {result.get('type', 'unknown')}")
-        
+
         if result.get('summary'):
             print(f"   📝 Summary: {result['summary']}")
-        
+
         if result.get('findings'):
             print("🔍 Key findings:")
             for finding in result['findings'][:5]:  # Show top 5
                 print(f"   • {finding}")
-        
+
         if result.get('metrics'):
             print("📊 Metrics:")
             for metric, value in result['metrics'].items():
                 print(f"   • {metric}: {value}")
-        
+
         if result.get('recommendations'):
             print("💡 Recommendations:")
             for rec in result['recommendations']:
                 print(f"   • {rec}")
-        
+
         if result.get('error'):
             print(f"❌ Investigation error: {result['error']}")
 
@@ -194,10 +193,10 @@ def handle_analyze_command(args):
         # Support both 'subject' (old analyze) and 'target' (new investigate)
         subject = getattr(args, 'subject', None) or getattr(args, 'target', 'unknown')
         print(f"📊 Analyzing: {subject}")
-        
+
         analyzer = EmpiricalPerformanceAnalyzer()
         context = parse_json_safely(getattr(args, 'context', None))
-        
+
         # Run comprehensive analysis
         result = analyzer.analyze(
             subject=args.subject,
@@ -205,12 +204,12 @@ def handle_analyze_command(args):
             analysis_type=getattr(args, 'type', 'general'),
             detailed=getattr(args, 'detailed', False)
         )
-        
+
         print(f"✅ Analysis complete")
         print(f"   🎯 Subject: {args.subject}")
         print(f"   📊 Analysis type: {result.get('analysis_type', 'general')}")
         print(f"   🏆 Score: {result.get('score', 0):.2f}")
-        
+
         # Show analysis dimensions
         if result.get('dimensions'):
             thresholds = _get_profile_thresholds()
@@ -218,13 +217,13 @@ def handle_analyze_command(args):
             for dimension, score in result['dimensions'].items():
                 status = "✅" if score > thresholds['confidence_high'] else "⚠️" if score > thresholds['confidence_low'] else "❌"
                 print(f"   {status} {dimension}: {score:.2f}")
-        
+
         # Show insights
         if result.get('insights'):
             print("💭 Insights:")
             for insight in result['insights']:
                 print(f"   • {insight}")
-        
+
         # Show detailed breakdown if requested
         if getattr(args, 'detailed', False) and result.get('detailed_breakdown'):
             print("🔍 Detailed breakdown:")
@@ -252,10 +251,10 @@ def _investigate_file(file_path: str, verbose: bool = False) -> dict:
     """Investigate a specific file"""
     try:
         from empirica.components.code_intelligence_analyzer import CodeIntelligenceAnalyzer
-        
+
         analyzer = CodeIntelligenceAnalyzer()
         result = analyzer.analyze_file(file_path)
-        
+
         return {
             "type": "file",
             "summary": result.get('summary', f"Analysis of {os.path.basename(file_path)}"),
@@ -263,7 +262,7 @@ def _investigate_file(file_path: str, verbose: bool = False) -> dict:
             "metrics": result.get('metrics', {}),
             "recommendations": result.get('recommendations', [])
         }
-        
+
     except Exception as e:
         return {"error": str(e), "type": "file"}
 
@@ -272,10 +271,10 @@ def _investigate_directory(dir_path: str, verbose: bool = False) -> dict:
     """Investigate a directory structure"""
     try:
         from empirica.components.workspace_awareness import WorkspaceNavigator
-        
+
         workspace = WorkspaceNavigator()
         result = workspace.analyze_directory(dir_path)
-        
+
         return {
             "type": "directory",
             "summary": result.get('summary', f"Analysis of {os.path.basename(dir_path)}"),
@@ -283,7 +282,7 @@ def _investigate_directory(dir_path: str, verbose: bool = False) -> dict:
             "metrics": result.get('metrics', {}),
             "recommendations": result.get('recommendations', [])
         }
-        
+
     except Exception as e:
         return {"error": str(e), "type": "directory"}
 
@@ -293,7 +292,7 @@ def _investigate_concept(concept: str, context: str = None, verbose: bool = Fals
     try:
         # NOTE: EpistemicAssessor moved to empirica-sentinel repo
         context_data = parse_json_safely(context)
-        
+
         # Use available method or create mock result
         result = {
             'summary': f"Concept investigation: {concept}",
@@ -301,7 +300,7 @@ def _investigate_concept(concept: str, context: str = None, verbose: bool = Fals
             'confidence_metrics': {'analysis_depth': 0.7},
             'recommendations': ['Further investigation recommended']
         }
-        
+
         return {
             "type": "concept",
             "summary": result.get('summary', f"Investigation of concept: {concept}"),
@@ -309,7 +308,7 @@ def _investigate_concept(concept: str, context: str = None, verbose: bool = Fals
             "metrics": result.get('confidence_metrics', {}),
             "recommendations": result.get('recommendations', [])
         }
-        
+
     except Exception as e:
         return {"error": str(e), "type": "concept"}
 
@@ -567,9 +566,9 @@ def handle_investigate_multi_command(args):
         empirica investigate-multi --task "Review auth code" --personas security,ux --session-id <ID>
     """
     try:
-        from empirica.data.session_database import SessionDatabase
         from empirica.core.agents import EpistemicAgentConfig, spawn_epistemic_agent
         from empirica.core.persona import PersonaManager
+        from empirica.data.session_database import SessionDatabase
 
         session_id = args.session_id
         task = args.task

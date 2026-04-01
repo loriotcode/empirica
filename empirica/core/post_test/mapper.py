@@ -24,7 +24,7 @@ systematic bias patterns over time, but not ground truth for any single transact
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import yaml
 
@@ -47,7 +47,7 @@ UNGROUNDABLE_VECTORS = {"engagement"}
 # Keys = work_type, values = dict of evidence_source → relevance multiplier.
 # Missing sources default to 1.0 (neutral). Values < 1.0 down-weight irrelevant evidence.
 # Values > 1.0 up-weight primary evidence for that work type.
-WORK_TYPE_RELEVANCE: Dict[str, Dict[str, float]] = {
+WORK_TYPE_RELEVANCE: dict[str, dict[str, float]] = {
     "code": {},  # default weights — code is the baseline
     "infra": {
         "git_metrics": 0.3, "test_results": 0.3, "code_quality": 0.3,
@@ -107,15 +107,15 @@ class GroundedVectorEstimate:
 class GroundedAssessment:
     """Complete grounded assessment alongside self-assessment."""
     session_id: str
-    self_assessed: Dict[str, float]
-    grounded: Dict[str, GroundedVectorEstimate]
-    calibration_gaps: Dict[str, float]
+    self_assessed: dict[str, float]
+    grounded: dict[str, GroundedVectorEstimate]
+    calibration_gaps: dict[str, float]
     grounded_coverage: float
     overall_calibration_score: float
     phase: str = "combined"  # "noetic", "praxic", or "combined"
 
 
-def _load_domain_weights(domain: str = "default") -> Dict[str, Any]:
+def _load_domain_weights(domain: str = "default") -> dict[str, Any]:
     """Load domain category weights and vector-category map from confidence_weights.yaml.
 
     Args:
@@ -154,9 +154,9 @@ def _load_domain_weights(domain: str = "default") -> Dict[str, Any]:
 
 
 def _compute_weighted_calibration(
-    calibration_gaps: Dict[str, float],
+    calibration_gaps: dict[str, float],
     domain: str = "default",
-    per_vector_weights: Optional[Dict[str, float]] = None,
+    per_vector_weights: Optional[dict[str, float]] = None,
 ) -> float:
     """Compute category-weighted calibration score.
 
@@ -179,7 +179,7 @@ def _compute_weighted_calibration(
     vector_map = config["vector_category_map"]
 
     # Group gaps by category
-    category_gaps: Dict[str, List[Tuple[str, float]]] = {}
+    category_gaps: dict[str, list[tuple[str, float]]] = {}
     for vector_name, gap in calibration_gaps.items():
         category = vector_map.get(vector_name, "foundation")
         if category not in category_gaps:
@@ -213,10 +213,10 @@ class EvidenceMapper:
     def map_evidence(
         self,
         bundle: EvidenceBundle,
-        self_assessed_vectors: Dict[str, float],
+        self_assessed_vectors: dict[str, float],
         phase: str = "combined",
         domain: str = "default",
-        per_vector_weights: Optional[Dict[str, float]] = None,
+        per_vector_weights: Optional[dict[str, float]] = None,
         work_type: Optional[str] = None,
     ) -> GroundedAssessment:
         """Map evidence to grounded vector estimates and compare to self-assessment."""
@@ -224,7 +224,7 @@ class EvidenceMapper:
         relevance = WORK_TYPE_RELEVANCE.get(work_type, {}) if work_type else {}
 
         # Group evidence by supported vector
-        vector_evidence: Dict[str, List[Tuple[EvidenceItem, float]]] = {}
+        vector_evidence: dict[str, list[tuple[EvidenceItem, float]]] = {}
         for item in bundle.items:
             quality_weight = QUALITY_WEIGHTS.get(item.quality, 0.5)
             # Apply work-type relevance scaling to evidence source

@@ -24,8 +24,8 @@ import logging
 import math
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional, Any
+from dataclasses import asdict, dataclass, field
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class DomainAllocation:
         """Budget remaining after accounting for prior findings."""
         return max(0, self.budget - self.prior_findings)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -58,7 +58,7 @@ class AttentionBudget:
     allocated: int = 0  # Findings allocated so far
     remaining: int = 0  # Budget remaining
     strategy: str = "information_gain"
-    allocations: List[DomainAllocation] = field(default_factory=list)
+    allocations: list[DomainAllocation] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
 
@@ -93,7 +93,7 @@ class AttentionBudget:
                 return alloc
         return None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "session_id": self.session_id,
@@ -133,10 +133,10 @@ class AttentionBudgetCalculator:
 
     def create_budget(
         self,
-        domains: List[str],
-        current_vectors: Optional[Dict[str, float]] = None,
-        prior_findings_by_domain: Optional[Dict[str, int]] = None,
-        dead_ends_by_domain: Optional[Dict[str, int]] = None,
+        domains: list[str],
+        current_vectors: Optional[dict[str, float]] = None,
+        prior_findings_by_domain: Optional[dict[str, int]] = None,
+        dead_ends_by_domain: Optional[dict[str, int]] = None,
         total_budget: Optional[int] = None,
     ) -> AttentionBudget:
         """
@@ -227,7 +227,7 @@ class AttentionBudgetCalculator:
     def _estimate_domain_gain(
         self,
         domain: str,
-        vectors: Dict[str, float],
+        vectors: dict[str, float],
         prior_findings: int,
         dead_ends: int,
     ) -> float:

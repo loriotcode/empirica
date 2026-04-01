@@ -22,7 +22,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from project_resolver import get_instance_id, _get_instance_suffix
+from project_resolver import _get_instance_suffix, get_instance_id
 
 LOG_DIR = Path.home() / '.empirica' / 'logs'
 LOG_DIR.mkdir(parents=True, exist_ok=True)

@@ -6,8 +6,7 @@ Foundation for future Qdrant/Sentinel integration.
 
 import re
 import subprocess
-from typing import List, Dict, Optional, Any
-from pathlib import Path
+from typing import Any, Optional
 
 
 def get_current_git_commit(repo_path: str = ".") -> Optional[str]:
@@ -25,7 +24,7 @@ def get_current_git_commit(repo_path: str = ".") -> Optional[str]:
         return None
 
 
-def parse_file_references(text: str) -> List[Dict[str, Any]]:
+def parse_file_references(text: str) -> list[dict[str, Any]]:
     """
     Extract structured file references from finding text.
     
@@ -41,29 +40,29 @@ def parse_file_references(text: str) -> List[Dict[str, Any]]:
         List of structured references
     """
     refs = []
-    
+
     # Pattern: filename.ext:line or filename.ext:line1-line2
     # Handles: auth.py:45, src/auth.py:45, auth.py:45-52
     pattern = r'([\w/.-]+\.[\w]+):(\d+)(?:-(\d+))?'
-    
+
     for match in re.finditer(pattern, text):
         file_path = match.group(1)
         line_start = int(match.group(2))
         line_end = match.group(3)
-        
+
         ref = {"file": file_path}
-        
+
         if line_end:
             ref["lines"] = [line_start, int(line_end)]
         else:
             ref["line"] = line_start
-            
+
         refs.append(ref)
-    
+
     return refs
 
 
-def parse_doc_references(text: str) -> List[Dict[str, str]]:
+def parse_doc_references(text: str) -> list[dict[str, str]]:
     """
     Extract documentation references.
     
@@ -72,24 +71,24 @@ def parse_doc_references(text: str) -> List[Dict[str, str]]:
     - README.md#section -> {"doc": "README.md", "section": "#section"}
     """
     refs = []
-    
+
     # Pattern: doc files with optional anchor
     pattern = r'([\w/.-]+\.md)(?:(#[\w-]+))?'
-    
+
     for match in re.finditer(pattern, text):
         doc_path = match.group(1)
         section = match.group(2)
-        
+
         ref = {"doc": doc_path}
         if section:
             ref["section"] = section
-            
+
         refs.append(ref)
-    
+
     return refs
 
 
-def parse_url_references(text: str) -> List[str]:
+def parse_url_references(text: str) -> list[str]:
     """Extract URLs from text"""
     # Simple URL pattern
     pattern = r'https?://[^\s)]+|www\.[^\s)]+'
@@ -101,7 +100,7 @@ def structure_finding(
     commit_sha: Optional[str] = None,
     session_id: Optional[str] = None,
     check_id: Optional[str] = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Convert plain text finding into structured format.
     
@@ -116,7 +115,7 @@ def structure_finding(
     """
     if commit_sha is None:
         commit_sha = get_current_git_commit()
-    
+
     structured = {
         "text": finding_text,
         "refs": {
@@ -126,25 +125,25 @@ def structure_finding(
         },
         "commit": commit_sha
     }
-    
+
     if session_id:
         structured["session_id"] = session_id
     if check_id:
         structured["check_id"] = check_id
-    
+
     return structured
 
 
 def structure_findings_list(
-    findings: List[str],
+    findings: list[str],
     commit_sha: Optional[str] = None,
     session_id: Optional[str] = None,
     check_id: Optional[str] = None
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Structure a list of findings"""
     if commit_sha is None:
         commit_sha = get_current_git_commit()
-    
+
     return [
         structure_finding(f, commit_sha, session_id, check_id)
         for f in findings
@@ -154,28 +153,28 @@ def structure_findings_list(
 # Query helpers for future use
 
 def filter_findings_by_file(
-    findings: List[Dict[str, Any]], 
+    findings: list[dict[str, Any]],
     filename: str
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Filter structured findings by filename"""
     return [
         f for f in findings
-        if any(filename in ref.get("file", "") 
+        if any(filename in ref.get("file", "")
                for ref in f.get("refs", {}).get("files", []))
     ]
 
 
 def filter_findings_by_commit(
-    findings: List[Dict[str, Any]], 
+    findings: list[dict[str, Any]],
     commit_sha: str
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Filter findings by git commit"""
     return [f for f in findings if f.get("commit") == commit_sha]
 
 
 def get_file_refs_from_findings(
-    findings: List[Dict[str, Any]]
-) -> List[str]:
+    findings: list[dict[str, Any]]
+) -> list[str]:
     """Extract all unique file references from findings"""
     files = set()
     for finding in findings:

@@ -21,15 +21,15 @@ Flow:
 
 import json
 import logging
-import subprocess
 import os
-from pathlib import Path
-from typing import Dict, List, Optional, Any
-from datetime import datetime, UTC
+import subprocess
 
 # Import GitPython - handle naming conflict with empirica.core.git package
 # We import git commands but need to be careful of the package name conflict
 import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, Optional
 
 # Temporarily remove empirica.core.git from sys.modules to import GitPython 'git' module
 _empirica_git_module = sys.modules.pop('empirica.core.git', None)
@@ -51,7 +51,6 @@ finally:
         sys.modules['empirica.core.git'] = _empirica_git_module
 
 from empirica.core.persona.signing_persona import SigningPersona
-from empirica.core.persona.persona_profile import PersonaProfile
 
 logger = logging.getLogger(__name__)
 
@@ -118,11 +117,11 @@ class SignedGitOperations:
     def commit_signed_state(
         self,
         signing_persona: SigningPersona,
-        epistemic_state: Dict[str, float],
+        epistemic_state: dict[str, float],
         phase: str,
         message: str,
-        additional_data: Optional[Dict[str, Any]] = None,
-        required_personas: Optional[List[str]] = None
+        additional_data: Optional[dict[str, Any]] = None,
+        required_personas: Optional[list[str]] = None
     ) -> str:
         """
         Create a Git commit with signed epistemic state in notes
@@ -214,7 +213,7 @@ class SignedGitOperations:
             logger.error(f"Git command failed: {e.stderr}")
             raise GitCommandError("git notes add", e.returncode, e.stderr)
 
-    def get_signed_state_from_commit(self, commit_sha: str) -> Optional[Dict[str, Any]]:
+    def get_signed_state_from_commit(self, commit_sha: str) -> Optional[dict[str, Any]]:
         """
         Retrieve signed epistemic state from commit's git notes
 
@@ -239,8 +238,8 @@ class SignedGitOperations:
         self,
         start_commit: str,
         end_commit: str,
-        known_personas: Optional[Dict[str, str]] = None
-    ) -> List[Dict[str, Any]]:
+        known_personas: Optional[dict[str, str]] = None
+    ) -> list[dict[str, Any]]:
         """
         Verify entire CASCADE trace from start to end commit
 
@@ -382,7 +381,7 @@ class SignedGitOperations:
         start_commit: str,
         end_commit: str,
         output_file: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Export CASCADE chain verification report
 
@@ -435,7 +434,7 @@ class SignedGitOperations:
     def _validate_cascade_phase(
         self,
         phase: str,
-        required_personas: Optional[List[str]] = None
+        required_personas: Optional[list[str]] = None
     ) -> None:
         """
         Validate CASCADE phase ordering and requirements
@@ -500,7 +499,7 @@ class SignedGitOperations:
         self,
         start_commit: str,
         end_commit: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get epistemic timeline for CASCADE phases
 

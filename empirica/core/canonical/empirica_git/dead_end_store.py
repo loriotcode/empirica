@@ -10,12 +10,12 @@ Key Features:
 - Enable cross-device sync to prevent re-exploration
 """
 
-import os
-import subprocess
 import json
 import logging
-from typing import Dict, Any, Optional, List
+import os
+import subprocess
 from datetime import datetime, timezone
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +151,7 @@ class GitDeadEndStore:
             logger.warning(f"Failed to store dead end in git: {e}")
             return False
 
-    def load_dead_end(self, dead_end_id: str) -> Optional[Dict[str, Any]]:
+    def load_dead_end(self, dead_end_id: str) -> Optional[dict[str, Any]]:
         """Load dead end from git notes"""
         if not self._git_available or not self._has_commits():
             return None
@@ -198,7 +198,7 @@ class GitDeadEndStore:
         project_id: Optional[str] = None,
         session_id: Optional[str] = None,
         ai_id: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Discover dead ends from git notes
 
@@ -260,7 +260,7 @@ class GitDeadEndStore:
             logger.warning(f"Failed to discover dead ends: {e}")
             return []
 
-    def search_similar(self, approach_keywords: List[str]) -> List[Dict[str, Any]]:
+    def search_similar(self, approach_keywords: list[str]) -> list[dict[str, Any]]:
         """
         Search for dead ends with similar approaches
 
