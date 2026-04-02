@@ -771,6 +771,36 @@ def handle_profile_status_command(args):
         return 1
 
 
+def _print_import_dry_run(all_results, totals, total_artifacts, source, sessions_scanned, min_confidence, output_format):
+    """Print dry-run import report."""
+    report = {"ok": True, "dry_run": True, "source": source,
+              "sessions_scanned": sessions_scanned, "artifacts_found": totals,
+              "total": total_artifacts, "min_confidence": min_confidence}
+    samples = {}
+    for r in all_results:
+        if r.findings and 'finding' not in samples:
+            samples['finding'] = {'text': r.findings[0].finding, 'confidence': r.findings[0].confidence, 'impact': r.findings[0].impact}
+        if r.decisions and 'decision' not in samples:
+            samples['decision'] = {'choice': r.decisions[0].choice, 'confidence': r.decisions[0].confidence}
+        if r.dead_ends and 'dead_end' not in samples:
+            samples['dead_end'] = {'approach': r.dead_ends[0].approach, 'confidence': r.dead_ends[0].confidence}
+    if samples:
+        report['samples'] = samples
+    if output_format == 'json':
+        print(json.dumps(report, indent=2))
+    else:
+        print(f"\n📋 Dry run: {total_artifacts} artifacts found from {sessions_scanned} session(s)")
+        for atype, count in totals.items():
+            if count > 0:
+                print(f"   {atype}: {count}")
+        if samples:
+            print("\n   Sample artifacts:")
+            for atype, sample in samples.items():
+                text = sample.get('text', sample.get('choice', sample.get('approach', '')))
+                print(f"   [{atype}] {text[:80]}... (confidence={sample['confidence']})")
+    return 0
+
+
 def _import_from_claude_code(SessionIndex, TranscriptParser, ArtifactExtractor,
                              project_name, session_id_filter, include_sidechains,
                              min_confidence, dry_run, output_format):
@@ -891,45 +921,8 @@ def handle_profile_import_command(args):
         total_artifacts = sum(totals.values())
 
         if dry_run:
-            # Show what would be imported
-            report = {
-                "ok": True,
-                "dry_run": True,
-                "source": source,
-                "sessions_scanned": sessions_scanned,
-                "artifacts_found": totals,
-                "total": total_artifacts,
-                "min_confidence": min_confidence,
-            }
-
-            # Include sample artifacts in dry run
-            samples = {}
-            for r in all_results:
-                if r.findings and 'finding' not in samples:
-                    f = r.findings[0]
-                    samples['finding'] = {'text': f.finding, 'confidence': f.confidence, 'impact': f.impact}
-                if r.decisions and 'decision' not in samples:
-                    d = r.decisions[0]
-                    samples['decision'] = {'choice': d.choice, 'confidence': d.confidence}
-                if r.dead_ends and 'dead_end' not in samples:
-                    de = r.dead_ends[0]
-                    samples['dead_end'] = {'approach': de.approach, 'confidence': de.confidence}
-            if samples:
-                report['samples'] = samples
-
-            if output_format == 'json':
-                print(json.dumps(report, indent=2))
-            else:
-                print(f"\n📋 Dry run: {total_artifacts} artifacts found from {sessions_scanned} session(s)")
-                for artifact_type, count in totals.items():
-                    if count > 0:
-                        print(f"   {artifact_type}: {count}")
-                if samples:
-                    print(f"\n   Sample artifacts:")
-                    for atype, sample in samples.items():
-                        text = sample.get('text', sample.get('choice', sample.get('approach', '')))
-                        print(f"   [{atype}] {text[:80]}... (confidence={sample['confidence']})")
-            return 0
+            return _print_import_dry_run(all_results, totals, total_artifacts,
+                                         source, sessions_scanned, min_confidence, output_format)
 
         # Actually store artifacts
         if total_artifacts == 0:
