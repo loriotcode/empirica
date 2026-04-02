@@ -254,19 +254,9 @@ class ReleaseManager:
                 f'PLUGIN_VERSION = "{self.version}"',
             ),
             (
-                self.repo_root / "claude-code-integration" / "install.sh",
-                r'PLUGIN_VERSION="[^"]+"',
-                f'PLUGIN_VERSION="{self.version}"',
-            ),
-            (
                 self.repo_root / "empirica" / "plugins" / "claude-code-integration" / "install.sh",
                 r'PLUGIN_VERSION="[^"]+"',
                 f'PLUGIN_VERSION="{self.version}"',
-            ),
-            (
-                self.repo_root / "claude-code-integration" / ".claude-plugin" / "plugin.json",
-                r'"version":\s*"[^"]+"',
-                f'"version": "{self.version}"',
             ),
             (
                 self.repo_root / "empirica" / "plugins" / "claude-code-integration" / ".claude-plugin" / "plugin.json",
