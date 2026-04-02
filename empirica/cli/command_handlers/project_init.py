@@ -25,6 +25,68 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+def _resolve_or_create_project(db, args, project_name, project_description,
+                                project_config_path, git_url, project_type, tags, output_format):
+    """Resolve existing project or create new one. Returns project_id."""
+    import yaml
+    project_id = None
+
+    # Explicit --project-id flag
+    explicit_id = getattr(args, 'project_id', None)
+    if explicit_id:
+        if output_format != 'json':
+            print(f"   🔗 Linking to existing project: {explicit_id[:8]}...")
+        return explicit_id
+
+    # Check project.yaml for existing ID
+    if project_config_path.exists():
+        try:
+            with open(project_config_path) as f:
+                existing_id = (yaml.safe_load(f) or {}).get('project_id')
+            if existing_id and db.get_project(existing_id):
+                if output_format != 'json':
+                    print(f"   ♻️  Reusing existing project_id: {existing_id[:8]}...")
+                return existing_id
+        except Exception:
+            pass
+
+    # Check by name
+    existing = db.projects.get_project_by_name(project_name)
+    if existing:
+        if output_format != 'json':
+            print(f"   ♻️  Found existing project by name: {existing['id'][:8]}...")
+        return existing['id']
+
+    # Create new
+    return db.create_project(
+        name=project_name, description=project_description,
+        repos=[git_url] if git_url else None,
+        project_type=project_type, project_tags=tags if tags else None)
+
+
+def _register_project_in_workspace(project_id, project_name, project_description,
+                                    git_root, git_url, project_config, output_format):
+    """Register project in global workspace.db. Non-fatal on failure."""
+    try:
+        import json as _json_ws
+        from .workspace_init import _register_in_workspace_db
+        ws_metadata = _json_ws.dumps({
+            k: project_config.get(k, d) for k, d in [
+                ('domain', ''), ('classification', 'internal'), ('evidence_profile', 'auto'),
+                ('languages', []), ('contacts', []), ('engagements', []), ('edges', []),
+            ]
+        })
+        _register_in_workspace_db(
+            project_id=project_id, name=project_name,
+            trajectory_path=str(git_root / '.empirica'),
+            description=project_description, git_remote_url=git_url,
+            project_type=project_config.get('type', 'software'), metadata=ws_metadata)
+        if output_format != 'json':
+            print("   📋 Registered in workspace")
+    except Exception as e:
+        logger.warning(f"Failed to register in workspace.db: {e}")
+
+
 def _collect_project_config_interactive(git_root) -> dict:
     """Collect project configuration via interactive prompts."""
     print("📋 Project Configuration\n")
@@ -211,49 +273,10 @@ def handle_project_init_command(args):
         project_id = None
         reused_existing = False
 
-        # Bridge: if --project-id provided, use that ID directly (links to existing workspace project)
-        explicit_project_id = getattr(args, 'project_id', None)
-        if explicit_project_id:
-            project_id = explicit_project_id
-            reused_existing = True
-            if output_format != 'json':
-                print(f"   🔗 Linking to existing project: {project_id[:8]}...")
-
-        # First, check if project.yaml already has a project_id (from previous init)
-        if not project_id and project_config_path.exists():
-            try:
-                with open(project_config_path) as f:
-                    existing_config = yaml.safe_load(f) or {}
-                existing_id = existing_config.get('project_id')
-                if existing_id:
-                    # Verify it exists in DB
-                    existing_project = db.get_project(existing_id)
-                    if existing_project:
-                        project_id = existing_id
-                        reused_existing = True
-                        if output_format != 'json':
-                            print(f"   ♻️  Reusing existing project_id: {project_id[:8]}...")
-            except Exception:
-                pass  # Fall through to create new
-
-        # If no existing project_id, check by name (prevents duplicates)
-        if not project_id:
-            existing_by_name = db.projects.get_project_by_name(project_name)
-            if existing_by_name:
-                project_id = existing_by_name['id']
-                reused_existing = True
-                if output_format != 'json':
-                    print(f"   ♻️  Found existing project by name: {project_id[:8]}...")
-
-        # Only create new if no existing project found
-        if not project_id:
-            project_id = db.create_project(
-                name=project_name,
-                description=project_description,
-                repos=[git_url] if git_url else None,
-                project_type=project_type,
-                project_tags=tags if tags else None,
-            )
+        # Resolve or create project ID
+        project_id = _resolve_or_create_project(
+            db, args, project_name, project_description, project_config_path,
+            git_url, project_type, tags, output_format)
 
         # Update project.yaml with project_id
         project_config['project_id'] = project_id
@@ -262,35 +285,9 @@ def handle_project_init_command(args):
 
         db.close()
 
-        # Register project in global workspace.db for cross-project visibility
-        try:
-            # Store trajectory_path with .empirica suffix for consistency with existing projects
-            # project-switch expects this format: /home/user/project/.empirica
-            import json as _json_ws
-
-            from .workspace_init import _register_in_workspace_db
-            ws_metadata = _json_ws.dumps({
-                'domain': project_config.get('domain', ''),
-                'classification': project_config.get('classification', 'internal'),
-                'evidence_profile': project_config.get('evidence_profile', 'auto'),
-                'languages': project_config.get('languages', []),
-                'contacts': project_config.get('contacts', []),
-                'engagements': project_config.get('engagements', []),
-                'edges': project_config.get('edges', []),
-            })
-            _register_in_workspace_db(
-                project_id=project_id,
-                name=project_name,
-                trajectory_path=str(git_root / '.empirica'),
-                description=project_description,
-                git_remote_url=git_url,
-                project_type=project_config.get('type', 'software'),
-                metadata=ws_metadata,
-            )
-            if output_format != 'json':
-                print(f"   📋 Registered in workspace")
-        except Exception as e:
-            logger.warning(f"Failed to register in workspace.db: {e}")
+        # Register in global workspace
+        _register_project_in_workspace(
+            project_id, project_name, project_description, git_root, git_url, project_config, output_format)
 
         # NOTE: project-init does NOT update resolver context (instance_projects,
         # TTY sessions, active_work). Those files route the current terminal to a
