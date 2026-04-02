@@ -236,166 +236,55 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
     if qvec is None:
         return empty_result
 
+    # Collection config: (name, collection_fn, payload_fields)
+    _SEARCH_COLLECTIONS = {
+        "docs": (_docs_collection, ["doc_path", "tags", "concepts"]),
+        "memory": (_memory_collection, ["type", "text", "session_id", "goal_id", "timestamp", "impact"]),
+        "eidetic": (_eidetic_collection, ["type", "content", "confidence", "domain"]),
+        "episodic": (_episodic_collection, ["type", "narrative", "session_id", "outcome"]),
+    }
+
     results: dict[str, list[dict]] = {}
     client = _get_qdrant_client()
     if client is None:
         return empty_result
 
-    # Query each collection independently (so one failure doesn't block the other)
-    if "docs" in search_kinds:
+    # Query each collection via client
+    for kind_name in search_kinds:
+        if kind_name not in _SEARCH_COLLECTIONS:
+            continue
+        coll_fn, fields = _SEARCH_COLLECTIONS[kind_name]
         try:
-            docs_coll = _docs_collection(project_id)
-            if client.collection_exists(docs_coll):
-                rd = client.query_points(
-                    collection_name=docs_coll,
-                    query=qvec,
-                    limit=limit,
-                    with_payload=True
-                )
-                results["docs"] = [
-                    {
-                        "score": getattr(r, 'score', 0.0) or 0.0,
-                        "doc_path": (r.payload or {}).get("doc_path"),
-                        "tags": (r.payload or {}).get("tags"),
-                        "concepts": (r.payload or {}).get("concepts"),
-                    }
-                    for r in rd.points
+            coll_name = coll_fn(project_id)
+            if client.collection_exists(coll_name):
+                resp = client.query_points(
+                    collection_name=coll_name, query=qvec, limit=limit, with_payload=True)
+                results[kind_name] = [
+                    {"score": getattr(r, 'score', 0.0) or 0.0,
+                     **{f: (r.payload or {}).get(f) for f in fields}}
+                    for r in resp.points
                 ]
             else:
-                results["docs"] = []
+                results[kind_name] = []
         except Exception as e:
-            logger.debug(f"docs query failed: {e}")
-            results["docs"] = []
-
-    if "memory" in search_kinds:
-        try:
-            mem_coll = _memory_collection(project_id)
-            if client.collection_exists(mem_coll):
-                rm = client.query_points(
-                    collection_name=mem_coll,
-                    query=qvec,
-                    limit=limit,
-                    with_payload=True
-                )
-                results["memory"] = [
-                    {
-                        "score": getattr(r, 'score', 0.0) or 0.0,
-                        "type": (r.payload or {}).get("type"),
-                        "text": (r.payload or {}).get("text"),
-                        "session_id": (r.payload or {}).get("session_id"),
-                        "goal_id": (r.payload or {}).get("goal_id"),
-                        "timestamp": (r.payload or {}).get("timestamp"),
-                        "impact": (r.payload or {}).get("impact"),
-                    }
-                    for r in rm.points
-                ]
-            else:
-                results["memory"] = []
-        except Exception as e:
-            logger.debug(f"memory query failed: {e}")
-            results["memory"] = []
-
-    if "eidetic" in search_kinds:
-        try:
-            eidetic_coll = _eidetic_collection(project_id)
-            if client.collection_exists(eidetic_coll):
-                re = client.query_points(
-                    collection_name=eidetic_coll,
-                    query=qvec,
-                    limit=limit,
-                    with_payload=True
-                )
-                results["eidetic"] = [
-                    {
-                        "score": getattr(r, 'score', 0.0) or 0.0,
-                        "type": (r.payload or {}).get("type"),
-                        "content": (r.payload or {}).get("content"),
-                        "confidence": (r.payload or {}).get("confidence"),
-                        "domain": (r.payload or {}).get("domain"),
-                    }
-                    for r in re.points
-                ]
-            else:
-                results["eidetic"] = []
-        except Exception as e:
-            logger.debug(f"eidetic query failed: {e}")
-            results["eidetic"] = []
-
-    if "episodic" in search_kinds:
-        try:
-            episodic_coll = _episodic_collection(project_id)
-            if client.collection_exists(episodic_coll):
-                rep = client.query_points(
-                    collection_name=episodic_coll,
-                    query=qvec,
-                    limit=limit,
-                    with_payload=True
-                )
-                results["episodic"] = [
-                    {
-                        "score": getattr(r, 'score', 0.0) or 0.0,
-                        "type": (r.payload or {}).get("type"),
-                        "narrative": (r.payload or {}).get("narrative"),
-                        "session_id": (r.payload or {}).get("session_id"),
-                        "outcome": (r.payload or {}).get("outcome"),
-                    }
-                    for r in rep.points
-                ]
-            else:
-                results["episodic"] = []
-        except Exception as e:
-            logger.debug(f"episodic query failed: {e}")
-            results["episodic"] = []
+            logger.debug(f"{kind_name} query failed: {e}")
+            results[kind_name] = []
 
     if results:
         return results
 
-    # REST fallback only if client queries produced nothing
+    # REST fallback
     logger.debug("Trying REST fallback for search")
-
-    # REST fallback (for remote Qdrant server)
     try:
-        if "docs" in search_kinds:
-            rd = _rest_search(_docs_collection(project_id), qvec, limit)
-            results["docs"] = [
-                {
-                    "score": d.get('score', 0.0),
-                    "doc_path": (d.get('payload') or {}).get('doc_path'),
-                    "tags": (d.get('payload') or {}).get('tags'),
-                    "concepts": (d.get('payload') or {}).get('concepts'),
-                }
-                for d in rd
-            ]
-        if "memory" in search_kinds:
-            rm = _rest_search(_memory_collection(project_id), qvec, limit)
-            results["memory"] = [
-                {
-                    "score": m.get('score', 0.0),
-                    "type": (m.get('payload') or {}).get('type'),
-                }
-                for m in rm
-            ]
-        if "eidetic" in search_kinds:
-            re = _rest_search(_eidetic_collection(project_id), qvec, limit)
-            results["eidetic"] = [
-                {
-                    "score": e.get('score', 0.0),
-                    "type": (e.get('payload') or {}).get('type'),
-                    "content": (e.get('payload') or {}).get('content'),
-                    "confidence": (e.get('payload') or {}).get('confidence'),
-                }
-                for e in re
-            ]
-        if "episodic" in search_kinds:
-            rep = _rest_search(_episodic_collection(project_id), qvec, limit)
-            results["episodic"] = [
-                {
-                    "score": ep.get('score', 0.0),
-                    "type": (ep.get('payload') or {}).get('type'),
-                    "narrative": (ep.get('payload') or {}).get('narrative'),
-                    "session_id": (ep.get('payload') or {}).get('session_id'),
-                }
-                for ep in rep
+        for kind_name in search_kinds:
+            if kind_name not in _SEARCH_COLLECTIONS:
+                continue
+            coll_fn, fields = _SEARCH_COLLECTIONS[kind_name]
+            raw = _rest_search(coll_fn(project_id), qvec, limit)
+            results[kind_name] = [
+                {"score": d.get('score', 0.0),
+                 **{f: (d.get('payload') or {}).get(f) for f in fields}}
+                for d in raw
             ]
         return results
     except Exception as e:
