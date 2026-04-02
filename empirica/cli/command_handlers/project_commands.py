@@ -768,6 +768,65 @@ def handle_project_list_command(args):
 
 
 
+def _handle_transaction_on_switch(dest_project_path, output_format) -> dict:
+    """Handle open transactions when switching projects. Returns result dict."""
+    try:
+        from empirica.config.path_resolver import get_empirica_root
+        from empirica.core.statusline_cache import get_instance_id
+
+        current_empirica_root = None
+        instance_id = get_instance_id()
+
+        if instance_id:
+            instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
+            if instance_file.exists():
+                try:
+                    import json as _json
+                    with open(instance_file) as f:
+                        inst_project_path = _json.load(f).get('project_path')
+                    if inst_project_path:
+                        current_empirica_root = Path(inst_project_path) / '.empirica'
+                except Exception:
+                    pass
+
+        if not current_empirica_root:
+            current_empirica_root = get_empirica_root()
+        if not current_empirica_root:
+            return {"ok": True, "reason": "no_current_project"}
+
+        suffix = R.instance_suffix()
+        tx_path = current_empirica_root / f'active_transaction{suffix}.json'
+        if not tx_path.exists():
+            return {"ok": True, "reason": "no_transaction"}
+
+        import json as _json
+        with open(tx_path) as f:
+            tx_data = _json.load(f)
+
+        if tx_data.get('status') != 'open':
+            return {"ok": True, "reason": "transaction_closed"}
+
+        # Compare project paths (normalized)
+        tx_proj = str(Path(tx_data.get('project_path', '')).resolve()) if tx_data.get('project_path') else ''
+        dest_proj = str(Path(str(dest_project_path)).resolve()) if dest_project_path else ''
+
+        if tx_proj == dest_proj:
+            return {"ok": True, "reason": "transaction_preserved", "note": "Transaction is for destination project"}
+
+        # Different project — abandon (no fake vectors)
+        tx_id = tx_data.get('transaction_id', 'unknown')
+        try:
+            tx_path.unlink()
+        except Exception:
+            pass
+        if output_format == 'human':
+            print("⚠️  Previous transaction abandoned (submit POSTFLIGHT before switching to preserve deltas)")
+        return {"ok": True, "reason": "transaction_abandoned", "transaction_id": tx_id}
+    except Exception as e:
+        logger.debug(f"Transaction handling on switch failed (non-fatal): {e}")
+        return {"ok": False, "error": str(e)}
+
+
 def handle_project_switch_command(args):
     """
     Handle project-switch command - Switch to a different project with context loading
@@ -830,78 +889,8 @@ def handle_project_switch_command(args):
                 # New format: path is the project root directly
                 project_path = traj
 
-        # 3. FORCED POSTFLIGHT: Close any open transaction from current project
-        # Transactions are project-scoped, so switching projects should close the current one
-        postflight_result = None
-        try:
-            from empirica.config.path_resolver import get_empirica_root
-            from empirica.core.statusline_cache import get_instance_id
-
-            # Get current project from instance_projects (not CWD - may be wrong via Bash tool)
-            # IMPORTANT: Use instance-specific file for multi-instance isolation
-            current_empirica_root = None
-            instance_id = get_instance_id()
-
-            # Priority 1: Read from instance_projects (set by previous project-switch)
-            if instance_id:
-                instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
-                if instance_file.exists():
-                    try:
-                        import json as _json
-                        with open(instance_file) as f:
-                            inst_data = _json.load(f)
-                        inst_project_path = inst_data.get('project_path')
-                        if inst_project_path:
-                            current_empirica_root = Path(inst_project_path) / '.empirica'
-                    except Exception:
-                        pass
-
-            # Priority 2: Fallback to CWD-based detection
-            if not current_empirica_root:
-                current_empirica_root = get_empirica_root()
-            if current_empirica_root:
-                suffix = R.instance_suffix()
-                tx_path = current_empirica_root / f'active_transaction{suffix}.json'
-                if tx_path.exists():
-                    import json as _json
-                    with open(tx_path) as f:
-                        tx_data = _json.load(f)
-
-                    if tx_data.get('status') == 'open':
-                        # Only auto-close if the transaction is from a DIFFERENT project
-                        # than the destination. Switching to the same project (or switching
-                        # right after opening a transaction) should NOT destroy the transaction.
-                        tx_project_path = tx_data.get('project_path', '')
-                        dest_project_str = str(project_path) if project_path else ''
-                        # Normalize for comparison (resolve symlinks, trailing slashes)
-                        tx_project_normalized = str(Path(tx_project_path).resolve()) if tx_project_path else ''
-                        dest_normalized = str(Path(dest_project_str).resolve()) if dest_project_str else ''
-
-                        if tx_project_normalized == dest_normalized:
-                            # Transaction is for the destination project — don't close it
-                            postflight_result = {"ok": True, "reason": "transaction_preserved", "note": "Transaction is for destination project, not closed"}
-                        else:
-                            # Transaction is for a different project — abandon it.
-                            # We do NOT submit fake POSTFLIGHT vectors because that
-                            # poisons calibration data. The delta is lost, but a lost
-                            # delta is better than a fabricated one.
-                            tx_id = tx_data.get('transaction_id', 'unknown')
-                            try:
-                                tx_path.unlink()
-                            except Exception:
-                                pass
-                            postflight_result = {
-                                "ok": True,
-                                "reason": "transaction_abandoned",
-                                "transaction_id": tx_id,
-                                "note": "Transaction abandoned on project-switch (no fake vectors submitted). Submit POSTFLIGHT before switching to preserve deltas."
-                            }
-                            if output_format == 'human':
-                                print(f"⚠️  Previous transaction abandoned (submit POSTFLIGHT before switching to preserve deltas)")
-        except Exception as e:
-            # Non-fatal - continue with switch even if POSTFLIGHT fails
-            postflight_result = {"ok": False, "error": str(e)}
-            logger.debug(f"Auto-POSTFLIGHT on project-switch failed (non-fatal): {e}")
+        # 3. Handle open transaction from current project
+        postflight_result = _handle_transaction_on_switch(project_path, output_format)
 
         # 4. SESSION CONTINUITY: Update global session registry with new project
         # Sessions are per-conversation (global), not per-project.
