@@ -771,6 +771,80 @@ def handle_profile_status_command(args):
         return 1
 
 
+def _import_from_claude_code(SessionIndex, TranscriptParser, ArtifactExtractor,
+                             project_name, session_id_filter, include_sidechains,
+                             min_confidence, dry_run, output_format):
+    """Import artifacts from Claude Code transcripts. Returns (results, count) or int exit code."""
+    session_index = SessionIndex()
+    parser = TranscriptParser()
+    sessions = session_index.get_sessions(project_name) if project_name else session_index.get_all_sessions(min_messages=3)
+    if session_id_filter:
+        sessions = [s for s in sessions if s.session_id == session_id_filter]
+    if not sessions:
+        msg = f"No sessions found{f' in project {project_name!r}' if project_name else ''}"
+        if output_format == 'json':
+            print(json.dumps({"ok": True, "message": msg, "sessions_scanned": 0, "artifacts": 0}))
+        else:
+            print(f"ℹ️  {msg}")
+        return 0
+
+    if output_format == 'text' and not dry_run:
+        print(f"🔍 Scanning {len(sessions)} session(s)...")
+
+    all_results = []
+    sessions_scanned = 0
+    for session_meta in sessions:
+        if not session_meta.full_path:
+            continue
+        sessions_scanned += 1
+        records = parser.parse_session(session_meta.full_path)
+        if not records:
+            continue
+        turns = list(parser.iter_conversation_turns(records, include_sidechains=include_sidechains))
+        if not turns:
+            continue
+        extractor = ArtifactExtractor(min_confidence=min_confidence)
+        result = extractor.extract_all(turns, source="claude-code", session_id=session_meta.session_id)
+        if result.total_artifacts > 0:
+            all_results.append(result)
+            if output_format == 'text' and not dry_run:
+                summary = result.summary()
+                parts = [f"{k}={summary[k]}" for k in ['findings', 'decisions', 'dead_ends', 'mistakes', 'unknowns'] if summary[k] > 0]
+                if parts:
+                    print(f"   {session_meta.summary or session_meta.session_id[:12]}: {', '.join(parts)}")
+    return all_results, sessions_scanned
+
+
+def _import_from_claude_ai(ClaudeAIParser, ArtifactExtractor,
+                            file_path, min_confidence, dry_run, output_format):
+    """Import artifacts from Claude.ai export. Returns (results, count) or int exit code."""
+    if not file_path:
+        if output_format == 'json':
+            print(json.dumps({"ok": False, "error": "--file required for --source claude-ai"}))
+        else:
+            print("❌ --file required for --source claude-ai")
+        return 1
+
+    ai_parser = ClaudeAIParser()
+    turns, metadata = ai_parser.parse_export(file_path)
+    if not turns:
+        msg = f"No conversations found in {file_path}"
+        if output_format == 'json':
+            print(json.dumps({"ok": True, "message": msg, "sessions_scanned": 0, "artifacts": 0}))
+        else:
+            print(f"ℹ️  {msg}")
+        return 0
+
+    sessions_scanned = metadata.get('conversation_count', 1)
+    if output_format == 'text' and not dry_run:
+        print(f"🔍 Processing {len(turns)} conversation turns from Claude.ai export...")
+
+    extractor = ArtifactExtractor(min_confidence=min_confidence)
+    result = extractor.extract_all(turns, source="claude-ai")
+    all_results = [result] if result.total_artifacts > 0 else []
+    return all_results, sessions_scanned
+
+
 def handle_profile_import_command(args):
     """Handle profile-import command — mine AI transcripts for epistemic artifacts."""
     try:
@@ -790,96 +864,21 @@ def handle_profile_import_command(args):
         sessions_scanned = 0
 
         if source == 'claude-code':
-            session_index = SessionIndex()
-            parser = TranscriptParser()
-
-            # Discover sessions to process
-            if project_name:
-                sessions = session_index.get_sessions(project_name)
-            else:
-                sessions = session_index.get_all_sessions(min_messages=3)
-
-            if session_id_filter:
-                sessions = [s for s in sessions if s.session_id == session_id_filter]
-
-            if not sessions:
-                msg = "No sessions found"
-                if project_name:
-                    msg += f" in project '{project_name}'"
-                if output_format == 'json':
-                    print(json.dumps({"ok": True, "message": msg, "sessions_scanned": 0, "artifacts": 0}))
-                else:
-                    print(f"ℹ️  {msg}")
-                return 0
-
-            if output_format == 'text' and not dry_run:
-                print(f"🔍 Scanning {len(sessions)} session(s)...")
-
-            for session_meta in sessions:
-                if not session_meta.full_path:
-                    continue
-                sessions_scanned += 1
-
-                records = parser.parse_session(session_meta.full_path)
-                if not records:
-                    continue
-
-                turns = list(parser.iter_conversation_turns(
-                    records, include_sidechains=include_sidechains
-                ))
-                if not turns:
-                    continue
-
-                extractor = ArtifactExtractor(min_confidence=min_confidence)
-                result = extractor.extract_all(
-                    turns,
-                    source="claude-code",
-                    session_id=session_meta.session_id,
-                )
-
-                if result.total_artifacts > 0:
-                    all_results.append(result)
-
-                    if output_format == 'text' and not dry_run:
-                        summary = result.summary()
-                        parts = []
-                        for key in ['findings', 'decisions', 'dead_ends', 'mistakes', 'unknowns']:
-                            if summary[key] > 0:
-                                parts.append(f"{key}={summary[key]}")
-                        if parts:
-                            session_label = session_meta.summary or session_meta.session_id[:12]
-                            print(f"   {session_label}: {', '.join(parts)}")
+            result = _import_from_claude_code(
+                SessionIndex, TranscriptParser, ArtifactExtractor,
+                project_name, session_id_filter, include_sidechains,
+                min_confidence, dry_run, output_format)
+            if isinstance(result, int):
+                return result  # Early exit (no sessions found)
+            all_results, sessions_scanned = result
 
         elif source == 'claude-ai':
-            if not file_path:
-                error = {"ok": False, "error": "--file required for --source claude-ai"}
-                if output_format == 'json':
-                    print(json.dumps(error))
-                else:
-                    print(f"❌ {error['error']}")
-                return 1
-
-            ai_parser = ClaudeAIParser()
-            turns, metadata = ai_parser.parse_export(file_path)
-
-            if not turns:
-                msg = f"No conversations found in {file_path}"
-                if output_format == 'json':
-                    print(json.dumps({"ok": True, "message": msg, "sessions_scanned": 0, "artifacts": 0}))
-                else:
-                    print(f"ℹ️  {msg}")
-                return 0
-
-            sessions_scanned = metadata.get('conversation_count', 1)
-
-            if output_format == 'text' and not dry_run:
-                print(f"🔍 Processing {len(turns)} conversation turns from Claude.ai export...")
-
-            extractor = ArtifactExtractor(min_confidence=min_confidence)
-            result = extractor.extract_all(turns, source="claude-ai")
-
-            if result.total_artifacts > 0:
-                all_results.append(result)
+            result = _import_from_claude_ai(
+                ClaudeAIParser, ArtifactExtractor,
+                file_path, min_confidence, dry_run, output_format)
+            if isinstance(result, int):
+                return result
+            all_results, sessions_scanned = result
 
         # Aggregate results
         totals = {
