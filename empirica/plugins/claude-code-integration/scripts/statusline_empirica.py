@@ -557,6 +557,69 @@ def _resolve_claude_session_id(stdin_claude_session_id: Optional[str] = None):
     return None
 
 
+def _resolve_project_path(stdin_claude_session_id=None) -> Optional[str]:
+    """Resolve project path via 6-tier priority chain. Returns path or None."""
+    # Priority 0: instance_projects
+    try:
+        import json as _json
+        from empirica.utils.session_resolver import InstanceResolver as R
+        inst_id = R.instance_id()
+        if inst_id:
+            inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{inst_id}.json'
+            if inst_file.exists():
+                pp = _json.load(open(inst_file)).get('project_path')
+                if pp and (Path(pp) / '.empirica' / 'sessions' / 'sessions.db').exists():
+                    return pp
+    except Exception:
+        pass
+
+    # Priority 1: active_work
+    if stdin_claude_session_id:
+        try:
+            import json as _json
+            aw = Path.home() / '.empirica' / f'active_work_{stdin_claude_session_id}.json'
+            if aw.exists():
+                pp = _json.load(open(aw)).get('project_path')
+                if pp and (Path(pp) / '.empirica' / 'sessions' / 'sessions.db').exists():
+                    return pp
+        except Exception:
+            pass
+
+    # Priority 2: env var
+    env_path = os.getenv('EMPIRICA_PROJECT_PATH')
+    if env_path:
+        return env_path
+
+    # Priority 3: TTY session
+    try:
+        from empirica.utils.session_resolver import InstanceResolver as R
+        tty = R.tty_session(warn_if_stale=False)
+        if tty:
+            pp = tty.get('project_path')
+            if pp and (Path(pp) / '.empirica' / 'sessions' / 'sessions.db').exists():
+                return pp
+    except Exception:
+        pass
+
+    # Priority 4: path_resolver
+    try:
+        from empirica.config.path_resolver import get_empirica_root
+        root = get_empirica_root()
+        if root and root.exists() and (root / 'sessions' / 'sessions.db').exists():
+            return str(root.parent)
+    except Exception:
+        pass
+
+    # Priority 5: upward search
+    current = Path.cwd()
+    for parent in [current] + list(current.parents):
+        if (parent / '.empirica' / 'sessions' / 'sessions.db').exists():
+            return str(parent)
+        if parent == Path.home() or parent == parent.parent:
+            break
+    return None
+
+
 def _read_session_file(path: Path) -> Optional[str]:
     """Read session_id from a file (JSON or plain text format)."""
     try:
@@ -1189,97 +1252,9 @@ def main():
         except Exception:
             pass
 
-        # Auto-detect project from active context
-        # Priority: 0) instance_projects (most current — updated by hooks AND project-switch),
-        #           1) active_work (fallback — only hooks can update),
-        #           2) EMPIRICA_PROJECT_PATH env var,
-        #           3) TTY session, 4) path_resolver, 5) manual upward search
-        # See docs/architecture/instance_isolation/ARCHITECTURE.md
-        # NOTE: We do NOT fall back to global ~/.empirica/ to prevent cross-project data leakage
-        project_path = None
-        is_local_project = False
-
-        # Priority 0: instance_projects (updated by BOTH hooks AND project-switch CLI)
-        try:
-            import json as _json
-
-            from empirica.utils.session_resolver import InstanceResolver as R
-            _sl_inst_id = R.instance_id()
-            if _sl_inst_id:
-                _sl_inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{_sl_inst_id}.json'
-                if _sl_inst_file.exists():
-                    with open(_sl_inst_file) as f:
-                        _sl_inst_data = _json.load(f)
-                    _sl_inst_project = _sl_inst_data.get('project_path')
-                    if _sl_inst_project:
-                        _sl_inst_db = Path(_sl_inst_project) / '.empirica' / 'sessions' / 'sessions.db'
-                        if _sl_inst_db.exists():
-                            project_path = _sl_inst_project
-                            is_local_project = True
-        except Exception:
-            pass
-
-        # Priority 1: active_work file (fallback for non-TMUX environments)
-        if not project_path and stdin_claude_session_id:
-            try:
-                import json as _json
-                active_work_path = Path.home() / '.empirica' / f'active_work_{stdin_claude_session_id}.json'
-                if active_work_path.exists():
-                    with open(active_work_path) as f:
-                        active_work = _json.load(f)
-                    aw_project_path = active_work.get('project_path')
-                    if aw_project_path:
-                        aw_db = Path(aw_project_path) / '.empirica' / 'sessions' / 'sessions.db'
-                        if aw_db.exists():
-                            project_path = aw_project_path
-                            is_local_project = True
-            except Exception:
-                pass
-
-        # Priority 2: EMPIRICA_PROJECT_PATH env var
-        if not project_path:
-            project_path = os.getenv('EMPIRICA_PROJECT_PATH')
-
-        # Priority 3: Check TTY session for project-switch context
-        if not project_path:
-            try:
-                from empirica.utils.session_resolver import InstanceResolver as R
-
-                tty_session = R.tty_session(warn_if_stale=False)
-                if tty_session:
-                    tty_project_path = tty_session.get('project_path')
-                    if tty_project_path:
-                        tty_db = Path(tty_project_path) / '.empirica' / 'sessions' / 'sessions.db'
-                        if tty_db.exists():
-                            project_path = tty_project_path
-                            is_local_project = True
-            except Exception:
-                pass  # Fall through to other methods
-
-        # Priority 3: Try canonical path_resolver (same logic as sentinel-gate.py)
-        if not project_path:
-            try:
-                from empirica.config.path_resolver import get_empirica_root
-                empirica_root = get_empirica_root()
-                if empirica_root and empirica_root.exists():
-                    db_candidate = empirica_root / 'sessions' / 'sessions.db'
-                    if db_candidate.exists():
-                        project_path = str(empirica_root.parent)
-                        is_local_project = True
-            except (ImportError, Exception):
-                pass
-
-        if not project_path:
-            # Fallback: Search UPWARD for .empirica/ like git does for .git/
-            current = Path.cwd()
-            for parent in [current] + list(current.parents):
-                candidate_db = parent / '.empirica' / 'sessions' / 'sessions.db'
-                if candidate_db.exists():
-                    project_path = str(parent)
-                    is_local_project = True
-                    break
-                if parent == Path.home() or parent == parent.parent:
-                    break
+        # Auto-detect project from active context (6-tier priority chain)
+        project_path = _resolve_project_path(stdin_claude_session_id)
+        is_local_project = project_path is not None
 
         if project_path:
             db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
