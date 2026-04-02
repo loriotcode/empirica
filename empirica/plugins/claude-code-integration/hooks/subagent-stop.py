@@ -21,11 +21,11 @@ Side effects:
   - Updates subagent session file status to "completed"
 """
 
-import glob
 import json
 import sys
-from datetime import datetime
+import glob
 from pathlib import Path
+from datetime import datetime
 
 
 def find_subagent_session(agent_name: str) -> dict:
@@ -113,7 +113,6 @@ def add_delegated_work_to_parent(tool_call_count: int) -> bool:
     try:
         import os
         import tempfile
-
         from empirica.utils.session_resolver import InstanceResolver as R
 
         suffix = R.instance_suffix()
@@ -128,7 +127,7 @@ def add_delegated_work_to_parent(tool_call_count: int) -> bool:
         if not tx_path.exists():
             return False
 
-        with open(tx_path) as f:
+        with open(tx_path, 'r') as f:
             tx_data = json.load(f)
 
         if tx_data.get('status') != 'open':
@@ -139,7 +138,7 @@ def add_delegated_work_to_parent(tool_call_count: int) -> bool:
         counters = {}
         if counters_path.exists():
             try:
-                with open(counters_path) as f:
+                with open(counters_path, 'r') as f:
                     counters = json.load(f)
             except Exception:
                 counters = {}
@@ -319,7 +318,9 @@ def _gated_rollup(parent_session_id, project_id, agent_name, raw_findings, db,
                   subagent_data=None):
     """Run findings through EpistemicRollupGate. Returns None if gate unavailable."""
     try:
-        from empirica.core.epistemic_rollup import EpistemicRollupGate, log_rollup_decision
+        from empirica.core.epistemic_rollup import (
+            EpistemicRollupGate, log_rollup_decision
+        )
 
         gate = EpistemicRollupGate(
             min_score=0.3,
@@ -418,8 +419,8 @@ def _check_regulation(parent_session_id: str, logged: dict) -> dict:
     }
 
     try:
-        from empirica.core.information_gain import should_spawn_more
         from empirica.data.session_database import SessionDatabase
+        from empirica.core.information_gain import should_spawn_more
 
         db = SessionDatabase()
         cursor = db.conn.cursor()

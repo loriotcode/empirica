@@ -424,6 +424,8 @@ def is_transition_command(command: str) -> bool:
 
 _autonomy_nudge = ""  # Module-level: set during increment, read by respond
 _goalless_nudge = ""  # Module-level: set when no goals detected, read by respond
+_reread_nudge = ""    # Module-level: set when Read tool targets already-read file
+_last_read_count = 0  # Module-level: how many times current file was read this tx
 
 
 def _find_transaction_file(empirica_dir: Path, suffix: str,
@@ -567,6 +569,16 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
                     edited.append(fp)
                     counters['edited_files'] = edited
 
+        # Track read file paths for re-read advisory
+        global _last_read_count
+        if tool_name == 'Read' and tool_input:
+            fp = tool_input.get('file_path', '')
+            if fp:
+                read_counts = counters.get('read_files', {})
+                read_counts[fp] = read_counts.get(fp, 0) + 1
+                counters['read_files'] = read_counts
+                _last_read_count = read_counts[fp]
+
         # Context-shift tracking: flag when AI asks user a question
         if tool_name == 'AskUserQuestion':
             counters['pending_user_response'] = True
@@ -619,11 +631,11 @@ def _compute_nudge(count: int, avg: int) -> str:
 
 def respond(decision: str, reason: str = "") -> None:
     """Output in Claude Code's expected format. Appends nudges on allow."""
-    global _autonomy_nudge, _goalless_nudge
+    global _autonomy_nudge, _goalless_nudge, _reread_nudge
     full_reason = reason
     show_nudge = False
-    if decision == "allow" and (_autonomy_nudge or _goalless_nudge):
-        nudges = " | ".join(n for n in [_autonomy_nudge, _goalless_nudge] if n)
+    if decision == "allow" and (_autonomy_nudge or _goalless_nudge or _reread_nudge):
+        nudges = " | ".join(n for n in [_autonomy_nudge, _goalless_nudge, _reread_nudge] if n)
         full_reason = f"{reason} | {nudges}"
         show_nudge = True
 
@@ -1615,7 +1627,7 @@ def _validate_check_record(cursor, session_id: str, current_transaction_id, pref
     check_row = cursor.fetchone()
 
     if not check_row:
-        return ("deny", "No valid CHECK found. Run CHECK after investigation to proceed. Command: empirica check-submit - (JSON with vectors on stdin)")
+        return ("deny", "No valid CHECK found. Run CHECK after investigation to ground predictions before acting. Command: empirica check-submit - (JSON with vectors on stdin)")
 
     know, uncertainty, reflex_data, check_timestamp = check_row
 
@@ -1858,7 +1870,7 @@ def _handle_investigate_continuation(decision: str, tool_name: str, tool_input: 
     # ADVISORY MODE: Sentinel surfaces the investigate recommendation but lets the AI decide.
     # The AI sees the message and can choose to investigate more or proceed with awareness.
     # This is a measurement system, not a rules-based gate — the holistic judgment is the AI's.
-    return ("allow", f"ADVISORY: CHECK returned 'investigate'. Sentinel recommends noetic (read-only) work. Proceeding with praxic action — ensure sufficient understanding before modifying.")
+    return ("allow", f"ADVISORY: CHECK returned 'investigate'. Predictions in this domain may be ungrounded. Sentinel recommends noetic (read-only) work to gather grounding evidence before acting.")
 
 
 def main():
@@ -1873,7 +1885,7 @@ def main():
     # === AUTONOMY CALIBRATION: Track tool calls per transaction ===
     # Counts PARENT tool calls only (subagent work counted via SubagentStop delegation).
     # Nudge thresholds are informational — Claude decides when to POSTFLIGHT.
-    global _autonomy_nudge
+    global _autonomy_nudge, _reread_nudge
     try:
         _claude_sid = hook_input.get('session_id')
         # Only increment for sessions with active_work (parent sessions).
@@ -1885,6 +1897,14 @@ def main():
             _autonomy_nudge = _compute_nudge(_count, _avg)
     except Exception:
         pass  # Counter failure is non-fatal
+
+    # === READ DEDUP ADVISORY: Nudge on re-reads ===
+    # _try_increment_tool_count sets _last_read_count when tracking Read tool calls.
+    # Advisory only — never blocks. Helps AI conserve context window.
+    if tool_name == 'Read' and _last_read_count > 1:
+        _rd_fp = (tool_input or {}).get('file_path', '')
+        _short = Path(_rd_fp).name if _rd_fp else 'file'
+        _reread_nudge = f"Re-reading {_short} ({_last_read_count}x this tx). Consider using cached knowledge."
 
     # === NOETIC FIREWALL: Whitelist-based access control ===
     # Rules 1, 2, 2b, 2c: noetic tools, safe bash, plan files, remote confidence gate
@@ -2180,7 +2200,7 @@ def main():
         sys.exit(0)
     else:
         # ADVISORY MODE: Surface the gap but let the AI proceed with awareness.
-        respond("allow", f"ADVISORY: CHECK confidence below threshold (K={raw_check_know:.0%} vs {_dyn_know:.0%}, U={raw_check_unc:.0%} vs {_dyn_unc:.0%}). Consider more investigation.{env_annotation}")
+        respond("allow", f"ADVISORY: Prediction groundedness below threshold (K={raw_check_know:.0%} vs {_dyn_know:.0%}, U={raw_check_unc:.0%} vs {_dyn_unc:.0%}). Consider gathering more grounding evidence.{env_annotation}")
         sys.exit(0)
 
 

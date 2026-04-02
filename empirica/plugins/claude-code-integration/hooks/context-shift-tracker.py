@@ -72,12 +72,13 @@ def main():
     hook_input = json.loads(sys.stdin.read() or '{}')
     claude_session_id = hook_input.get('session_id')
 
-    # Context window monitoring: read from statusline state file (hooks don't get context_window)
-    # Statusline writes ~/.empirica/context_usage.json on each refresh
+    # Context window monitoring: read from instance-isolated statusline state file
+    # Statusline writes ~/.empirica/context_usage{suffix}.json on each refresh
     output = {}
     try:
         import time as _time
-        state_file = Path.home() / '.empirica' / 'context_usage.json'
+        suffix = _get_instance_suffix()
+        state_file = Path.home() / '.empirica' / f'context_usage{suffix}.json'
         if state_file.exists():
             state = json.loads(state_file.read_text())
             used_pct = state.get('used_percentage', 0)
