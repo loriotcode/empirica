@@ -2638,7 +2638,8 @@ def handle_postflight_submit_command(args):
                     retrospective["breadth_note"] = (
                         f"Only {', '.join(types_used) or 'no'} artifacts logged. "
                         f"Missing: {', '.join(types_missing)}. "
-                        "Were there assumptions, decisions, dead-ends, or mistakes worth capturing?"
+                        "Unlogged artifact types are ungrounded prediction domains — "
+                        "were there assumptions, decisions, dead-ends, or mistakes worth capturing?"
                     )
 
                 if has_uncommitted:
