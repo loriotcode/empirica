@@ -854,6 +854,43 @@ def _display_turtle_stack(vectors: dict, session_id: str = None, prompt: str = N
     print()
 
 
+def _print_trajectory_human(overall_moon, overall_status, overall_grounding, layers,
+                            unknowns_count, findings_count, sentinel_status, sentinel_moon,
+                            paths, recommendation, recommendation_action,
+                            show_turtle, depth, verbose):
+    """Print trajectory projection in human-readable format."""
+    print("\n" + "=" * 70)
+    print("🔭 TRAJECTORY PROJECTION (Turtle Telescope)")
+    print("=" * 70)
+    print(f"\nCurrent Grounding: {overall_moon} {overall_status} ({overall_grounding:.2f})")
+
+    if show_turtle:
+        print("\n┌─ TURTLE STACK ─────────────────────────────────────────────────────┐")
+        for i, layer in enumerate(layers):
+            moon, status = layer['moon']
+            print(f"│  Layer {i}: {layer['name']:20} {moon} {status:12} ({layer['score']:.2f}) │")
+        print("└────────────────────────────────────────────────────────────────────┘")
+
+    print(f"\nContext: {unknowns_count} unknowns | {findings_count} findings")
+    if sentinel_status:
+        print(f"Sentinel: {sentinel_moon} {sentinel_status.upper()}")
+
+    print("\n┌─ VIABLE PATHS ─────────────────────────────────────────────────────┐")
+    for path in paths[:depth + 2]:
+        viable_marker = "✓" if path['viable'] else "○"
+        print(f"│                                                                    │")
+        print(f"│  {path['icon']} {path['name']:15} (confidence: {path['confidence']:.2f}) [{viable_marker}]")
+        print(f"│     {path['description'][:60]}")
+        if verbose and path['blockers']:
+            for blocker in path['blockers'][:2]:
+                print(f"│     ⚠ {blocker[:55]}")
+    print("│                                                                    │")
+    print("└────────────────────────────────────────────────────────────────────┘")
+    print(f"\n📍 RECOMMENDATION: {recommendation}")
+    print(f"   {recommendation_action}")
+    print("=" * 70 + "\n")
+
+
 def _resolve_current_vectors(db, session_id=None) -> tuple:
     """Resolve current epistemic vectors and project_id. Returns (vectors, project_id)."""
     import sqlite3
@@ -1129,40 +1166,11 @@ def handle_trajectory_project_command(args):
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         else:
-            # Human-readable output
-            print("\n" + "=" * 70)
-            print("🔭 TRAJECTORY PROJECTION (Turtle Telescope)")
-            print("=" * 70)
-
-            print(f"\nCurrent Grounding: {overall_moon} {overall_status} ({overall_grounding:.2f})")
-
-            if show_turtle:
-                print("\n┌─ TURTLE STACK ─────────────────────────────────────────────────────┐")
-                for layer in layers:
-                    moon, status = layer['moon']
-                    print(f"│  Layer {layers.index(layer)}: {layer['name']:20} {moon} {status:12} ({layer['score']:.2f}) │")
-                print("└────────────────────────────────────────────────────────────────────┘")
-
-            print(f"\nContext: {unknowns_count} unknowns | {findings_count} findings")
-            if sentinel_status:
-                print(f"Sentinel: {sentinel_moon} {sentinel_status.upper()}")
-
-            print("\n┌─ VIABLE PATHS ─────────────────────────────────────────────────────┐")
-            for i, path in enumerate(paths[:depth + 2]):
-                viable_marker = "✓" if path['viable'] else "○"
-                print(f"│                                                                    │")
-                print(f"│  {path['icon']} {path['name']:15} (confidence: {path['confidence']:.2f}) [{viable_marker}]")
-                print(f"│     {path['description'][:60]}")
-                if verbose and path['blockers']:
-                    for blocker in path['blockers'][:2]:
-                        print(f"│     ⚠ {blocker[:55]}")
-            print("│                                                                    │")
-            print("└────────────────────────────────────────────────────────────────────┘")
-
-            print(f"\n📍 RECOMMENDATION: {recommendation}")
-            print(f"   {recommendation_action}")
-            print("=" * 70)
-            print()
+            _print_trajectory_human(
+                overall_moon, overall_status, overall_grounding, layers,
+                unknowns_count, findings_count, sentinel_status, sentinel_moon,
+                paths, recommendation, recommendation_action,
+                show_turtle, depth, verbose)
 
     except Exception as e:
         handle_cli_error(e, "Trajectory Project", getattr(args, 'verbose', False))
