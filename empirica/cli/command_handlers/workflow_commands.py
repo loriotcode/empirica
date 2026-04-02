@@ -734,6 +734,32 @@ def handle_preflight_submit_command(args):
         handle_cli_error(e, "Preflight submit", getattr(args, 'verbose', False))
 
 
+def _compute_check_decision(confidence: float, drift: float, unknowns_count: int) -> tuple:
+    """Compute CHECK gate decision from confidence, drift, and unknowns.
+
+    Returns (decision, strength, reasoning, suggestions).
+    """
+    suggestions = []
+    if confidence >= 0.70:
+        if drift > 0.3 or unknowns_count > 5:
+            return ("proceed", "moderate",
+                    f"Readiness sufficient, but {unknowns_count} unknowns and drift ({drift:.2f}) suggest caution",
+                    ["Readiness met - you may proceed",
+                     f"Be aware: {unknowns_count} unknowns remain and drift is {drift:.2f}"])
+        return ("proceed", "strong",
+                f"Readiness strong, low drift ({drift:.2f}), {unknowns_count} unknowns",
+                ["Evidence supports proceeding to action phase"])
+    if unknowns_count > 5 or drift > 0.3:
+        return ("investigate", "strong",
+                f"Readiness insufficient with {unknowns_count} unknowns and drift ({drift:.2f}) - investigation required",
+                ["More investigation needed before proceeding",
+                 f"Address {unknowns_count} unknowns to increase readiness"])
+    return ("investigate", "moderate",
+            f"Readiness insufficient, but only {unknowns_count} unknowns and drift ({drift:.2f}) - investigate to validate",
+            ["Investigate further or recalibrate your assessment",
+             "Evidence doesn't fully explain low readiness"])
+
+
 def handle_check_command(args):
     """
     Handle CHECK command - Evidence-based mid-session grounding
@@ -755,40 +781,17 @@ def handle_check_command(args):
 
         from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
 
-        # AI-FIRST MODE: Check if config provided as positional argument
-        config_data = None
-        if hasattr(args, 'config') and args.config:
-            if args.config == '-':
-                config_data = parse_json_safely(sys.stdin.read())
-            else:
-                if not os.path.exists(args.config):
-                    print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
-                    sys.exit(1)
-                with open(args.config) as f:
-                    config_data = parse_json_safely(f.read())
-        else:
-            # Try to load from stdin if available (legacy mode)
-            try:
-                if not sys.stdin.isatty():
-                    config_data = parse_json_safely(sys.stdin.read())
-            except Exception:
-                pass
+        # Parse input (shared helper)
+        config_data, output_format = _parse_workflow_input(args, "CHECK")
 
-        # Extract parameters from args or config
         session_id = getattr(args, 'session_id', None) or (config_data.get('session_id') if config_data else None)
         cycle = getattr(args, 'cycle', None) or (config_data.get('cycle') if config_data else None)
         round_num = getattr(args, 'round', None) or (config_data.get('round') if config_data else None)
-        output_format = getattr(args, 'output', 'json') or (config_data.get('output', 'json') if config_data else 'json')
         verbose = getattr(args, 'verbose', False) or (config_data.get('verbose', False) if config_data else False)
-
-        # Extract explicit confidence from input (GATE CHECK uses stated confidence, not derived)
         explicit_confidence = config_data.get('confidence') if config_data else None
 
         if not session_id:
-            print(json.dumps({
-                "ok": False,
-                "error": "session_id is required"
-            }))
+            print(json.dumps({"ok": False, "error": "session_id is required"}))
             sys.exit(1)
 
         db = _get_db_for_session(session_id)
@@ -864,49 +867,10 @@ def handle_check_command(args):
         # Calculate confidence (use explicit if provided, else derive from uncertainty)
         confidence = explicit_confidence if explicit_confidence is not None else (1.0 - uncertainty)
 
-        # GATE LOGIC: Primary decision based on readiness assessment
-        # Secondary validation based on evidence (drift, unknowns)
-        suggestions = []
-
-        if confidence >= 0.70:
-            # PROCEED path - readiness sufficient
-            if drift > 0.3 or unknowns_count > 5:
-                # High evidence of gaps - warn but allow proceed
-                decision = "proceed"
-                strength = "moderate"
-                reasoning = f"Readiness sufficient, but {unknowns_count} unknowns and drift ({drift:.2f}) suggest caution"
-                suggestions.append("Readiness met - you may proceed")
-                suggestions.append(f"Be aware: {unknowns_count} unknowns remain and drift is {drift:.2f}")
-            else:
-                # Clean proceed
-                decision = "proceed"
-                strength = "strong"
-                reasoning = f"Readiness strong, low drift ({drift:.2f}), {unknowns_count} unknowns"
-                suggestions.append("Evidence supports proceeding to action phase")
-        else:
-            # INVESTIGATE path - readiness insufficient
-            if unknowns_count > 5 or drift > 0.3:
-                # Strong evidence backing the low readiness
-                decision = "investigate"
-                strength = "strong"
-                reasoning = f"Readiness insufficient with {unknowns_count} unknowns and drift ({drift:.2f}) - investigation required"
-                suggestions.append("More investigation needed before proceeding")
-                suggestions.append(f"Address {unknowns_count} unknowns to increase readiness")
-            else:
-                # Low readiness but low evidence - possible calibration issue
-                decision = "investigate"
-                strength = "moderate"
-                reasoning = f"Readiness insufficient, but only {unknowns_count} unknowns and drift ({drift:.2f}) - investigate to validate"
-                suggestions.append("Investigate further or recalibrate your assessment")
-                suggestions.append("Evidence doesn't fully explain low readiness")
-
-        # Determine drift level
-        if drift > 0.3:
-            drift_level = "high"
-        elif drift > 0.1:
-            drift_level = "medium"
-        else:
-            drift_level = "low"
+        # GATE LOGIC
+        decision, strength, reasoning, suggestions = _compute_check_decision(
+            confidence, drift, unknowns_count)
+        drift_level = "high" if drift > 0.3 else ("medium" if drift > 0.1 else "low")
 
         # PATTERN MATCHING: Check current approach against known failures
         # This is REACTIVE validation - surfacing warnings before proceeding
