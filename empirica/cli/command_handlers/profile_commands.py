@@ -557,6 +557,85 @@ def handle_profile_prune_command(args):
         return 1
 
 
+def _get_artifact_counts() -> dict:
+    """Get artifact counts from SQLite."""
+    from empirica.data.session_database import SessionDatabase
+    db = SessionDatabase()
+    counts = {}
+    try:
+        cursor = db.conn.cursor()
+        for name, table in {'findings': 'project_findings', 'unknowns': 'project_unknowns',
+                             'dead_ends': 'project_dead_ends', 'mistakes': 'mistakes_made',
+                             'goals': 'goals'}.items():
+            try:
+                cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                counts[name] = cursor.fetchone()[0]
+            except Exception:
+                counts[name] = -1
+        for key, query in [
+            ('unknowns_resolved', "SELECT COUNT(*) FROM project_unknowns WHERE is_resolved = 1"),
+            ('sessions', "SELECT COUNT(*) FROM sessions"),
+            ('snapshots', "SELECT COUNT(*) FROM epistemic_snapshots WHERE snapshot_type IN ('preflight', 'postflight')"),
+        ]:
+            try:
+                cursor.execute(query)
+                counts[key] = cursor.fetchone()[0]
+            except Exception:
+                counts[key] = 0
+    finally:
+        db.close()
+    return counts
+
+
+def _get_git_notes_counts(workspace) -> dict:
+    """Get artifact counts from git notes (canonical source)."""
+    counts = {}
+    for ref_name in ['empirica/findings', 'empirica/unknowns', 'empirica/dead_ends',
+                     'empirica/mistakes', 'empirica/goals', 'empirica/sessions']:
+        try:
+            result = subprocess.run(
+                ['git', 'for-each-ref', f'refs/notes/{ref_name}/'],
+                capture_output=True, text=True, timeout=10, cwd=workspace)
+            if result.returncode == 0:
+                counts[ref_name.split('/')[-1]] = len([l for l in result.stdout.strip().split('\n') if l.strip()])
+        except Exception:
+            pass
+    return counts
+
+
+def _check_sync_available(workspace, remote) -> bool:
+    """Check if git remote is available for sync."""
+    try:
+        result = subprocess.run(['git', 'remote', 'get-url', remote],
+                                capture_output=True, text=True, timeout=5, cwd=workspace)
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def _get_calibration_summary(workspace) -> dict:
+    """Read calibration summary from .breadcrumbs.yaml."""
+    calibration = {}
+    try:
+        from pathlib import Path
+        import yaml
+        bc_path = Path(workspace) / '.breadcrumbs.yaml'
+        if bc_path.exists():
+            with open(bc_path) as f:
+                bc = yaml.safe_load(f) or {}
+            cal = bc.get('calibration', {})
+            if cal:
+                calibration['observations'] = cal.get('observations', 0)
+            gcal = bc.get('grounded_calibration', {})
+            if gcal:
+                calibration['grounded_observations'] = gcal.get('total_observations', 0)
+                calibration['grounded_score'] = gcal.get('latest_score')
+                calibration['grounded_coverage'] = gcal.get('latest_coverage')
+    except Exception:
+        pass
+    return calibration
+
+
 def handle_profile_status_command(args):
     """Handle profile-status command — unified profile view."""
     try:
@@ -564,99 +643,11 @@ def handle_profile_status_command(args):
         sync_config = _load_sync_config()
         remote = getattr(args, 'remote', None) or sync_config.get('notes_remote', sync_config.get('remote', 'forgejo'))
 
-        from empirica.data.session_database import SessionDatabase
-        db = SessionDatabase()
-        try:
-            cursor = db.conn.cursor()
-
-            # Artifact counts from SQLite
-            artifact_counts = {}
-            tables = {
-                'findings': 'project_findings',
-                'unknowns': 'project_unknowns',
-                'dead_ends': 'project_dead_ends',
-                'mistakes': 'mistakes_made',
-                'goals': 'goals',
-            }
-            for name, table in tables.items():
-                try:
-                    cursor.execute(f"SELECT COUNT(*) FROM {table}")
-                    artifact_counts[name] = cursor.fetchone()[0]
-                except Exception:
-                    artifact_counts[name] = -1  # table doesn't exist
-
-            # Resolved unknowns count
-            try:
-                cursor.execute("SELECT COUNT(*) FROM project_unknowns WHERE is_resolved = 1")
-                artifact_counts['unknowns_resolved'] = cursor.fetchone()[0]
-            except Exception:
-                artifact_counts['unknowns_resolved'] = 0
-
-            # Session count
-            try:
-                cursor.execute("SELECT COUNT(*) FROM sessions")
-                artifact_counts['sessions'] = cursor.fetchone()[0]
-            except Exception:
-                artifact_counts['sessions'] = 0
-
-            # Transaction count
-            try:
-                cursor.execute("SELECT COUNT(*) FROM epistemic_snapshots WHERE snapshot_type IN ('preflight', 'postflight')")
-                artifact_counts['snapshots'] = cursor.fetchone()[0]
-            except Exception:
-                artifact_counts['snapshots'] = 0
-        finally:
-            db.close()
-
-        # Git notes counts (canonical)
-        notes_counts = {}
+        artifact_counts = _get_artifact_counts()
         workspace = _get_workspace_root()
-        for ref_name in ['empirica/findings', 'empirica/unknowns', 'empirica/dead_ends',
-                         'empirica/mistakes', 'empirica/goals', 'empirica/sessions']:
-            try:
-                result = subprocess.run(
-                    ['git', 'for-each-ref', f'refs/notes/{ref_name}/'],
-                    capture_output=True, text=True, timeout=10,
-                    cwd=workspace
-                )
-                if result.returncode == 0:
-                    count = len([l for l in result.stdout.strip().split('\n') if l.strip()])
-                    notes_counts[ref_name.split('/')[-1]] = count
-            except Exception:
-                pass
-
-        # Sync state
-        sync_available = False
-        try:
-            result = subprocess.run(
-                ['git', 'remote', 'get-url', remote],
-                capture_output=True, text=True, timeout=5,
-                cwd=workspace
-            )
-            sync_available = result.returncode == 0
-        except Exception:
-            pass
-
-        # Calibration summary
-        calibration = {}
-        try:
-            from pathlib import Path
-
-            import yaml
-            breadcrumbs_path = Path(workspace) / '.breadcrumbs.yaml'
-            if breadcrumbs_path.exists():
-                with open(breadcrumbs_path) as f:
-                    bc = yaml.safe_load(f) or {}
-                cal = bc.get('calibration', {})
-                if cal:
-                    calibration['observations'] = cal.get('observations', 0)
-                gcal = bc.get('grounded_calibration', {})
-                if gcal:
-                    calibration['grounded_observations'] = gcal.get('total_observations', 0)
-                    calibration['grounded_score'] = gcal.get('latest_score')
-                    calibration['grounded_coverage'] = gcal.get('latest_coverage')
-        except Exception:
-            pass
+        notes_counts = _get_git_notes_counts(workspace)
+        sync_available = _check_sync_available(workspace, remote)
+        calibration = _get_calibration_summary(workspace)
 
         # Transcript import stats
         import_stats = {'total': 0, 'by_source': {}, 'by_type': {}}
