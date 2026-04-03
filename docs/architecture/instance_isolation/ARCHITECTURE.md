@@ -101,7 +101,7 @@ backward-compatible aliases but all callers have been migrated to `InstanceResol
 **Suffix sanitization:** `:` → `_`, `%` removed. e.g. `x11:77639996` → `_x11_77639996`.
 All readers and writers use `_get_instance_suffix()` for consistency.
 
-**Separation rationale (v1.7.4):** Hooks doing read-modify-write on the transaction file could race with POSTFLIGHT's status=closed write. Splitting into two files gives single-writer semantics per file.
+**Separation rationale (v1.7.5):** Hooks doing read-modify-write on the transaction file could race with POSTFLIGHT's status=closed write. Splitting into two files gives single-writer semantics per file.
 
 ---
 

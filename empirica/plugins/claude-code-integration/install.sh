@@ -1,6 +1,6 @@
 #!/bin/bash
 # empirica installer - one-line install for Claude Code
-# Usage: curl -fsSL https://raw.githubusercontent.com/Nubaeon/empirica/main/claude-code-integration/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/Nubaeon/empirica/main/empirica/plugins/claude-code-integration/install.sh | bash
 #
 # This script installs empirica via pip and delegates plugin setup to
 # `empirica setup-claude-code`, which is the single canonical method
@@ -15,7 +15,7 @@
 
 set -e
 
-PLUGIN_VERSION="1.7.4"
+PLUGIN_VERSION="1.7.5"
 MIN_PYTHON_MAJOR=3
 MIN_PYTHON_MINOR=10
 

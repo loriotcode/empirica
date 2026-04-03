@@ -574,6 +574,7 @@ class ReleaseManager:
         # Previously only staged packaging/ and Dockerfile, missing README,
         # __init__.py, plugin.json, install.sh, and other swept files.
         self.run_command(["git", "add",
+            "pyproject.toml",
             "packaging/", "Dockerfile", "Dockerfile.alpine",
             "README.md",
             "empirica/__init__.py",

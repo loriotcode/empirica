@@ -14,15 +14,15 @@ Writes a UNIFIED breadcrumbs git note combining task context + epistemic state.
 """
 
 import json
-import os
-import subprocess
 import sys
-from datetime import datetime
+import subprocess
+import os
 from pathlib import Path
-
+from datetime import datetime
 # Import shared utilities from plugin lib
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from project_resolver import _get_instance_suffix, find_project_root, get_instance_id
+from project_resolver import get_instance_id, _get_instance_suffix, find_project_root  # noqa: E402
+
 
 # Patterns that indicate a message is system-injected, not human input
 _SKIP_PATTERNS = [
@@ -205,10 +205,8 @@ def main():
     project_root = find_project_root(claude_session_id=claude_session_id)
     if project_root is None:
         print(json.dumps({
-            "error": "Could not resolve project root. No active_work file, instance_projects, or EMPIRICA_WORKSPACE_ROOT found.",
-            "claude_session_id": claude_session_id,
-            "tmux_pane": os.environ.get('TMUX_PANE')
-        }))
+            "stopReason": "Could not resolve project root for pre-compact snapshot"
+        }), file=sys.stdout)
         sys.exit(1)
     os.chdir(project_root)
 
@@ -256,12 +254,8 @@ def main():
         pass  # Session detection failure is non-fatal
 
     if not empirica_session:
-        # Exit silently if no Empirica session active
-        print(json.dumps({
-            "ok": True,
-            "skipped": True,
-            "reason": "No active Empirica session detected"
-        }))
+        # Exit silently if no Empirica session active — empty JSON = valid schema
+        print(json.dumps({}), file=sys.stdout)
         sys.exit(0)
 
     # Stash uncommitted work before snapshot (preserves WIP without polluting branch history)
@@ -319,8 +313,7 @@ def main():
     try:
         sys.path.insert(0, str(Path.home() / 'empirical-ai' / 'empirica'))
         from empirica.core.context_budget import (
-            ContextBudgetManager,
-            load_thresholds_from_config,
+            ContextBudgetManager, load_thresholds_from_config,
         )
 
         thresholds = load_thresholds_from_config()
@@ -355,12 +348,12 @@ def main():
         if suffix:
             tx_path = project_root / '.empirica' / f'active_transaction{suffix}.json'
             if tx_path.exists():
-                with open(tx_path) as f:
+                with open(tx_path, 'r') as f:
                     active_transaction = json.load(f)
-            # Also capture hook counters (separate file since v1.7.4)
+            # Also capture hook counters (separate file since v1.7.5)
             counters_path = project_root / '.empirica' / f'hook_counters{suffix}.json'
             if counters_path.exists():
-                with open(counters_path) as f:
+                with open(counters_path, 'r') as f:
                     hook_counters = json.load(f)
         else:
             # Fallback: scan for any active transaction file
@@ -368,7 +361,7 @@ def main():
             if tx_files:
                 # Use most recently modified
                 tx_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-                with open(tx_files[0]) as f:
+                with open(tx_files[0], 'r') as f:
                     active_transaction = json.load(f)
     except Exception:
         pass  # Transaction capture is non-fatal
@@ -458,7 +451,7 @@ def main():
                 },
                 "context_budget": budget_report,  # Token budget state at compaction
                 "active_transaction": active_transaction,  # Transaction state for continuity
-                "hook_counters": hook_counters,  # Hook counters (separate from transaction since v1.7.4)
+                "hook_counters": hook_counters,  # Hook counters (separate from transaction since v1.7.5)
                 "last_task": last_task,  # Extracted human task from transcript
                 "git_context": git_context,  # Branch, modified files, recent commits
             }
@@ -497,19 +490,28 @@ def main():
             display_vectors = fresh_vectors or fallback_vectors
             vector_source = "canonical" if fresh_vectors else "fallback"
 
+            # Build epistemic summary for the summarizer to see
+            # This text gets injected into the conversation BEFORE summarization,
+            # guiding the summarizer to prioritize epistemic state over file contents.
+            know_val = display_vectors.get('know', 'N/A')
+            unc_val = display_vectors.get('uncertainty', 'N/A')
+            session_short = (breadcrumbs.get('session_id') or 'unknown')[:8]
+            last_task = breadcrumbs.get('last_task', '')
+            last_task_line = f"\nLast task: {last_task}" if last_task else ""
+            compact_guidance = f"""Compaction summary guidance: Epistemic state has been captured externally (Empirica breadcrumbs, git notes). The summarizer should prioritize:
+1. What the user asked for and decisions made (not file contents)
+2. Current task context and open questions (not code snippets)
+3. Session ID {session_short} with vectors know={know_val}, uncertainty={unc_val}{last_task_line}
+File contents read during this session are available via Read tool — do NOT include them in the summary."""
+
+            # Output ONLY schema-conforming fields to stdout
+            # Claude Code validates: continue, suppressOutput, stopReason, decision,
+            # reason, systemMessage, permissionDecision, hookSpecificOutput
             print(json.dumps({
-                "ok": True,
-                "trigger": trigger,
-                "empirica_session_id": breadcrumbs.get('session_id'),
-                "snapshot_saved": True,
-                "snapshot_path": str(snapshot_path),
-                "git_notes_written": git_notes_written,
-                "stash_created": stash_created,
-                "stash_restored": stash_restored,
-                "vectors_source": vector_source,
-                "vectors_captured": len(display_vectors),
-                "goals_marked_stale": stale_goals_count,
-                "message": f"Pre-compact snapshot saved ({trigger} compact, {vector_source} vectors, git_notes={'yes' if git_notes_written else 'no'})"
+                "hookSpecificOutput": {
+                    "hookEventName": "PreCompact",
+                    "additionalContext": compact_guidance
+                }
             }), file=sys.stdout)
 
             # Also print user-visible message to stderr
@@ -531,25 +533,21 @@ def main():
 
             sys.exit(0)
         else:
-            # Error running project-bootstrap
+            # Error running project-bootstrap — use schema-valid stopReason
             print(json.dumps({
-                "ok": False,
-                "error": result.stderr,
-                "empirica_session_id": empirica_session
-            }))
-            sys.exit(2)  # Blocking error (show to user)
+                "stopReason": f"project-bootstrap failed: {result.stderr[:200]}"
+            }), file=sys.stdout)
+            sys.exit(2)
 
     except subprocess.TimeoutExpired:
         print(json.dumps({
-            "ok": False,
-            "error": "project-bootstrap timed out (>30s)"
-        }))
+            "stopReason": "project-bootstrap timed out (>30s)"
+        }), file=sys.stdout)
         sys.exit(2)
     except Exception as e:
         print(json.dumps({
-            "ok": False,
-            "error": str(e)
-        }))
+            "stopReason": f"pre-compact error: {str(e)[:200]}"
+        }), file=sys.stdout)
         sys.exit(2)
 
 if __name__ == '__main__':
