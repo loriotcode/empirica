@@ -1053,7 +1053,32 @@ def handle_project_switch_command(args):
             attached_session_id = attached_session['session_id'] if attached_session else None
             _update_active_work(str(project_path), folder_name, empirica_session_id=attached_session_id, claude_session_id=cli_claude_session_id)
 
-        # 6. Show context banner
+        # 6. Query LIVE counts from per-project sessions.db (before output format branch)
+        _sw_findings, _sw_unknowns, _sw_goals = 0, 0, 0
+        if project_path:
+            try:
+                import sqlite3 as _sw_sql_pre
+                _sw_db_pre = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
+                if _sw_db_pre.exists():
+                    _sw_conn_pre = _sw_sql_pre.connect(str(_sw_db_pre))
+                    _sw_c_pre = _sw_conn_pre.cursor()
+                    try:
+                        _sw_findings = _sw_c_pre.execute("SELECT COUNT(*) FROM project_findings WHERE project_id = ?", (project_id,)).fetchone()[0]
+                    except Exception:
+                        pass
+                    try:
+                        _sw_unknowns = _sw_c_pre.execute("SELECT COUNT(*) FROM project_unknowns WHERE project_id = ? AND is_resolved = 0", (project_id,)).fetchone()[0]
+                    except Exception:
+                        pass
+                    try:
+                        _sw_goals = _sw_c_pre.execute("SELECT COUNT(*) FROM goals WHERE project_id = ? AND is_completed = 0", (project_id,)).fetchone()[0]
+                    except Exception:
+                        pass
+                    _sw_conn_pre.close()
+            except Exception:
+                pass
+
+        # Show context banner
         if output_format == 'human':
             print()
             print("━" * 70)
@@ -1066,30 +1091,6 @@ def handle_project_switch_command(args):
             print(f"🆔 Project ID: {project_id[:8]}...")
             if project_path:
                 print(f"📍 Location: {project_path}")
-            # Query LIVE counts from per-project sessions.db (not stale workspace.db)
-            _sw_findings, _sw_unknowns, _sw_goals = 0, 0, 0
-            if project_path:
-                try:
-                    import sqlite3 as _sw_sql
-                    _sw_db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
-                    if _sw_db_path.exists():
-                        _sw_conn = _sw_sql.connect(str(_sw_db_path))
-                        _sw_c = _sw_conn.cursor()
-                        try:
-                            _sw_findings = _sw_c.execute("SELECT COUNT(*) FROM project_findings WHERE project_id = ?", (project_id,)).fetchone()[0]
-                        except Exception:
-                            pass
-                        try:
-                            _sw_unknowns = _sw_c.execute("SELECT COUNT(*) FROM project_unknowns WHERE project_id = ? AND is_resolved = 0", (project_id,)).fetchone()[0]
-                        except Exception:
-                            pass
-                        try:
-                            _sw_goals = _sw_c.execute("SELECT COUNT(*) FROM goals WHERE project_id = ? AND is_completed = 0", (project_id,)).fetchone()[0]
-                        except Exception:
-                            pass
-                        _sw_conn.close()
-                except Exception:
-                    pass
             print(f"📊 Findings: {_sw_findings}  Unknowns: {_sw_unknowns}  Goals: {_sw_goals}")
             if attached_session:
                 print(f"🔗 Attached to session: {attached_session['session_id'][:8]}... (AI: {attached_session['ai_id']})")
