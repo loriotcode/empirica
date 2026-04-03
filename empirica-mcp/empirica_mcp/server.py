@@ -1,3254 +1,582 @@
 #!/usr/bin/env python3
 """
-Empirica MCP Server - Epistemic Middleware for AI Agents
+Empirica MCP Server — Thin CLI wrapper for AI agent environments.
 
-Full-featured MCP server providing:
-- **100+ tools** wrapping Empirica CLI commands
-- **Epistemic middleware** for confidence-gated actions
-- **Sentinel integration** for CHECK gate decisions
-- **CASCADE workflow** (PREFLIGHT → CHECK → POSTFLIGHT)
-- **Memory persistence** via Qdrant semantic search
+Provides MCP tools that route to `empirica` CLI commands via subprocess.
+No epistemic middleware — gating is handled by the Sentinel (hooks) in
+Claude Code, or self-enforced on other platforms.
 
 Architecture:
-- Stateful tools route through CLI subprocess (single source of truth)
-- EpistemicMiddleware intercepts tool calls for confidence gating
-- Sentinel evaluates vectors and returns proceed/investigate decisions
-- Session state persists across tool invocations
+- Table-driven: TOOL_REGISTRY maps tool names → CLI commands + params
+- All commands run with stdin=DEVNULL and timeout (no hanging)
+- Graceful: if CLI not found, returns clear error
+- Stateless: no session state in the server itself
 
-CASCADE Philosophy:
-- validate_input=False: Schemas are GUIDANCE, not enforcement
-- No rigid validation: AI agents self-assess what parameters make sense
-- Scope is vectorial (self-assessed): {"breadth": 0-1, "duration": 0-1, "coordination": 0-1}
-- Trust AI reasoning: Let agents assess epistemic state → scope vectors
-
-Version: 1.6.6
+Version: 1.7.5
 """
 
+import argparse
 import asyncio
 import json
 import logging
+import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
-
-# Setup logging
-logger = logging.getLogger(__name__)
-
-# Add paths for proper imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from empirica.config.path_resolver import get_session_db_path
-from empirica.data.session_database import SessionDatabase
-from empirica.utils.session_resolver import resolve_session_id
-
-# Auto-capture for error tracking
-try:
-    from empirica.core.issue_capture import IssueCategory, IssueSeverity, get_auto_capture
-except ImportError:
-    get_auto_capture = None
-    IssueSeverity = None
-    IssueCategory = None
 
 from mcp import types
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
-# Empirica CLI configuration - use PATH for portability
-EMPIRICA_CLI = shutil.which("empirica")
+logger = logging.getLogger(__name__)
 
-# Output size limits to prevent oversized responses
-MAX_OUTPUT_SIZE = 30000  # 30K characters max
-TRUNCATION_WARNING = "\n\n⚠️ OUTPUT TRUNCATED: Response exceeded {max_size} characters ({actual_size} total). Use 'empirica project-bootstrap --depth moderate' or query specific data."
+# CLI resolution
+EMPIRICA_CLI = shutil.which("empirica")
 if not EMPIRICA_CLI:
-    # Fallback: try common installation locations
-    possible_paths = [
+    for path in [
         Path.home() / ".local" / "bin" / "empirica",
         Path("/usr/local/bin/empirica"),
-        Path("/usr/bin/empirica"),
-    ]
-    for path in possible_paths:
+    ]:
         if path.exists():
             EMPIRICA_CLI = str(path)
             break
 
-    if not EMPIRICA_CLI:
-        raise RuntimeError(
-            "empirica CLI not found in PATH. "
-            "Please install: pip install empirica"
-        )
+CLI_TIMEOUT = int(os.environ.get("EMPIRICA_MCP_TIMEOUT", "30"))
+MAX_OUTPUT = 30000
+
+# =============================================================================
+# Tool Registry — single source of truth for tool→CLI mapping
+# =============================================================================
+# Each entry: (cli_command, {param_name: cli_flag}, [required_params], description)
+# Params with None as flag are positional or handled specially.
+
+TOOL_REGISTRY: dict[str, dict] = {
+    # --- Session lifecycle ---
+    "session_create": {
+        "cli": "session-create",
+        "params": {"ai_id": "--ai-id", "session_type": "--session-type", "project_path": "--project-path"},
+        "required": ["ai_id"],
+        "desc": "Create new Empirica session",
+    },
+    "project_bootstrap": {
+        "cli": "project-bootstrap",
+        "params": {"ai_id": "--ai-id", "session_id": "--session-id", "depth": "--depth"},
+        "required": [],
+        "desc": "Load project context (findings, goals, unknowns, calibration)",
+    },
+    "session_snapshot": {
+        "cli": "session-snapshot",
+        "params": {"session_id": "--session-id"},
+        "required": ["session_id"],
+        "desc": "Create snapshot of current session state",
+    },
+    "resume_previous_session": {
+        "cli": "sessions-resume",
+        "params": {"session_id": "--session-id"},
+        "required": ["session_id"],
+        "desc": "Resume a previous session",
+    },
+
+    # --- CASCADE workflow ---
+    "submit_preflight_assessment": {
+        "cli": "preflight-submit",
+        "params": {},
+        "required": ["session_id", "vectors"],
+        "desc": "Submit PREFLIGHT self-assessment (13 vectors 0.0-1.0)",
+        "stdin_json": True,  # Sends full arguments as JSON to stdin
+    },
+    "submit_check_assessment": {
+        "cli": "check-submit",
+        "params": {},
+        "required": ["session_id", "vectors"],
+        "desc": "Submit CHECK gate assessment",
+        "stdin_json": True,
+    },
+    "submit_postflight_assessment": {
+        "cli": "postflight-submit",
+        "params": {},
+        "required": ["session_id", "vectors"],
+        "desc": "Submit POSTFLIGHT assessment — closes transaction, triggers grounded verification",
+        "stdin_json": True,
+    },
+
+    # --- Noetic artifacts ---
+    "finding_log": {
+        "cli": "finding-log",
+        "params": {"finding": "--finding", "impact": "--impact", "session_id": "--session-id",
+                   "goal_id": "--goal-id", "subtask_id": "--subtask-id", "project_id": "--project-id",
+                   "subject": "--subject", "scope": "--scope",
+                   "entity_type": "--entity-type", "entity_id": "--entity-id", "via": "--via"},
+        "required": ["finding"],
+        "desc": "Log a finding (what was learned)",
+    },
+    "unknown_log": {
+        "cli": "unknown-log",
+        "params": {"unknown": "--unknown", "session_id": "--session-id",
+                   "goal_id": "--goal-id", "subtask_id": "--subtask-id", "project_id": "--project-id",
+                   "subject": "--subject", "scope": "--scope",
+                   "entity_type": "--entity-type", "entity_id": "--entity-id", "via": "--via"},
+        "required": ["unknown"],
+        "desc": "Log an unknown (what needs investigation)",
+    },
+    "deadend_log": {
+        "cli": "deadend-log",
+        "params": {"approach": "--approach", "why_failed": "--why-failed", "session_id": "--session-id",
+                   "goal_id": "--goal-id", "subtask_id": "--subtask-id", "project_id": "--project-id",
+                   "subject": "--subject", "scope": "--scope",
+                   "entity_type": "--entity-type", "entity_id": "--entity-id", "via": "--via"},
+        "required": ["approach", "why_failed"],
+        "desc": "Log a dead-end (approach that didn't work)",
+    },
+    "mistake_log": {
+        "cli": "mistake-log",
+        "params": {"mistake": "--mistake", "why_wrong": "--why-wrong", "prevention": "--prevention",
+                   "session_id": "--session-id", "goal_id": "--goal-id", "project_id": "--project-id",
+                   "scope": "--scope", "entity_type": "--entity-type", "entity_id": "--entity-id"},
+        "required": ["mistake", "why_wrong", "prevention"],
+        "desc": "Log a mistake (error to avoid in future)",
+    },
+    "assumption_log": {
+        "cli": "assumption-log",
+        "params": {"assumption": "--assumption", "confidence": "--confidence", "domain": "--domain",
+                   "session_id": "--session-id", "goal_id": "--goal-id", "project_id": "--project-id",
+                   "entity_type": "--entity-type", "entity_id": "--entity-id", "via": "--via"},
+        "required": ["assumption"],
+        "desc": "Log an unverified assumption with confidence level",
+    },
+    "decision_log": {
+        "cli": "decision-log",
+        "params": {"choice": "--choice", "rationale": "--rationale", "alternatives": "--alternatives",
+                   "reversibility": "--reversibility", "confidence": "--confidence", "domain": "--domain",
+                   "session_id": "--session-id", "goal_id": "--goal-id", "project_id": "--project-id",
+                   "entity_type": "--entity-type", "entity_id": "--entity-id", "via": "--via"},
+        "required": ["choice", "rationale"],
+        "desc": "Log a decision with rationale",
+    },
+    "source_add": {
+        "cli": "source-add",
+        "params": {"title": "--title", "source_url": "--source-url", "source_type": "--source-type",
+                   "session_id": "--session-id"},
+        "required": ["title", "source_url", "source_type"],
+        "desc": "Add an epistemic source reference",
+    },
+
+    # --- Goals ---
+    "goals_create": {
+        "cli": "goals-create",
+        "params": {"objective": "--objective", "session_id": "--session-id", "project_id": "--project-id"},
+        "required": ["objective"],
+        "desc": "Create a new goal",
+    },
+    "goals_list": {
+        "cli": "goals-list",
+        "params": {"session_id": "--session-id", "status": "--status"},
+        "required": [],
+        "desc": "List goals (optionally filter by status)",
+    },
+    "goals_complete": {
+        "cli": "goals-complete",
+        "params": {"goal_id": "--goal-id", "reason": "--reason"},
+        "required": ["goal_id"],
+        "desc": "Mark a goal as complete",
+    },
+    "goals_add_subtask": {
+        "cli": "goals-add-subtask",
+        "params": {"goal_id": "--goal-id", "description": "--description",
+                   "importance": "--importance"},
+        "required": ["goal_id", "description"],
+        "desc": "Add a subtask to a goal",
+    },
+    "goals_complete_subtask": {
+        "cli": "goals-complete-subtask",
+        "params": {"task_id": "--task-id", "evidence": "--evidence"},
+        "required": ["task_id"],
+        "desc": "Mark a subtask as complete",
+    },
+    "goals_progress": {
+        "cli": "goals-progress",
+        "params": {"goal_id": "--goal-id"},
+        "required": ["goal_id"],
+        "desc": "Get goal progress details",
+    },
+    "goals_search": {
+        "cli": "goals-search",
+        "params": {"query": "--query", "status": "--status"},
+        "required": ["query"],
+        "desc": "Search goals by text",
+    },
+    "goals_ready": {
+        "cli": "goals-ready",
+        "params": {"session_id": "--session-id"},
+        "required": [],
+        "desc": "List goals ready for work (no blockers)",
+    },
+
+    # --- Unknowns ---
+    "unknown_list": {
+        "cli": "unknown-list",
+        "params": {"session_id": "--session-id", "status": "--status"},
+        "required": [],
+        "desc": "List unknowns",
+    },
+    "unknown_resolve": {
+        "cli": "unknown-resolve",
+        "params": {"unknown_id": "--unknown-id", "resolved_by": "--resolved-by"},
+        "required": ["unknown_id"],
+        "desc": "Resolve an unknown",
+    },
+
+    # --- Search and memory ---
+    "project_search": {
+        "cli": "project-search",
+        "params": {"task": "--task", "project_id": "--project-id", "type": "--type",
+                   "limit": "--limit"},
+        "required": ["task"],
+        "desc": "Semantic search over project knowledge (Qdrant)",
+    },
+    "project_embed": {
+        "cli": "project-embed",
+        "params": {"project_id": "--project-id"},
+        "required": [],
+        "desc": "Embed project artifacts to Qdrant for semantic search",
+    },
+
+    # --- Calibration and state ---
+    "calibration_report": {
+        "cli": "calibration-report",
+        "params": {"session_id": "--session-id", "grounded": "--grounded"},
+        "required": [],
+        "desc": "Get calibration report (self-referential and/or grounded)",
+    },
+    "assess_state": {
+        "cli": "assess-state",
+        "params": {"session_id": "--session-id"},
+        "required": [],
+        "desc": "Get current epistemic state assessment",
+    },
+    "profile_status": {
+        "cli": "profile-status",
+        "params": {},
+        "required": [],
+        "desc": "Show artifact counts, drift, calibration summary",
+    },
+
+    # --- Lessons ---
+    "lesson_create": {
+        "cli": "lesson-create",
+        "params": {"name": "--name", "description": "--description", "domain": "--domain",
+                   "content": "--content", "session_id": "--session-id"},
+        "required": ["name", "description"],
+        "desc": "Create a reusable lesson from experience",
+    },
+    "lesson_list": {
+        "cli": "lesson-list",
+        "params": {"domain": "--domain"},
+        "required": [],
+        "desc": "List available lessons",
+    },
+    "lesson_search": {
+        "cli": "lesson-search",
+        "params": {"query": "--query"},
+        "required": ["query"],
+        "desc": "Search lessons by text",
+    },
+
+    # --- Issues ---
+    "issue_list": {
+        "cli": "issue-list",
+        "params": {"status": "--status", "severity": "--severity"},
+        "required": [],
+        "desc": "List auto-captured issues",
+    },
+    "issue_resolve": {
+        "cli": "issue-resolve",
+        "params": {"session_id": "--session-id", "issue_id": "--issue-id",
+                   "resolution": "--resolution"},
+        "required": ["session_id", "issue_id", "resolution"],
+        "desc": "Resolve an auto-captured issue",
+    },
+
+    # --- Investigation ---
+    "investigate": {
+        "cli": "investigate",
+        "params": {"question": "--question", "session_id": "--session-id", "depth": "--depth"},
+        "required": ["question"],
+        "desc": "Run structured investigation on a question",
+    },
+
+    # --- Handoff ---
+    "handoff_create": {
+        "cli": "handoff-create",
+        "params": {"session_id": "--session-id", "format": "--format"},
+        "required": [],
+        "desc": "Create handoff report for session continuation",
+    },
+
+    # --- Workspace ---
+    "workspace_overview": {
+        "cli": "workspace-overview",
+        "params": {},
+        "required": [],
+        "desc": "Show workspace overview (all tracked projects)",
+    },
+    "workspace_map": {
+        "cli": "workspace-map",
+        "params": {},
+        "required": [],
+        "desc": "Show knowledge map across projects",
+    },
+
+    # --- Monitor ---
+    "monitor": {
+        "cli": "monitor",
+        "params": {"session_id": "--session-id"},
+        "required": [],
+        "desc": "Show real-time session monitoring dashboard",
+    },
+
+    # --- Checkpoint ---
+    "checkpoint_create": {
+        "cli": "checkpoint-create",
+        "params": {"session_id": "--session-id", "message": "--message"},
+        "required": [],
+        "desc": "Create a git checkpoint with epistemic metadata",
+    },
+    "checkpoint_load": {
+        "cli": "checkpoint-load",
+        "params": {"checkpoint_id": "--checkpoint-id"},
+        "required": ["checkpoint_id"],
+        "desc": "Load a checkpoint",
+    },
+
+    # --- Docs ---
+    "refdoc_add": {
+        "cli": "refdoc-add",
+        "params": {"title": "--title", "source_url": "--source-url", "doc_type": "--doc-type"},
+        "required": ["title"],
+        "desc": "Register a reference document",
+    },
+
+    # --- Misc ---
+    "memory_compact": {
+        "cli": "memory-compact",
+        "params": {"session_id": "--session-id"},
+        "required": [],
+        "desc": "Compact session memory (deduplicate, prune stale)",
+    },
+    "efficiency_report": {
+        "cli": "efficiency-report",
+        "params": {"session_id": "--session-id"},
+        "required": [],
+        "desc": "Generate efficiency report for session",
+    },
+}
+
+# =============================================================================
+# Tool schemas — auto-generated from registry
+# =============================================================================
+
+# Param type hints for schema generation
+_NUMERIC_PARAMS = {"impact", "confidence", "estimated_complexity", "limit"}
+_BOOLEAN_PARAMS = {"grounded"}
+_ENUM_PARAMS = {
+    "reversibility": ["exploratory", "committal", "forced"],
+    "scope": ["session", "project", "both"],
+    "entity_type": ["project", "organization", "contact", "engagement"],
+    "source_type": ["doc", "spec", "paper", "blog", "video", "code", "api", "other"],
+    "status": ["in_progress", "completed", "stale", "abandoned"],
+    "severity": ["low", "medium", "high", "critical"],
+}
 
 
-def get_project_path_from_session(session_id: str) -> str | None:
-    """Get project path from session's project_id.
+def _build_tool_schema(name: str, entry: dict) -> types.Tool:
+    """Build MCP Tool schema from registry entry."""
+    properties = {}
+    for param in entry["params"]:
+        if param in _NUMERIC_PARAMS:
+            properties[param] = {"type": "number", "description": param.replace("_", " ").title()}
+        elif param in _BOOLEAN_PARAMS:
+            properties[param] = {"type": "boolean", "description": param.replace("_", " ").title()}
+        elif param in _ENUM_PARAMS:
+            properties[param] = {"type": "string", "enum": _ENUM_PARAMS[param]}
+        else:
+            properties[param] = {"type": "string"}
 
-    The session table stores project_id (UUID), and the projects table
-    stores the actual path. This is the AUTHORITATIVE source for
-    where CLI commands should execute.
+    # For stdin_json tools, add vectors and reasoning
+    if entry.get("stdin_json"):
+        properties["session_id"] = {"type": "string", "description": "Session UUID"}
+        properties["vectors"] = {"type": "object", "description": "13 epistemic vectors (0.0-1.0)"}
+        properties["reasoning"] = {"type": "string", "description": "Assessment reasoning"}
+        if name == "submit_preflight_assessment":
+            properties["task_context"] = {"type": "string", "description": "What you're working on"}
+            properties["work_type"] = {"type": "string", "description": "code|infra|research|debug|docs|comms|design|audit"}
+            properties["work_context"] = {"type": "string", "description": "greenfield|iteration|investigation|refactor"}
+        if name == "submit_check_assessment":
+            properties["decision"] = {"type": "string", "enum": ["proceed", "investigate"]}
 
-    Args:
-        session_id: Session UUID to look up
-
-    Returns:
-        Project path string, or None if not found
-    """
-    try:
-        db = SessionDatabase(db_path=str(get_session_db_path()))
-        cursor = db.conn.cursor()
-
-        # Get project_id from session
-        cursor.execute(
-            "SELECT project_id FROM sessions WHERE session_id = ?",
-            (session_id,)
-        )
-        row = cursor.fetchone()
-        if not row or not row[0]:
-            db.close()
-            return None
-
-        project_id = row[0]
-
-        # Get path from projects table
-        cursor.execute(
-            "SELECT path FROM projects WHERE id = ?",
-            (project_id,)
-        )
-        row = cursor.fetchone()
-        db.close()
-
-        if row and row[0]:
-            return row[0]
-    except Exception as e:
-        logger.debug(f"get_project_path_from_session failed: {e}")
-    return None
+    return types.Tool(
+        name=name,
+        description=entry["desc"],
+        inputSchema={
+            "type": "object",
+            "properties": properties,
+            "required": entry["required"],
+        },
+    )
 
 
-# Create MCP server instance
-app = Server("empirica-v2")
+# =============================================================================
+# MCP Server
+# =============================================================================
 
-# ============================================================================
-# Epistemic Middleware (Optional)
-# ============================================================================
+app = Server("empirica")
 
-# Enable epistemic mode via environment variable
-import os
-
-ENABLE_EPISTEMIC = os.getenv("EMPIRICA_EPISTEMIC_MODE", "false").lower() == "true"
-EPISTEMIC_PERSONALITY = os.getenv("EMPIRICA_PERSONALITY", "balanced_architect")
-
-if ENABLE_EPISTEMIC:
-    from .epistemic_middleware import EpistemicMiddleware
-    logger.info(f"🧠 Epistemic mode ENABLED with personality: {EPISTEMIC_PERSONALITY}")
-    epistemic_middleware = EpistemicMiddleware(personality=EPISTEMIC_PERSONALITY)
-else:
-    epistemic_middleware = None
-    logger.info("⚙️  Standard mode (epistemic disabled)")
-
-# ============================================================================
-# Tool Definitions
-# ============================================================================
 
 @app.list_tools()
 async def list_tools() -> list[types.Tool]:
-    """List all available Empirica tools"""
-
-    tools = [
-        # ========== Stateless Tools (Handle Directly) ==========
-
-        types.Tool(
-            name="get_empirica_introduction",
-            description="Get comprehensive introduction to Empirica framework",
-            inputSchema={"type": "object", "properties": {}}
-        ),
-
-        types.Tool(
-            name="get_workflow_guidance",
-            description="Get workflow guidance for CASCADE phases",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "phase": {"type": "string", "description": "Workflow phase"}
-                }
-            }
-        ),
-
-        types.Tool(
-            name="cli_help",
-            description="Get help for Empirica CLI commands",
-            inputSchema={"type": "object", "properties": {}}
-        ),
-
-        # ========== Workflow Tools (Route to CLI) ==========
-
-        types.Tool(
-            name="session_create",
-            description="Create new Empirica session with metacognitive configuration",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "ai_id": {"type": "string", "description": "AI agent identifier"},
-                    "session_type": {"type": "string", "description": "Session type (development, production, testing)"},
-                    "project_path": {"type": "string", "description": "Path to project directory (uses cwd if not specified). Enables project switch without changing cwd."}
-                },
-                "required": ["ai_id"]
-            }
-        ),
-
-        # NOTE: execute_preflight removed - unnecessary theater. AI calls submit_preflight_assessment directly.
-        # PREFLIGHT is mechanistic: assess 13 vectors honestly, record them. No template needed.
-
-        types.Tool(
-            name="submit_preflight_assessment",
-            description="Submit PREFLIGHT self-assessment scores (13 vectors)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string"},
-                    "vectors": {"type": "object", "description": "13 epistemic vectors (0.0-1.0)"},
-                    "reasoning": {"type": "string"}
-                },
-                "required": ["session_id", "vectors"]
-            }
-        ),
-
-        # NOTE: execute_check removed - it blocks on stdin. Use submit_check_assessment directly.
-
-        types.Tool(
-            name="submit_check_assessment",
-            description="Submit CHECK phase assessment scores",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string"},
-                    "vectors": {"type": "object"},
-                    "decision": {"type": "string", "enum": ["proceed", "investigate"]},
-                    "reasoning": {"type": "string"}
-                },
-                "required": ["session_id", "vectors", "decision"]
-            }
-        ),
-
-        # NOTE: execute_postflight removed - unnecessary theater. AI calls submit_postflight_assessment directly.
-        # POSTFLIGHT is mechanistic: assess current 13 vectors honestly, record them. AI knows what it learned.
-
-        types.Tool(
-            name="submit_postflight_assessment",
-            description="Submit POSTFLIGHT pure self-assessment. Rate your CURRENT epistemic state across all 13 vectors (0.0-1.0). Do NOT reference PREFLIGHT or claim deltas - just honestly assess where you are NOW. System automatically calculates learning deltas, detects memory gaps, and flags calibration issues.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session UUID"},
-                    "vectors": {"type": "object", "description": "CURRENT epistemic state: 13 vectors (engagement, know, do, context, clarity, coherence, signal, density, state, change, completion, impact, uncertainty). Rate 0.0-1.0 based on current state only."},
-                    "reasoning": {"type": "string", "description": "Description of what changed from PREFLIGHT (unified with preflight-submit, both use reasoning)"}
-                },
-                "required": ["session_id", "vectors"]
-            }
-        ),
-
-        # ========== Goal/Task Management (Route to CLI) ==========
-
-        types.Tool(
-            name="finding_log",
-            description="Log a finding (what was learned) to session and optionally project. Supports entity linking for cross-project knowledge graphs.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "finding": {"type": "string", "description": "What was learned or discovered"},
-                    "impact": {"type": "number", "description": "Impact score 0.0-1.0", "minimum": 0.0, "maximum": 1.0},
-                    "goal_id": {"type": "string", "description": "Optional goal UUID to link finding"},
-                    "subtask_id": {"type": "string", "description": "Optional subtask UUID to link finding"},
-                    "project_id": {"type": "string", "description": "Project UUID (auto-detected if omitted)"},
-                    "subject": {"type": "string", "description": "Subject/workstream identifier (auto-detected from directory if omitted)"},
-                    "scope": {"type": "string", "description": "Scope: session (ephemeral), project (persistent), or both (dual-log)", "enum": ["session", "project", "both"]},
-                    "entity_type": {"type": "string", "description": "Entity type this artifact relates to", "enum": ["project", "organization", "contact", "engagement"]},
-                    "entity_id": {"type": "string", "description": "Entity UUID (organization, contact, or engagement ID)"},
-                    "via": {"type": "string", "description": "Discovery channel (cli, email, linkedin, calendar, agent, web)"}
-                },
-                "required": ["session_id", "finding"]
-            }
-        ),
-
-        types.Tool(
-            name="unknown_log",
-            description="Log an unknown (what remains unclear) to session and optionally project. Supports entity linking.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "unknown": {"type": "string", "description": "What remains unclear or needs investigation"},
-                    "goal_id": {"type": "string", "description": "Optional goal UUID to link unknown"},
-                    "subtask_id": {"type": "string", "description": "Optional subtask UUID to link unknown"},
-                    "project_id": {"type": "string", "description": "Project UUID (auto-detected if omitted)"},
-                    "subject": {"type": "string", "description": "Subject/workstream identifier (auto-detected from directory if omitted)"},
-                    "scope": {"type": "string", "description": "Scope: session (ephemeral), project (persistent), or both (dual-log)", "enum": ["session", "project", "both"]},
-                    "entity_type": {"type": "string", "description": "Entity type this artifact relates to", "enum": ["project", "organization", "contact", "engagement"]},
-                    "entity_id": {"type": "string", "description": "Entity UUID (organization, contact, or engagement ID)"},
-                    "via": {"type": "string", "description": "Discovery channel (cli, email, linkedin, calendar, agent, web)"}
-                },
-                "required": ["session_id", "unknown"]
-            }
-        ),
-
-        types.Tool(
-            name="mistake_log",
-            description="Log a mistake (error to avoid in future) to session and optionally project. Supports entity linking.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "mistake": {"type": "string", "description": "What was done wrong"},
-                    "why_wrong": {"type": "string", "description": "Why it was wrong"},
-                    "prevention": {"type": "string", "description": "How to prevent in future"},
-                    "cost_estimate": {"type": "string", "description": "Time/resources wasted (e.g., '2 hours')"},
-                    "goal_id": {"type": "string", "description": "Optional goal UUID to link mistake"},
-                    "subtask_id": {"type": "string", "description": "Optional subtask UUID to link mistake"},
-                    "project_id": {"type": "string", "description": "Project UUID (auto-detected if omitted)"},
-                    "scope": {"type": "string", "description": "Scope: session (ephemeral), project (persistent), or both (dual-log)", "enum": ["session", "project", "both"]},
-                    "entity_type": {"type": "string", "description": "Entity type this artifact relates to", "enum": ["project", "organization", "contact", "engagement"]},
-                    "entity_id": {"type": "string", "description": "Entity UUID (organization, contact, or engagement ID)"},
-                    "via": {"type": "string", "description": "Discovery channel (cli, email, linkedin, calendar, agent, web)"},
-                    "root_cause_vector": {"type": "string", "description": "Epistemic vector that caused the mistake (e.g., KNOW, CONTEXT)"}
-                },
-                "required": ["session_id", "mistake", "why_wrong", "prevention"]
-            }
-        ),
-
-        types.Tool(
-            name="deadend_log",
-            description="Log a dead-end (approach that didn't work) to session and optionally project. Supports entity linking.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "approach": {"type": "string", "description": "What approach was tried"},
-                    "why_failed": {"type": "string", "description": "Why it didn't work"},
-                    "goal_id": {"type": "string", "description": "Optional goal UUID to link dead-end"},
-                    "subtask_id": {"type": "string", "description": "Optional subtask UUID to link dead-end"},
-                    "project_id": {"type": "string", "description": "Project UUID (auto-detected if omitted)"},
-                    "subject": {"type": "string", "description": "Subject/workstream identifier (auto-detected from directory if omitted)"},
-                    "scope": {"type": "string", "description": "Scope: session (ephemeral), project (persistent), or both (dual-log)", "enum": ["session", "project", "both"]},
-                    "entity_type": {"type": "string", "description": "Entity type this artifact relates to", "enum": ["project", "organization", "contact", "engagement"]},
-                    "entity_id": {"type": "string", "description": "Entity UUID (organization, contact, or engagement ID)"},
-                    "via": {"type": "string", "description": "Discovery channel (cli, email, linkedin, calendar, agent, web)"}
-                },
-                "required": ["session_id", "approach", "why_failed"]
-            }
-        ),
-
-        types.Tool(
-            name="assumption_log",
-            description="Log an unverified assumption with confidence level. Track beliefs that need validation. Supports entity linking.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "assumption": {"type": "string", "description": "The assumption being made"},
-                    "confidence": {"type": "number", "description": "Confidence in this assumption (0.0-1.0)", "minimum": 0.0, "maximum": 1.0},
-                    "domain": {"type": "string", "description": "Domain scope (e.g., security, architecture)"},
-                    "goal_id": {"type": "string", "description": "Optional goal UUID to link assumption"},
-                    "project_id": {"type": "string", "description": "Project UUID (auto-detected if omitted)"},
-                    "entity_type": {"type": "string", "description": "Entity type this artifact relates to", "enum": ["project", "organization", "contact", "engagement"]},
-                    "entity_id": {"type": "string", "description": "Entity UUID (organization, contact, or engagement ID)"},
-                    "via": {"type": "string", "description": "Discovery channel (cli, email, linkedin, calendar, agent, web)"}
-                },
-                "required": ["session_id", "assumption"]
-            }
-        ),
-
-        types.Tool(
-            name="decision_log",
-            description="Log a decision with alternatives considered and rationale. Track choice points for future reference. Supports entity linking.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "choice": {"type": "string", "description": "The choice made"},
-                    "alternatives": {"type": "string", "description": "Alternatives considered (comma-separated or JSON array)"},
-                    "rationale": {"type": "string", "description": "Why this choice was made"},
-                    "confidence": {"type": "number", "description": "Confidence in this decision (0.0-1.0)", "minimum": 0.0, "maximum": 1.0},
-                    "reversibility": {"type": "string", "enum": ["exploratory", "committal", "forced"], "description": "How reversible is this decision?"},
-                    "domain": {"type": "string", "description": "Domain scope (e.g., security, architecture)"},
-                    "goal_id": {"type": "string", "description": "Optional goal UUID to link decision"},
-                    "project_id": {"type": "string", "description": "Project UUID (auto-detected if omitted)"},
-                    "entity_type": {"type": "string", "description": "Entity type this artifact relates to", "enum": ["project", "organization", "contact", "engagement"]},
-                    "entity_id": {"type": "string", "description": "Entity UUID (organization, contact, or engagement ID)"},
-                    "via": {"type": "string", "description": "Discovery channel (cli, email, linkedin, calendar, agent, web)"}
-                },
-                "required": ["session_id", "choice", "alternatives", "rationale"]
-            }
-        ),
-
-        types.Tool(
-            name="create_goal",
-            description="Create new structured goal",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session UUID"},
-                    "objective": {"type": "string", "description": "Goal objective/description"},
-                    "scope": {
-                        "type": "object",
-                        "description": "Goal scope as epistemic vectors (AI self-assesses dimensions)",
-                        "properties": {
-                            "breadth": {
-                                "type": "number",
-                                "minimum": 0.0,
-                                "maximum": 1.0,
-                                "description": "How wide the goal spans (0.0=single function, 1.0=entire codebase)"
-                            },
-                            "duration": {
-                                "type": "number",
-                                "minimum": 0.0,
-                                "maximum": 1.0,
-                                "description": "Expected lifetime (0.0=minutes/hours, 1.0=weeks/months)"
-                            },
-                            "coordination": {
-                                "type": "number",
-                                "minimum": 0.0,
-                                "maximum": 1.0,
-                                "description": "Multi-agent/session coordination needed (0.0=solo, 1.0=heavy coordination)"
-                            }
-                        },
-                        "required": ["breadth", "duration", "coordination"]
-                    },
-                    "success_criteria": {"type": "array", "items": {"type": "string"}, "description": "Array of success criteria strings"},
-                    "estimated_complexity": {"type": "number", "description": "Complexity estimate 0.0-1.0"},
-                    "metadata": {"type": "object", "description": "Additional metadata as JSON object"}
-                },
-                "required": ["session_id", "objective"]
-            }
-        ),
-
-        types.Tool(
-            name="add_subtask",
-            description="Add subtask to existing goal",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "goal_id": {"type": "string", "description": "Goal UUID"},
-                    "description": {"type": "string", "description": "Subtask description"},
-                    "importance": {"type": "string", "enum": ["critical", "high", "medium", "low"], "description": "Epistemic importance (use importance not epistemic_importance)"},
-                    "dependencies": {"type": "array", "items": {"type": "string"}, "description": "Dependencies as JSON array"},
-                    "estimated_tokens": {"type": "integer", "description": "Estimated token usage"}
-                },
-                "required": ["goal_id", "description"]
-            }
-        ),
-
-        types.Tool(
-            name="complete_subtask",
-            description="Mark subtask as complete",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "task_id": {"type": "string", "description": "Subtask UUID (note: parameter is task_id not subtask_id)"},
-                    "evidence": {"type": "string", "description": "Completion evidence (commit hash, file path, etc.)"}
-                },
-                "required": ["task_id"]
-            }
-        ),
-
-        types.Tool(
-            name="get_goal_progress",
-            description="Get goal completion progress",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "goal_id": {"type": "string"}
-                },
-                "required": ["goal_id"]
-            }
-        ),
-
-        types.Tool(
-            name="get_goal_subtasks",
-            description="Get detailed subtask information for a goal",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "goal_id": {"type": "string", "description": "Goal UUID"}
-                },
-                "required": ["goal_id"]
-            }
-        ),
-
-        types.Tool(
-            name="list_goals",
-            description="List goals for session",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        # ========== Session Management (Route to CLI) ==========
-
-        types.Tool(
-            name="project_bootstrap",
-            description="Load project context dynamically based on uncertainty (findings, unknowns, dead-ends, mistakes, goals)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "project_id": {"type": "string", "description": "Project ID (optional, auto-detects from git if not provided)"},
-                    "depth": {"type": "string", "description": "Context depth: minimal, moderate, full, auto", "enum": ["minimal", "moderate", "full", "auto"]}
-                },
-                "required": []
-            }
-        ),
-
-        types.Tool(
-            name="session_snapshot",
-            description="Get complete session snapshot with learning delta, findings, unknowns, mistakes, active goals",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        types.Tool(
-            name="goals_ready",
-            description="Get goals that are ready to work on (unblocked by dependencies and epistemic state)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID (optional)"}
-                },
-                "required": []
-            }
-        ),
-
-        types.Tool(
-            name="goals_claim",
-            description="Claim a goal and create epistemic branch for work",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "goal_id": {"type": "string", "description": "Goal UUID to claim"}
-                },
-                "required": ["goal_id"]
-            }
-        ),
-
-        types.Tool(
-            name="investigate",
-            description="Run systematic investigation with epistemic tracking",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "investigation_goal": {"type": "string", "description": "What to investigate"},
-                    "max_rounds": {"type": "integer", "description": "Max investigation rounds", "default": 5}
-                },
-                "required": ["session_id", "investigation_goal"]
-            }
-        ),
-
-        types.Tool(
-            name="get_epistemic_state",
-            description="Get current epistemic state for session",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        types.Tool(
-            name="get_session_summary",
-            description="Get complete session summary",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        types.Tool(
-            name="get_calibration_report",
-            description="Get calibration report for session",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        # ========== Blindspot Detection (Direct Python) ==========
-
-        types.Tool(
-            name="blindspot_scan",
-            description="Scan for epistemic blindspots (unknown unknowns) by analyzing the negative space of knowledge topology. Returns predicted gaps in understanding based on artifact patterns. Requires empirica-prediction plugin.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "project_id": {"type": "string", "description": "Project ID (auto-detects if not provided)"},
-                    "session_id": {"type": "string", "description": "Session ID for context"},
-                    "max_predictions": {"type": "integer", "description": "Maximum predictions to return (default: 10)"},
-                    "min_confidence": {"type": "number", "description": "Minimum confidence threshold (default: 0.4)"},
-                },
-                "required": []
-            }
-        ),
-
-        # ========== Epistemic Monitoring (Route to CLI) ==========
-
-        types.Tool(
-            name="epistemics_list",
-            description="List all epistemic assessments (PREFLIGHT, CHECK, POSTFLIGHT) for a session",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID to list epistemics for"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        types.Tool(
-            name="epistemics_show",
-            description="Show detailed epistemic assessment for a session, optionally filtered by phase",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "phase": {"type": "string", "description": "Optional phase filter (PREFLIGHT, CHECK, POSTFLIGHT)", "enum": ["PREFLIGHT", "CHECK", "POSTFLIGHT"]}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        types.Tool(
-            name="resume_previous_session",
-            description="Resume previous session(s)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "ai_id": {"type": "string"},
-                    "count": {"type": "integer"}
-                },
-                "required": ["ai_id"]
-            }
-        ),
-
-        types.Tool(
-            name="memory_compact",
-            description="Compact session for epistemic continuity across conversation boundaries. Creates checkpoint, loads bootstrap context, creates continuation session. Use when approaching context limit (e.g., >180k tokens).",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID or alias to compact"},
-                    "create_continuation": {"type": "boolean", "description": "Create continuation session (default: true)"},
-                    "include_bootstrap": {"type": "boolean", "description": "Load project bootstrap context (default: true)"},
-                    "checkpoint_current": {"type": "boolean", "description": "Checkpoint current epistemic state (default: true)"},
-                    "compact_mode": {"type": "string", "enum": ["full", "minimal", "context_only"], "description": "Compaction mode: full (all features), minimal (checkpoint only), context_only (bootstrap only)"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        # ========== Human Copilot Tools (Route to CLI) ==========
-        # These tools enhance human oversight and collaboration
-
-        types.Tool(
-            name="monitor",
-            description="Real-time monitoring of AI work - shows stats, cost analysis, request history, adapter health. Essential for human oversight.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "cost": {"type": "boolean", "description": "Show cost analysis"},
-                    "history": {"type": "boolean", "description": "Show recent request history"},
-                    "health": {"type": "boolean", "description": "Include adapter health checks"},
-                    "project": {"type": "boolean", "description": "Show cost projections (with cost=true)"},
-                    "verbose": {"type": "boolean", "description": "Show detailed stats"}
-                },
-                "required": []
-            }
-        ),
-
-        types.Tool(
-            name="system_status",
-            description="Unified Noetic OS system status - aggregates config, memory, bus, attention, integrity, and gate status into a single /proc-style snapshot. Shows token utilization, event throughput, gate state, and node identity.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID (auto-detects if omitted)"},
-                    "summary": {"type": "boolean", "description": "Return one-line summary instead of full status"},
-                },
-                "required": []
-            }
-        ),
-
-        types.Tool(
-            name="issue_list",
-            description="List auto-captured issues for human review - bugs, errors, warnings, TODOs. Filter by status, category, severity.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID to list issues for"},
-                    "status": {"type": "string", "enum": ["new", "investigating", "handoff", "resolved", "wontfix"], "description": "Filter by status"},
-                    "category": {"type": "string", "enum": ["bug", "error", "warning", "deprecation", "todo", "performance", "compatibility", "design", "other"], "description": "Filter by category"},
-                    "severity": {"type": "string", "enum": ["blocker", "high", "medium", "low"], "description": "Filter by severity"},
-                    "limit": {"type": "integer", "description": "Max issues to return (default: 100)"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        types.Tool(
-            name="issue_handoff",
-            description="Hand off an issue to another AI or human. Enables structured issue transfer between agents.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "issue_id": {"type": "string", "description": "Issue ID to hand off"},
-                    "assigned_to": {"type": "string", "description": "AI ID or name to assign this issue to"}
-                },
-                "required": ["session_id", "issue_id", "assigned_to"]
-            }
-        ),
-
-        types.Tool(
-            name="workspace_overview",
-            description="Multi-repo epistemic overview - shows project health, knowledge state, uncertainty across workspace.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "sort_by": {"type": "string", "enum": ["activity", "knowledge", "uncertainty", "name"], "description": "Sort projects by"},
-                    "filter": {"type": "string", "enum": ["active", "inactive", "complete"], "description": "Filter projects by status"},
-                    "verbose": {"type": "boolean", "description": "Show detailed info"}
-                },
-                "required": []
-            }
-        ),
-
-        types.Tool(
-            name="efficiency_report",
-            description="Get productivity metrics for session - learning velocity, CASCADE completeness, goal completion rate.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        types.Tool(
-            name="skill_suggest",
-            description="AI capability discovery - suggest relevant skills, agents, and tools for a given task. Vector-aware: uses current epistemic state to recommend investigation tools when uncertainty is high, implementation tools when confidence is high, and blindspot scanning when starting new work.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "task": {"type": "string", "description": "Task description to suggest skills for"},
-                    "session_id": {"type": "string", "description": "Session ID to load current epistemic vectors"},
-                    "project_id": {"type": "string", "description": "Project ID for context-aware suggestions"},
-                    "verbose": {"type": "boolean", "description": "Show detailed suggestions"}
-                },
-                "required": []
-            }
-        ),
-
-        types.Tool(
-            name="workspace_map",
-            description="Map workspace structure - discover repos, relationships, and cross-repo dependencies.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "verbose": {"type": "boolean", "description": "Show detailed info"}
-                },
-                "required": []
-            }
-        ),
-
-        types.Tool(
-            name="unknown_resolve",
-            description="Resolve a logged unknown - close investigation loops when answers are found.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "unknown_id": {"type": "string", "description": "Unknown UUID to resolve"},
-                    "resolved_by": {"type": "string", "description": "How was this unknown resolved?"}
-                },
-                "required": ["unknown_id", "resolved_by"]
-            }
-        ),
-
-        # ========== Checkpoint Tools (Route to CLI) ==========
-
-        types.Tool(
-            name="create_git_checkpoint",
-            description="Create compressed checkpoint in git notes",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string"},
-                    "phase": {"type": "string"},
-                    "round_num": {"type": "integer"},
-                    "vectors": {"type": "object"},
-                    "metadata": {"type": "object"}
-                },
-                "required": ["session_id", "phase"]
-            }
-        ),
-
-        types.Tool(
-            name="load_git_checkpoint",
-            description="Load latest checkpoint from git notes",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        # ========== Handoff Reports (Route to CLI) ==========
-
-        types.Tool(
-            name="create_handoff_report",
-            description="Create epistemic handoff report for session continuity (~90% token reduction)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID or alias"},
-                    "task_summary": {"type": "string", "description": "What was accomplished (2-3 sentences)"},
-                    "key_findings": {"type": "array", "items": {"type": "string"}, "description": "Key learnings from session"},
-                    "remaining_unknowns": {"type": "array", "items": {"type": "string"}, "description": "What's still unclear"},
-                    "next_session_context": {"type": "string", "description": "Critical context for next session"},
-                    "artifacts_created": {"type": "array", "items": {"type": "string"}, "description": "Files created"}
-                },
-                "required": ["session_id", "task_summary", "key_findings", "next_session_context"]
-            }
-        ),
-
-        types.Tool(
-            name="query_handoff_reports",
-            description="Query handoff reports by AI ID or session ID",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Specific session ID"},
-                    "ai_id": {"type": "string", "description": "Filter by AI ID"},
-                    "limit": {"type": "integer", "description": "Number of results (default: 5)"}
-                }
-            }
-        ),
-
-        # ========== Phase 1: Cross-AI Coordination (Route to CLI) ==========
-
-        types.Tool(
-            name="discover_goals",
-            description="Discover goals from other AIs via git notes (Phase 1)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "from_ai_id": {"type": "string", "description": "Filter by AI creator"},
-                    "session_id": {"type": "string", "description": "Filter by session"}
-                }
-            }
-        ),
-
-        types.Tool(
-            name="resume_goal",
-            description="Resume another AI's goal with epistemic handoff (Phase 1)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "goal_id": {"type": "string", "description": "Goal UUID to resume"},
-                    "ai_id": {"type": "string", "description": "Your AI identifier"}
-                },
-                "required": ["goal_id", "ai_id"]
-            }
-        ),
-
-        # ========== Mistakes Tracking (Learning from Failures) ==========
-
-        types.Tool(
-            name="log_mistake",
-            description="Log a mistake for learning and future prevention. Records what went wrong, why it was wrong, cost estimate, root cause epistemic vector, and prevention strategy. Creates training data for calibration and pattern recognition.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session UUID"},
-                    "mistake": {"type": "string", "description": "What was done wrong"},
-                    "why_wrong": {"type": "string", "description": "Explanation of why it was wrong"},
-                    "cost_estimate": {"type": "string", "description": "Estimated time/effort wasted (e.g., '2 hours', '30 minutes')"},
-                    "root_cause_vector": {"type": "string", "enum": ["KNOW", "DO", "CONTEXT", "CLARITY", "COHERENCE", "SIGNAL", "DENSITY", "STATE", "CHANGE", "COMPLETION", "IMPACT", "UNCERTAINTY"], "description": "Epistemic vector that caused the mistake"},
-                    "prevention": {"type": "string", "description": "How to prevent this mistake in the future"},
-                    "goal_id": {"type": "string", "description": "Optional goal identifier this mistake relates to"}
-                },
-                "required": ["session_id", "mistake", "why_wrong"]
-            }
-        ),
-
-        types.Tool(
-            name="query_mistakes",
-            description="Query logged mistakes for learning and calibration. Retrieve mistakes by session, goal, or root cause vector to identify patterns and prevent repeat failures.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Filter by session UUID"},
-                    "goal_id": {"type": "string", "description": "Filter by goal UUID"},
-                    "limit": {"type": "integer", "description": "Maximum number of results (default: 10)", "minimum": 1, "maximum": 100}
-                }
-            }
-        ),
-
-        # ========== Phase 2: Cryptographic Trust (Route to CLI) ==========
-
-        types.Tool(
-            name="create_identity",
-            description="Create new AI identity with Ed25519 keypair (Phase 2)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "ai_id": {"type": "string", "description": "AI identifier"},
-                    "overwrite": {"type": "boolean", "description": "Overwrite existing identity"}
-                },
-                "required": ["ai_id"]
-            }
-        ),
-
-        types.Tool(
-            name="list_identities",
-            description="List all AI identities (Phase 2)",
-            inputSchema={
-                "type": "object",
-                "properties": {}
-            }
-        ),
-
-        types.Tool(
-            name="export_public_key",
-            description="Export public key for sharing (Phase 2)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "ai_id": {"type": "string", "description": "AI identifier"}
-                },
-                "required": ["ai_id"]
-            }
-        ),
-
-        types.Tool(
-            name="verify_signature",
-            description="Verify signed session (Phase 2)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID to verify"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        # ========== Reference Documentation (Route to CLI) ==========
-
-        types.Tool(
-            name="refdoc_add",
-            description="Add a reference document to project knowledge base",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "project_id": {"type": "string", "description": "Project UUID"},
-                    "doc_path": {"type": "string", "description": "Path to documentation file"},
-                    "doc_type": {"type": "string", "description": "Type of doc (guide, reference, example, config, etc.)"},
-                    "description": {"type": "string", "description": "Description of what's in the doc"}
-                },
-                "required": ["project_id", "doc_path"]
-            }
-        ),
-
-        # ========== Vision Analysis (Route to CLI) ==========
-
-        types.Tool(
-            name="vision_analyze",
-            description="Analyze image(s) and extract basic metadata. For .png slides/images, returns size, format, aspect ratio. Optionally logs findings to session.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "image": {"type": "string", "description": "Single image path"},
-                    "pattern": {"type": "string", "description": "Image pattern (e.g., slides/*.png)"},
-                    "session_id": {"type": "string", "description": "Session ID to log findings"},
-                },
-            }
-        ),
-
-        types.Tool(
-            name="vision_log",
-            description="Manually log visual observation to session (for observations not captured by vision_analyze)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session UUID"},
-                    "observation": {"type": "string", "description": "Visual observation text"}
-                },
-                "required": ["session_id", "observation"]
-            }
-        ),
-
-        # ========== Edit Guard (Metacognitive Edit Verification) ==========
-
-        types.Tool(
-            name="edit_with_confidence",
-            description="Edit file with metacognitive confidence assessment. Prevents 80% of edit failures by assessing epistemic state (context freshness, whitespace confidence, pattern uniqueness, truncation risk) BEFORE attempting edit. Automatically selects optimal strategy: atomic_edit (high confidence), bash_fallback (medium), or re_read_first (low). Returns success status, strategy used, confidence score, and reasoning.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {
-                        "type": "string",
-                        "description": "Path to file to edit"
-                    },
-                    "old_str": {
-                        "type": "string",
-                        "description": "String to replace (exact match required)"
-                    },
-                    "new_str": {
-                        "type": "string",
-                        "description": "Replacement string"
-                    },
-                    "context_source": {
-                        "type": "string",
-                        "description": "How recently was file read? 'view_output' (just read this turn), 'fresh_read' (1-2 turns ago), 'memory' (stale/never read). Default: memory",
-                        "enum": ["view_output", "fresh_read", "memory"]
-                    },
-                    "session_id": {
-                        "type": "string",
-                        "description": "Optional: Session ID for logging calibration data to reflexes"
-                    }
-                },
-                "required": ["file_path", "old_str", "new_str"]
-            }
-        ),
-
-        # ========== Tier 1 Tools (v1.6.6 additions) ==========
-
-        types.Tool(
-            name="goals_complete",
-            description="Complete a goal - mark it as done with an optional reason. Can trigger POSTFLIGHT and branch merge.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "goal_id": {"type": "string", "description": "Goal UUID to complete"},
-                    "reason": {"type": "string", "description": "Why the goal is complete"},
-                    "run_postflight": {"type": "boolean", "description": "Run POSTFLIGHT before completing"},
-                    "merge_branch": {"type": "boolean", "description": "Merge git branch to main after completing"},
-                    "delete_branch": {"type": "boolean", "description": "Delete branch after merge"},
-                    "create_handoff": {"type": "boolean", "description": "Create handoff report on completion"}
-                },
-                "required": ["goal_id"]
-            }
-        ),
-
-        types.Tool(
-            name="project_search",
-            description="Semantic search over project knowledge - finds findings, unknowns, decisions, lessons, and episodic narratives via Qdrant.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "project_id": {"type": "string", "description": "Project UUID to search within"},
-                    "task": {"type": "string", "description": "Natural language search query"},
-                    "type": {"type": "string", "description": "Search scope: 'focused' (eidetic+episodic), 'all' (all 4 collections), 'docs', 'memory'", "enum": ["focused", "all", "docs", "memory"]},
-                    "limit": {"type": "integer", "description": "Max results to return (default: 10)"},
-                    "global_search": {"type": "boolean", "description": "Include cross-project global learnings"}
-                },
-                "required": ["task"]
-            }
-        ),
-
-        types.Tool(
-            name="source_add",
-            description="Add a reference source (URL, document, paper) to the current session for provenance tracking. Must specify --noetic or --praxic to indicate the phase.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "title": {"type": "string", "description": "Source title or name"},
-                    "url": {"type": "string", "description": "URL of the source"},
-                    "path": {"type": "string", "description": "Local file path of the source"},
-                    "source_type": {"type": "string", "description": "Type: doc, spec, api, blog, paper, code, other"},
-                    "description": {"type": "string", "description": "Brief description of the source"},
-                    "noetic": {"type": "boolean", "description": "Source used during investigation phase"},
-                    "praxic": {"type": "boolean", "description": "Source used during implementation phase"},
-                    "confidence": {"type": "number", "description": "Confidence in source reliability 0.0-1.0"}
-                },
-                "required": ["title"]
-            }
-        ),
-
-        types.Tool(
-            name="unknown_list",
-            description="List all open unknowns for the current session or project - see what questions remain unanswered.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID to filter by"},
-                    "project_id": {"type": "string", "description": "Project UUID to filter by"},
-                    "resolved": {"type": "boolean", "description": "Show resolved unknowns instead of open"},
-                    "all": {"type": "boolean", "description": "Show both open and resolved"},
-                    "subject": {"type": "string", "description": "Filter by subject/workstream"},
-                    "limit": {"type": "integer", "description": "Max unknowns to show (default: 30)"}
-                },
-                "required": []
-            }
-        ),
-
-        types.Tool(
-            name="goals_search",
-            description="Search goals by keyword or filter - find goals across sessions and projects.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Search query text"},
-                    "status": {"type": "string", "description": "Filter by status: active, completed, stale, all"},
-                    "limit": {"type": "integer", "description": "Max results (default: 20)"}
-                },
-                "required": ["query"]
-            }
-        ),
-
-        types.Tool(
-            name="goals_add_dependency",
-            description="Add a dependency between goals - goal B depends on goal A being completed first.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "goal_id": {"type": "string", "description": "The dependent goal UUID (the one that must wait)"},
-                    "depends_on": {"type": "string", "description": "The prerequisite goal UUID (the one that must be done first)"}
-                },
-                "required": ["goal_id", "depends_on"]
-            }
-        ),
-
-        types.Tool(
-            name="issue_show",
-            description="Show detailed information about a specific auto-captured issue.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "issue_id": {"type": "string", "description": "Issue UUID to show"}
-                },
-                "required": ["issue_id"]
-            }
-        ),
-
-        types.Tool(
-            name="issue_resolve",
-            description="Resolve an auto-captured issue - mark it as fixed with evidence.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "issue_id": {"type": "string", "description": "Issue UUID to resolve"},
-                    "resolution": {"type": "string", "description": "How the issue was resolved"}
-                },
-                "required": ["issue_id", "resolution"]
-            }
-        ),
-
-        types.Tool(
-            name="issue_stats",
-            description="Get issue statistics - counts by category, severity, and resolution rate.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Optional session to scope stats"}
-                },
-                "required": []
-            }
-        ),
-
-        types.Tool(
-            name="session_rollup",
-            description="Create a summary rollup of a session - aggregates findings, unknowns, decisions, and goal progress for handoff or archival.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID to roll up"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        types.Tool(
-            name="act_log",
-            description="Log structured actions taken (what was done) - complements finding-log (what was learned). Actions is a JSON array.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "actions": {"type": "string", "description": "JSON array of actions taken, e.g. '[\"wrote test\", \"fixed bug\"]'"},
-                    "artifacts": {"type": "string", "description": "JSON array of files modified/created"},
-                    "goal_id": {"type": "string", "description": "Optional goal UUID being worked on"}
-                },
-                "required": ["actions"]
-            }
-        ),
-
-        types.Tool(
-            name="calibration_report",
-            description="Get calibration report - shows vector deltas, grounded verification gaps, and bias corrections.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "grounded": {"type": "boolean", "description": "Show grounded calibration (Track 2)"},
-                    "trajectory": {"type": "boolean", "description": "Show calibration trajectory over time"}
-                },
-                "required": []
-            }
-        ),
-
-        # ========== Tier 2 Tools: Lesson Subsystem ==========
-
-        types.Tool(
-            name="lesson_create",
-            description="Create a structured lesson from investigation findings - captures reusable knowledge with steps, domains, and prerequisites.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "Lesson name/title"},
-                    "json": {"type": "string", "description": "Inline JSON lesson data (name, domain, steps[], prerequisites[], etc.)"},
-                    "input": {"type": "string", "description": "Path to JSON file with lesson data, or '-' for stdin"}
-                },
-                "required": []
-            }
-        ),
-
-        types.Tool(
-            name="lesson_load",
-            description="Load a specific lesson by ID - retrieves full lesson content including steps, prerequisites, and replay history.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "lesson_id": {"type": "string", "description": "Lesson UUID to load"},
-                    "steps_only": {"type": "boolean", "description": "Only show steps (compact view)"}
-                },
-                "required": ["lesson_id"]
-            }
-        ),
-
-        types.Tool(
-            name="lesson_list",
-            description="List available lessons - browse the lesson library, optionally filtered by domain.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "domain": {"type": "string", "description": "Filter by domain (e.g., security, architecture)"},
-                    "limit": {"type": "integer", "description": "Maximum results (default: 20)"}
-                },
-                "required": []
-            }
-        ),
-
-        types.Tool(
-            name="lesson_search",
-            description="Search lessons semantically - find lessons by query text, by which vector they improve, or by domain.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Semantic search query"},
-                    "improves": {"type": "string", "description": "Find lessons that improve this vector (know, do, context, etc.)"},
-                    "domain": {"type": "string", "description": "Filter by domain"},
-                    "limit": {"type": "integer", "description": "Maximum results (default: 10)"}
-                },
-                "required": []
-            }
-        ),
-
-        types.Tool(
-            name="lesson_recommend",
-            description="Get lesson recommendations based on current epistemic state - suggests lessons to close knowledge gaps.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID to load epistemic state from"},
-                    "know": {"type": "number", "description": "Current know vector (0-1)"},
-                    "do": {"type": "number", "description": "Current do vector (0-1)"},
-                    "context": {"type": "number", "description": "Current context vector (0-1)"},
-                    "uncertainty": {"type": "number", "description": "Current uncertainty vector (0-1)"},
-                    "threshold": {"type": "number", "description": "Threshold for 'acceptable' (default: 0.6)"}
-                },
-                "required": []
-            }
-        ),
-
-        types.Tool(
-            name="lesson_path",
-            description="Generate a learning path to a target lesson - shows prerequisite chain and what's already completed.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "target": {"type": "string", "description": "Target lesson ID"},
-                    "completed": {"type": "string", "description": "Comma-separated list of already completed lesson IDs"}
-                },
-                "required": ["target"]
-            }
-        ),
-
-        types.Tool(
-            name="lesson_replay_start",
-            description="Start replaying a lesson - begins a guided walkthrough of lesson steps in a session.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "lesson_id": {"type": "string", "description": "Lesson ID to replay"},
-                    "session_id": {"type": "string", "description": "Session ID for replay context"},
-                    "ai_id": {"type": "string", "description": "AI agent ID performing the replay"}
-                },
-                "required": ["lesson_id", "session_id"]
-            }
-        ),
-
-        types.Tool(
-            name="lesson_replay_end",
-            description="End a lesson replay - records outcome (success/failed), steps completed, and any errors.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "replay_id": {"type": "string", "description": "Replay ID from lesson-replay-start"},
-                    "success": {"type": "boolean", "description": "Mark replay as successful"},
-                    "failed": {"type": "boolean", "description": "Mark replay as failed"},
-                    "steps_completed": {"type": "integer", "description": "Number of steps completed"},
-                    "error": {"type": "string", "description": "Error message if failed"}
-                },
-                "required": ["replay_id"]
-            }
-        ),
-
-        types.Tool(
-            name="lesson_stats",
-            description="Get lesson statistics - total lessons, domain breakdown, replay success rates.",
-            inputSchema={
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        ),
-
-        # ========== Tier 2 Tools: Investigation Subsystem ==========
-
-        types.Tool(
-            name="investigate_log",
-            description="Log structured investigation findings with evidence - batch-log discoveries from an investigation.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID (auto-derived from active transaction)"},
-                    "findings": {"type": "string", "description": "JSON array of findings discovered"},
-                    "evidence": {"type": "string", "description": "JSON object with evidence (file paths, line numbers, etc.)"}
-                },
-                "required": ["findings"]
-            }
-        ),
-
-        types.Tool(
-            name="investigate_create_branch",
-            description="Create an investigation branch - fork the epistemic state to explore a hypothesis without polluting the main session.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Parent session ID"},
-                    "investigation_path": {"type": "string", "description": "What is being investigated (e.g., 'oauth2', 'memory-leak')"},
-                    "description": {"type": "string", "description": "Description of the investigation"},
-                    "preflight_vectors": {"type": "string", "description": "Epistemic vectors at branch start (JSON)"}
-                },
-                "required": ["session_id", "investigation_path"]
-            }
-        ),
-
-        types.Tool(
-            name="investigate_checkpoint_branch",
-            description="Checkpoint an investigation branch - record postflight vectors and resource usage at a point in the investigation.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "branch_id": {"type": "string", "description": "Branch ID to checkpoint"},
-                    "postflight_vectors": {"type": "string", "description": "Epistemic vectors after investigation (JSON)"},
-                    "tokens_spent": {"type": "integer", "description": "Tokens spent in investigation"},
-                    "time_spent": {"type": "number", "description": "Time spent in investigation (minutes)"}
-                },
-                "required": ["branch_id", "postflight_vectors"]
-            }
-        ),
-
-        types.Tool(
-            name="investigate_merge_branches",
-            description="Merge investigation branches - compare branches from a multi-path investigation and select the best path.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "round": {"type": "integer", "description": "Investigation round number"},
-                    "tag_losers": {"type": "boolean", "description": "Auto-tag losing branches as dead ends with divergence reason"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        types.Tool(
-            name="investigate_multi",
-            description="Run a multi-persona investigation - dispatch a task to multiple persona lenses and aggregate results.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "task": {"type": "string", "description": "Task for all personas to investigate"},
-                    "personas": {"type": "string", "description": "Comma-separated persona IDs (e.g., 'security,ux,performance')"},
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "context": {"type": "string", "description": "Additional context from parent investigation"},
-                    "aggregate_strategy": {"type": "string", "description": "How to merge results", "enum": ["epistemic-score", "consensus", "all"]}
-                },
-                "required": ["task", "personas", "session_id"]
-            }
-        ),
-
-        # ========== Tier 2 Tools: Assessment Subsystem ==========
-
-        types.Tool(
-            name="assess_state",
-            description="Assess current epistemic state - AI self-assessment of knowledge, uncertainty, and readiness using the 13-vector model.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session UUID for context"},
-                    "prompt": {"type": "string", "description": "Self-assessment context/evidence"},
-                    "turtle": {"type": "boolean", "description": "Recursive grounding check: verify observer stability before observing"}
-                },
-                "required": []
-            }
-        ),
-
-        types.Tool(
-            name="assess_component",
-            description="Assess a code component's health - applies epistemic vectors to analyze coupling, stability, complexity, and risk.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Path to file or package to assess (relative or absolute)"},
-                    "project_root": {"type": "string", "description": "Root directory of the project (default: current directory)"}
-                },
-                "required": ["path"]
-            }
-        ),
-
-        types.Tool(
-            name="assess_compare",
-            description="Compare two code components side by side - identifies which is healthier based on epistemic vectors.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "path_a": {"type": "string", "description": "First component path"},
-                    "path_b": {"type": "string", "description": "Second component path"},
-                    "project_root": {"type": "string", "description": "Root directory of the project (default: current directory)"}
-                },
-                "required": ["path_a", "path_b"]
-            }
-        ),
-
-        types.Tool(
-            name="assess_directory",
-            description="Recursively assess all Python files in a directory - ranks components by health, showing the worst offenders.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Directory to assess"},
-                    "project_root": {"type": "string", "description": "Root directory of the project (default: current directory)"},
-                    "top": {"type": "integer", "description": "Show top N worst components (default: 10)"},
-                    "include_init": {"type": "boolean", "description": "Include __init__.py files (excluded by default)"}
-                },
-                "required": ["path"]
-            }
-        ),
-
-        # ========== Tier 2 Tools: Agent Subsystem ==========
-
-        types.Tool(
-            name="agent_spawn",
-            description="Spawn an investigation agent - creates a child session with a specific task and optional persona lens.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Parent session ID"},
-                    "task": {"type": "string", "description": "Task for the agent"},
-                    "persona": {"type": "string", "description": "Persona ID to use (e.g., security, performance)"},
-                    "turtle": {"type": "boolean", "description": "Auto-select best emerged persona for task"},
-                    "context": {"type": "string", "description": "Additional context from parent"}
-                },
-                "required": ["session_id", "task"]
-            }
-        ),
-
-        types.Tool(
-            name="agent_report",
-            description="Submit an agent report - record postflight data for a spawned agent's investigation branch.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "branch_id": {"type": "string", "description": "Branch ID from agent-spawn"},
-                    "postflight": {"type": "string", "description": "Postflight JSON data or '-' for stdin"}
-                },
-                "required": ["branch_id"]
-            }
-        ),
-
-        types.Tool(
-            name="agent_aggregate",
-            description="Aggregate agent results - merge findings from multiple spawned agents in a round.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "round": {"type": "integer", "description": "Investigation round to aggregate"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        types.Tool(
-            name="agent_parallel",
-            description="Run parallel investigation agents - auto-allocate budget across domains with configurable strategy.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Parent session ID"},
-                    "task": {"type": "string", "description": "Investigation task"},
-                    "budget": {"type": "integer", "description": "Total findings budget (default: 20)"},
-                    "max_agents": {"type": "integer", "description": "Maximum parallel agents (default: 5)"},
-                    "strategy": {"type": "string", "description": "Budget allocation strategy", "enum": ["information_gain", "uniform", "priority"]},
-                    "domains": {"type": "array", "items": {"type": "string"}, "description": "Override investigation domains (auto-detected if not specified)"}
-                },
-                "required": ["session_id", "task"]
-            }
-        ),
-
-        types.Tool(
-            name="agent_export",
-            description="Export an agent's investigation results - serialize branch findings for sharing or archival.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "branch_id": {"type": "string", "description": "Branch ID to export"},
-                    "output_file": {"type": "string", "description": "Output file path (prints to stdout if not specified)"},
-                    "register": {"type": "boolean", "description": "Register to sharing network (Qdrant)"}
-                },
-                "required": ["branch_id"]
-            }
-        ),
-
-        types.Tool(
-            name="agent_import",
-            description="Import an agent's investigation results - load serialized branch findings into a session.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session to import into"},
-                    "input_file": {"type": "string", "description": "Agent JSON file to import"}
-                },
-                "required": ["session_id", "input_file"]
-            }
-        ),
-
-        types.Tool(
-            name="agent_discover",
-            description="Discover available agents - search the sharing network for agents by domain expertise and reputation.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "domain": {"type": "string", "description": "Search by domain expertise (e.g., security, multi-persona)"},
-                    "min_reputation": {"type": "number", "description": "Minimum reputation score (0.0-1.0)"},
-                    "limit": {"type": "integer", "description": "Maximum results"}
-                },
-                "required": []
-            }
-        ),
-
-        # ========== Tier 2 Tools: Persona Subsystem ==========
-
-        types.Tool(
-            name="persona_list",
-            description="List available personas - browse emerged specialist lenses (security, performance, UX, etc.).",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "domain": {"type": "string", "description": "Filter by domain (e.g., security, performance)"}
-                },
-                "required": []
-            }
-        ),
-
-        types.Tool(
-            name="persona_show",
-            description="Show detailed persona information - view expertise, emerged traits, and investigation history.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "persona_id": {"type": "string", "description": "Persona ID to show"}
-                },
-                "required": ["persona_id"]
-            }
-        ),
-
-        types.Tool(
-            name="persona_promote",
-            description="Promote a persona - elevate an emerged persona to primary status for increased influence.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "persona_id": {"type": "string", "description": "Persona ID to promote"}
-                },
-                "required": ["persona_id"]
-            }
-        ),
-
-        types.Tool(
-            name="persona_find",
-            description="Find the best persona for a task - match a task description against persona expertise.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "task": {"type": "string", "description": "Task description to match against"},
-                    "limit": {"type": "integer", "description": "Maximum results (default: 5)"}
-                },
-                "required": ["task"]
-            }
-        ),
-
-        # ========== Tier 2 Tools: Memory Subsystem ==========
-
-        types.Tool(
-            name="memory_prime",
-            description="Prime memory with domain-specific context - pre-load relevant findings and allocate investigation budget across domains.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID for budget tracking"},
-                    "domains": {"type": "string", "description": "JSON array of domain names, e.g. '[\"security\", \"architecture\"]'"},
-                    "budget": {"type": "integer", "description": "Total findings budget to allocate (default: 20)"},
-                    "know": {"type": "number", "description": "Current know vector (0.0-1.0, default: 0.5)"},
-                    "uncertainty": {"type": "number", "description": "Current uncertainty vector (0.0-1.0, default: 0.5)"},
-                    "prior_findings": {"type": "string", "description": "JSON object of prior findings per domain"},
-                    "dead_ends": {"type": "string", "description": "JSON object of dead ends per domain"},
-                    "persist": {"type": "boolean", "description": "Persist budget to database for later retrieval"}
-                },
-                "required": ["session_id", "domains"]
-            }
-        ),
-
-        types.Tool(
-            name="memory_scope",
-            description="Query memory by scope and zone - retrieve context items filtered by breadth, duration, zone (anchor/working/cache), and type.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID for context management"},
-                    "scope_breadth": {"type": "number", "description": "Scope breadth (0.0=narrow, 1.0=wide)"},
-                    "scope_duration": {"type": "number", "description": "Scope duration (0.0=ephemeral, 1.0=long-term)"},
-                    "zone": {"type": "string", "description": "Specific zone to query", "enum": ["anchor", "working", "cache", "all"]},
-                    "content_type": {"type": "string", "description": "Filter by content type (finding, unknown, goal, etc.)"},
-                    "min_priority": {"type": "number", "description": "Minimum priority score to include"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-
-        types.Tool(
-            name="memory_value",
-            description="Value-of-information memory retrieval - finds highest-value memories for a query within a token budget.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"},
-                    "query": {"type": "string", "description": "Query text to match against memories"},
-                    "budget": {"type": "integer", "description": "Token budget for retrieval (default: 5000)"},
-                    "project_id": {"type": "string", "description": "Project ID (auto-detected if not provided)"},
-                    "min_gain": {"type": "number", "description": "Minimum information gain to include (default: 0.1)"},
-                    "include_eidetic": {"type": "boolean", "description": "Include eidetic (fact) memory"},
-                    "include_episodic": {"type": "boolean", "description": "Include episodic (narrative) memory"}
-                },
-                "required": ["session_id", "query"]
-            }
-        ),
-
-        types.Tool(
-            name="memory_report",
-            description="Get memory health report - shows zone utilization, staleness, and retrieval statistics for a session.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "session_id": {"type": "string", "description": "Session ID"}
-                },
-                "required": ["session_id"]
-            }
-        ),
-    ]
-
+    """List all available tools."""
+    tools = [_build_tool_schema(name, entry) for name, entry in TOOL_REGISTRY.items()]
+
+    # Add the one stateless tool (no CLI needed)
+    tools.append(types.Tool(
+        name="get_empirica_introduction",
+        description="Get introduction to the Empirica epistemic framework",
+        inputSchema={"type": "object", "properties": {}},
+    ))
     return tools
 
-# ============================================================================
-# Tool Call Handler
-# ============================================================================
 
-@app.call_tool(validate_input=False)  # CASCADE = guidance, not enforcement
+@app.call_tool(validate_input=False)
 async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
-    """Route tool calls to appropriate handler
+    """Route tool calls to CLI."""
 
-    Note: validate_input=False allows flexible AI self-assessment.
-    Schemas provide guidance, but don't enforce rigid validation.
-    Handlers parse parameters flexibly (strings, objects, etc.)
+    # Stateless handler
+    if name == "get_empirica_introduction":
+        return [types.TextContent(type="text", text=json.dumps({
+            "framework": "Empirica",
+            "purpose": "Epistemic self-assessment and calibration for AI agents",
+            "workflow": "PREFLIGHT → CHECK → work → POSTFLIGHT",
+            "vectors": 13,
+            "docs": "https://github.com/Nubaeon/empirica",
+            "commands": sorted(TOOL_REGISTRY.keys()),
+        }, indent=2))]
 
-    Epistemic Middleware: If enabled (EMPIRICA_EPISTEMIC_MODE=true),
-    wraps all calls with vector-driven self-awareness.
-    """
+    # Registry lookup
+    entry = TOOL_REGISTRY.get(name)
+    if not entry:
+        return [types.TextContent(type="text", text=json.dumps({
+            "ok": False,
+            "error": f"Unknown tool: {name}",
+            "available": sorted(TOOL_REGISTRY.keys()),
+        }, indent=2))]
 
-    # If epistemic middleware enabled, route through it
-    if epistemic_middleware:
-        return await epistemic_middleware.handle_request(
-            tool_name=name,
-            arguments=arguments,
-            original_handler=lambda tn, args: _call_tool_impl(tn, args)
-        )
+    if not EMPIRICA_CLI:
+        return [types.TextContent(type="text", text=json.dumps({
+            "ok": False,
+            "error": "empirica CLI not found. Install: pip install empirica",
+        }, indent=2))]
+
+    # Build command
+    cmd = [EMPIRICA_CLI, entry["cli"], "--output", "json"]
+    stdin_data = None
+
+    if entry.get("stdin_json"):
+        # CASCADE commands: send full JSON via stdin
+        cmd.append("-")
+        stdin_data = json.dumps(arguments).encode("utf-8")
     else:
-        return await _call_tool_impl(name, arguments)
-
-
-async def _call_tool_impl(name: str, arguments: dict) -> list[types.TextContent]:
-    """Internal tool call implementation (wrapped by middleware if enabled)"""
-
-    try:
-        # Category 1: Stateless tools (handle directly - sync functions)
-        if name == "get_empirica_introduction":
-            return handle_introduction()  # Returns List[TextContent] directly
-        elif name == "get_workflow_guidance":
-            return handle_guidance(arguments)  # Returns List[TextContent] directly
-        elif name == "cli_help":
-            return handle_cli_help()  # Returns List[TextContent] directly
-
-        # Category 2: Direct Python handlers (AI-centric, no CLI conversion)
-        elif name == "create_goal":
-            return await handle_create_goal_direct(arguments)
-        # execute_postflight removed - AI calls submit_postflight_assessment directly
-        elif name == "get_calibration_report":
-            return await handle_get_calibration_report(arguments)
-        elif name == "edit_with_confidence":
-            return await handle_edit_with_confidence(arguments)
-        elif name == "vision_analyze":
-            return await route_to_cli("vision-analyze", arguments)
-        elif name == "vision_log":
-            return await route_to_cli("vision-log", arguments)
-
-        # Category 2b: Blindspot detection (direct Python, optional dependency)
-        elif name == "blindspot_scan":
-            return await handle_blindspot_scan_direct(arguments)
-
-        # Category 2c: Vector-aware skill/tool suggestion (direct Python)
-        elif name == "skill_suggest":
-            return await handle_skill_suggest_direct(arguments)
-
-        # Category 3: All other tools (route to CLI)
-        else:
-            return await route_to_cli(name, arguments)
-
-    except Exception as e:
-        # Auto-capture error if service available
-        if get_auto_capture:
-            try:
-                auto_capture = get_auto_capture()
-                if auto_capture:
-                    auto_capture.capture_error(
-                        message=f"MCP tool error: {name} - {str(e)}",
-                        severity=IssueSeverity.HIGH,
-                        category=IssueCategory.ERROR,
-                        context={"tool": name, "arguments": arguments}
-                    )
-            except Exception:
-                pass  # Don't let auto-capture errors break the response
-
-        # Return structured error
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "ok": False,
-                "error": str(e),
-                "tool": name,
-                "suggestion": "Check tool arguments and try again"
-            }, indent=2)
-        )]
-
-# ============================================================================
-# Direct Python Handlers (AI-Centric)
-# ============================================================================
-
-async def handle_blindspot_scan_direct(arguments: dict) -> list[types.TextContent]:
-    """Scan for epistemic blindspots using the prediction plugin.
-
-    Direct Python handler - imports empirica-prediction at runtime.
-    Returns topology analysis and predicted unknown unknowns.
-    """
-    try:
-        from empirica_prediction.blindspots.predictor import BlindspotPredictor
-    except ImportError:
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "ok": False,
-                "error": "empirica-prediction not installed. Install with: pip install -e ../empirica-prediction",
-                "tool": "blindspot_scan"
-            }, indent=2)
-        )]
-
-    try:
-        project_id = arguments.get("project_id")
-
-        # Auto-detect project from DB if not provided
-        if not project_id:
-            import sqlite3
-            from pathlib import Path
-            db_path = Path.cwd() / ".empirica" / "sessions" / "sessions.db"
-            if db_path.exists():
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
-                cwd_name = Path.cwd().name
-                cursor.execute("""
-                    SELECT id FROM projects
-                    WHERE name LIKE ? OR repos LIKE ?
-                    ORDER BY last_activity_timestamp DESC LIMIT 1
-                """, (f"%{cwd_name}%", f"%{cwd_name}%"))
-                row = cursor.fetchone()
-                conn.close()
-                if row:
-                    project_id = row[0]
-
-        if not project_id:
-            return [types.TextContent(
-                type="text",
-                text=json.dumps({
-                    "ok": False,
-                    "error": "Could not determine project ID. Use --project-id or run from a project directory."
-                }, indent=2)
-            )]
-
-        predictor = BlindspotPredictor(project_id=project_id)
-        report = predictor.predict(
-            session_id=arguments.get("session_id"),
-            max_predictions=arguments.get("max_predictions", 10),
-            min_confidence=arguments.get("min_confidence", 0.4),
-        )
-        predictor.close()
-
-        result = {
-            "ok": True,
-            "project_id": report.project_id,
-            "blindspot_count": len(report.predictions),
-            "critical_count": report.critical_count,
-            "high_count": report.high_count,
-            "uncertainty_adjustment": report.uncertainty_adjustment,
-            "topology_summary": report.topology_summary,
-            "covered_layers": report.covered_layers,
-            "missing_layers": report.missing_layers,
-            "predictions": [p.to_dict() for p in report.predictions],
-        }
-
-        return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-
-    except Exception as e:
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({"ok": False, "error": str(e), "tool": "blindspot_scan"}, indent=2)
-        )]
-
-
-async def handle_skill_suggest_direct(arguments: dict) -> list[types.TextContent]:
-    """Vector-aware skill/tool suggestion using ToolRouter.
-
-    Combines epistemic vector routing (mode + tool recommendations) with
-    local skill discovery for comprehensive tool guidance.
-    """
-    try:
-        from empirica_mcp.epistemic.tool_router import ToolRouter
-
-        task = arguments.get("task", "")
-        session_id = arguments.get("session_id")
-        verbose = arguments.get("verbose", False)
-
-        # Load epistemic vectors from session if available
-        vectors = {}
-        if session_id:
-            try:
-                import sqlite3
-                from pathlib import Path
-                db_path = Path.cwd() / ".empirica" / "sessions" / "sessions.db"
-                if db_path.exists():
-                    conn = sqlite3.connect(db_path)
-                    cursor = conn.cursor()
-                    cursor.execute("""
-                        SELECT vectors FROM epistemic_assessments
-                        WHERE session_id = ?
-                        ORDER BY created_timestamp DESC LIMIT 1
-                    """, (session_id,))
-                    row = cursor.fetchone()
-                    conn.close()
-                    if row:
-                        vectors = json.loads(row[0]) if isinstance(row[0], str) else row[0]
-            except Exception:
-                pass
-
-        result: dict = {"ok": True, "task": task}
-
-        # Vector-aware routing (if we have task text)
-        if task:
-            router = ToolRouter()
-            advice = router.route(vectors or {}, task)
-            result["routing"] = {
-                "mode": advice.mode,
-                "mode_confidence": advice.mode_confidence,
-                "mode_reasoning": advice.mode_reasoning,
-                "tools": [t.to_dict() for t in advice.tools],
-                "context_depth": advice.context_depth,
-            }
-            if verbose:
-                result["routing"]["prompt_text"] = advice.format_for_prompt()
-
-        # Local skill discovery (existing behavior)
-        try:
-            from pathlib import Path
-
-            import yaml  # type: ignore
-            skills_dir = Path.cwd() / "project_skills"
-            local_skills = []
-            if skills_dir.exists():
-                for f in skills_dir.iterdir():
-                    if f.suffix in (".yaml", ".yml"):
-                        try:
-                            with open(f) as fh:
-                                skill = yaml.safe_load(fh)
-                                if skill:
-                                    local_skills.append({
-                                        "name": skill.get("title", skill.get("id", f.stem)),
-                                        "id": skill.get("id", f.stem),
-                                        "tags": skill.get("tags", []),
-                                    })
-                        except Exception:
-                            pass
-            result["local_skills"] = local_skills
-        except ImportError:
-            result["local_skills"] = []
-
-        return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-
-    except Exception as e:
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({"ok": False, "error": str(e), "tool": "skill_suggest"}, indent=2)
-        )]
-
-
-async def handle_create_goal_direct(arguments: dict) -> list[types.TextContent]:
-    """Handle create_goal directly in Python (no CLI conversion)
-
-    AI-centric design: accepts scope as object, no schema conversion needed.
-    """
-    try:
-        import uuid
-
-        from empirica.core.canonical.empirica_git import GitGoalStore
-        from empirica.core.goals.repository import GoalRepository
-        from empirica.core.goals.types import Goal, ScopeVector, SuccessCriterion
-
-        # Extract arguments
-        session_id = arguments["session_id"]
-        objective = arguments["objective"]
-
-        # Parse scope: AI self-assesses vectors (no semantic presets - that's heuristics!)
-        scope_arg = arguments.get("scope", {"breadth": 0.3, "duration": 0.2, "coordination": 0.1})
-
-        # If somehow a string comes in, convert to default and let AI know to use vectors
-        if isinstance(scope_arg, str):
-            # Don't try to interpret semantic names - that's adding heuristics back!
-            # AI should assess: breadth (0-1), duration (0-1), coordination (0-1)
-            logger.warning(f"Scope string '{scope_arg}' ignored - scope must be vectorial: {{'breadth': 0-1, 'duration': 0-1, 'coordination': 0-1}}")
-            scope_dict = {"breadth": 0.3, "duration": 0.2, "coordination": 0.1}
-        else:
-            scope_dict = scope_arg
-
-        scope = ScopeVector(
-            breadth=scope_dict.get("breadth", 0.3),
-            duration=scope_dict.get("duration", 0.2),
-            coordination=scope_dict.get("coordination", 0.1)
-        )
-
-        # Parse success criteria
-        success_criteria_list = arguments.get("success_criteria", [])
-        success_criteria_objects = []
-        for criteria in success_criteria_list:
-            success_criteria_objects.append(SuccessCriterion(
-                id=str(uuid.uuid4()),
-                description=str(criteria),
-                validation_method="completion",
-                is_required=True,
-                is_met=False
-            ))
-
-        # Optional parameters
-        estimated_complexity = arguments.get("estimated_complexity")
-        constraints = arguments.get("constraints")
-        metadata = arguments.get("metadata", {})
-
-        # Create Goal object
-        goal = Goal.create(
-            objective=objective,
-            success_criteria=success_criteria_objects,
-            scope=scope,
-            estimated_complexity=estimated_complexity,
-            constraints=constraints,
-            metadata=metadata
-        )
-
-        # Save to database
-        # Fix: Use path_resolver to get correct database location (repo-local, not home)
-        goal_repo = GoalRepository(db_path=str(get_session_db_path()))
-        success = goal_repo.save_goal(goal, session_id)
-        goal_repo.close()
-
-        if not success:
-            return [types.TextContent(
-                type="text",
-                text=json.dumps({
-                    "ok": False,
-                    "error": "Failed to save goal to database",
-                    "goal_id": None,
-                    "session_id": session_id
-                }, indent=2)
-            )]
-
-        # Store in git notes for cross-AI discovery (safe degradation)
-        try:
-            ai_id = arguments.get("ai_id", "empirica_mcp")
-            goal_store = GitGoalStore()
-            goal_data = {
-                "objective": objective,
-                "scope": scope.to_dict(),
-                "success_criteria": [sc.description for sc in success_criteria_objects],
-                "estimated_complexity": estimated_complexity,
-                "constraints": constraints,
-                "metadata": metadata
-            }
-
-            goal_store.store_goal(
-                goal_id=goal.id,
-                session_id=session_id,
-                ai_id=ai_id,
-                goal_data=goal_data
-            )
-        except Exception:
-            # Safe degradation - don't fail goal creation if git storage fails
-            pass
-
-        # Embed goal to Qdrant for semantic search (safe degradation)
-        qdrant_embedded = False
-        try:
-            from empirica.core.qdrant.vector_store import embed_goal
-            # Get project_id from session
-            db = SessionDatabase(db_path=str(get_session_db_path()))
-            cursor = db.conn.cursor()
-            cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
-            row = cursor.fetchone()
-            project_id = row[0] if row else None
-            db.close()
-
-            if project_id:
-                qdrant_embedded = embed_goal(
-                    project_id=project_id,
-                    goal_id=goal.id,
-                    objective=objective,
-                    session_id=session_id,
-                    ai_id=arguments.get("ai_id", "empirica_mcp"),
-                    scope_breadth=scope.breadth,
-                    scope_duration=scope.duration,
-                    scope_coordination=scope.coordination,
-                    estimated_complexity=estimated_complexity,
-                    success_criteria=[sc.description for sc in success_criteria_objects],
-                    status="in_progress",
-                    timestamp=goal.created_timestamp,
-                )
-        except Exception as e:
-            # Safe degradation - don't fail goal creation if Qdrant embedding fails
-            logger.debug(f"Goal Qdrant embedding skipped: {e}")
-
-        # Return success response
-        result = {
-            "ok": True,
-            "goal_id": goal.id,
-            "session_id": session_id,
-            "message": "Goal created successfully",
-            "objective": objective,
-            "scope": scope.to_dict(),
-            "timestamp": goal.created_timestamp,
-            "qdrant_embedded": qdrant_embedded
-        }
-
-        return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-
-    except Exception as e:
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "ok": False,
-                "error": str(e),
-                "tool": "create_goal",
-                "suggestion": "Check scope format: {\"breadth\": 0.7, \"duration\": 0.3, \"coordination\": 0.8}"
-            }, indent=2)
-        )]
-
-async def handle_get_calibration_report(arguments: dict) -> list[types.TextContent]:
-    """Handle get_calibration_report by querying SQLite reflexes directly
-
-    Note: CLI 'empirica calibration' is deprecated (used heuristics).
-    This handler queries session reflexes for genuine calibration data.
-    """
-    try:
-        session_id = arguments.get("session_id")
-        if not session_id:
-            return [types.TextContent(
-                type="text",
-                text=json.dumps({"ok": False, "error": "session_id required"}, indent=2)
-            )]
-
-        # Resolve session alias if needed
-        session_id = resolve_session_id(session_id)
-
-        # Query reflexes for PREFLIGHT and POSTFLIGHT
-        db = SessionDatabase(db_path=str(get_session_db_path()))
-        cursor = db.conn.cursor()
-
-        # Get PREFLIGHT assessment
-        cursor.execute("""
-            SELECT engagement, know, do, context, clarity, coherence, signal, density,
-                   state, change, completion, impact, uncertainty, reasoning
-            FROM reflexes
-            WHERE session_id = ? AND phase = 'PREFLIGHT'
-            ORDER BY timestamp DESC LIMIT 1
-        """, (session_id,))
-        preflight = cursor.fetchone()
-
-        # Get POSTFLIGHT assessment
-        cursor.execute("""
-            SELECT engagement, know, do, context, clarity, coherence, signal, density,
-                   state, change, completion, impact, uncertainty, reasoning
-            FROM reflexes
-            WHERE session_id = ? AND phase = 'POSTFLIGHT'
-            ORDER BY timestamp DESC LIMIT 1
-        """, (session_id,))
-        postflight = cursor.fetchone()
-
-        db.close()
-
-        if not preflight:
-            return [types.TextContent(
-                type="text",
-                text=json.dumps({
-                    "ok": False,
-                    "error": "No PREFLIGHT assessment found",
-                    "session_id": session_id,
-                    "suggestion": "Execute PREFLIGHT first using submit_preflight_assessment"
-                }, indent=2)
-            )]
-
-        # Build calibration report
-        vector_names = ["engagement", "know", "do", "context", "clarity", "coherence",
-                       "signal", "density", "state", "change", "completion", "impact", "uncertainty"]
-
-        preflight_vectors = {name: preflight[i] for i, name in enumerate(vector_names)}
-        preflight_reasoning = preflight[13]
-
-        result = {
-            "ok": True,
-            "session_id": session_id,
-            "preflight": {
-                "vectors": preflight_vectors,
-                "reasoning": preflight_reasoning,
-                "overall_confidence": sum([v for k, v in preflight_vectors.items() if k != 'uncertainty']) / 12
-            }
-        }
-
-        # Add POSTFLIGHT if available
-        if postflight:
-            postflight_vectors = {name: postflight[i] for i, name in enumerate(vector_names)}
-            postflight_reasoning = postflight[13]
-
-            # Calculate deltas
-            deltas = {
-                name: round(postflight_vectors[name] - preflight_vectors[name], 3)
-                for name in vector_names
-            }
-
-            result["postflight"] = {
-                "vectors": postflight_vectors,
-                "reasoning": postflight_reasoning,
-                "overall_confidence": sum([v for k, v in postflight_vectors.items() if k != 'uncertainty']) / 12
-            }
-            result["epistemic_delta"] = deltas
-            result["learning_growth"] = {
-                "know_growth": deltas["know"],
-                "do_growth": deltas["do"],
-                "uncertainty_reduction": -deltas["uncertainty"]  # Negative means reduced uncertainty (good!)
-            }
-
-            # Calibration assessment
-            know_improved = deltas["know"] > 0
-            do_improved = deltas["do"] > 0
-            uncertainty_reduced = deltas["uncertainty"] < 0
-
-            if know_improved and do_improved and uncertainty_reduced:
-                result["calibration"] = "well_calibrated"
-            elif deltas["know"] < -0.1 or deltas["do"] < -0.1:
-                result["calibration"] = "underconfident_initially"
-            elif deltas["uncertainty"] > 0.1:
-                result["calibration"] = "overconfident_initially"
-            else:
-                result["calibration"] = "moderate_calibration"
-        else:
-            result["postflight"] = None
-            result["message"] = "POSTFLIGHT not yet completed - run submit_postflight_assessment to enable calibration"
-
-        # Add grounded verification data if available
-        try:
-            gdb = SessionDatabase(db_path=str(get_session_db_path()))
-            gcursor = gdb.conn.cursor()
-            gcursor.execute("""
-                SELECT grounded_vectors, calibration_gaps,
-                       grounded_coverage, overall_calibration_score,
-                       evidence_count, sources_available
-                FROM grounded_verifications
-                WHERE session_id = ?
-                ORDER BY created_at DESC LIMIT 1
-            """, (session_id,))
-            gv_row = gcursor.fetchone()
-            if gv_row:
-                result["grounded_verification"] = {
-                    "grounded_vectors": json.loads(gv_row[0]) if gv_row[0] else {},
-                    "calibration_gaps": json.loads(gv_row[1]) if gv_row[1] else {},
-                    "grounded_coverage": gv_row[2],
-                    "overall_calibration_score": gv_row[3],
-                    "evidence_count": gv_row[4],
-                    "sources": json.loads(gv_row[5]) if gv_row[5] else [],
-                }
-            gdb.close()
-        except Exception:
-            pass  # Grounded data is optional
-
-        return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-
-    except Exception as e:
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "ok": False,
-                "error": str(e),
-                "tool": "get_calibration_report"
-            }, indent=2)
-        )]
-
-async def handle_edit_with_confidence(arguments: dict) -> list[types.TextContent]:
-    """
-    Handle edit_with_confidence - metacognitive edit verification.
-
-    Assesses epistemic confidence BEFORE attempting edit, then executes
-    using optimal strategy: atomic_edit, bash_fallback, or re_read_first.
-
-    Returns success status, strategy used, confidence score, and reasoning.
-    """
-    try:
-        from empirica.components.edit_verification import EditConfidenceAssessor, EditStrategyExecutor
-
-        # Extract arguments
-        file_path = arguments.get("file_path")
-        old_str = arguments.get("old_str")
-        new_str = arguments.get("new_str")
-        context_source = arguments.get("context_source", "memory")
-        session_id = arguments.get("session_id")
-
-        # Validate required arguments
-        if not all([file_path, old_str is not None, new_str is not None]):
-            return [types.TextContent(
-                type="text",
-                text=json.dumps({
-                    "ok": False,
-                    "error": "Missing required arguments: file_path, old_str, new_str",
-                    "received": {k: v for k, v in arguments.items() if k in ["file_path", "old_str", "new_str"]}
-                }, indent=2)
-            )]
-
-        # Initialize components
-        assessor = EditConfidenceAssessor()
-        executor = EditStrategyExecutor()
-
-        # Step 1: Assess epistemic confidence
-        assessment = assessor.assess(
-            file_path=file_path,
-            old_str=old_str,
-            context_source=context_source
-        )
-
-        # Step 2: Get recommended strategy
-        strategy, reasoning = assessor.recommend_strategy(assessment)
-
-        # Step 3: Execute with chosen strategy
-        result = await executor.execute_strategy(
-            strategy=strategy,
-            file_path=file_path,
-            old_str=old_str,
-            new_str=new_str,
-            assessment=assessment
-        )
-
-        # Step 4: Log for calibration tracking (if session_id provided)
-        if session_id and result.get("success"):
-            try:
-                from empirica.config.path_resolver import get_session_db_path
-                from empirica.data.session_database import SessionDatabase
-                # Fix: Use path_resolver to get correct database location (repo-local, not home)
-                db = SessionDatabase(db_path=str(get_session_db_path()))
-
-                # Log to reflexes for calibration tracking
-                db.log_reflex(
-                    session_id=session_id,
-                    cascade_id=None,
-                    phase="edit_verification",
-                    vectors=assessment,
-                    reasoning=f"Edit confidence: {assessment['overall']:.2f}, Strategy: {strategy}, Success: {result['success']}"
-                )
-                db.close()
-            except Exception as log_error:
-                # Don't fail edit if logging fails
-                logger.warning(f"Failed to log edit verification to reflexes: {log_error}")
-
-        # Return structured result
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "ok": result.get("success", False),
-                "strategy": strategy,
-                "reasoning": reasoning,
-                "assessment": {
-                    "overall_confidence": assessment["overall"],
-                    "context": assessment["context"],
-                    "uncertainty": assessment["uncertainty"],
-                    "signal": assessment["signal"],
-                    "clarity": assessment["clarity"]
-                },
-                "result": result.get("message", ""),
-                "changes_made": result.get("changes_made", False),
-                "file_path": file_path
-            }, indent=2)
-        )]
-
-    except Exception as e:
-        import traceback
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "ok": False,
-                "error": str(e),
-                "tool": "edit_with_confidence",
-                "traceback": traceback.format_exc()
-            }, indent=2)
-        )]
-
-# ============================================================================
-# CLI Router
-# ============================================================================
-
-async def route_to_cli(tool_name: str, arguments: dict) -> list[types.TextContent]:
-    """Route MCP tool call to Empirica CLI command"""
-
-    # Build CLI command
-    cmd = build_cli_command(tool_name, arguments)
-
-    # Determine working directory for CLI execution
-    # Priority: 1) session_id lookup, 2) project_path arg, 3) active_work.json, 4) CWD
-    cwd = None
-    if arguments.get("session_id"):
-        # Session-aware: get project path from session's project_id
-        session_project_path = get_project_path_from_session(arguments["session_id"])
-        if session_project_path:
-            cwd = session_project_path
-    if not cwd and tool_name == "session_create" and arguments.get("project_path"):
-        cwd = arguments["project_path"]
+        # Standard commands: map params to CLI flags
+        for param, flag in entry["params"].items():
+            value = arguments.get(param)
+            if value is not None:
+                if isinstance(value, bool):
+                    if value:
+                        cmd.append(flag)
+                else:
+                    cmd.extend([flag, str(value)])
+
+    # Resolve working directory
+    cwd = arguments.get("project_path")
     if not cwd:
-        # Fallback: read active_work.json (healed by sentinel on first tool call)
-        # MCP server doesn't have claude_session_id, so use generic active_work
+        cwd = os.environ.get("EMPIRICA_WORKSPACE_ROOT")
+    if not cwd:
         try:
             from empirica.utils.session_resolver import get_active_project_path
-            active_path = get_active_project_path()
-            if active_path:
-                cwd = active_path
+            cwd = get_active_project_path()
         except Exception:
             pass
 
-    # Execute in async executor (non-blocking)
+    # Execute
     loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(
-        None,
-        lambda: subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            stdin=subprocess.DEVNULL,  # Prevent CLI from reading MCP's stdin (fixes postflight hang)
-            cwd=cwd  # Use project_path if specified, else current working directory
+    try:
+        result = await loop.run_in_executor(
+            None,
+            lambda: subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                input=stdin_data.decode("utf-8") if stdin_data else None,
+                stdin=None if stdin_data else subprocess.DEVNULL,
+                cwd=cwd,
+                timeout=CLI_TIMEOUT,
+            ),
         )
-    )
+    except subprocess.TimeoutExpired:
+        return [types.TextContent(type="text", text=json.dumps({
+            "ok": False,
+            "error": f"Command timed out ({CLI_TIMEOUT}s): {entry['cli']}",
+        }, indent=2))]
 
-    # Return CLI output
     if result.returncode == 0:
-        # Parse text output to JSON for commands that don't support --output json yet
-        output = parse_cli_output(tool_name, result.stdout, result.stderr, arguments)
-
-        # Truncate oversized outputs to prevent context overflow
-        if len(output) > MAX_OUTPUT_SIZE:
-            truncated = output[:MAX_OUTPUT_SIZE]
-            warning = TRUNCATION_WARNING.format(max_size=MAX_OUTPUT_SIZE, actual_size=len(output))
-            output = truncated + warning
-
+        output = result.stdout or result.stderr or '{"ok": true}'
+        if len(output) > MAX_OUTPUT:
+            output = output[:MAX_OUTPUT] + f"\n\n⚠️ Truncated ({len(output)} chars)"
         return [types.TextContent(type="text", text=output)]
     else:
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({
-                "ok": False,
-                "error": result.stderr,
-                "command": " ".join(cmd),
-                "suggestion": "Check CLI command syntax with: empirica --help"
-            }, indent=2)
-        )]
-
-def parse_cli_output(tool_name: str, stdout: str, stderr: str, arguments: dict) -> str:
-    """Parse CLI output and convert to JSON if needed"""
-
-    # Check if output is already JSON
-    try:
-        json.loads(stdout)
-        return stdout  # Already JSON
-    except (json.JSONDecodeError, ValueError):
-        pass  # Not JSON, need to parse
-
-    # Parse specific command outputs
-    if tool_name == "session_create":
-        # Parse session-create output
-        # Example: "✅ Session created successfully!\n   📋 Session ID: 527f500f-db89-485a-9153-2b5c5f7fa32f\n   🤖 AI ID: claude-code..."
-        import re
-
-        # Extract session ID from output
-        session_id_match = re.search(r'Session ID:\s*([a-f0-9-]+)', stdout)
-        session_id = session_id_match.group(1) if session_id_match else None
-
-        # Extract AI ID from output
-        ai_id_match = re.search(r'AI ID:\s*(\S+)', stdout)
-        ai_id_from_output = ai_id_match.group(1) if ai_id_match else None
-
-        # Extract AI ID from arguments as fallback
-        ai_id = arguments.get('ai_id', ai_id_from_output or 'unknown')
-
-        try:
-            from empirica.config.path_resolver import get_session_db_path
-            from empirica.data.session_database import SessionDatabase
-
-            # If we didn't get the session_id from output, create it in the database
-            if not session_id:
-                # Fix: Use path_resolver to get correct database location (repo-local, not home)
-                db = SessionDatabase(db_path=str(get_session_db_path()))
-                session_id = db.create_session(
-                    ai_id=ai_id,
-                    components_loaded=5  # Standard number of components
-                )
-                db.close()
-
-            # Update active_session file for statusline (instance-specific)
-            # Uses instance_id (e.g., tmux:%0) to prevent cross-pane bleeding
-            from pathlib import Path
-            try:
-                from empirica.utils.session_resolver import get_instance_id
-                instance_id = get_instance_id()
-            except ImportError:
-                instance_id = None
-
-            instance_suffix = ""
-            if instance_id:
-                # Sanitize instance_id for filename (replace special chars)
-                safe_instance = instance_id.replace(":", "_").replace("%", "")
-                instance_suffix = f"_{safe_instance}"
-
-            # Use project_path if specified, otherwise cwd (enables project switch without cd)
-            target_project_path = arguments.get('project_path')
-            if target_project_path:
-                project_dir = Path(target_project_path)
-            else:
-                project_dir = Path.cwd()
-
-            # ALWAYS write to global ~/.empirica/ for instance-specific files
-            # This ensures statusline can find active session regardless of cwd
-            # The project_path in the JSON tells us which project's DB to use
-            active_session_file = Path.home() / '.empirica' / f'active_session{instance_suffix}'
-            active_session_file.parent.mkdir(parents=True, exist_ok=True)
-            # Store JSON with session_id AND project_path so statusline can find
-            # the correct DB even when cwd changes (prevents user confusion about data loss)
-            active_session_data = {
-                "session_id": session_id,
-                "project_path": str(project_dir),
-                "ai_id": ai_id
-            }
-            active_session_file.write_text(json.dumps(active_session_data))
-
-            result = {
-                "ok": True,
-                "message": "Session created successfully",
-                "session_id": session_id,
-                "ai_id": ai_id,
-                "next_step": "Use this session_id with submit_preflight_assessment to begin a cascade"
-            }
-
-            return json.dumps(result, indent=2)
-
-        except Exception as e:
-            # Fallback if database operations fail
-            result = {
-                "ok": True,
-                "message": "Session created but database operations failed",
-                "session_id": session_id or "unknown",
-                "error": str(e),
-                "next_step": "Call submit_preflight_assessment",
-                "note": "Session may have been created but database sync failed"
-            }
-
-            return json.dumps(result, indent=2)
-
-    # Default: return original output wrapped in JSON
-    return json.dumps({
-        "ok": True,
-        "output": stdout,
-        "note": "Text output - CLI command doesn't support --output json yet"
-    }, indent=2)
-
-def build_cli_command(tool_name: str, arguments: dict) -> list[str]:
-    """Build CLI command from MCP tool name and arguments"""
-
-    # Map MCP tool name → CLI command
-    tool_map = {
-        # Workflow
-        "session_create": ["session-create"],
-        # "execute_preflight" removed - unnecessary theater. AI calls submit_preflight_assessment directly.
-        "submit_preflight_assessment": ["preflight-submit"],
-        # "execute_check" removed - blocks on stdin
-        "submit_check_assessment": ["check-submit"],
-        # "execute_postflight" removed - unnecessary theater. AI calls submit_postflight_assessment directly.
-        "submit_postflight_assessment": ["postflight-submit"],
-
-        # Goals
-        "create_goal": ["goals-create"],
-        "add_subtask": ["goals-add-subtask"],
-        "complete_subtask": ["goals-complete-subtask"],
-        "get_goal_progress": ["goals-progress"],
-        "get_goal_subtasks": ["goals-get-subtasks"],
-        "list_goals": ["goals-list"],
-
-        # Sessions
-        "get_epistemic_state": ["sessions-show"],
-        "get_session_summary": ["sessions-show", "--verbose"],
-        "session_snapshot": ["session-snapshot"],
-        "get_calibration_report": ["calibration"],
-        "resume_previous_session": ["sessions-resume"],
-        "memory_compact": ["memory-compact"],
-
-        # Checkpoints
-        "create_git_checkpoint": ["checkpoint-create"],
-        "load_git_checkpoint": ["checkpoint-load"],  # Note: Requires --session-id flag
-
-        # Handoff Reports
-        "create_handoff_report": ["handoff-create"],
-        "query_handoff_reports": ["handoff-query"],
-
-        # Mistakes Tracking
-        "mistake_log": ["mistake-log"],  # Enriched version with entity linking
-        "log_mistake": ["mistake-log"],  # Legacy version (fewer params)
-        "query_mistakes": ["mistake-query"],
-
-        # Phase 1: Cross-AI Coordination
-        "discover_goals": ["goals-discover"],
-        "resume_goal": ["goals-resume"],
-
-        # Phase 2: Cryptographic Trust
-        "create_identity": ["identity-create"],
-        "list_identities": ["identity-list"],
-        "export_public_key": ["identity-export"],
-        "verify_signature": ["identity-verify"],
-
-        # Project-Level Tracking
-        "project_bootstrap": ["project-bootstrap"],
-        "finding_log": ["finding-log"],
-        "unknown_log": ["unknown-log"],
-        "deadend_log": ["deadend-log"],
-        "assumption_log": ["assumption-log"],
-        "decision_log": ["decision-log"],
-        "refdoc_add": ["refdoc-add"],
-
-        # Epistemic Monitoring
-        "epistemics_list": ["epistemics-list"],
-        "epistemics_show": ["epistemics-show"],
-
-        # Goals workflow
-        "goals_ready": ["goals-ready"],
-        "goals_claim": ["goals-claim"],
-        "investigate": ["investigate"],
-
-        # Vision tools
-        "vision_analyze": ["vision"],
-        "vision_log": ["vision"],  # Same command, different args
-
-        # Metacognitive editing
-        "edit_with_confidence": ["edit-with-confidence"],
-
-        # Human Copilot Tools
-        "monitor": ["monitor"],
-        "system_status": ["system-status"],
-        "issue_list": ["issue-list"],
-        "issue_handoff": ["issue-handoff"],
-        "workspace_overview": ["workspace-overview"],
-        "efficiency_report": ["efficiency-report"],
-        # skill_suggest: handled by handle_skill_suggest_direct (vector-aware)
-        "workspace_map": ["workspace-map"],
-        "unknown_resolve": ["unknown-resolve"],
-
-        # Tier 1 additions (v1.6.6)
-        "goals_complete": ["goals-complete"],
-        "project_search": ["project-search"],
-        "source_add": ["source-add"],
-        "unknown_list": ["unknown-list"],
-        "goals_search": ["goals-search"],
-        "goals_add_dependency": ["goals-add-dependency"],
-        "issue_show": ["issue-show"],
-        "issue_resolve": ["issue-resolve"],
-        "issue_stats": ["issue-stats"],
-        "session_rollup": ["session-rollup"],
-        "act_log": ["act-log"],
-        "calibration_report": ["calibration-report"],
-
-        # Tier 2: Lesson subsystem
-        "lesson_create": ["lesson-create"],
-        "lesson_load": ["lesson-load"],
-        "lesson_list": ["lesson-list"],
-        "lesson_search": ["lesson-search"],
-        "lesson_recommend": ["lesson-recommend"],
-        "lesson_path": ["lesson-path"],
-        "lesson_replay_start": ["lesson-replay-start"],
-        "lesson_replay_end": ["lesson-replay-end"],
-        "lesson_stats": ["lesson-stats"],
-
-        # Tier 2: Investigation subsystem
-        "investigate_log": ["investigate-log"],
-        "investigate_create_branch": ["investigate-create-branch"],
-        "investigate_checkpoint_branch": ["investigate-checkpoint-branch"],
-        "investigate_merge_branches": ["investigate-merge-branches"],
-        "investigate_multi": ["investigate-multi"],
-
-        # Tier 2: Assessment subsystem
-        "assess_state": ["assess-state"],
-        "assess_component": ["assess-component"],
-        "assess_compare": ["assess-compare"],
-        "assess_directory": ["assess-directory"],
-
-        # Tier 2: Agent subsystem
-        "agent_spawn": ["agent-spawn"],
-        "agent_report": ["agent-report"],
-        "agent_aggregate": ["agent-aggregate"],
-        "agent_parallel": ["agent-parallel"],
-        "agent_export": ["agent-export"],
-        "agent_import": ["agent-import"],
-        "agent_discover": ["agent-discover"],
-
-        # Tier 2: Persona subsystem
-        "persona_list": ["persona-list"],
-        "persona_show": ["persona-show"],
-        "persona_promote": ["persona-promote"],
-        "persona_find": ["persona-find"],
-
-        # Tier 2: Memory subsystem
-        "memory_prime": ["memory-prime"],
-        "memory_scope": ["memory-scope"],
-        "memory_value": ["memory-value"],
-        "memory_report": ["memory-report"],
-    }
-
-    # Commands that take positional arguments (not flags)
-    # Format: command_name: arg_name (string) or [arg1, arg2] (list for multiple positionals)
-    positional_args = {
-        "preflight": "prompt",           # preflight <prompt> [--session-id ...]
-        "postflight": "session_id",      # postflight <session_id> [--summary ...]
-        "sessions-show": "session_id",   # sessions-show <session_id>
-        "session-snapshot": "session_id", # session-snapshot <session_id>
-        "calibration": "session_id",     # calibration <session_id>
-        # Tier 2: commands with positional arguments
-        "investigate": "target",         # investigate <target> [--type ...]
-        "assess-component": "path",      # assess-component <path> [--project-root ...]
-        "assess-compare": ["path_a", "path_b"],  # assess-compare <path_a> <path_b>
-        "assess-directory": "path",      # assess-directory <path> [--project-root ...]
-    }
-
-    # Map MCP argument names → CLI flag names (when they differ)
-    arg_map = {
-        "session_type": "session-type",  # Not used by CLI - will be ignored
-        "task_id": "task-id",  # MCP uses task_id, CLI uses task-id (for goals-complete-subtask)
-        "round_num": "round",  # MCP uses round_num, CLI uses round (for checkpoint-create)
-        "remaining_unknowns": "remaining-unknowns",  # MCP uses remaining_unknowns, CLI uses remaining-unknowns
-        "root_cause_vector": "root-cause-vector",  # MCP uses root_cause_vector, CLI uses root-cause-vector
-        "why_wrong": "why-wrong",  # MCP uses why_wrong, CLI uses why-wrong
-        "cost_estimate": "cost-estimate",  # MCP uses cost_estimate, CLI uses cost-estimate
-        "goal_id": "goal-id",  # MCP uses goal_id, CLI uses goal-id (for handoff-create)
-        "confidence_to_proceed": "confidence",  # MCP uses confidence_to_proceed, CLI uses confidence (for check command)
-        "investigation_cycle": "cycle",  # MCP uses investigation_cycle, CLI uses cycle (for check-submit)
-        "task_summary": "task-summary",  # MCP uses task_summary, CLI uses task-summary (for handoff-create and postflight)
-        "reasoning": "reasoning",  # MCP uses reasoning, CLI uses reasoning (unified: preflight-submit and postflight-submit)
-        "key_findings": "key-findings",  # MCP uses key_findings, CLI uses key-findings (for handoff-create)
-        "next_session_context": "next-session-context",  # MCP uses next_session_context, CLI uses next-session-context
-        "artifacts_created": "artifacts",  # MCP uses artifacts_created, CLI uses artifacts (for handoff-create)
-        "project_id": "project-id",  # MCP uses project_id, CLI uses project-id (for project commands)
-        "subtask_id": "subtask-id",  # MCP uses subtask_id, CLI uses subtask-id (for project finding/unknown/deadend)
-        "session_id": "session-id",  # MCP uses session_id, CLI uses session-id (for project finding/unknown/deadend)
-        "doc_path": "doc-path",  # MCP uses doc_path, CLI uses doc-path (for refdoc-add)
-        "doc_type": "doc-type",  # MCP uses doc_type, CLI uses doc-type (for refdoc-add)
-        "why_failed": "why-failed",  # MCP uses why_failed, CLI uses why-failed (for deadend-log)
-        # Human copilot tools
-        "sort_by": "sort-by",  # MCP uses sort_by, CLI uses sort-by (for workspace-overview)
-        "assigned_to": "assigned-to",  # MCP uses assigned_to, CLI uses assigned-to (for issue-handoff)
-        "issue_id": "issue-id",  # MCP uses issue_id, CLI uses issue-id
-        "unknown_id": "unknown-id",  # MCP uses unknown_id, CLI uses unknown-id
-        "resolved_by": "resolved-by",  # MCP uses resolved_by, CLI uses resolved-by
-        # Tier 1 additions
-        "run_postflight": "run-postflight",  # MCP uses run_postflight, CLI uses run-postflight
-        "merge_branch": "merge-branch",  # MCP uses merge_branch, CLI uses merge-branch
-        "delete_branch": "delete-branch",  # MCP uses delete_branch, CLI uses delete-branch
-        "create_handoff": "create-handoff",  # MCP uses create_handoff, CLI uses create-handoff
-        "source_type": "source-type",  # MCP uses source_type, CLI uses source-type
-        "depends_on": "depends-on",  # MCP uses depends_on, CLI uses depends-on
-        "global_search": "global",  # MCP uses global_search, CLI uses --global
-        # Entity linking (shared across logging tools)
-        "entity_type": "entity-type",  # MCP uses entity_type, CLI uses entity-type
-        "entity_id": "entity-id",  # MCP uses entity_id, CLI uses entity-id
-        # Tier 2: Investigation
-        "investigation_path": "investigation-path",
-        "preflight_vectors": "preflight-vectors",
-        "branch_id": "branch-id",
-        "postflight_vectors": "postflight-vectors",
-        "tokens_spent": "tokens-spent",
-        "time_spent": "time-spent",
-        "tag_losers": "tag-losers",
-        "aggregate_strategy": "aggregate-strategy",
-        # Tier 2: Assessment
-        "project_root": "project-root",
-        "include_init": "include-init",
-        # Tier 2: Agent
-        "max_agents": "max-agents",
-        "output_file": "output-file",
-        "input_file": "input-file",
-        "min_reputation": "min-reputation",
-        # Tier 2: Persona
-        "persona_id": "persona-id",
-        # Tier 2: Memory
-        "scope_breadth": "scope-breadth",
-        "scope_duration": "scope-duration",
-        "content_type": "content-type",
-        "min_priority": "min-priority",
-        "min_gain": "min-gain",
-        "include_eidetic": "include-eidetic",
-        "include_episodic": "include-episodic",
-        "prior_findings": "prior-findings",
-        "dead_ends": "dead-ends",
-        # Lesson
-        "lesson_id": "lesson-id",
-        "replay_id": "replay-id",
-        "steps_only": "steps-only",
-        "steps_completed": "steps-completed",
-        "ai_id": "ai-id",
-    }
-
-    # Arguments to skip per command (not supported by CLI)
-    skip_args = {
-        "check-submit": ["confidence_to_proceed"],  # check-submit doesn't use confidence_to_proceed
-        "checkpoint-create": ["vectors"],  # checkpoint-create doesn't accept --vectors, should be in metadata
-        "project-bootstrap": ["mode"],  # project-bootstrap doesn't accept --mode (MCP-only parameter for future use)
-        "session-create": ["project_path"],  # project_path is used as cwd, not CLI flag
-    }
-
-    cmd = [EMPIRICA_CLI] + tool_map.get(tool_name, [tool_name])
-
-    cli_command = tool_map.get(tool_name, [tool_name])[0]
-
-    # Handle positional argument(s) first if command requires them
-    if cli_command in positional_args:
-        positional_config = positional_args[cli_command]
-        if isinstance(positional_config, list):
-            # Multiple positional args (e.g., assess-compare path_a path_b)
-            for pos_key in positional_config:
-                if pos_key in arguments:
-                    cmd.append(str(arguments[pos_key]))
-        else:
-            # Single positional arg
-            if positional_config in arguments:
-                cmd.append(str(arguments[positional_config]))
-
-    # Map remaining arguments to CLI flags
-    for key, value in arguments.items():
-        if value is not None:
-            # Skip positional arg (already handled)
-            if cli_command in positional_args:
-                positional_config = positional_args[cli_command]
-                if isinstance(positional_config, list):
-                    if key in positional_config:
-                        continue
-                elif key == positional_config:
-                    continue
-
-            # Skip arguments not supported by CLI
-            if key == "session_type":
-                continue
-
-            # Skip command-specific unsupported arguments
-            if cli_command in skip_args and key in skip_args[cli_command]:
-                continue
-
-            # Map argument name to CLI flag name
-            flag_name = arg_map.get(key, key.replace('_', '-'))
-            flag = f"--{flag_name}"
-
-            if isinstance(value, bool):
-                if value:
-                    cmd.append(flag)
-            elif isinstance(value, (dict, list)):
-                cmd.extend([flag, json.dumps(value)])
-            else:
-                cmd.extend([flag, str(value)])
-
-    # Commands that support --output json
-    # Note: preflight/postflight with --prompt-only already return JSON
-    json_supported = {
-        # CASCADE workflow
-        "preflight-submit", "check-submit", "postflight-submit",
-        # Session management
-        "session-create", "sessions-show", "sessions-resume",
-        "session-snapshot", "session-rollup",
-        # Goals
-        "goals-create", "goals-complete", "goals-list", "goals-progress",
-        "goals-add-subtask", "goals-complete-subtask", "goals-search",
-        "goals-add-dependency", "goals-ready", "goals-claim",
-        "goals-get-subtasks", "goals-discover", "goals-resume",
-        # Noetic artifacts
-        "finding-log", "unknown-log", "deadend-log", "assumption-log",
-        "decision-log", "mistake-log", "act-log", "source-add", "refdoc-add",
-        "unknown-list", "unknown-resolve", "mistake-query",
-        # Epistemics
-        "epistemics-list", "epistemics-show", "calibration-report",
-        # Project
-        "project-bootstrap", "project-search", "memory-compact",
-        # Handoffs & Checkpoints
-        "handoff-create", "handoff-query",
-        "checkpoint-create", "checkpoint-load",
-        # Human copilot tools
-        "issue-list", "issue-show", "issue-resolve", "issue-stats",
-        "issue-handoff", "workspace-overview", "workspace-map",
-        "efficiency-report",
-        # Identity (Phase 2)
-        "identity-create", "identity-list", "identity-export", "identity-verify",
-        # System
-        "monitor", "system-status",
-        # Tier 2: Lesson subsystem
-        "lesson-create", "lesson-load", "lesson-list", "lesson-search",
-        "lesson-recommend", "lesson-path", "lesson-replay-start",
-        "lesson-replay-end", "lesson-stats",
-        # Tier 2: Investigation subsystem
-        "investigate-log", "investigate-create-branch",
-        "investigate-checkpoint-branch", "investigate-merge-branches",
-        "investigate-multi",
-        # Tier 2: Assessment subsystem
-        "assess-state", "assess-component", "assess-compare", "assess-directory",
-        # Tier 2: Agent subsystem
-        "agent-spawn", "agent-report", "agent-aggregate", "agent-parallel",
-        "agent-export", "agent-import", "agent-discover",
-        # Tier 2: Persona subsystem
-        "persona-list", "persona-show", "persona-promote", "persona-find",
-        # Tier 2: Memory subsystem
-        "memory-prime", "memory-scope", "memory-value", "memory-report",
-    }
-
-    cli_command = tool_map.get(tool_name, [tool_name])[0]
-    if cli_command in json_supported:
-        cmd.extend(["--output", "json"])
-
-    # CASCADE commands auto-resolve transaction_id internally via
-    # read_active_transaction_full() — no need to pass --transaction-id
-    # (the CLI doesn't accept that flag; it was never added to argparse).
-
-    return cmd
-
-# ============================================================================
-# Stateless Tool Handlers
-# ============================================================================
-
-def handle_introduction() -> list[types.TextContent]:
-    """Return Empirica introduction (stateless)"""
-
-    intro = """# Empirica Framework - Epistemic Self-Assessment for AI Agents
-
-**Purpose:** Track what you know, what you can do, and how uncertain you are throughout any task.
-
-## CASCADE Workflow (Core Pattern)
-
-**BOOTSTRAP** → **PREFLIGHT** → [**INVESTIGATE** → **CHECK**]* → **ACT** → **POSTFLIGHT**
-
-1. **CREATE SESSION:** Initialize session with `session_create(ai_id="your-id")`
-2. **PREFLIGHT:** Assess epistemic state BEFORE starting (13 vectors)
-3. **INVESTIGATE:** Research unknowns systematically (loop 0-N times)
-4. **CHECK:** Gate decision - ready to proceed? (confidence ≥ 0.7)
-5. **ACT:** Execute task with learned knowledge
-6. **POSTFLIGHT:** Measure actual learning (compare to PREFLIGHT)
-
-## 13 Epistemic Vectors (0-1 scale)
-
-**Foundation (4):** engagement, know, do, context
-**Comprehension (4):** clarity, coherence, signal, density
-**Execution (4):** state, change, completion, impact
-**Meta (1):** uncertainty (high >0.6 → must investigate)
-
-## When to Use CASCADE
-
-✅ **MUST use if:** uncertainty >0.6, complex task, multi-step work
-✅ **Should use if:** task >1 hour, learning needed, high stakes
-❌ **Skip if:** trivial task, high confidence (know >0.8), simple query
-
-## Key Components
-
-- **Goal Orchestrator:** Auto-generates investigation goals from uncertainty
-- **Bayesian Tracker:** Updates beliefs as evidence accumulates
-- **Drift Monitor:** Detects overconfidence/underconfidence patterns
-- **Git Checkpoints:** ~85% token reduction for session resumption
-- **Handoff Reports:** ~90% token reduction for multi-agent work
-- **Epistemic Middleware:** Optional MCP layer for vector-driven routing (EMPIRICA_EPISTEMIC_MODE=true)
-
-## Philosophy
-
-**Epistemic transparency > task completion speed**
-
-It's better to:
-- Know what you don't know ✅
-- Investigate systematically ✅
-- Admit uncertainty ✅
-- Measure learning ✅
-
-Than to:
-- Rush through tasks ❌
-- Guess confidently ❌
-- Hide uncertainty ❌
-- Never measure growth ❌
-
-**Documentation:** `/docs/` directory in Empirica repository
-"""
-
-    return [types.TextContent(type="text", text=intro)]
-
-def handle_guidance(arguments: dict) -> list[types.TextContent]:
-    """Return workflow guidance (stateless)"""
-
-    phase = arguments.get("phase", "overview")
-
-    guidance = {
-        "preflight": """**PREFLIGHT: Record baseline epistemic state**
-
-Mechanistic self-assessment: record current knowledge state across 13 vectors.
-
-**Action items:**
-1. Assess your 13 vectors honestly (0-1 scale):
-   - ENGAGEMENT, KNOW, DO, CONTEXT, CLARITY, COHERENCE
-   - SIGNAL, DENSITY, STATE, CHANGE, COMPLETION, IMPACT, UNCERTAINTY
-2. Call `submit_preflight_assessment(session_id, vectors, reasoning)`
-3. If UNCERTAINTY >0.6 or KNOW <0.5 → investigate before acting
-
-**Critical:** Measure what's in context, not experience. Honest assessment enables calibration.""",
-
-        "investigate": """**INVESTIGATE: Fill knowledge gaps systematically**
-
-MUST execute when UNCERTAINTY >0.6 or KNOW/DO/CONTEXT are low.
-
-**Action items:**
-1. Create investigation goals: `create_goal(session_id, objective, scope)`
-2. Research unknowns using available tools (filesystem, docs, web search)
-3. Update Bayesian beliefs as you gather evidence
-4. Track progress with subtasks
-5. Loop until uncertainty drops below threshold
-6. Proceed to CHECK phase when ready
-
-**Critical:** Systematic > fast. Evidence-based > guessing.""",
-
-        "check": """**CHECK: Gate decision - ready to proceed?**
-
-MUST execute after INVESTIGATE to validate readiness before ACT.
-
-**Action items:**
-1. Self-assess updated epistemic state:
-   - Did KNOW/DO increase from PREFLIGHT?
-   - Did UNCERTAINTY decrease from PREFLIGHT?
-   - Are remaining unknowns acceptable?
-   - Is confidence ≥0.7 to proceed?
-2. Call `submit_check_assessment(session_id, vectors, decision, reasoning)`
-3. Decision = "investigate" → loop back to INVESTIGATE
-4. Decision = "proceed" → continue to ACT
-
-**Critical:** Honesty prevents rushing into action unprepared.""",
-
-        "act": """**ACT: Execute task with learned knowledge**
-
-Execute the actual work after passing CHECK gate.
-
-**Action items:**
-1. Use knowledge gained from INVESTIGATE
-2. Document decisions and reasoning
-3. Create artifacts (code, docs, fixes)
-4. Save checkpoints at milestones: `create_git_checkpoint(session_id, phase="ACT")`
-5. Track progress toward goal completion
-6. When done, proceed to POSTFLIGHT
-
-**Critical:** This is where you do the actual task.""",
-
-        "postflight": """**POSTFLIGHT: Record final epistemic state**
-
-Mechanistic self-assessment: record current knowledge state after task completion.
-
-**Action items:**
-1. Assess your 13 vectors honestly (0-1 scale) - current state, not delta
-2. Call `submit_postflight_assessment(session_id, vectors, reasoning)`
-3. System calculates deltas vs PREFLIGHT automatically
-
-**Critical:** Measure what's in context now. System handles calibration calculation.""",
-
-        "cascade": "**CASCADE Workflow:** BOOTSTRAP → PREFLIGHT → [INVESTIGATE → CHECK]* → ACT → POSTFLIGHT",
-
-        "overview": """**CASCADE Workflow Overview**
-
-BOOTSTRAP → PREFLIGHT → [INVESTIGATE → CHECK]* → ACT → POSTFLIGHT
-
-**Phase sequence:**
-1. BOOTSTRAP: Initialize session (once)
-2. PREFLIGHT: Assess before starting (MUST do)
-3. INVESTIGATE: Fill knowledge gaps (0-N loops)
-4. CHECK: Validate readiness (gate decision)
-5. ACT: Execute task
-6. POSTFLIGHT: Measure learning (MUST do)
-
-**Key principle:** INVESTIGATE and CHECK form a loop. You may need multiple rounds before being ready to ACT.
-
-**Use:** For guidance on a specific phase, call with phase="preflight", "investigate", "check", "act", or "postflight"."""
-    }
-
-    result = {
-        "ok": True,
-        "phase": phase,
-        "guidance": guidance.get(phase.lower(), guidance["overview"]),
-        "workflow_order": "BOOTSTRAP → PREFLIGHT → [INVESTIGATE → CHECK]* → ACT → POSTFLIGHT"
-    }
-
-    return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-
-def handle_cli_help() -> list[types.TextContent]:
-    """Return CLI help (stateless)"""
-
-    help_text = """# Empirica CLI Commands
-
-## Workflow Commands (CASCADE)
-- `empirica bootstrap --ai-id=<your-id> --level=2`
-- `empirica preflight --session-id=<id> --prompt="Task description"`
-- `empirica preflight-submit --session-id=<id> --vectors='{"engagement":0.8,...}'`
-- `empirica check --session-id=<id>`
-- `empirica check-submit --session-id=<id> --vectors='{}' --decision=proceed`
-- `empirica postflight --session-id=<id>`
-- `empirica postflight-submit --session-id=<id> --vectors='{}'`
-
-## Goal Commands
-- `empirica goals-create --session-id=<id> --objective="..." --scope=session_scoped`
-- `empirica goals-add-subtask --goal-id=<id> --description="..."`
-- `empirica goals-complete-subtask --subtask-id=<id> --evidence="Done"`
-- `empirica goals-progress --goal-id=<id>`
-- `empirica goals-list --session-id=<id>`
-
-## Session Commands
-- `empirica sessions-list`
-- `empirica sessions-show <session-id-or-alias>`
-- `empirica sessions-resume --ai-id=<your-id> --count=1`
-- `empirica calibration --session-id=<id>`
-
-## Checkpoint Commands
-- `empirica checkpoint-create --session-id=<id> --phase=ACT`
-- `empirica checkpoint-load <session-id-or-alias>`
-
-## Session Aliases (Magic Shortcuts!)
-
-Instead of UUIDs, use aliases:
-- `latest` - Most recent session
-- `latest:active` - Most recent active session
-- `latest:<ai-id>` - Most recent for your AI
-- `latest:active:<ai-id>` - Most recent active for your AI (recommended!)
-
-**Example:**
-```bash
-# Instead of: empirica sessions-show 88dbf132-cc7c-4a4b-9b59-77df3b13dbd2
-# Use: empirica sessions-show latest:active:claude-code
-
-# Load checkpoint without remembering UUID:
-empirica checkpoint-load latest:active:mini-agent
-```
-
-## Quick CASCADE Workflow
-
-```bash
-# 1. Bootstrap
-empirica bootstrap --ai-id=your-id --level=2
-
-# 2. PREFLIGHT (assess before starting)
-empirica preflight --session-id=latest:active:your-id --prompt="Your task"
-
-# 3. Submit assessment
-empirica preflight-submit --session-id=latest:active:your-id --vectors='{"engagement":0.8,"know":0.5,...}'
-
-# 4. CHECK (validate readiness)
-empirica check --session-id=latest:active:your-id
-empirica check-submit --session-id=latest:active:your-id --decision=proceed
-
-# 5. POSTFLIGHT (reflect on learning)
-empirica postflight --session-id=latest:active:your-id
-empirica postflight-submit --session-id=latest:active:your-id --vectors='{"engagement":0.9,"know":0.8,...}'
-```
-
-## Epistemic Monitoring Commands
-- `empirica epistemics-list --session-id=<id>` - List all assessments
-- `empirica epistemics-show --session-id=<id>` - Show detailed assessment
-- `empirica epistemics-show --session-id=<id> --phase=PREFLIGHT` - Filter by phase
-
-## MCP Server Configuration
-
-The MCP server supports an optional **Epistemic Middleware** layer for vector-driven self-awareness:
-
-```bash
-# Enable epistemic middleware (optional)
-export EMPIRICA_EPISTEMIC_MODE=true
-export EMPIRICA_PERSONALITY=balanced_architect  # Optional: default personality
-
-# Middleware modes:
-# - clarify: Low clarity (<0.6) → ask questions
-# - load_context: Low context (<0.5) → load project data
-# - investigate: High uncertainty (>0.6) → systematic research
-# - confident_implementation: High know (≥0.7), low uncertainty (<0.4)
-# - cautious_implementation: Moderate vectors (default)
-```
-
-**Note:** Most tools bypass middleware automatically (session_create, CASCADE workflow, logging tools, etc.) as they have well-defined semantics.
-
-## Notes
-
-- **All commands support `--output json` for programmatic use**
-- Session aliases work with: sessions-show, checkpoint-load, and all workflow commands
-- For detailed help: `empirica <command> --help`
-- For MCP tool usage: Use tool names (session_create, submit_preflight_assessment, etc.)
-
-## Troubleshooting
-
-- **Tool not found:** Ensure empirica is installed and in PATH
-- **Session not found:** Check session ID/alias is correct, use `sessions-list` to find sessions
-- **Epistemic middleware blocking:** Set `EMPIRICA_EPISTEMIC_MODE=false` to disable
-- **JSON output issues:** Add `--output json` to CLI commands for programmatic parsing
-"""
-
-    return [types.TextContent(type="text", text=help_text)]
-
-# ============================================================================
-# Server Main
-# ============================================================================
+        return [types.TextContent(type="text", text=json.dumps({
+            "ok": False,
+            "error": result.stderr or result.stdout or "Command failed",
+            "command": entry["cli"],
+        }, indent=2))]
+
+
+# =============================================================================
+# Entry point
+# =============================================================================
 
 async def main():
-    """Run MCP server"""
+    """Run MCP server via stdio."""
     async with stdio_server() as (read_stream, write_stream):
-        await app.run(
-            read_stream,
-            write_stream,
-            app.create_initialization_options()
-        )
+        await app.run(read_stream, write_stream, app.create_initialization_options())
+
 
 def run():
-    """Synchronous entry point for command-line usage
-
-    Supports --workspace /path/to/project to set EMPIRICA_WORKSPACE_ROOT
-    for multi-project environments (Claude Desktop, Claude.ai).
-
-    Example MCP config:
-        {
-            "command": "empirica-mcp",
-            "args": ["--workspace", "/home/user/my-project"],
-            "env": {}
-        }
-    """
-    import argparse
+    """CLI entry point for empirica-mcp."""
     parser = argparse.ArgumentParser(description="Empirica MCP Server")
-    parser.add_argument(
-        "--workspace", "-w",
-        help="Project workspace root (sets EMPIRICA_WORKSPACE_ROOT)"
-    )
+    parser.add_argument("--workspace", "-w", help="Project workspace root")
     args = parser.parse_args()
 
     if args.workspace:
-        workspace_path = Path(args.workspace).expanduser().resolve()
-        if workspace_path.exists():
-            os.environ["EMPIRICA_WORKSPACE_ROOT"] = str(workspace_path)
-            logger.info(f"📍 Workspace set to: {workspace_path}")
-        else:
-            logger.warning(f"⚠️  Workspace path not found: {workspace_path}")
-    elif not os.getenv("EMPIRICA_WORKSPACE_ROOT"):
-        # Auto-detect: Try to find git root from CWD, or use known dev paths
-        import subprocess
+        workspace = Path(args.workspace).expanduser().resolve()
+        if workspace.exists():
+            os.environ["EMPIRICA_WORKSPACE_ROOT"] = str(workspace)
+            logger.info(f"Workspace: {workspace}")
+    elif not os.environ.get("EMPIRICA_WORKSPACE_ROOT"):
+        # Auto-detect from git root
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "--show-toplevel"],
-                capture_output=True, text=True, timeout=2, check=False
+                capture_output=True, text=True, timeout=2, check=False,
             )
             if result.returncode == 0:
                 git_root = Path(result.stdout.strip())
                 if (git_root / ".empirica").exists():
                     os.environ["EMPIRICA_WORKSPACE_ROOT"] = str(git_root)
-                    logger.info(f"📍 Auto-detected workspace from git: {git_root}")
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
 
-        # If still not set, check common development paths
-        if not os.getenv("EMPIRICA_WORKSPACE_ROOT"):
-            common_paths = [
-                Path.home() / "empirical-ai" / "empirica",
-                Path.home() / "empirica",
-                Path.cwd(),
-            ]
-            for path in common_paths:
-                if (path / ".empirica" / "sessions" / "sessions.db").exists():
-                    os.environ["EMPIRICA_WORKSPACE_ROOT"] = str(path)
-                    logger.info(f"📍 Auto-detected workspace from common path: {path}")
-                    break
-
     asyncio.run(main())
+
 
 if __name__ == "__main__":
     run()
