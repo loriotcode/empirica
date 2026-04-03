@@ -1095,6 +1095,17 @@ def handle_project_switch_command(args):
                 print(f"🔗 Attached to session: {attached_session['session_id'][:8]}... (AI: {attached_session['ai_id']})")
             print()
 
+            # Epistemic Brief — quantified project profile
+            try:
+                from empirica.core.epistemic_brief import generate_epistemic_brief, format_brief_human
+                _sw_db_path_str = str(Path(project_path) / '.empirica' / 'sessions' / 'sessions.db') if project_path else None
+                if _sw_db_path_str and Path(_sw_db_path_str).exists():
+                    brief = generate_epistemic_brief(project_id, db_path=_sw_db_path_str)
+                    if brief.get('knowledge_state', {}).get('total_artifacts', 0) > 0:
+                        print(format_brief_human(brief))
+            except Exception as _brief_err:
+                logger.debug(f"Epistemic brief generation failed (non-fatal): {_brief_err}")
+
         # 7. AUTO-BOOTSTRAP: Load context for the new project
         bootstrap_result = None
         try:
