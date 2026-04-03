@@ -2309,6 +2309,35 @@ def handle_postflight_submit_command(args):
             except Exception as e:
                 logger.debug(f"Grounded calibration embedding skipped (non-fatal): {e}")
 
+            # CORTEX CACHE FEEDBACK: Write verified predictions to Cortex for the
+            # inference-time RL loop. Cortex caches these and serves them via
+            # UserPromptSubmit hook, conditioning future predictions on verified evidence.
+            # Graceful: if Cortex not running, skip silently.
+            try:
+                if grounded_verification and grounded_verification.get('calibration_score', 1.0) < 0.3:
+                    # Only write well-calibrated results (score < 0.3 means small gaps)
+                    import urllib.request
+                    import urllib.parse
+                    cortex_payload = json.dumps({
+                        'session_id': session_id,
+                        'calibration_score': grounded_verification.get('calibration_score'),
+                        'grounded_coverage': grounded_verification.get('grounded_coverage'),
+                        'evidence_count': grounded_verification.get('evidence_count'),
+                        'vectors': vectors,
+                        'gaps': grounded_verification.get('gaps', {}),
+                        'sources': grounded_verification.get('sources', []),
+                    }).encode('utf-8')
+                    req = urllib.request.Request(
+                        'http://localhost:8420/postflight',
+                        data=cortex_payload,
+                        headers={'Content-Type': 'application/json'},
+                        method='POST',
+                    )
+                    urllib.request.urlopen(req, timeout=1.0)
+                    logger.debug("Wrote verified predictions to Cortex cache")
+            except Exception:
+                pass  # Cortex not running — graceful degradation
+
             # EPISTEMIC TRAJECTORY STORAGE: Store learning deltas to Qdrant (if available)
             trajectory_stored = False
             try:
