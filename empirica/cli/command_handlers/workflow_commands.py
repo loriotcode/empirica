@@ -2313,11 +2313,12 @@ def handle_postflight_submit_command(args):
             # inference-time RL loop. Cortex caches these and serves them via
             # UserPromptSubmit hook, conditioning future predictions on verified evidence.
             # Graceful: if Cortex not running, skip silently.
+            # Configure via EMPIRICA_CORTEX_URL (default: http://localhost:8420)
             try:
                 if grounded_verification and grounded_verification.get('calibration_score', 1.0) < 0.3:
                     # Only write well-calibrated results (score < 0.3 means small gaps)
                     import urllib.request
-                    import urllib.parse
+                    cortex_url = os.environ.get('EMPIRICA_CORTEX_URL', 'http://localhost:8420')
                     cortex_payload = json.dumps({
                         'session_id': session_id,
                         'calibration_score': grounded_verification.get('calibration_score'),
@@ -2328,7 +2329,7 @@ def handle_postflight_submit_command(args):
                         'sources': grounded_verification.get('sources', []),
                     }).encode('utf-8')
                     req = urllib.request.Request(
-                        'http://localhost:8420/postflight',
+                        f'{cortex_url}/postflight',
                         data=cortex_payload,
                         headers={'Content-Type': 'application/json'},
                         method='POST',
