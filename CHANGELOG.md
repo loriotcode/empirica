@@ -5,6 +5,32 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.5] - 2026-04-03
+
+### Added
+- **Epistemic Brief** — Quantified project epistemic profile displayed on `project-switch`. Shows 6 categories: Knowledge State, Risk Profile, Anti-Patterns, Calibration Health, Active Work, Learning Velocity
+- **Configurable Cortex URL** — `EMPIRICA_CORTEX_URL` env var for cloud Cortex instances (default: localhost:8420). Graceful degradation if unreachable
+
+### Changed
+- **MCP server rewrite** — Complete rebuild as thin CLI wrapper. 102→44 tools, 3254→507 lines. Table-driven `TOOL_REGISTRY` maps tools to CLI commands. Removed epistemic middleware (Sentinel handles gating via hooks). All subprocess calls have 30s timeout (configurable via `EMPIRICA_MCP_TIMEOUT`)
+- **MCP hanging fix** — CASCADE commands (preflight/check/postflight) now use stdin JSON routing. Non-stdin commands use `stdin=DEVNULL`. Fixes server hanging on workflow submissions
+
+### Fixed
+- **PreCompact hook schema validation** — Hook output included non-schema top-level fields (`ok`, `trigger`, `empirica_session_id`, etc.) that Claude Code rejected. Now outputs only `hookSpecificOutput` (success) or `stopReason` (error)
+- **project-switch live counts** — Queries per-project sessions.db instead of stale workspace.db artifact counts
+- **Transaction race condition** — Two-file split: `active_transaction` (workflow-owned) and `hook_counters` (hook-owned). POSTFLIGHT reads counters then deletes counters file. Sentinel no longer overwrites POSTFLIGHT's status=closed
+- **release.py missing pyproject.toml** — Source-of-truth version file now staged in release commits
+
+### Refactored
+- **Sentinel main()** — F/139 → F/67 (-52%) via 9 extracted helpers
+- **is_safe_bash_command()** — E/35 → C/16 via table-driven refactor
+- **Qdrant search** — F/64 → D/22 (-66%, -111 lines) via `_SEARCH_COLLECTIONS` config table
+- **handle_finding_log** — F/41 → C/19 via 5 storage helpers
+- **14 F-grade functions** reduced below threshold across workflow, artifact, profile, and project commands
+
+### Security
+- 23 dependency CVEs resolved (pillow, werkzeug, pygments, pyjwt, pyasn1, nltk, nicegui, aiohttp, cairosvg, cryptography, flask)
+
 ## [1.7.1] - 2026-03-26
 
 ### Fixed

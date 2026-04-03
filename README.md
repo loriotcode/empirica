@@ -263,12 +263,14 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ## What's New in 1.7.5
 
-- **`setup-claude-code --force` no longer nukes other plugins' hooks** — Previously cleared ALL hooks in settings.json. Now filters by Empirica plugin path, preserving Railway, Superpowers, and custom hooks
-- **Python version detection** — `_find_python()` now prefers `python3` over versioned `python3.X` binaries, preventing hooks from using `python3.13` which may not exist on all systems
-- **`/empirica` command trigger matching** — Description now includes common phrases ("sentinel paused", "turn off empirica", "off-record statusline") so Claude can associate user intent with the command
-- **Sentinel pipe targets** — Added `base64` to `SAFE_PIPE_TARGETS` so `gh api ... | base64 -d` isn't blocked as praxic
-- **README What's New sync** — Release script now auto-syncs What's New section from CHANGELOG via `sync_readme_whats_new()`
-- **Cross-project search dedup** — Deduplicate results by content across project collections
+- **Epistemic Brief** — Quantified project epistemic profile displayed on `project-switch`. Shows 6 categories: Knowledge State, Risk Profile, Anti-Patterns, Calibration Health, Active Work, Learning Velocity
+- **Configurable Cortex URL** — `EMPIRICA_CORTEX_URL` env var for cloud Cortex instances (default: localhost:8420). Graceful degradation if unreachable
+- **MCP server rewrite** — Complete rebuild as thin CLI wrapper. 102→44 tools, 3254→507 lines. Table-driven `TOOL_REGISTRY` maps tools to CLI commands. Removed epistemic middleware (Sentinel handles gating via hooks). All subprocess calls have 30s timeout (configurable via `EMPIRICA_MCP_TIMEOUT`)
+- **MCP hanging fix** — CASCADE commands (preflight/check/postflight) now use stdin JSON routing. Non-stdin commands use `stdin=DEVNULL`. Fixes server hanging on workflow submissions
+- **PreCompact hook schema validation** — Hook output included non-schema top-level fields (`ok`, `trigger`, `empirica_session_id`, etc.) that Claude Code rejected. Now outputs only `hookSpecificOutput` (success) or `stopReason` (error)
+- **project-switch live counts** — Queries per-project sessions.db instead of stale workspace.db artifact counts
+- **Transaction race condition** — Two-file split: `active_transaction` (workflow-owned) and `hook_counters` (hook-owned). POSTFLIGHT reads counters then deletes counters file. Sentinel no longer overwrites POSTFLIGHT's status=closed
+- **release.py missing pyproject.toml** — Source-of-truth version file now staged in release commits
 
 ### Previous Highlights (1.6.11–1.7.0)
 
