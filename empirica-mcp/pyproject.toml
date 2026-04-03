@@ -23,7 +23,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "empirica>=1.6.6",  # Main package
+    "empirica>=1.7.0",  # Main package (1.7.5 co-released)
     "mcp>=1.25.0",      # MCP SDK (python-multipart CVE-2026-24486 fix in 1.25+)
 ]
 
@@ -38,4 +38,4 @@ empirica-mcp = "empirica_mcp.server:run"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["empirica_mcp*"]
+include = ["empirica_mcp"]
