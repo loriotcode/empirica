@@ -1066,9 +1066,31 @@ def handle_project_switch_command(args):
             print(f"🆔 Project ID: {project_id[:8]}...")
             if project_path:
                 print(f"📍 Location: {project_path}")
-            print(f"📊 Findings: {project.get('total_findings', 0)}  "
-                  f"Unknowns: {project.get('total_unknowns', 0)}  "
-                  f"Goals: {project.get('total_goals', 0)}")
+            # Query LIVE counts from per-project sessions.db (not stale workspace.db)
+            _sw_findings, _sw_unknowns, _sw_goals = 0, 0, 0
+            if project_path:
+                try:
+                    import sqlite3 as _sw_sql
+                    _sw_db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
+                    if _sw_db_path.exists():
+                        _sw_conn = _sw_sql.connect(str(_sw_db_path))
+                        _sw_c = _sw_conn.cursor()
+                        try:
+                            _sw_findings = _sw_c.execute("SELECT COUNT(*) FROM project_findings WHERE project_id = ?", (project_id,)).fetchone()[0]
+                        except Exception:
+                            pass
+                        try:
+                            _sw_unknowns = _sw_c.execute("SELECT COUNT(*) FROM project_unknowns WHERE project_id = ? AND is_resolved = 0", (project_id,)).fetchone()[0]
+                        except Exception:
+                            pass
+                        try:
+                            _sw_goals = _sw_c.execute("SELECT COUNT(*) FROM goals WHERE project_id = ? AND is_completed = 0", (project_id,)).fetchone()[0]
+                        except Exception:
+                            pass
+                        _sw_conn.close()
+                except Exception:
+                    pass
+            print(f"📊 Findings: {_sw_findings}  Unknowns: {_sw_unknowns}  Goals: {_sw_goals}")
             if attached_session:
                 print(f"🔗 Attached to session: {attached_session['session_id'][:8]}... (AI: {attached_session['ai_id']})")
             print()
@@ -1115,24 +1137,17 @@ def handle_project_switch_command(args):
         if output_format == 'human':
             print("📋 Submit PREFLIGHT to open a transaction (self-assess your vectors)")
 
-        # 9. Show project context summary from workspace data
+        # 9. Show project context summary from LIVE per-project DB
         if output_format == 'human':
-            findings = project.get('total_findings', 0)
-            unknowns = project.get('total_unknowns', 0)
-            dead_ends = project.get('total_dead_ends', 0)
-            goals = project.get('total_goals', 0)
-
-            if findings or unknowns or goals:
+            if _sw_findings or _sw_unknowns or _sw_goals:
                 print("📋 Project Context Summary:")
                 print()
-                if findings:
-                    print(f"   📝 {findings} findings logged")
-                if unknowns:
-                    print(f"   ❓ {unknowns} unknowns tracked")
-                if dead_ends:
-                    print(f"   🚫 {dead_ends} dead-ends recorded")
-                if goals:
-                    print(f"   🎯 {goals} goals defined")
+                if _sw_findings:
+                    print(f"   📝 {_sw_findings} findings logged")
+                if _sw_unknowns:
+                    print(f"   ❓ {_sw_unknowns} unknowns tracked")
+                if _sw_goals:
+                    print(f"   🎯 {_sw_goals} goals defined")
                 print()
             else:
                 print("📋 No epistemic artifacts yet in this project.")
@@ -1175,9 +1190,9 @@ def handle_project_switch_command(args):
                 'folder_name': folder_name,
                 'project_path': str(project_path) if project_path else None,
                 'stats': {
-                    'findings': project.get('total_findings', 0),
-                    'unknowns': project.get('total_unknowns', 0),
-                    'goals': project.get('total_goals', 0)
+                    'findings': _sw_findings,
+                    'unknowns': _sw_unknowns,
+                    'goals': _sw_goals
                 },
                 'next_steps': [
                     'Run PREFLIGHT to start a measured transaction',
