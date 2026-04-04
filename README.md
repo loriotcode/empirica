@@ -98,13 +98,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.7.1-alpine
+docker pull nubaeon/empirica:1.7.6-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.7.1
+docker pull nubaeon/empirica:1.7.6
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.7.1 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.7.6 /bin/bash
 ```
 </details>
 
@@ -314,6 +314,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.7.1
+**Version:** 1.7.6
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*

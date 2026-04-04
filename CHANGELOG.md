@@ -5,6 +5,24 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Intelligence search kind** — New `kind='intelligence'` search mode with collection-type boost weights for cross-domain knowledge discovery. Filters `code_api` from eidetic queries to reduce noise. Renamed from initial `kind='cross-domain'` for clarity
+- **Workflow Pattern Mining** — Detect repeated tool sequences across transactions via sequential pattern analysis. New `workflow-patterns` CLI command and MCP tool
+- **Workflow Suggestion Engine** — Epistemic-correlated pattern analysis surfaces workflow suggestions based on historical transaction data
+
+### Changed
+- **Sentinel noetic allow list** — Added `ToolSearch` (deferred tool discovery), Cortex MCP tools (`investigate`, `search_knowledge`, `get_entity_context`, `cortex_stats`), and `git notes show`/`git notes list` as always-allowed noetic tools
+- **Sentinel closed-transaction noetic check** — Closed transactions now correctly allow noetic tools and safe Bash commands without requiring a new PREFLIGHT. Praxic tools with closed transactions get the correct error message
+
+### Fixed
+- **PreCompact hook schema** — `hookSpecificOutput` is not supported by PreCompact events (only PreToolUse, UserPromptSubmit, PostToolUse). Switched to `systemMessage` for compact guidance output
+
+### Security
+- **Docker `token-gen` removed from safe commands** — `docker token-gen` no longer classified as a safe noetic command in Sentinel
+- **POSTFLIGHT Cortex writer auth header** — Session-end POSTFLIGHT push to Cortex now includes `Authorization: Bearer` header using `CORTEX_API_KEY`
+
 ## [1.7.6] - 2026-04-04
 
 ### Added
@@ -46,6 +64,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - 23 dependency CVEs resolved (pillow, werkzeug, pygments, pyjwt, pyasn1, nltk, nicegui, aiohttp, cairosvg, cryptography, flask)
+
+## [1.7.4] - 2026-04-02
+
+### Added
+- **Proactive compaction advisory** — `UserPromptSubmit` hook provides context window usage warnings
+- **Statusline context usage** — Shows context window usage percentage
+- **Auto-embed dead-ends and mistakes** — Dead-ends and mistakes now auto-embed to Qdrant alongside findings
+- **Plugin version drift detection** — Session-init warns when installed plugin version differs from repo
+- **Sentinel `--version`/`--help` whitelist** — Always-safe regardless of transaction state
+- **Sentinel work-type-aware gating** — Command classification adapts to declared `work_type`
+
+### Changed
+- **Lean post-compact recovery** — Reduced `max_items` from 10-15 to 5 for faster recovery
+- **Hook counters split** — `active_transaction` (workflow-owned) and `hook_counters` (hook-owned) files separated to eliminate race condition
+- **Prediction-grounding reframe** — System prompt and Sentinel messages reframed from knowledge-centric to prediction-grounding language
+- **15 refactoring passes** — Sentinel main F/139→F/67, is_safe_bash E/35→C/16, Qdrant search F/64→D/22, finding handler F/41→C/19, plus 11 more F-grade functions reduced across workflow, profile, statusline, goals, artifacts, embed, monitor, training, sync, and project-init
+
+### Fixed
+- **Instance-isolate context_usage.json** — Multi-pane support for context tracking
+- **Pre-POSTFLIGHT artifact sweep** — Epistemic-transaction skill now enforces artifact logging before POSTFLIGHT
+
+### Style
+- **Ruff auto-fix** — 5,329 issues fixed across 269 files, plus targeted unsafe fixes (F811, RUF021, SIM114, C420)
+
+## [1.7.3] - 2026-03-29
+
+### Added
+- **Sentinel advisory mode** — Measurement system framing replaces rules-based gate language
+- **4 epistemic agent examples** — Sample agent configurations with codebase-onboarder output example
+
+### Changed
+- **Artifact context helpers** — All 5 artifact handlers rewired to shared `_prepare_artifact_context` + `_parse_config_input`
+
+### Fixed
+- **POSTFLIGHT missing subprocess import** — Retrospective git check crashed on missing import
+- **Calibration max_inflation** — Reduced from 0.20 to 0.05 across all cascade profiles to prevent confidence overestimation
+
+### Housekeeping
+- Spring cleaning — archived 30 stale scripts, stale examples, empty directories, and one-line installer
+
+## [1.7.2] - 2026-03-27
+
+### Added
+- **Sentinel ConfidenceGate** — Gating for remote infrastructure commands based on calibration confidence
+- **Git notes storage for assumptions and decisions** — Portable epistemic artifacts via git notes
+- **Transaction-scoped evidence** — Calibration evidence scoped to transaction with artifact breadth feedback
+- **Source provenance** — Auto-extract source file refs from artifact text
+- **Semantic index generator** — Script for building searchable semantic indexes
+- **`source-list` command** — List all epistemic sources (merged view). `refdoc-add` deprecated in favor of `source-add`
+- **Cross-project artifact and goal creation** — `--project-id` flag on all commands, resolved via workspace.db
+- **Batch embedding** — `project-embed` upsert ~5-10x faster via batched Qdrant operations
+
+### Changed
+- **Lean prompt is now default** — `--lean` removed, replaced by `--full-prompt` for verbose mode
+
+### Fixed
+- **Calibration cold-start death spiral** — Confidence damper + hard cap prevent runaway low scores on first transactions
+- **Assumption-log and decision-log SQLite wiring** — Were not persisting to database
+- **Cross-project DB path resolution** — `R.project_id()` crash and canonical `InstanceResolver` usage
+- **Goal completion evidence scope** — Now scoped to transaction, not entire session
+- **Release script** — Commits all version-swept files in `--publish`
 
 ## [1.7.1] - 2026-03-26
 

@@ -1,7 +1,7 @@
 # Session Resolver API Reference
 
 **Module:** `empirica.utils.session_resolver`
-**Version:** 1.6.21+
+**Version:** 1.7.7-dev
 **Purpose:** Session ID resolution, multi-instance isolation, and context management
 
 ---
@@ -38,7 +38,7 @@ from empirica.utils.session_resolver import InstanceResolver as R
 | `R.transaction_read(csid)` | `dict \| None` | Full transaction state |
 | `R.transaction_write(...)` | `None` | Write/update transaction file |
 | `R.transaction_clear(csid)` | `None` | Delete transaction file |
-| `R.transaction_increment(csid)` | `dict \| None` | Increment tool call counter |
+| `R.transaction_increment(csid)` | `dict \| None` | **DEPRECATED** — Increment tool call counter (see note below) |
 | `R.tty_key()` | `str \| None` | TTY device key |
 | `R.tty_session(warn)` | `dict \| None` | TTY session data |
 | `R.tty_write(csid, esid, path)` | `bool` | Write TTY + instance_projects files |
@@ -474,6 +474,12 @@ def clear_active_transaction(claude_session_id: str = None) -> None
 
 ---
 
+### `increment_transaction_tool_count` / `R.transaction_increment` — DEPRECATED (v1.7.4+)
+
+> **Deprecated.** This function still exists in `session_resolver.py` but is no longer called by any consumer. As of v1.7.4, the sentinel and other hooks write tool call counts to the separate **hook_counters** file instead. The hook_counters split was introduced to eliminate a race condition where the transaction lifecycle (owned by PREFLIGHT/POSTFLIGHT) and hook-side counters (owned by sentinel/context-shift-tracker/subagent-stop) were competing for the same `active_transaction` file. See the Hook Counters API below for the replacement.
+
+---
+
 ### Hook Counters API (v1.7.6+)
 
 Hook counters are stored separately from the transaction lifecycle to prevent race conditions. Hooks (sentinel, context-shift-tracker, subagent-stop) write counters here; POSTFLIGHT reads then deletes.
@@ -537,13 +543,9 @@ def resolve_project_identifier(identifier: str) -> Optional[dict]
 
 ## Helper Functions
 
-### `get_session_empirica_root(session_id)`
+### ~~`get_session_empirica_root(session_id)`~~ — Removed
 
-Get `.empirica` root directory for a session's project.
-
-```python
-def get_session_empirica_root(session_id: str) -> Optional[Path]
-```
+This function was documented but never existed in the codebase. Removed from this reference.
 
 ---
 

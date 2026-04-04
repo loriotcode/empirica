@@ -120,7 +120,7 @@ AND project-switch CLI. `active_work` is fallback for non-TMUX only.
 1. `_update_active_work()`: Added TTY session fallback for instance_id resolution
 2. `session-init hook`: Propagates `claude_session_id` to TTY session file
 
-**Commit:** `f9d607ed` (TTY fallback), pending (priority fix)
+**Commit:** `f9d607ed` (TTY fallback), Fixed in v1.6.6
 
 ### 11.15 Transaction File Deleted After POSTFLIGHT Breaks Compact (2026-02-21)
 
@@ -151,7 +151,7 @@ project context. It fell back to stale `active_work` data from a previous sessio
 
 The file is only overwritten when a new PREFLIGHT starts a new transaction.
 
-**Commit:** pending
+**Commit:** Fixed in v1.5.5 — Closed Transactions as Anchors
 
 ### 11.16 Auto-POSTFLIGHT From CHECK Doesn't Close Transaction File (2026-02-22)
 
@@ -222,7 +222,7 @@ and not checked at all in `resolve_session_db_path()`. The live DB always won.
 
 **Verified:** After fix, running `pytest` twice produced 0 new test goals/sessions in live DB.
 
-**Commit:** pending
+**Commit:** Fixed in v1.5.7 — Test Isolation EMPIRICA_SESSION_DB
 
 ### 11.18 SessionStart Hook Matchers Never Matched (2026-02-22)
 
@@ -366,9 +366,9 @@ cross-instance behavior after this change.
 
 **Workaround (pre-fix):** `echo "false" > ~/.empirica/sentinel_enabled`
 
-**Commit:** TBD
+**Commit:** Fixed in v1.7.0
 
-### 11.22 Cross-Project Session Bleed via Stale Context (2026-03-22)
+### 11.23 Cross-Project Session Bleed via Stale Context (2026-03-22)
 
 **Symptom:** `session-create`, `goals-complete`, and Sentinel use wrong project's
 database when working in a multi-project setup. Goals marked complete don't show

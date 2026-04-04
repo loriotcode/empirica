@@ -46,6 +46,7 @@ from project_resolver import get_active_project_path, get_instance_id, get_activ
 NOETIC_TOOLS = {
     'Read', 'Glob', 'Grep', 'LSP',           # File inspection
     'WebFetch', 'WebSearch',                  # Web research
+    'ToolSearch',                             # Deferred tool discovery
     'Task', 'TaskOutput',                     # Agent delegation
     'TodoWrite',                              # Planning
     'AskUserQuestion',                        # User interaction
@@ -68,6 +69,14 @@ NOETIC_MCP_CHROME = {
 }
 # Praxic Chrome MCP tools (require CHECK): form_input, javascript_tool, computer
 
+# Cortex MCP tools (all read-only search/investigate)
+NOETIC_MCP_CORTEX = {
+    'mcp__cortex__investigate',                # Query knowledge base
+    'mcp__cortex__search_knowledge',           # Semantic search
+    'mcp__cortex__get_entity_context',         # Entity lookup
+    'mcp__cortex__cortex_stats',               # Stats (read-only)
+}
+
 # Safe Bash command prefixes - read-only operations (ACL)
 SAFE_BASH_PREFIXES = (
     # File inspection
@@ -81,6 +90,7 @@ SAFE_BASH_PREFIXES = (
     'git status', 'git log', 'git diff', 'git show', 'git branch',
     'git remote', 'git tag', 'git stash list', 'git blame',
     'git ls-files', 'git ls-tree', 'git cat-file',
+    'git notes show', 'git notes list',
     # GitHub CLI read operations
     'gh issue list', 'gh issue view', 'gh issue status',
     'gh pr list', 'gh pr view', 'gh pr diff', 'gh pr status', 'gh pr checks',
@@ -551,7 +561,7 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
         if tool_name:
             _is_noetic = (
                 tool_name in NOETIC_TOOLS
-                or tool_name in NOETIC_MCP_CHROME
+                or tool_name in NOETIC_MCP_CHROME or tool_name in NOETIC_MCP_CORTEX
                 or (tool_name == 'Bash' and tool_input and is_safe_bash_command(tool_input))
                 or (tool_name in ('Write', 'Edit') and tool_input and is_plan_file(tool_input))
             )
@@ -1195,7 +1205,7 @@ def _is_single_remote_cmd_safe(cmd: str) -> bool:
         'docker info', 'docker version', 'docker network ls',
         'docker network inspect', 'docker volume ls', 'docker volume inspect',
         'docker compose ps', 'docker compose logs', 'docker-compose ps',
-        'docker-compose logs', 'docker exec -u git forgejo gitea admin user generate-access-token',
+        'docker-compose logs',
     )
     for prefix in docker_safe:
         if cmd_clean.startswith(prefix):
@@ -1469,7 +1479,7 @@ def _noetic_firewall_check(tool_name: str, tool_input: dict, hook_input: dict) -
     or None if the tool is not noetic (caller continues with praxic gating).
     """
     # Rule 1: Noetic tools always allowed (read/investigate)
-    if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME:
+    if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME or tool_name in NOETIC_MCP_CORTEX:
         return (True, f"Noetic tool: {tool_name}")
 
     # Rule 2: Safe Bash commands always allowed (read-only shell)
@@ -1713,7 +1723,7 @@ def _check_prior_investigate(cursor, session_id: str, current_transaction_id, pr
     if (cursor.fetchone()[0] or 0) > 0:
         return None
 
-    if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME:
+    if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME or tool_name in NOETIC_MCP_CORTEX:
         return ("allow", f"Noetic tool (prior INVESTIGATE, gathering evidence): {tool_name}")
     if tool_name == 'Bash' and is_safe_bash_command(tool_input):
         return ("allow", "Safe Bash (prior INVESTIGATE, gathering evidence)")
@@ -1869,7 +1879,7 @@ def _handle_investigate_continuation(decision: str, tool_name: str, tool_input: 
         except Exception:
             pass
 
-    if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME:
+    if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME or tool_name in NOETIC_MCP_CORTEX:
         # Increment noetic counter in hook counters file
         _inv_c = _read_inv_counters()
         _inv_c['noetic_since_investigate'] = _inv_c.get('noetic_since_investigate', 0) + 1
@@ -2056,7 +2066,7 @@ def main():
                         if is_transition_command(command):
                             respond("allow", "Transition command (starting new cycle)")
                             sys.exit(0)
-                    elif tool_name in NOETIC_TOOLS:
+                    elif tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME or tool_name in NOETIC_MCP_CORTEX:
                         respond("allow", "Noetic tool (transaction closed)")
                         sys.exit(0)
                     # Praxic tool with closed transaction → correct error message

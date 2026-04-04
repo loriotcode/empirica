@@ -505,13 +505,10 @@ def main():
 File contents read during this session are available via Read tool — do NOT include them in the summary."""
 
             # Output ONLY schema-conforming fields to stdout
-            # Claude Code validates: continue, suppressOutput, stopReason, decision,
-            # reason, systemMessage, permissionDecision, hookSpecificOutput
+            # PreCompact has NO hookSpecificOutput variant — only PreToolUse,
+            # UserPromptSubmit, PostToolUse support it. Use systemMessage instead.
             print(json.dumps({
-                "hookSpecificOutput": {
-                    "hookEventName": "PreCompact",
-                    "additionalContext": compact_guidance
-                }
+                "systemMessage": compact_guidance
             }), file=sys.stdout)
 
             # Also print user-visible message to stderr

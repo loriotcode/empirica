@@ -2334,10 +2334,14 @@ def handle_postflight_submit_command(args):
                         'gaps': grounded_verification.get('gaps', {}),
                         'sources': grounded_verification.get('sources', []),
                     }).encode('utf-8')
+                    cortex_headers = {'Content-Type': 'application/json'}
+                    cortex_api_key = os.environ.get('CORTEX_API_KEY', '')
+                    if cortex_api_key:
+                        cortex_headers['Authorization'] = f'Bearer {cortex_api_key}'
                     req = urllib.request.Request(
                         f'{cortex_url}/postflight',
                         data=cortex_payload,
-                        headers={'Content-Type': 'application/json'},
+                        headers=cortex_headers,
                         method='POST',
                     )
                     urllib.request.urlopen(req, timeout=1.0)

@@ -3,7 +3,7 @@
 **Status:** AUTHORITATIVE
 **Source:** `empirica/plugins/claude-code-integration/hooks/sentinel-gate.py`
 **Audience:** Developers, not AI agents (see [Sentinel Constitution](../architecture/SENTINEL_CONSTITUTION.md) Principle II: Measurement Opacity)
-**Last Updated:** 2026-03-09
+**Last Updated:** 2026-04-04 (v1.7.7-dev)
 
 ---
 
@@ -69,12 +69,46 @@ If the Sentinel crashes (import error, DB lock, unexpected exception), the tool 
 NOETIC_TOOLS = {
     'Read', 'Glob', 'Grep', 'LSP',       # File inspection
     'WebFetch', 'WebSearch',              # Web research
+    'ToolSearch',                         # Deferred tool discovery
     'Task', 'TaskOutput',                 # Agent delegation
     'TodoWrite',                          # Planning
     'AskUserQuestion',                    # User interaction
     'Skill',                              # Skill invocation
     'KillShell',                          # Process management (cleanup)
 }
+```
+
+### Noetic MCP Tools: Cortex (Always Allowed)
+
+Cortex intelligence layer tools are all read-only search/investigate operations:
+
+```python
+NOETIC_MCP_CORTEX = {
+    'mcp__cortex__investigate',            # Query knowledge base
+    'mcp__cortex__search_knowledge',       # Semantic search
+    'mcp__cortex__get_entity_context',     # Entity lookup
+    'mcp__cortex__cortex_stats',           # Stats (read-only)
+}
+```
+
+### Noetic MCP Tools: Chrome (Always Allowed)
+
+Chrome browser tools classified as read-only (viewing/inspection):
+
+```python
+NOETIC_MCP_CHROME = {
+    'mcp__claude-in-chrome__tabs_context_mcp',    # List open tabs
+    'mcp__claude-in-chrome__tabs_create_mcp',     # Open new tab (viewing)
+    'mcp__claude-in-chrome__navigate',            # Navigate to URL (viewing)
+    'mcp__claude-in-chrome__read_page',           # Read page content
+    'mcp__claude-in-chrome__get_page_text',       # Get page text
+    'mcp__claude-in-chrome__find',                # Find text on page
+    'mcp__claude-in-chrome__read_console_messages',   # Read console output
+    'mcp__claude-in-chrome__read_network_requests',   # Read network activity
+    'mcp__claude-in-chrome__screenshot',          # Capture page screenshot
+    'mcp__claude-in-chrome__gif_creator',          # Record page interaction
+}
+# Praxic Chrome MCP tools (require CHECK): form_input, javascript_tool, computer
 ```
 
 ### Plan File Writes (Noetic Exception)
@@ -90,9 +124,9 @@ Read-only shell operations classified by prefix matching:
 | Category | Prefixes |
 |----------|----------|
 | **File inspection** | `cat`, `head`, `tail`, `less`, `more`, `ls`, `dir`, `tree`, `file`, `stat`, `wc`, `find`, `locate`, `which`, `type`, `whereis` |
-| **Text search** | `grep`, `rg`, `ag`, `ack`, `sed -n`, `awk`, `jq` |
-| **Git read** | `git status`, `git log`, `git diff`, `git show`, `git branch`, `git remote`, `git tag`, `git stash list`, `git blame`, `git ls-files`, `git ls-tree`, `git cat-file` |
-| **GitHub CLI read** | `gh issue list/view/status`, `gh pr list/view/status/checks`, `gh repo view`, `gh release list/view`, `gh api` |
+| **Text search** | `grep`, `rg`, `ag`, `ack`, `sed -n`, `awk`, `jq`, `jq.` |
+| **Git read** | `git status`, `git log`, `git diff`, `git show`, `git branch`, `git remote`, `git tag`, `git stash list`, `git blame`, `git ls-files`, `git ls-tree`, `git cat-file`, `git notes show`, `git notes list` |
+| **GitHub CLI read** | `gh issue list/view/status`, `gh pr list/view/diff/status/checks`, `gh repo view`, `gh release list/view`, `gh search`, `gh api` |
 | **Environment** | `pwd`, `echo`, `printf`, `env`, `printenv`, `set`, `whoami`, `id`, `hostname`, `uname`, `date`, `cal` |
 | **Package inspection** | `pip show/list/freeze/index`, `npm list/ls/view/info`, `cargo tree/metadata` |
 | **Process inspection** | `ps`, `top -b -n 1`, `pgrep`, `jobs` |
@@ -101,6 +135,7 @@ Read-only shell operations classified by prefix matching:
 | **Network inspection** | `curl`, `wget -O-`, `ping -c`, `dig`, `nslookup`, `host` |
 | **Documentation** | `man`, `info`, `help` |
 | **Testing** | `test`, `[` |
+| **Static analysis** | `pyright`, `ruff check`, `radon`, `mypy`, `flake8`, `pylint` |
 
 ### Dangerous Shell Operators (Blocked)
 
@@ -118,7 +153,9 @@ When a pipe chain is detected, subsequent segments must start with a safe target
 SAFE_PIPE_TARGETS = (
     'head', 'tail', 'wc', 'sort', 'uniq', 'grep', 'rg', 'awk', 'sed -n',
     'cut', 'tr', 'less', 'more', 'cat', 'xargs echo', 'tee /dev/stderr',
-    'python3 -c', 'python -c', 'jq',
+    'python3 -c', 'python -c',  # For simple JSON parsing
+    'jq', 'jq ',                # JSON processing (read-only)
+    'base64',                   # Data encoding/decoding (read-only)
 )
 ```
 
@@ -134,6 +171,21 @@ Read-only SQLite access is allowed:
 
 Write operations (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `CREATE`, `ALTER`) are blocked.
 
+### Work-Type-Aware Command Expansion (INFRA_SAFE_PREFIXES)
+
+When PREFLIGHT declares `work_type` as `infra`, `config`, or `debug`, the Sentinel expands the safe command list with additional inspection prefixes. The user explicitly chose the work type, so this is a scope declaration.
+
+| Category | Prefixes |
+|----------|----------|
+| **System inspection** | `systemctl status/is-active/list-units`, `journalctl --since/-u/--no-pager`, `free`, `uptime`, `lscpu`, `lsmem`, `lsusb`, `lspci`, `htop`, `vmstat`, `iostat`, `dmesg` |
+| **Docker inspection** | `docker ps/images/logs/inspect/network ls/volume ls/stats`, `docker compose ps/logs` |
+| **Network inspection** | `ss -`, `ip addr/link/route/-br`, `netstat -`, `traceroute`, `mtr`, `iptables -L`, `ufw status` |
+| **Service inspection** | `ollama list/ps/show`, `nginx -t/-T` |
+| **Tmux full access** | `tmux ` (all tmux commands when in infra mode) |
+| **Cloud/infra read** | `kubectl get/describe/logs`, `terraform plan/show`, `cloudflared tunnel list/info` |
+
+These prefixes are only active when `_current_work_type` is set to `infra`, `config`, or `debug` from the active transaction's PREFLIGHT data.
+
 ### Empirica CLI Tiered Whitelist
 
 Empirica commands use a two-tier system instead of a blanket whitelist (prevents prompt injection bypass):
@@ -146,6 +198,7 @@ Empirica commands use a two-tier system instead of a blanket whitelist (prevents
 - Workspace: `workspace-overview`, `workspace-map`, `workspace-list`, `ecosystem-check`
 - Lesson queries: `lesson-list`, `lesson-search`, `lesson-recommend`, `lesson-stats`
 - Sentinel queries: `sentinel-status`, `sentinel-check`
+- Profile: `profile-status`
 - Other: `monitor`, `efficiency-report`, `docs-assess`, `issue-list`
 
 **Tier 2 — State-changing (allowed because they ARE the epistemic workflow):**
@@ -155,6 +208,7 @@ Empirica commands use a two-tier system instead of a blanket whitelist (prevents
 - Session: `session-create`
 - Project: `project-init`, `project-embed`
 - Lessons: `lesson-create`, `lesson-load`, `lesson-path`, `lesson-replay-start`, `lesson-replay-end`, `lesson-embed`
+- Profile: `profile-sync`, `profile-prune`
 - Other: `unknown-resolve`, `agent-spawn`, `investigate`, `artifacts-generate`, `sentinel-orchestrate`, `sentinel-load-profile`
 
 ---
