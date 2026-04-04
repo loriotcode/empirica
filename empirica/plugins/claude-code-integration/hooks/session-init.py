@@ -138,6 +138,103 @@ def create_session_and_bootstrap(ai_id: str, project_id: str = None) -> dict:
             except json.JSONDecodeError:
                 result["bootstrap_output"] = {"raw": bootstrap_cmd.stdout[:500]}
 
+        # Cortex remote sync: pull cross-domain context at session start
+        # Graceful degradation — if Cortex unavailable, session continues normally
+        try:
+            cortex_api_key = os.environ.get('CORTEX_API_KEY', '')
+            cortex_url = os.environ.get('CORTEX_REMOTE_URL', '')
+            if cortex_api_key and cortex_url:
+                import urllib.request
+                import urllib.error
+
+                # Build delta from bootstrap findings/unknowns
+                delta = {}
+                bootstrap_data_for_sync = result.get("bootstrap_output", {})
+                if isinstance(bootstrap_data_for_sync, dict):
+                    breadcrumbs = bootstrap_data_for_sync.get("breadcrumbs", {})
+                    if breadcrumbs:
+                        delta["findings"] = [
+                            {"finding": f.get("finding", ""), "impact": f.get("impact", 0.5)}
+                            for f in breadcrumbs.get("findings", [])[:10]
+                        ]
+                        delta["unknowns"] = [
+                            {"unknown": u.get("unknown", "")}
+                            for u in breadcrumbs.get("unknowns", [])[:5]
+                        ]
+
+                # Get project_id from bootstrap
+                sync_project_id = ""
+                if isinstance(bootstrap_data_for_sync, dict):
+                    sync_project_id = bootstrap_data_for_sync.get("project_id", "")
+
+                # Build user profile from workflow protocol if available
+                user_profile = {"name": "unknown", "role": "member", "domains": []}
+                try:
+                    wp_path = Path.cwd() / "workflow-protocol.yaml"
+                    if not wp_path.exists():
+                        wp_path = Path.home() / ".empirica" / "workflow-protocol.yaml"
+                    if wp_path.exists():
+                        import yaml
+                        with open(wp_path) as wp_f:
+                            wp = yaml.safe_load(wp_f)
+                        if wp:
+                            up = wp.get("user_profile", {})
+                            user_profile["name"] = up.get("name", "unknown")
+                            user_profile["role"] = up.get("role", "member")
+                            domains = wp.get("domains", {})
+                            user_profile["domains"] = domains.get("expert", [])[:5]
+                except Exception:
+                    pass
+
+                payload = json.dumps({
+                    "project_id": sync_project_id,
+                    "user_profile_summary": user_profile,
+                    "delta": delta,
+                }).encode("utf-8")
+
+                req = urllib.request.Request(
+                    f"{cortex_url.rstrip('/')}/v1/sync",
+                    data=payload,
+                    headers={
+                        "Authorization": f"Bearer {cortex_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    method="POST",
+                )
+
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    sync_result = json.loads(resp.read())
+
+                if sync_result.get("ok"):
+                    # Write remote context to local cache for http_bridge enrichment
+                    import time as _sync_time
+                    _suffix = ""
+                    _tmux = os.environ.get("TMUX_PANE")
+                    if _tmux:
+                        _suffix = f"_tmux_{_tmux.lstrip('%')}"
+                    else:
+                        _term = os.environ.get("TERM_SESSION_ID") or os.environ.get("WINDOWID") or ""
+                        if _term:
+                            _suffix = f"_term_{_term.replace('/', '_')}"
+
+                    cache_file = Path.home() / ".empirica" / f"cortex_remote_cache{_suffix}.json"
+                    cache_file.parent.mkdir(parents=True, exist_ok=True)
+                    with open(cache_file, "w") as cf:
+                        json.dump({
+                            "timestamp": _sync_time.time(),
+                            "project_id": sync_project_id,
+                            "cross_domain_context": sync_result.get("cross_domain_context", []),
+                            "synced_artifacts": sync_result.get("synced_artifacts", 0),
+                        }, cf)
+
+                    result["cortex_sync"] = {
+                        "ok": True,
+                        "synced": sync_result.get("synced_artifacts", 0),
+                        "cross_domain": len(sync_result.get("cross_domain_context", [])),
+                    }
+        except Exception:
+            pass  # Cortex unavailable — session continues normally
+
     except subprocess.TimeoutExpired:
         result["error"] = "Command timed out"
     except Exception as e:

@@ -544,6 +544,52 @@ Learning delta will be calculated from PREFLIGHT baseline.
 🧹 Session files cleaned up.
 """, file=sys.stderr)
 
+    # Cortex remote sync: push final artifacts before session closes
+    # Fire-and-forget — don't block session cleanup
+    try:
+        cortex_api_key = os.environ.get('CORTEX_API_KEY', '')
+        cortex_url = os.environ.get('CORTEX_REMOTE_URL', '')
+        if cortex_api_key and cortex_url:
+            import urllib.request
+
+            # Collect session artifacts for push
+            push_delta = {}
+            if vectors:
+                push_delta["session_vectors"] = vectors
+
+            # Get project_id
+            push_project_id = ""
+            try:
+                project_root = find_project_root()
+                if project_root:
+                    project_yaml = project_root / '.empirica' / 'project.yaml'
+                    if project_yaml.exists():
+                        for line in open(project_yaml):
+                            if line.startswith('project_id:'):
+                                push_project_id = line.split(':', 1)[1].strip()
+                                break
+            except Exception:
+                pass
+
+            payload = json.dumps({
+                "project_id": push_project_id,
+                "delta": push_delta,
+            }).encode("utf-8")
+
+            req = urllib.request.Request(
+                f"{cortex_url.rstrip('/')}/v1/sync",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {cortex_api_key}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+
+            urllib.request.urlopen(req, timeout=5)
+    except Exception:
+        pass  # Cortex unavailable — session ends normally
+
     output = {
         "ok": result.get("ok", False),
         "session_id": session_id,
