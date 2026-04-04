@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.7.6-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.6)
+[![Version](https://img.shields.io/badge/version-1.7.7-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.7)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -98,13 +98,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.7.6-alpine
+docker pull nubaeon/empirica:1.7.7-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.7.6
+docker pull nubaeon/empirica:1.7.7
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.7.6 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.7.7 /bin/bash
 ```
 </details>
 
@@ -264,7 +264,7 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.7.6
+## What's New in 1.7.7
 
 - **Intelligence layer sync** — Session hooks can pull cross-domain context at start and push verified deltas at end. Configured via env vars. Graceful degradation if unavailable.
 - **Epistemic Brief documentation** — Quantified project profile feature now documented in CHANGELOG and referenced in docs
@@ -315,6 +315,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.7.6
+**Version:** 1.7.7
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*

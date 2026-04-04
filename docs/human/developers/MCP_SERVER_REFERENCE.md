@@ -1,7 +1,7 @@
 # Empirica MCP Server Reference
 
 **Last Updated:** 2026-04-04
-**Version:** 1.7.6
+**Version:** 1.7.7
 **Total Tools:** 44
 **Architecture:** Table-driven CLI wrapper (no middleware)
 
@@ -207,7 +207,7 @@ All tools include `--output json` automatically.
 
 ---
 
-## Removed in 1.7.6
+## Removed in 1.7.7
 
 The following were removed in the MCP server rewrite:
 
