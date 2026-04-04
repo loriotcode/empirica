@@ -2032,6 +2032,8 @@ def handle_postflight_submit_command(args):
                         'solicited_prompts': counters.get('solicited_prompt_count', 0),
                         'unsolicited_prompts': counters.get('unsolicited_prompt_count', 0),
                     }
+                    # Workflow trace for pattern mining
+                    postflight_tool_trace = counters.get('tool_trace', [])
 
                     # Close transaction (workflow-owned write)
                     R.transaction_write(
@@ -2086,6 +2088,7 @@ def handle_postflight_submit_command(args):
                     "avg_turns_at_start": postflight_avg_turns,
                     "context_shifts": postflight_context_shifts if postflight_context_shifts.get('unsolicited_prompts', 0) > 0 else None,
                     "entity_context": postflight_entity_context or None,
+                    "tool_trace": postflight_tool_trace if postflight_tool_trace else None,
                 }
             )
 

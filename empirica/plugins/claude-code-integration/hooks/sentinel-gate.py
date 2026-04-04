@@ -583,6 +583,29 @@ def _try_increment_tool_count(claude_session_id: Optional[str] = None,
         if tool_name == 'AskUserQuestion':
             counters['pending_user_response'] = True
 
+        # WORKFLOW TRACE: Record tool sequence for pattern mining
+        # Compact format: [tool_name, target, phase] — target is file path or command prefix
+        if tool_name:
+            target = ''
+            if tool_name in ('Read', 'Edit', 'Write') and tool_input:
+                target = tool_input.get('file_path', '')
+                if target:
+                    target = target.rsplit('/', 1)[-1]  # Just filename, not full path
+            elif tool_name == 'Bash' and tool_input:
+                cmd = tool_input.get('command', '')
+                target = cmd.split()[0] if cmd else ''  # First word of command
+            elif tool_name == 'Grep' and tool_input:
+                target = tool_input.get('pattern', '')[:30]
+            elif tool_name == 'Glob' and tool_input:
+                target = tool_input.get('pattern', '')[:30]
+            phase = 'n' if _is_noetic else 'p'
+            trace = counters.get('tool_trace', [])
+            trace.append([tool_name, target[:40], phase])
+            # Cap at 200 entries per transaction to bound memory
+            if len(trace) > 200:
+                trace = trace[-200:]
+            counters['tool_trace'] = trace
+
         # Atomic write to counters file (NOT the transaction file)
         fd, tmp = tempfile.mkstemp(dir=str(counters_path.parent))
         try:

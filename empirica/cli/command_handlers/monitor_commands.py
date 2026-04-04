@@ -2082,3 +2082,47 @@ def handle_calibration_dispute_command(args):
     except Exception as e:
         print(json.dumps({"ok": False, "error": str(e)}))
         sys.exit(1)
+
+
+def handle_workflow_patterns_command(args):
+    """Detect and display repeated workflow patterns across transactions."""
+    try:
+        output_format = getattr(args, 'output', 'human')
+        limit = getattr(args, 'limit', 50)
+        min_freq = getattr(args, 'min_frequency', 2)
+
+        from empirica.config.path_resolver import get_session_db_path
+        from empirica.core.workflow_patterns import (
+            detect_patterns, format_patterns_human, load_traces_from_db,
+        )
+
+        db_path = str(get_session_db_path())
+        traces = load_traces_from_db(db_path, limit=limit)
+
+        if not traces:
+            if output_format == 'json':
+                print(json.dumps({"ok": True, "patterns": [], "traces_loaded": 0,
+                                  "message": "No tool traces found. Traces are recorded after POSTFLIGHT."}))
+            else:
+                print("No tool traces found yet. Traces are recorded at POSTFLIGHT.")
+                print("Complete a full transaction (PREFLIGHT → work → POSTFLIGHT) to start recording.")
+            return
+
+        patterns = detect_patterns(traces, min_frequency=min_freq)
+
+        if output_format == 'json':
+            print(json.dumps({
+                "ok": True,
+                "patterns": [p.to_dict() for p in patterns],
+                "traces_loaded": len(traces),
+                "patterns_detected": len(patterns),
+            }, indent=2))
+        else:
+            print(f"Analyzed {len(traces)} transactions:\n")
+            print(format_patterns_human(patterns))
+
+    except Exception as e:
+        if getattr(args, 'output', 'human') == 'json':
+            print(json.dumps({"ok": False, "error": str(e)}))
+        else:
+            print(f"Error: {e}")

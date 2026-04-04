@@ -297,6 +297,14 @@ TOOL_REGISTRY: dict[str, dict] = {
         "desc": "Resolve an auto-captured issue",
     },
 
+    # --- Workflow Patterns ---
+    "workflow_patterns": {
+        "cli": "workflow-patterns",
+        "params": {"limit": "--limit", "min_frequency": "--min-frequency"},
+        "required": [],
+        "desc": "Detect repeated workflow patterns across transactions (tool sequence mining)",
+    },
+
     # --- Investigation ---
     "investigate": {
         "cli": "investigate",
