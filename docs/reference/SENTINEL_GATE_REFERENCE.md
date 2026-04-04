@@ -78,9 +78,9 @@ NOETIC_TOOLS = {
 }
 ```
 
-### Noetic MCP Tools: Cortex (Always Allowed)
+### Noetic MCP Tools: Intelligence Layer (Always Allowed)
 
-Cortex intelligence layer tools are all read-only search/investigate operations:
+Intelligence layer MCP tools are all read-only search/investigate operations:
 
 ```python
 NOETIC_MCP_CORTEX = {

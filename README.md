@@ -257,6 +257,7 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 | **[Empirica Iris](https://github.com/Nubaeon/empirica-iris)** | Epistemic browser automation with SVG spatial indexing — Sentinel gating for visual interactions | Open source |
 | **[Docpistemic](https://github.com/Nubaeon/docpistemic)** | Epistemic documentation coverage assessment — know what your docs know | Open source |
 | **[Breadcrumbs](https://github.com/Nubaeon/breadcrumbs)** | Survive context compacts with git notes — dead simple session continuity | Open source |
+| **[Empirica Cortex](https://getempirica.com)** | Cross-project intelligence layer — serves verified predictions and accumulated learnings to condition future work | Proprietary |
 | **[Empirica Workspace](https://getempirica.com)** | Entity Knowledge Graph, Epistemic Prompt Engine, CRM, portfolio dashboard | Proprietary |
 
 **Building something with Empirica?** [Open an issue](https://github.com/Nubaeon/empirica/issues) to get listed.
@@ -265,13 +266,13 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ## What's New in 1.7.6
 
-- **Cortex remote sync** — Session-init pulls cross-domain context, session-end pushes deltas. Configured via `CORTEX_REMOTE_URL` + `CORTEX_API_KEY`. Graceful degradation if Cortex unavailable.
+- **Intelligence layer sync** — Session hooks can pull cross-domain context at start and push verified deltas at end. Configured via env vars. Graceful degradation if unavailable.
 - **Epistemic Brief documentation** — Quantified project profile feature now documented in CHANGELOG and referenced in docs
 - **Session-init CWD override** — On `startup` events, prefers CWD over stale instance files from previous sessions. Fixes #72: project-bootstrap loading wrong project context
 - **SQLite UPDATE...ORDER BY syntax** — Subquery replaces MySQL-only syntax in sentinel override sync. Fixes CHECK/Sentinel split-brain deadlock (PR #71)
 - **project-switch stats query** — Moved before output format branch
 - **MCP Server Reference** — Complete rewrite to document 44-tool table-driven architecture (was documenting stale 102-tool server)
-- **9 documentation fixes** — Stale version headers (1.6.6→1.7.5), old plugin name references (empirica-integration→empirica), VectorRouter marked as removed, CONFIGURATION_REFERENCE.md updated with Cortex and MCP env vars, CWD startup exception documented in SESSION_RESOLVER_API and ARCHITECTURE docs
+- **9 documentation fixes** — Stale version headers (1.6.6→1.7.5), old plugin name references (empirica-integration→empirica), VectorRouter marked as removed, CONFIGURATION_REFERENCE.md updated with env vars, CWD startup exception documented in SESSION_RESOLVER_API and ARCHITECTURE docs
 - **Removed duplicate CHANGELOG** — `docs/reference/CHANGELOG.md` deleted (was frozen at 1.6.4, root CHANGELOG.md is single source)
 
 ### Previous Highlights (1.6.11–1.7.0)
