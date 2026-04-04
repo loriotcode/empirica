@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "empirica"
 version = "1.7.6"
-description = "Genuine AI epistemic self-assessment framework - Universal interface for single AI tracking"
+description = "Measurement and calibration layer for AI — track what it knows, gate what it does"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

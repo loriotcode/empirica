@@ -7,7 +7,9 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Empirica is an **epistemic measurement system** that makes AI agents measurably more reliable — tracking what they know, preventing action before understanding, and compounding learning across sessions.
+**Epistemic infrastructure for AI — measurement, memory, and calibration across sessions.**
+
+Empirica tracks what AI knows, gates what it does, and compounds learning across session boundaries. It measures the gap between what AI predicts and what's true — making AI agents measurably more reliable.
 
 **[Training & Guides](https://getempirica.com)** | **[CLI Reference](docs/human/developers/CLI_COMMANDS_UNIFIED.md)** | **[Architecture](docs/architecture/)**
 
@@ -263,14 +265,14 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ## What's New in 1.7.6
 
-- **Epistemic Brief** — Quantified project epistemic profile displayed on `project-switch`. Shows 6 categories: Knowledge State, Risk Profile, Anti-Patterns, Calibration Health, Active Work, Learning Velocity
-- **Configurable Cortex URL** — `EMPIRICA_CORTEX_URL` env var for cloud Cortex instances (default: localhost:8420). Graceful degradation if unreachable
-- **MCP server rewrite** — Complete rebuild as thin CLI wrapper. 102→44 tools, 3254→507 lines. Table-driven `TOOL_REGISTRY` maps tools to CLI commands. Removed epistemic middleware (Sentinel handles gating via hooks). All subprocess calls have 30s timeout (configurable via `EMPIRICA_MCP_TIMEOUT`)
-- **MCP hanging fix** — CASCADE commands (preflight/check/postflight) now use stdin JSON routing. Non-stdin commands use `stdin=DEVNULL`. Fixes server hanging on workflow submissions
-- **PreCompact hook schema validation** — Hook output included non-schema top-level fields (`ok`, `trigger`, `empirica_session_id`, etc.) that Claude Code rejected. Now outputs only `hookSpecificOutput` (success) or `stopReason` (error)
-- **project-switch live counts** — Queries per-project sessions.db instead of stale workspace.db artifact counts
-- **Transaction race condition** — Two-file split: `active_transaction` (workflow-owned) and `hook_counters` (hook-owned). POSTFLIGHT reads counters then deletes counters file. Sentinel no longer overwrites POSTFLIGHT's status=closed
-- **release.py missing pyproject.toml** — Source-of-truth version file now staged in release commits
+- **Cortex remote sync** — Session-init pulls cross-domain context, session-end pushes deltas. Configured via `CORTEX_REMOTE_URL` + `CORTEX_API_KEY`. Graceful degradation if Cortex unavailable.
+- **Epistemic Brief documentation** — Quantified project profile feature now documented in CHANGELOG and referenced in docs
+- **Session-init CWD override** — On `startup` events, prefers CWD over stale instance files from previous sessions. Fixes #72: project-bootstrap loading wrong project context
+- **SQLite UPDATE...ORDER BY syntax** — Subquery replaces MySQL-only syntax in sentinel override sync. Fixes CHECK/Sentinel split-brain deadlock (PR #71)
+- **project-switch stats query** — Moved before output format branch
+- **MCP Server Reference** — Complete rewrite to document 44-tool table-driven architecture (was documenting stale 102-tool server)
+- **9 documentation fixes** — Stale version headers (1.6.6→1.7.5), old plugin name references (empirica-integration→empirica), VectorRouter marked as removed, CONFIGURATION_REFERENCE.md updated with Cortex and MCP env vars, CWD startup exception documented in SESSION_RESOLVER_API and ARCHITECTURE docs
+- **Removed duplicate CHANGELOG** — `docs/reference/CHANGELOG.md` deleted (was frozen at 1.6.4, root CHANGELOG.md is single source)
 
 ### Previous Highlights (1.6.11–1.7.0)
 
