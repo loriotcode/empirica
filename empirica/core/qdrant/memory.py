@@ -4,9 +4,12 @@ Core memory operations: embed, upsert, and search for memory items and docs.
 from __future__ import annotations
 
 from empirica.core.qdrant.collections import (
+    _assumptions_collection,
+    _decisions_collection,
     _docs_collection,
     _eidetic_collection,
     _episodic_collection,
+    _goals_collection,
     _memory_collection,
 )
 from empirica.core.qdrant.connection import (
@@ -214,17 +217,24 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
     Args:
         project_id: Project UUID
         query_text: Search query
-        kind: "focused" (default: docs + eidetic + episodic), "all", "docs", "memory", "eidetic", "episodic"
+        kind: "focused" (docs + eidetic + episodic), "all", "cross-domain", or single collection name
         limit: Max results per collection
 
     Returns empty results if Qdrant not available.
+
+    kind values:
+        "focused" — docs + eidetic + episodic (default, for local context)
+        "all" — docs + memory + eidetic + episodic (backward compat)
+        "cross-domain" — memory + eidetic + episodic + assumptions + decisions + goals
+                         (skips docs, designed for Cortex cross-project queries)
+        single name — "docs", "memory", "eidetic", "episodic", "assumptions", "decisions", "goals"
     """
-    # Focused = docs + eidetic + episodic so project-embed content is searchable
-    # without forcing callers to discover the hidden --type docs / --type all modes.
     if kind == "focused":
         search_kinds = ["docs", "eidetic", "episodic"]
     elif kind == "all":
         search_kinds = ["docs", "memory", "eidetic", "episodic"]
+    elif kind == "cross-domain":
+        search_kinds = ["memory", "eidetic", "episodic", "assumptions", "decisions", "goals"]
     else:
         search_kinds = [kind]
     empty_result = {k: [] for k in search_kinds}
@@ -242,6 +252,20 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
         "memory": (_memory_collection, ["type", "text", "session_id", "goal_id", "timestamp", "impact"]),
         "eidetic": (_eidetic_collection, ["type", "content", "confidence", "domain"]),
         "episodic": (_episodic_collection, ["type", "narrative", "session_id", "outcome"]),
+        "assumptions": (_assumptions_collection, ["assumption", "confidence", "status", "domain"]),
+        "decisions": (_decisions_collection, ["choice", "rationale", "reversibility"]),
+        "goals": (_goals_collection, ["objective", "status", "scope"]),
+    }
+
+    # Boost weights per collection type — findings/decisions score higher than code docs
+    _COLLECTION_BOOST = {
+        "decisions": 1.3,
+        "memory": 1.2,
+        "assumptions": 1.1,
+        "eidetic": 1.0,
+        "episodic": 0.9,
+        "goals": 0.8,
+        "docs": 0.5,
     }
 
     results: dict[str, list[dict]] = {}
@@ -254,13 +278,14 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
         if kind_name not in _SEARCH_COLLECTIONS:
             continue
         coll_fn, fields = _SEARCH_COLLECTIONS[kind_name]
+        boost = _COLLECTION_BOOST.get(kind_name, 1.0)
         try:
             coll_name = coll_fn(project_id)
             if client.collection_exists(coll_name):
                 resp = client.query_points(
                     collection_name=coll_name, query=qvec, limit=limit, with_payload=True)
                 results[kind_name] = [
-                    {"score": getattr(r, 'score', 0.0) or 0.0,
+                    {"score": (getattr(r, 'score', 0.0) or 0.0) * boost,
                      **{f: (r.payload or {}).get(f) for f in fields}}
                     for r in resp.points
                 ]
