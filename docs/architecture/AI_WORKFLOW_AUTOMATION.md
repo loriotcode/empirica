@@ -302,7 +302,7 @@ def run_preflight_checklist():
 }
 ```
 
-~~Enables VectorRouter for MCP tools.~~ **Removed in 1.7.5** — Sentinel hooks handle gating.
+~~Enables VectorRouter for MCP tools.~~ **Removed in 1.7.6** — Sentinel hooks handle gating.
 
 ### ✅ Phase 3: COMPLETE - Statusline Integration
 

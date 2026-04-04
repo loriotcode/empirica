@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "empirica-mcp"
-version = "1.7.5"
+version = "1.7.6"
 description = "MCP server for Empirica epistemic framework"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,7 +23,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "empirica>=1.7.0",  # Main package (1.7.5 co-released)
+    "empirica>=1.7.0",  # Main package (1.7.6 co-released)
     "mcp>=1.25.0",      # MCP SDK (python-multipart CVE-2026-24486 fix in 1.25+)
 ]
 

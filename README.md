@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.7.5-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.5)
+[![Version](https://img.shields.io/badge/version-1.7.6-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.6)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -261,7 +261,7 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.7.5
+## What's New in 1.7.6
 
 - **Epistemic Brief** — Quantified project epistemic profile displayed on `project-switch`. Shows 6 categories: Knowledge State, Risk Profile, Anti-Patterns, Calibration Health, Active Work, Learning Velocity
 - **Configurable Cortex URL** — `EMPIRICA_CORTEX_URL` env var for cloud Cortex instances (default: localhost:8420). Graceful degradation if unreachable

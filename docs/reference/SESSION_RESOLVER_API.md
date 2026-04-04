@@ -474,7 +474,7 @@ def clear_active_transaction(claude_session_id: str = None) -> None
 
 ---
 
-### Hook Counters API (v1.7.5+)
+### Hook Counters API (v1.7.6+)
 
 Hook counters are stored separately from the transaction lifecycle to prevent race conditions. Hooks (sentinel, context-shift-tracker, subagent-stop) write counters here; POSTFLIGHT reads then deletes.
 
