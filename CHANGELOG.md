@@ -5,6 +5,22 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.6] - 2026-04-04
+
+### Added
+- **Cortex remote sync** — Session-init pulls cross-domain context, session-end pushes deltas. Configured via `CORTEX_REMOTE_URL` + `CORTEX_API_KEY`. Graceful degradation if Cortex unavailable.
+- **Epistemic Brief documentation** — Quantified project profile feature now documented in CHANGELOG and referenced in docs
+
+### Fixed
+- **Session-init CWD override** — On `startup` events, prefers CWD over stale instance files from previous sessions. Fixes #72: project-bootstrap loading wrong project context
+- **SQLite UPDATE...ORDER BY syntax** — Subquery replaces MySQL-only syntax in sentinel override sync. Fixes CHECK/Sentinel split-brain deadlock (PR #71)
+- **project-switch stats query** — Moved before output format branch
+
+### Changed
+- **MCP Server Reference** — Complete rewrite to document 44-tool table-driven architecture (was documenting stale 102-tool server)
+- **9 documentation fixes** — Stale version headers (1.6.6→1.7.5), old plugin name references (empirica-integration→empirica), VectorRouter marked as removed, CONFIGURATION_REFERENCE.md updated with Cortex and MCP env vars, CWD startup exception documented in SESSION_RESOLVER_API and ARCHITECTURE docs
+- **Removed duplicate CHANGELOG** — `docs/reference/CHANGELOG.md` deleted (was frozen at 1.6.4, root CHANGELOG.md is single source)
+
 ## [1.7.5] - 2026-04-03
 
 ### Added

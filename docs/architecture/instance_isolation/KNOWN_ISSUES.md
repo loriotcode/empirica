@@ -293,7 +293,7 @@ and update all isolation files — bypassing the normal phase-state routing.
 File-based state can reference sessions that no longer exist (cleanup, DB restore,
 cross-DB creation). Always verify against the authoritative source (the database).
 
-**Commit:** applied to `~/.claude/plugins/local/empirica-integration/hooks/post-compact.py`
+**Commit:** applied to `~/.claude/plugins/local/empirica/hooks/post-compact.py`
 
 ### 11.20 CLI Commands Use tmux-Only Instance ID (2026-03-19)
 

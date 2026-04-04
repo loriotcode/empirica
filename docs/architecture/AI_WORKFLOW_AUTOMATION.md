@@ -279,7 +279,7 @@ def run_preflight_checklist():
 
 ### ✅ Phase 1: COMPLETE - Claude Code Hooks
 
-**Location:** `~/.claude/plugins/local/empirica-integration/hooks/`
+**Location:** `~/.claude/plugins/local/empirica/hooks/`
 
 | Hook | Trigger | Function |
 |------|---------|----------|
@@ -288,7 +288,7 @@ def run_preflight_checklist():
 | `post-compact.py` | SessionStart (compact) | Recovery with session + bootstrap |
 | `session-end-postflight.py` | SessionEnd | Auto-captures POSTFLIGHT |
 
-**Hook config:** `~/.claude/plugins/local/empirica-integration/hooks/hooks.json`
+**Hook config:** `~/.claude/plugins/local/empirica/hooks/hooks.json`
 
 ### ✅ Phase 2: COMPLETE - MCP Epistemic Mode
 
@@ -302,7 +302,7 @@ def run_preflight_checklist():
 }
 ```
 
-Enables VectorRouter for MCP tools - routes based on epistemic vectors.
+~~Enables VectorRouter for MCP tools.~~ **Removed in 1.7.5** — Sentinel hooks handle gating.
 
 ### ✅ Phase 3: COMPLETE - Statusline Integration
 

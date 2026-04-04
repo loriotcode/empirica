@@ -112,7 +112,8 @@ Project Path (get_active_project_path):
   P0: instance_projects/{instance_id}.json   (tmux, x11, tty)
   P1: active_work_{claude_session_id}.json   (requires claude_session_id)
   P2: active_work.json                       (generic fallback, no time rejection)
-  ❌ NO CWD FALLBACK — return None
+  ❌ NO CWD FALLBACK — return None (mid-session)
+  ⚠️  STARTUP EXCEPTION (v1.7.6): session-init prefers CWD over stale instance files on 'startup' events
 
 Session ID (get_active_empirica_session_id):
   P1: active_transaction file                (survives compaction)

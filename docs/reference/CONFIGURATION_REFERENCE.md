@@ -660,7 +660,17 @@ has_key = loader.has_credential("MINIMAX_API_KEY")
 - `EMPIRICA_INVESTIGATION_PROFILE`: Force investigation profile
 - `EMPIRICA_PROFILE_MODE`: Override profile mode
 - `EMPIRICA_PERSONALITY`: Set AI personality/persona (`researcher`, `implementer`, `reviewer`, etc.)
-- `EMPIRICA_EPISTEMIC_MODE`: Enable VectorRouter in MCP server (`true`/`false`). When `true`, MCP tools route based on epistemic vectors (clarify/investigate/proceed)
+- `EMPIRICA_EPISTEMIC_MODE`: **Deprecated in 1.7.5.** Epistemic middleware was removed from MCP server (Sentinel handles gating via hooks). This env var has no effect.
+
+### Cortex Integration
+
+- `EMPIRICA_CORTEX_URL`: Cortex server URL for verified predictions cache (default: `http://localhost:8420`). Set for cloud Cortex instances. Graceful — skipped silently if unreachable.
+- `CORTEX_REMOTE_URL`: Remote Cortex URL for cross-domain context sync at session start/end. Requires `CORTEX_API_KEY`.
+- `CORTEX_API_KEY`: API key for remote Cortex sync. Both `CORTEX_REMOTE_URL` and `CORTEX_API_KEY` must be set for remote sync to activate.
+
+### MCP Server
+
+- `EMPIRICA_MCP_TIMEOUT`: CLI command timeout in seconds for the MCP server (default: `30`)
 
 ### Modality - DEPRECATED
 

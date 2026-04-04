@@ -190,7 +190,7 @@ cat .empirica/active_transaction_tmux_*.json
 
 ```bash
 # Sentinel logs
-cat ~/.claude/plugins/local/empirica-integration/hooks/.empirica_reflex_logs/*.log
+cat ~/.claude/plugins/local/empirica/hooks/.empirica_reflex_logs/*.log
 
 # Post-compact output is in Claude's response
 ```
