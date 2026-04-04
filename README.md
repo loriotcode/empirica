@@ -266,14 +266,14 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ## What's New in 1.7.7
 
-- **Intelligence layer sync** — Session hooks can pull cross-domain context at start and push verified deltas at end. Configured via env vars. Graceful degradation if unavailable.
-- **Epistemic Brief documentation** — Quantified project profile feature now documented in CHANGELOG and referenced in docs
-- **Session-init CWD override** — On `startup` events, prefers CWD over stale instance files from previous sessions. Fixes #72: project-bootstrap loading wrong project context
-- **SQLite UPDATE...ORDER BY syntax** — Subquery replaces MySQL-only syntax in sentinel override sync. Fixes CHECK/Sentinel split-brain deadlock (PR #71)
-- **project-switch stats query** — Moved before output format branch
-- **MCP Server Reference** — Complete rewrite to document 44-tool table-driven architecture (was documenting stale 102-tool server)
-- **9 documentation fixes** — Stale version headers (1.6.6→1.7.5), old plugin name references (empirica-integration→empirica), VectorRouter marked as removed, CONFIGURATION_REFERENCE.md updated with env vars, CWD startup exception documented in SESSION_RESOLVER_API and ARCHITECTURE docs
-- **Removed duplicate CHANGELOG** — `docs/reference/CHANGELOG.md` deleted (was frozen at 1.6.4, root CHANGELOG.md is single source)
+- **Intelligence search kind** — New `kind='intelligence'` search mode with collection-type boost weights for cross-domain knowledge discovery. Filters `code_api` from eidetic queries to reduce noise. Renamed from initial `kind='cross-domain'` for clarity
+- **Workflow Pattern Mining** — Detect repeated tool sequences across transactions via sequential pattern analysis. New `workflow-patterns` CLI command and MCP tool
+- **Workflow Suggestion Engine** — Epistemic-correlated pattern analysis surfaces workflow suggestions based on historical transaction data
+- **Sentinel noetic allow list** — Added `ToolSearch` (deferred tool discovery), intelligence layer MCP tools, and `git notes show`/`git notes list` as always-allowed noetic tools
+- **Sentinel closed-transaction noetic check** — Closed transactions now correctly allow noetic tools and safe Bash commands without requiring a new PREFLIGHT. Praxic tools with closed transactions get the correct error message
+- **PreCompact hook schema** — `hookSpecificOutput` is not supported by PreCompact events (only PreToolUse, UserPromptSubmit, PostToolUse). Switched to `systemMessage` for compact guidance output
+- **Docker `token-gen` removed from safe commands** — `docker token-gen` no longer classified as a safe noetic command in Sentinel
+- **POSTFLIGHT intelligence layer auth** — Session-end POSTFLIGHT push now includes `Authorization: Bearer` header when `CORTEX_API_KEY` is set
 
 ### Previous Highlights (1.6.11–1.7.0)
 
