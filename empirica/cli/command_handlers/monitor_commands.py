@@ -2093,7 +2093,8 @@ def handle_workflow_patterns_command(args):
 
         from empirica.config.path_resolver import get_session_db_path
         from empirica.core.workflow_patterns import (
-            detect_patterns, format_patterns_human, load_traces_from_db,
+            detect_patterns, format_patterns_human, format_suggestions_human,
+            generate_suggestions, load_traces_from_db, load_transaction_outcomes,
         )
 
         db_path = str(get_session_db_path())
@@ -2101,7 +2102,8 @@ def handle_workflow_patterns_command(args):
 
         if not traces:
             if output_format == 'json':
-                print(json.dumps({"ok": True, "patterns": [], "traces_loaded": 0,
+                print(json.dumps({"ok": True, "patterns": [], "suggestions": [],
+                                  "traces_loaded": 0,
                                   "message": "No tool traces found. Traces are recorded after POSTFLIGHT."}))
             else:
                 print("No tool traces found yet. Traces are recorded at POSTFLIGHT.")
@@ -2110,16 +2112,25 @@ def handle_workflow_patterns_command(args):
 
         patterns = detect_patterns(traces, min_frequency=min_freq)
 
+        # Load outcomes for suggestions (traces + vectors + calibration)
+        outcomes = load_transaction_outcomes(db_path, limit=limit)
+        suggestions = generate_suggestions(outcomes)
+
         if output_format == 'json':
             print(json.dumps({
                 "ok": True,
                 "patterns": [p.to_dict() for p in patterns],
+                "suggestions": [s.to_dict() for s in suggestions],
                 "traces_loaded": len(traces),
+                "outcomes_loaded": len(outcomes),
                 "patterns_detected": len(patterns),
+                "suggestions_generated": len(suggestions),
             }, indent=2))
         else:
-            print(f"Analyzed {len(traces)} transactions:\n")
+            print(f"Analyzed {len(traces)} transactions ({len(outcomes)} with vectors):\n")
             print(format_patterns_human(patterns))
+            if suggestions:
+                print("\n" + format_suggestions_human(suggestions))
 
     except Exception as e:
         if getattr(args, 'output', 'human') == 'json':

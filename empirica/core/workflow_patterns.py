@@ -5,6 +5,7 @@ Architecture:
 - Traces recorded by sentinel-gate.py in hook_counters['tool_trace']
 - POSTFLIGHT archives traces to sessions.db (reflex_data.tool_trace)
 - This module runs detection on archived traces
+- Suggestion engine correlates patterns with epistemic outcomes
 - Patterns surfaced as findings via CLI or at session start
 
 Algorithm (inspired by Zoku, adapted for Empirica):
@@ -14,13 +15,18 @@ Algorithm (inspired by Zoku, adapted for Empirica):
 4. Filter: appears in 2+ transactions
 5. Remove strict subsets of longer patterns
 6. Rank by frequency then length
+
+Suggestion Engine (Layer 3 — epistemic-correlated):
+- Joins tool_trace with PREFLIGHT/POSTFLIGHT vectors per transaction
+- Correlates patterns with outcomes (completion, calibration score)
+- Identifies patterns that appear in successful vs unsuccessful transactions
+- Generates actionable suggestions: "when uncertain, do X before Y"
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from collections import Counter
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -249,5 +255,285 @@ def format_patterns_human(patterns: list[WorkflowPattern], limit: int = 5) -> st
 
     if len(patterns) > limit:
         lines.append(f"  ... and {len(patterns) - limit} more")
+
+    return "\n".join(lines)
+
+
+# =============================================================================
+# Layer 3: Epistemic-Correlated Suggestions
+# =============================================================================
+
+@dataclass
+class TransactionOutcome:
+    """A transaction's trace + epistemic outcome for correlation."""
+    transaction_id: str
+    trace: list[list[str]]
+    pre_know: float = 0.0
+    pre_uncertainty: float = 0.0
+    post_know: float = 0.0
+    post_completion: float = 0.0
+    calibration_score: float = 1.0  # Lower = better calibrated
+    success: bool = False  # completion >= 0.7
+
+
+@dataclass
+class WorkflowSuggestion:
+    """An actionable suggestion derived from pattern-outcome correlation."""
+    suggestion: str
+    evidence: str
+    confidence: float  # 0.0-1.0 based on sample size and effect size
+    pattern: str  # The pattern signature this relates to
+    category: str  # "investigation", "verification", "artifact", "timing"
+
+    def to_dict(self) -> dict:
+        return {
+            "suggestion": self.suggestion,
+            "evidence": self.evidence,
+            "confidence": round(self.confidence, 2),
+            "pattern": self.pattern,
+            "category": self.category,
+        }
+
+
+def load_transaction_outcomes(db_path: str, limit: int = 50) -> list[TransactionOutcome]:
+    """Load transactions with both traces and vectors for correlation.
+
+    Joins PREFLIGHT and POSTFLIGHT reflexes by transaction_id to get
+    the full picture: starting vectors + trace + ending vectors + calibration.
+    """
+    import sqlite3
+
+    outcomes = []
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+
+        # Get POSTFLIGHTs with traces
+        rows = conn.execute("""
+            SELECT r.transaction_id, r.reflex_data, r.session_id
+            FROM reflexes r
+            WHERE r.phase = 'POSTFLIGHT'
+            AND r.reflex_data IS NOT NULL
+            AND json_extract(r.reflex_data, '$.tool_trace') IS NOT NULL
+            ORDER BY r.timestamp DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+
+        for row in rows:
+            try:
+                post_data = json.loads(row['reflex_data'])
+                trace = post_data.get('tool_trace', [])
+                if not trace:
+                    continue
+
+                tx_id = row['transaction_id']
+
+                # Get POSTFLIGHT vectors
+                post_vectors = post_data.get('vectors', {})
+                if isinstance(post_vectors, str):
+                    post_vectors = json.loads(post_vectors)
+
+                post_completion = float(post_vectors.get('completion', 0))
+                post_know = float(post_vectors.get('know', 0))
+
+                # Get calibration score if available
+                cal_score = post_data.get('calibration_score', 1.0)
+                if cal_score is None:
+                    cal_score = 1.0
+
+                # Get PREFLIGHT vectors for this transaction
+                pre_row = conn.execute("""
+                    SELECT reflex_data FROM reflexes
+                    WHERE transaction_id = ? AND phase = 'PREFLIGHT'
+                    ORDER BY timestamp ASC LIMIT 1
+                """, (tx_id,)).fetchone()
+
+                pre_know = 0.0
+                pre_uncertainty = 0.5
+                if pre_row:
+                    pre_data = json.loads(pre_row['reflex_data'])
+                    pre_vectors = pre_data.get('vectors', {})
+                    if isinstance(pre_vectors, str):
+                        pre_vectors = json.loads(pre_vectors)
+                    pre_know = float(pre_vectors.get('know', 0))
+                    pre_uncertainty = float(pre_vectors.get('uncertainty', 0.5))
+
+                outcomes.append(TransactionOutcome(
+                    transaction_id=tx_id,
+                    trace=trace,
+                    pre_know=pre_know,
+                    pre_uncertainty=pre_uncertainty,
+                    post_know=post_know,
+                    post_completion=post_completion,
+                    calibration_score=float(cal_score),
+                    success=post_completion >= 0.7,
+                ))
+            except (json.JSONDecodeError, TypeError, ValueError):
+                continue
+
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed to load transaction outcomes: {e}")
+
+    return outcomes
+
+
+def generate_suggestions(outcomes: list[TransactionOutcome],
+                         min_sample: int = 3) -> list[WorkflowSuggestion]:
+    """Generate workflow suggestions by correlating patterns with outcomes.
+
+    Analyses:
+    1. Patterns in successful vs unsuccessful transactions
+    2. Patterns correlated with low uncertainty (pre→post)
+    3. Patterns correlated with better calibration
+    4. Phase ordering insights (noetic-first vs praxic-first)
+    """
+    if len(outcomes) < min_sample:
+        return []
+
+    suggestions: list[WorkflowSuggestion] = []
+
+    # Split into successful and unsuccessful
+    successful = [o for o in outcomes if o.success]
+    unsuccessful = [o for o in outcomes if not o.success]
+
+    # --- Analysis 1: Noetic depth before praxic ---
+    # Do successful transactions have more noetic tools before first praxic?
+    def noetic_before_praxic(trace: list[list[str]]) -> int:
+        """Count noetic tools before first praxic tool."""
+        count = 0
+        for entry in trace:
+            if len(entry) >= 3 and entry[2] == 'p':
+                break
+            count += 1
+        return count
+
+    if successful and unsuccessful:
+        avg_noetic_success = sum(noetic_before_praxic(o.trace) for o in successful) / len(successful)
+        avg_noetic_fail = sum(noetic_before_praxic(o.trace) for o in unsuccessful) / max(len(unsuccessful), 1)
+
+        if avg_noetic_success > avg_noetic_fail + 1.5:
+            effect = avg_noetic_success - avg_noetic_fail
+            confidence = min(0.9, 0.4 + (len(outcomes) / 50) * 0.3 + (effect / 10) * 0.2)
+            suggestions.append(WorkflowSuggestion(
+                suggestion=f"Investigate more before acting — successful transactions average "
+                           f"{avg_noetic_success:.1f} noetic tools before first edit, "
+                           f"unsuccessful average {avg_noetic_fail:.1f}",
+                evidence=f"Based on {len(successful)} successful and {len(unsuccessful)} unsuccessful transactions",
+                confidence=confidence,
+                pattern="noetic-depth-before-praxic",
+                category="investigation",
+            ))
+
+    # --- Analysis 2: Grep before Edit correlation ---
+    def has_grep_before_edit(trace: list[list[str]]) -> bool:
+        """Check if any Grep appears before the first Edit."""
+        seen_grep = False
+        for entry in trace:
+            if entry[0] == 'Grep':
+                seen_grep = True
+            if entry[0] == 'Edit':
+                return seen_grep
+        return False
+
+    grep_before_success = sum(1 for o in successful if has_grep_before_edit(o.trace)) if successful else 0
+    grep_before_fail = sum(1 for o in unsuccessful if has_grep_before_edit(o.trace)) if unsuccessful else 0
+
+    if successful and unsuccessful:
+        rate_success = grep_before_success / max(len(successful), 1)
+        rate_fail = grep_before_fail / max(len(unsuccessful), 1)
+        if rate_success > rate_fail + 0.2:
+            confidence = min(0.85, 0.3 + (len(outcomes) / 40) * 0.3 + (rate_success - rate_fail) * 0.3)
+            suggestions.append(WorkflowSuggestion(
+                suggestion=f"Search before editing — {rate_success:.0%} of successful transactions "
+                           f"include Grep before first Edit vs {rate_fail:.0%} of unsuccessful",
+                evidence=f"Grep-before-Edit rate: {grep_before_success}/{len(successful)} successful, "
+                         f"{grep_before_fail}/{len(unsuccessful)} unsuccessful",
+                confidence=confidence,
+                pattern="grep-before-edit",
+                category="investigation",
+            ))
+
+    # --- Analysis 3: Uncertainty-correlated patterns ---
+    # When starting uncertain (pre_uncertainty > 0.4), which patterns lead to completion?
+    uncertain_starts = [o for o in outcomes if o.pre_uncertainty > 0.4]
+    if len(uncertain_starts) >= min_sample:
+        uncertain_success = [o for o in uncertain_starts if o.success]
+        uncertain_fail = [o for o in uncertain_starts if not o.success]
+
+        if uncertain_success and uncertain_fail:
+            # Compare trace lengths
+            avg_len_success = sum(len(o.trace) for o in uncertain_success) / len(uncertain_success)
+            avg_len_fail = sum(len(o.trace) for o in uncertain_fail) / max(len(uncertain_fail), 1)
+
+            if avg_len_success > avg_len_fail + 3:
+                suggestions.append(WorkflowSuggestion(
+                    suggestion=f"When uncertain, take more steps — successful uncertain transactions "
+                               f"average {avg_len_success:.0f} tool calls vs {avg_len_fail:.0f} for unsuccessful",
+                    evidence=f"Based on {len(uncertain_starts)} transactions starting with uncertainty > 0.4",
+                    confidence=min(0.8, 0.3 + len(uncertain_starts) / 30),
+                    pattern="uncertain-transaction-depth",
+                    category="timing",
+                ))
+
+    # --- Analysis 4: Artifact logging correlation ---
+    def count_artifact_tools(trace: list[list[str]]) -> int:
+        """Count empirica artifact CLI calls (finding-log, unknown-log, etc.)."""
+        artifact_cmds = {'empirica', 'finding-log', 'unknown-log', 'deadend-log',
+                         'assumption-log', 'decision-log', 'mistake-log'}
+        return sum(1 for e in trace if len(e) >= 2 and e[1] in artifact_cmds)
+
+    if successful and unsuccessful:
+        avg_artifacts_success = sum(count_artifact_tools(o.trace) for o in successful) / len(successful)
+        avg_artifacts_fail = sum(count_artifact_tools(o.trace) for o in unsuccessful) / max(len(unsuccessful), 1)
+
+        if avg_artifacts_success > avg_artifacts_fail + 0.5:
+            suggestions.append(WorkflowSuggestion(
+                suggestion=f"Log more artifacts — successful transactions average "
+                           f"{avg_artifacts_success:.1f} epistemic logs vs "
+                           f"{avg_artifacts_fail:.1f} in unsuccessful",
+                evidence=f"Artifact types: findings, unknowns, dead-ends, assumptions, decisions",
+                confidence=min(0.75, 0.3 + len(outcomes) / 40),
+                pattern="artifact-breadth-correlation",
+                category="artifact",
+            ))
+
+    # --- Analysis 5: Calibration improvement patterns ---
+    # Which patterns appear in well-calibrated transactions (score < 0.3)?
+    well_calibrated = [o for o in outcomes if o.calibration_score < 0.3]
+    poorly_calibrated = [o for o in outcomes if o.calibration_score >= 0.5]
+
+    if len(well_calibrated) >= 2 and len(poorly_calibrated) >= 2:
+        # Check if well-calibrated transactions have longer noetic phases
+        avg_noetic_good = sum(noetic_before_praxic(o.trace) for o in well_calibrated) / len(well_calibrated)
+        avg_noetic_bad = sum(noetic_before_praxic(o.trace) for o in poorly_calibrated) / len(poorly_calibrated)
+
+        if avg_noetic_good > avg_noetic_bad + 1:
+            suggestions.append(WorkflowSuggestion(
+                suggestion=f"More investigation improves calibration — well-calibrated transactions "
+                           f"average {avg_noetic_good:.1f} noetic tools vs {avg_noetic_bad:.1f} for poorly calibrated",
+                evidence=f"Based on {len(well_calibrated)} well-calibrated (score < 0.3) and "
+                         f"{len(poorly_calibrated)} poorly calibrated (score >= 0.5) transactions",
+                confidence=min(0.85, 0.4 + len(outcomes) / 30),
+                pattern="investigation-calibration-correlation",
+                category="verification",
+            ))
+
+    # Sort by confidence descending
+    suggestions.sort(key=lambda s: -s.confidence)
+    return suggestions
+
+
+def format_suggestions_human(suggestions: list[WorkflowSuggestion], limit: int = 5) -> str:
+    """Format suggestions for human display."""
+    if not suggestions:
+        return "Not enough data for suggestions yet. Need 3+ transactions with traces."
+
+    lines = [f"Workflow Suggestions ({len(suggestions)} found):\n"]
+    for i, s in enumerate(suggestions[:limit]):
+        icon = {"investigation": "🔍", "verification": "✓", "artifact": "📝", "timing": "⏱"}.get(s.category, "💡")
+        lines.append(f"  {icon} {s.suggestion}")
+        lines.append(f"     Confidence: {s.confidence:.0%} | Evidence: {s.evidence}")
+        lines.append("")
 
     return "\n".join(lines)
