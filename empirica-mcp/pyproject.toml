@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "empirica-mcp"
 version = "1.7.6"
-description = "MCP server for Empirica epistemic framework"
+description = "MCP server for Empirica — AI measurement and calibration tools via Model Context Protocol"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [
     {name = "David S. L. Van Assche"},
 ]
-keywords = ["mcp", "empirica", "epistemic", "ai", "metacognition"]
+keywords = ["mcp", "empirica", "calibration", "ai", "measurement", "epistemic"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",

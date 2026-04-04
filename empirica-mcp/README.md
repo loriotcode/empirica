@@ -1,6 +1,8 @@
 # Empirica MCP Server
 
-**MCP (Model Context Protocol) server for Empirica epistemic framework**
+**AI measurement and calibration tools via Model Context Protocol.**
+
+Exposes Empirica's 44 tools to Claude Desktop, IDEs, and any MCP-compatible environment. Track what AI knows, gate what it does, and compound learning across sessions — without needing Claude Code or Bash access.
 
 [![PyPI](https://img.shields.io/pypi/v/empirica-mcp)](https://pypi.org/project/empirica-mcp/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)]()
