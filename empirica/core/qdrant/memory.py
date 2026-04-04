@@ -268,6 +268,18 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
         "docs": 0.5,
     }
 
+    # For intelligence searches, filter out code_api entries from eidetic
+    # (module doc signatures are 52% of eidetic — noise for cross-project queries)
+    _intelligence_filter = None
+    if kind == "intelligence":
+        try:
+            from qdrant_client.models import Filter, FieldCondition, MatchValue
+            _intelligence_filter = Filter(
+                must_not=[FieldCondition(key="type", match=MatchValue(value="code_api"))]
+            )
+        except ImportError:
+            pass
+
     results: dict[str, list[dict]] = {}
     client = _get_qdrant_client()
     if client is None:
@@ -279,11 +291,14 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
             continue
         coll_fn, fields = _SEARCH_COLLECTIONS[kind_name]
         boost = _COLLECTION_BOOST.get(kind_name, 1.0)
+        # Apply code_api filter only to eidetic in intelligence mode
+        query_filter = _intelligence_filter if (kind_name == "eidetic" and _intelligence_filter) else None
         try:
             coll_name = coll_fn(project_id)
             if client.collection_exists(coll_name):
                 resp = client.query_points(
-                    collection_name=coll_name, query=qvec, limit=limit, with_payload=True)
+                    collection_name=coll_name, query=qvec, limit=limit,
+                    with_payload=True, query_filter=query_filter)
                 results[kind_name] = [
                     {"score": (getattr(r, 'score', 0.0) or 0.0) * boost,
                      **{f: (r.payload or {}).get(f) for f in fields}}
