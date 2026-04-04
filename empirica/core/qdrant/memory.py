@@ -217,7 +217,7 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
     Args:
         project_id: Project UUID
         query_text: Search query
-        kind: "focused" (docs + eidetic + episodic), "all", "cross-domain", or single collection name
+        kind: "focused" (docs + eidetic + episodic), "all", "intelligence", or single collection name
         limit: Max results per collection
 
     Returns empty results if Qdrant not available.
@@ -225,7 +225,7 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
     kind values:
         "focused" — docs + eidetic + episodic (default, for local context)
         "all" — docs + memory + eidetic + episodic (backward compat)
-        "cross-domain" — memory + eidetic + episodic + assumptions + decisions + goals
+        "intelligence" — memory + eidetic + episodic + assumptions + decisions + goals
                          (skips docs, designed for Cortex cross-project queries)
         single name — "docs", "memory", "eidetic", "episodic", "assumptions", "decisions", "goals"
     """
@@ -233,7 +233,7 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
         search_kinds = ["docs", "eidetic", "episodic"]
     elif kind == "all":
         search_kinds = ["docs", "memory", "eidetic", "episodic"]
-    elif kind == "cross-domain":
+    elif kind == "intelligence":
         search_kinds = ["memory", "eidetic", "episodic", "assumptions", "decisions", "goals"]
     else:
         search_kinds = [kind]
