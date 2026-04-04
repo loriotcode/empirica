@@ -11,18 +11,17 @@ This ensures every conversation starts with proper epistemic baseline.
 """
 
 import json
+import sys
+import subprocess
 import os
 import re
 import shutil
-import subprocess
-import sys
-from datetime import datetime
 from pathlib import Path
+from datetime import datetime
 
 # Import shared utilities from plugin lib
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from project_resolver import find_project_root, get_instance_id
-
+from project_resolver import get_instance_id, find_project_root, has_valid_db, _find_git_root  # noqa: E402
 
 def archive_stale_plans() -> list:
     """
@@ -248,7 +247,7 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
             tty_data = {}
             if tty_session_file.exists():
                 try:
-                    with open(tty_session_file) as f:
+                    with open(tty_session_file, 'r') as f:
                         tty_data = json.load(f)
                 except Exception:
                     pass
@@ -290,7 +289,7 @@ def _detect_existing_session(claude_session_id: str, project_root: Path) -> dict
     active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
     if active_work_file.exists():
         try:
-            with open(active_work_file) as f:
+            with open(active_work_file, 'r') as f:
                 data = json.load(f)
             session_id = data.get('empirica_session_id')
             if session_id:
@@ -308,7 +307,7 @@ def _detect_existing_session(claude_session_id: str, project_root: Path) -> dict
     # Scan ALL active_session files — the old WINDOWID's file may still exist
     for as_file in Path.home().glob('.empirica/active_session_*'):
         try:
-            with open(as_file) as f:
+            with open(as_file, 'r') as f:
                 data = json.load(f)
             # Match by project_path — same project means same logical session
             if data.get('project_path') == str(project_root):
@@ -336,7 +335,7 @@ def _detect_existing_session(claude_session_id: str, project_root: Path) -> dict
                 mtime = tx_file.stat().st_mtime
                 if mtime <= best_mtime:
                     continue
-                with open(tx_file) as f:
+                with open(tx_file, 'r') as f:
                     tx_data = json.load(f)
                 if tx_data.get('status') == 'open':
                     best_tx = (tx_file, tx_data, mtime)
@@ -402,6 +401,18 @@ def main():
     # Find project root (uses instance-aware resolution to survive CWD resets)
     # session-init needs CWD and git root fallbacks for first-time projects
     project_root = find_project_root(claude_session_id, allow_cwd_fallback=True, allow_git_root=True)
+
+    # STARTUP OVERRIDE: On fresh sessions, prefer CWD over stale instance files.
+    # Instance files persist from previous sessions and may point to a different
+    # project. On startup, the user explicitly opened Claude Code in a specific
+    # directory — that intent should win. On resume/compact/clear, the instance
+    # file IS authoritative (same session, CWD may have been reset by Claude Code).
+    if event_type == 'startup' and project_root:
+        cwd_root = _find_git_root() or Path.cwd()
+        if cwd_root.resolve() != Path(project_root).resolve():
+            if has_valid_db(cwd_root) or not has_valid_db(Path(project_root)):
+                project_root = cwd_root
+
     os.chdir(project_root)
 
     ai_id = os.getenv('EMPIRICA_AI_ID', 'claude-code')
@@ -420,6 +431,18 @@ def main():
 
     # Archive stale plans (whose goals are complete)
     archived_plans = archive_stale_plans()
+
+    # Version drift detection: compare plugin VERSION with CLI version
+    version_drift_warning = ""
+    try:
+        plugin_version_file = Path(__file__).parent.parent / 'VERSION'
+        if plugin_version_file.exists():
+            plugin_ver = plugin_version_file.read_text().strip()
+            from empirica import __version__ as cli_ver
+            if plugin_ver != cli_ver:
+                version_drift_warning = f"⚠️  Plugin v{plugin_ver} != CLI v{cli_ver}. Run: empirica setup-claude-code --force"
+    except Exception:
+        pass
 
     # RESUME PATH: Detect existing session and update anchor files only
     if is_resume:
@@ -576,12 +599,8 @@ EOF
     try:
         sys.path.insert(0, str(Path.home() / 'empirical-ai' / 'empirica'))
         from empirica.core.context_budget import (
-            ContentType,
-            ContextBudgetManager,
-            ContextItem,
-            InjectionChannel,
-            MemoryZone,
-            estimate_tokens,
+            ContextBudgetManager, ContextItem, MemoryZone, ContentType,
+            InjectionChannel, estimate_tokens,
         )
 
         manager = ContextBudgetManager(
@@ -720,11 +739,12 @@ EOF
     if budget_summary and not budget_summary.get("error"):
         budget_msg = f"\n📊 Budget: {budget_summary.get('tokens_used', 0):,}t used / {budget_summary.get('tokens_available', 0):,}t avail ({budget_summary.get('utilization_pct', 0)}%)"
     dash_msg = f"\n🖥️  {dashboard_status}" if dashboard_status else ""
+    drift_msg = f"\n{version_drift_warning}" if version_drift_warning else ""
     print(f"""
 🚀 Empirica: New Session Initialized
 
 ✅ Session created: {session_id}
-✅ Project context loaded{archive_msg}{budget_msg}{dash_msg}
+✅ Project context loaded{archive_msg}{budget_msg}{dash_msg}{drift_msg}
 
 📋 Run PREFLIGHT to establish baseline, then CHECK before actions.
 """, file=sys.stderr)
