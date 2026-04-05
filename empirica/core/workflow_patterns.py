@@ -378,148 +378,161 @@ def load_transaction_outcomes(db_path: str, limit: int = 50) -> list[Transaction
     return outcomes
 
 
+def _noetic_before_praxic(trace: list[list[str]]) -> int:
+    """Count noetic tools before first praxic tool."""
+    count = 0
+    for entry in trace:
+        if len(entry) >= 3 and entry[2] == 'p':
+            break
+        count += 1
+    return count
+
+
+def _has_grep_before_edit(trace: list[list[str]]) -> bool:
+    """Check if any Grep appears before the first Edit."""
+    seen_grep = False
+    for entry in trace:
+        if entry[0] == 'Grep':
+            seen_grep = True
+        if entry[0] == 'Edit':
+            return seen_grep
+    return False
+
+
+_ARTIFACT_CMDS = {'empirica', 'finding-log', 'unknown-log', 'deadend-log',
+                  'assumption-log', 'decision-log', 'mistake-log'}
+
+
+def _count_artifact_tools(trace: list[list[str]]) -> int:
+    """Count empirica artifact CLI calls."""
+    return sum(1 for e in trace if len(e) >= 2 and e[1] in _ARTIFACT_CMDS)
+
+
+def _analyse_noetic_depth(successful: list, unsuccessful: list,
+                           total: int) -> WorkflowSuggestion | None:
+    """Analysis 1: Do successful transactions investigate more before acting?"""
+    if not successful or not unsuccessful:
+        return None
+    avg_s = sum(_noetic_before_praxic(o.trace) for o in successful) / len(successful)
+    avg_f = sum(_noetic_before_praxic(o.trace) for o in unsuccessful) / max(len(unsuccessful), 1)
+    if avg_s <= avg_f + 1.5:
+        return None
+    effect = avg_s - avg_f
+    return WorkflowSuggestion(
+        suggestion=f"Investigate more before acting — successful transactions average "
+                   f"{avg_s:.1f} noetic tools before first edit, unsuccessful average {avg_f:.1f}",
+        evidence=f"Based on {len(successful)} successful and {len(unsuccessful)} unsuccessful transactions",
+        confidence=min(0.9, 0.4 + (total / 50) * 0.3 + (effect / 10) * 0.2),
+        pattern="noetic-depth-before-praxic",
+        category="investigation",
+    )
+
+
+def _analyse_grep_before_edit(successful: list, unsuccessful: list,
+                               total: int) -> WorkflowSuggestion | None:
+    """Analysis 2: Does searching before editing improve outcomes?"""
+    if not successful or not unsuccessful:
+        return None
+    rate_s = sum(1 for o in successful if _has_grep_before_edit(o.trace)) / len(successful)
+    rate_f = sum(1 for o in unsuccessful if _has_grep_before_edit(o.trace)) / max(len(unsuccessful), 1)
+    if rate_s <= rate_f + 0.2:
+        return None
+    grep_s = sum(1 for o in successful if _has_grep_before_edit(o.trace))
+    grep_f = sum(1 for o in unsuccessful if _has_grep_before_edit(o.trace))
+    return WorkflowSuggestion(
+        suggestion=f"Search before editing — {rate_s:.0%} of successful transactions "
+                   f"include Grep before first Edit vs {rate_f:.0%} of unsuccessful",
+        evidence=f"Grep-before-Edit rate: {grep_s}/{len(successful)} successful, "
+                 f"{grep_f}/{len(unsuccessful)} unsuccessful",
+        confidence=min(0.85, 0.3 + (total / 40) * 0.3 + (rate_s - rate_f) * 0.3),
+        pattern="grep-before-edit",
+        category="investigation",
+    )
+
+
+def _analyse_uncertainty_depth(outcomes: list, min_sample: int) -> WorkflowSuggestion | None:
+    """Analysis 3: When uncertain, do longer transactions succeed more?"""
+    uncertain = [o for o in outcomes if o.pre_uncertainty > 0.4]
+    if len(uncertain) < min_sample:
+        return None
+    uc_success = [o for o in uncertain if o.success]
+    uc_fail = [o for o in uncertain if not o.success]
+    if not uc_success or not uc_fail:
+        return None
+    avg_s = sum(len(o.trace) for o in uc_success) / len(uc_success)
+    avg_f = sum(len(o.trace) for o in uc_fail) / max(len(uc_fail), 1)
+    if avg_s <= avg_f + 3:
+        return None
+    return WorkflowSuggestion(
+        suggestion=f"When uncertain, take more steps — successful uncertain transactions "
+                   f"average {avg_s:.0f} tool calls vs {avg_f:.0f} for unsuccessful",
+        evidence=f"Based on {len(uncertain)} transactions starting with uncertainty > 0.4",
+        confidence=min(0.8, 0.3 + len(uncertain) / 30),
+        pattern="uncertain-transaction-depth",
+        category="timing",
+    )
+
+
+def _analyse_artifact_breadth(successful: list, unsuccessful: list,
+                               total: int) -> WorkflowSuggestion | None:
+    """Analysis 4: Does logging more artifacts correlate with success?"""
+    if not successful or not unsuccessful:
+        return None
+    avg_s = sum(_count_artifact_tools(o.trace) for o in successful) / len(successful)
+    avg_f = sum(_count_artifact_tools(o.trace) for o in unsuccessful) / max(len(unsuccessful), 1)
+    if avg_s <= avg_f + 0.5:
+        return None
+    return WorkflowSuggestion(
+        suggestion=f"Log more artifacts — successful transactions average "
+                   f"{avg_s:.1f} epistemic logs vs {avg_f:.1f} in unsuccessful",
+        evidence="Artifact types: findings, unknowns, dead-ends, assumptions, decisions",
+        confidence=min(0.75, 0.3 + total / 40),
+        pattern="artifact-breadth-correlation",
+        category="artifact",
+    )
+
+
+def _analyse_calibration_correlation(outcomes: list) -> WorkflowSuggestion | None:
+    """Analysis 5: Does investigation depth improve calibration?"""
+    well = [o for o in outcomes if o.calibration_score < 0.3]
+    poor = [o for o in outcomes if o.calibration_score >= 0.5]
+    if len(well) < 2 or len(poor) < 2:
+        return None
+    avg_good = sum(_noetic_before_praxic(o.trace) for o in well) / len(well)
+    avg_bad = sum(_noetic_before_praxic(o.trace) for o in poor) / len(poor)
+    if avg_good <= avg_bad + 1:
+        return None
+    return WorkflowSuggestion(
+        suggestion=f"More investigation improves calibration — well-calibrated transactions "
+                   f"average {avg_good:.1f} noetic tools vs {avg_bad:.1f} for poorly calibrated",
+        evidence=f"Based on {len(well)} well-calibrated (score < 0.3) and "
+                 f"{len(poor)} poorly calibrated (score >= 0.5) transactions",
+        confidence=min(0.85, 0.4 + len(outcomes) / 30),
+        pattern="investigation-calibration-correlation",
+        category="verification",
+    )
+
+
 def generate_suggestions(outcomes: list[TransactionOutcome],
                          min_sample: int = 3) -> list[WorkflowSuggestion]:
-    """Generate workflow suggestions by correlating patterns with outcomes.
-
-    Analyses:
-    1. Patterns in successful vs unsuccessful transactions
-    2. Patterns correlated with low uncertainty (pre→post)
-    3. Patterns correlated with better calibration
-    4. Phase ordering insights (noetic-first vs praxic-first)
-    """
+    """Generate workflow suggestions by correlating patterns with outcomes."""
     if len(outcomes) < min_sample:
         return []
 
-    suggestions: list[WorkflowSuggestion] = []
-
-    # Split into successful and unsuccessful
     successful = [o for o in outcomes if o.success]
     unsuccessful = [o for o in outcomes if not o.success]
+    total = len(outcomes)
 
-    # --- Analysis 1: Noetic depth before praxic ---
-    # Do successful transactions have more noetic tools before first praxic?
-    def noetic_before_praxic(trace: list[list[str]]) -> int:
-        """Count noetic tools before first praxic tool."""
-        count = 0
-        for entry in trace:
-            if len(entry) >= 3 and entry[2] == 'p':
-                break
-            count += 1
-        return count
+    # Run all analyses, collect non-None results
+    analyses = [
+        _analyse_noetic_depth(successful, unsuccessful, total),
+        _analyse_grep_before_edit(successful, unsuccessful, total),
+        _analyse_uncertainty_depth(outcomes, min_sample),
+        _analyse_artifact_breadth(successful, unsuccessful, total),
+        _analyse_calibration_correlation(outcomes),
+    ]
 
-    if successful and unsuccessful:
-        avg_noetic_success = sum(noetic_before_praxic(o.trace) for o in successful) / len(successful)
-        avg_noetic_fail = sum(noetic_before_praxic(o.trace) for o in unsuccessful) / max(len(unsuccessful), 1)
-
-        if avg_noetic_success > avg_noetic_fail + 1.5:
-            effect = avg_noetic_success - avg_noetic_fail
-            confidence = min(0.9, 0.4 + (len(outcomes) / 50) * 0.3 + (effect / 10) * 0.2)
-            suggestions.append(WorkflowSuggestion(
-                suggestion=f"Investigate more before acting — successful transactions average "
-                           f"{avg_noetic_success:.1f} noetic tools before first edit, "
-                           f"unsuccessful average {avg_noetic_fail:.1f}",
-                evidence=f"Based on {len(successful)} successful and {len(unsuccessful)} unsuccessful transactions",
-                confidence=confidence,
-                pattern="noetic-depth-before-praxic",
-                category="investigation",
-            ))
-
-    # --- Analysis 2: Grep before Edit correlation ---
-    def has_grep_before_edit(trace: list[list[str]]) -> bool:
-        """Check if any Grep appears before the first Edit."""
-        seen_grep = False
-        for entry in trace:
-            if entry[0] == 'Grep':
-                seen_grep = True
-            if entry[0] == 'Edit':
-                return seen_grep
-        return False
-
-    grep_before_success = sum(1 for o in successful if has_grep_before_edit(o.trace)) if successful else 0
-    grep_before_fail = sum(1 for o in unsuccessful if has_grep_before_edit(o.trace)) if unsuccessful else 0
-
-    if successful and unsuccessful:
-        rate_success = grep_before_success / max(len(successful), 1)
-        rate_fail = grep_before_fail / max(len(unsuccessful), 1)
-        if rate_success > rate_fail + 0.2:
-            confidence = min(0.85, 0.3 + (len(outcomes) / 40) * 0.3 + (rate_success - rate_fail) * 0.3)
-            suggestions.append(WorkflowSuggestion(
-                suggestion=f"Search before editing — {rate_success:.0%} of successful transactions "
-                           f"include Grep before first Edit vs {rate_fail:.0%} of unsuccessful",
-                evidence=f"Grep-before-Edit rate: {grep_before_success}/{len(successful)} successful, "
-                         f"{grep_before_fail}/{len(unsuccessful)} unsuccessful",
-                confidence=confidence,
-                pattern="grep-before-edit",
-                category="investigation",
-            ))
-
-    # --- Analysis 3: Uncertainty-correlated patterns ---
-    # When starting uncertain (pre_uncertainty > 0.4), which patterns lead to completion?
-    uncertain_starts = [o for o in outcomes if o.pre_uncertainty > 0.4]
-    if len(uncertain_starts) >= min_sample:
-        uncertain_success = [o for o in uncertain_starts if o.success]
-        uncertain_fail = [o for o in uncertain_starts if not o.success]
-
-        if uncertain_success and uncertain_fail:
-            # Compare trace lengths
-            avg_len_success = sum(len(o.trace) for o in uncertain_success) / len(uncertain_success)
-            avg_len_fail = sum(len(o.trace) for o in uncertain_fail) / max(len(uncertain_fail), 1)
-
-            if avg_len_success > avg_len_fail + 3:
-                suggestions.append(WorkflowSuggestion(
-                    suggestion=f"When uncertain, take more steps — successful uncertain transactions "
-                               f"average {avg_len_success:.0f} tool calls vs {avg_len_fail:.0f} for unsuccessful",
-                    evidence=f"Based on {len(uncertain_starts)} transactions starting with uncertainty > 0.4",
-                    confidence=min(0.8, 0.3 + len(uncertain_starts) / 30),
-                    pattern="uncertain-transaction-depth",
-                    category="timing",
-                ))
-
-    # --- Analysis 4: Artifact logging correlation ---
-    def count_artifact_tools(trace: list[list[str]]) -> int:
-        """Count empirica artifact CLI calls (finding-log, unknown-log, etc.)."""
-        artifact_cmds = {'empirica', 'finding-log', 'unknown-log', 'deadend-log',
-                         'assumption-log', 'decision-log', 'mistake-log'}
-        return sum(1 for e in trace if len(e) >= 2 and e[1] in artifact_cmds)
-
-    if successful and unsuccessful:
-        avg_artifacts_success = sum(count_artifact_tools(o.trace) for o in successful) / len(successful)
-        avg_artifacts_fail = sum(count_artifact_tools(o.trace) for o in unsuccessful) / max(len(unsuccessful), 1)
-
-        if avg_artifacts_success > avg_artifacts_fail + 0.5:
-            suggestions.append(WorkflowSuggestion(
-                suggestion=f"Log more artifacts — successful transactions average "
-                           f"{avg_artifacts_success:.1f} epistemic logs vs "
-                           f"{avg_artifacts_fail:.1f} in unsuccessful",
-                evidence="Artifact types: findings, unknowns, dead-ends, assumptions, decisions",
-                confidence=min(0.75, 0.3 + len(outcomes) / 40),
-                pattern="artifact-breadth-correlation",
-                category="artifact",
-            ))
-
-    # --- Analysis 5: Calibration improvement patterns ---
-    # Which patterns appear in well-calibrated transactions (score < 0.3)?
-    well_calibrated = [o for o in outcomes if o.calibration_score < 0.3]
-    poorly_calibrated = [o for o in outcomes if o.calibration_score >= 0.5]
-
-    if len(well_calibrated) >= 2 and len(poorly_calibrated) >= 2:
-        # Check if well-calibrated transactions have longer noetic phases
-        avg_noetic_good = sum(noetic_before_praxic(o.trace) for o in well_calibrated) / len(well_calibrated)
-        avg_noetic_bad = sum(noetic_before_praxic(o.trace) for o in poorly_calibrated) / len(poorly_calibrated)
-
-        if avg_noetic_good > avg_noetic_bad + 1:
-            suggestions.append(WorkflowSuggestion(
-                suggestion=f"More investigation improves calibration — well-calibrated transactions "
-                           f"average {avg_noetic_good:.1f} noetic tools vs {avg_noetic_bad:.1f} for poorly calibrated",
-                evidence=f"Based on {len(well_calibrated)} well-calibrated (score < 0.3) and "
-                         f"{len(poorly_calibrated)} poorly calibrated (score >= 0.5) transactions",
-                confidence=min(0.85, 0.4 + len(outcomes) / 30),
-                pattern="investigation-calibration-correlation",
-                category="verification",
-            ))
-
-    # Sort by confidence descending
+    suggestions = [s for s in analyses if s is not None]
     suggestions.sort(key=lambda s: -s.confidence)
     return suggestions
 
