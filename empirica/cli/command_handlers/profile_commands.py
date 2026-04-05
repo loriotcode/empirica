@@ -491,16 +491,44 @@ def handle_profile_prune_command(args):
         dry_run = getattr(args, 'dry_run', False)
         output_format = getattr(args, 'output', 'json')
 
+        scope = getattr(args, 'scope', None)
+
+        # Memory scope: prune stale CC memory files
+        if scope == 'memory':
+            from empirica.core.memory_manager import demote_stale_memories
+            stale_days = int(older_than) if older_than else 30
+            archived = demote_stale_memories(stale_days=stale_days, dry_run=dry_run)
+            result = {
+                "ok": True,
+                "scope": "memory",
+                "dry_run": dry_run,
+                "archived": archived,
+                "count": len(archived),
+                "stale_days": stale_days,
+            }
+            if output_format == 'json':
+                print(json.dumps(result, indent=2))
+            else:
+                if archived:
+                    action = "Would archive" if dry_run else "Archived"
+                    print(f"{action} {len(archived)} stale memory files (>{stale_days} days):")
+                    for f in archived:
+                        print(f"  {f}")
+                else:
+                    print(f"No stale promoted memory files older than {stale_days} days.")
+            return 0
+
         if not rule and not artifact_id:
             result = {
                 "ok": False,
-                "error": "Specify --rule for rule-based pruning or --artifact-id for specific artifact pruning",
+                "error": "Specify --rule for rule-based pruning, --artifact-id for specific artifact, or --scope memory for CC memory files",
                 "available_rules": [
                     'stale-resolved-unknowns',
                     'test-transactions',
                     'low-impact-findings',
                     'old-dead-ends',
                 ],
+                "available_scopes": ['memory'],
             }
             print(json.dumps(result, indent=2))
             return 1

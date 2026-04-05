@@ -81,6 +81,10 @@ def add_profile_parsers(subparsers):
         help='Only prune artifacts older than N days'
     )
     prune_parser.add_argument(
+        '--scope', choices=['memory'],
+        help='Prune scope: "memory" archives stale CC memory files (promoted_*.md)'
+    )
+    prune_parser.add_argument(
         '--dry-run', action='store_true',
         help='Show what would be pruned without actually removing anything'
     )

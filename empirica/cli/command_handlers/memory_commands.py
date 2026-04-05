@@ -584,6 +584,30 @@ def handle_memory_report_command(args):
 
             print("=" * 60)
 
+        # CC Memory Layer Stats
+        try:
+            from empirica.core.memory_manager import get_memory_stats
+            mem_stats = get_memory_stats()
+            if 'error' not in mem_stats:
+                if args.output == 'json':
+                    result['cc_memory'] = mem_stats
+                else:
+                    print("\n📁 Claude Code Memory Layer")
+                    print("-" * 60)
+                    print(f"  Memory dir:  {mem_stats.get('memory_dir', 'N/A')}")
+                    print(f"  Files:       {mem_stats.get('file_count', 0)} ({mem_stats.get('total_size_bytes', 0) // 1024}KB)")
+                    print(f"  MEMORY.md:   {mem_stats.get('memory_md_lines', 0)} lines (cap: 200)")
+                    has_auto = mem_stats.get('memory_md_has_auto_section', False)
+                    auto_lines = mem_stats.get('auto_section_lines', 0)
+                    print(f"  Auto section: {'Yes' if has_auto else 'No'} ({auto_lines} lines)")
+                    promoted = [f for f in mem_stats.get('files', []) if f['name'].startswith('promoted_')]
+                    manual = [f for f in mem_stats.get('files', []) if not f['name'].startswith('promoted_')]
+                    print(f"  Manual files: {len(manual)}")
+                    print(f"  Promoted:    {len(promoted)}")
+                    print("=" * 60)
+        except Exception:
+            pass  # CC memory stats are optional enrichment
+
         return None  # Avoid cli_core.py double-printing
 
     except Exception as e:
