@@ -354,25 +354,25 @@ def handle_project_init_command(args):
             print(f"\n🆔 Project ID: {project_id}")
             print(f"📦 Project Name: {project_name}")
             if enable_beads:
-                print(f"🔗 BEADS: Enabled by default")
+                print("🔗 BEADS: Enabled by default")
 
             print("\n📋 Next steps:")
             if enable_beads:
                 print("   1. Initialize BEADS issue tracking:")
-                print(f"      bd init")
+                print("      bd init")
                 print("   2. Create your first session:")
-                print(f"      empirica session-create --ai-id myai")
+                print("      empirica session-create --ai-id myai")
                 print("   3. Create goals (BEADS will auto-link):")
-                print(f"      empirica goals-create --objective '...' --success-criteria '...'")
+                print("      empirica goals-create --objective '...' --success-criteria '...'")
             else:
                 print("   1. Create your first session:")
-                print(f"      empirica session-create --ai-id myai")
+                print("      empirica session-create --ai-id myai")
                 print("   2. Start working with epistemic tracking:")
-                print(f"      empirica preflight-submit <assessment.json>")
+                print("      empirica preflight-submit <assessment.json>")
 
             if create_semantic_index:
-                print(f"\n📖 Semantic index template created!")
-                print(f"   Edit docs/SEMANTIC_INDEX.yaml to add your documentation metadata")
+                print("\n📖 Semantic index template created!")
+                print("   Edit docs/SEMANTIC_INDEX.yaml to add your documentation metadata")
 
         # Return result dict for programmatic use (e.g., auto-init)
         return {

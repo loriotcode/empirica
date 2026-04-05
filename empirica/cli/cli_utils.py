@@ -212,7 +212,7 @@ def parse_json_safely(json_string: str | None, default: dict = None) -> dict[str
                 return json.loads(fixed_json)
             except json.JSONDecodeError:
                 safe_print(f"⚠️ JSON parsing error: {e}")
-                safe_print(f"   Error details: Invalid \\escape in JSON string")
+                safe_print("   Error details: Invalid \\escape in JSON string")
                 return default or {}
 
 
@@ -357,7 +357,7 @@ def print_project_context(quiet: bool = False, verbose: bool = False) -> dict[st
         project_yaml = git_root / '.empirica' / 'project.yaml'
         if not project_yaml.exists():
             if not quiet:
-                safe_print(f"⚠️  No .empirica/project.yaml - run 'empirica project-init'")
+                safe_print("⚠️  No .empirica/project.yaml - run 'empirica project-init'")
             return None
 
         # Load project config

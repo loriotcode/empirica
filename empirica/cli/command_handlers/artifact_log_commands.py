@@ -652,14 +652,14 @@ def handle_finding_log_command(args):
             print(json.dumps(result, indent=2))
         else:
             # Human-readable output (legacy)
-            print(f"✅ Finding logged successfully")
+            print("✅ Finding logged successfully")
             print(f"   Finding ID: {finding_id}")
             if project_id:
                 print(f"   Project: {project_id[:8]}...")
             if git_stored:
-                print(f"   📝 Stored in git notes for sync")
+                print("   📝 Stored in git notes for sync")
             if embedded:
-                print(f"   🔍 Auto-embedded for semantic search")
+                print("   🔍 Auto-embedded for semantic search")
             if decayed_lessons:
                 print(f"   🛡️ IMMUNE: Decayed {len(decayed_lessons)} related lesson(s)")
                 for dl in decayed_lessons:
@@ -790,14 +790,14 @@ def handle_unknown_log_command(args):
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"✅ Unknown logged successfully")
+            print("✅ Unknown logged successfully")
             print(f"   Unknown ID: {unknown_id}")
             if project_id:
                 print(f"   Project: {project_id[:8]}...")
             if git_stored:
-                print(f"   📝 Stored in git notes for sync")
+                print("   📝 Stored in git notes for sync")
             if embedded:
-                print(f"   🔍 Auto-embedded for semantic search")
+                print("   🔍 Auto-embedded for semantic search")
 
         return 0  # Success
 
@@ -842,7 +842,7 @@ def handle_unknown_resolve_command(args):
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"✅ Unknown resolved successfully")
+            print("✅ Unknown resolved successfully")
             print(f"   Unknown ID: {unknown_id[:8]}...")
             print(f"   Resolved by: {resolved_by}")
 
@@ -1093,14 +1093,14 @@ def handle_deadend_log_command(args):
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"✅ Dead end logged successfully")
+            print("✅ Dead end logged successfully")
             print(f"   Dead End ID: {dead_end_id[:8]}...")
             if project_id:
                 print(f"   Project: {project_id[:8]}...")
             if git_stored:
-                print(f"   📝 Stored in git notes for sync")
+                print("   📝 Stored in git notes for sync")
             if embedded:
-                print(f"   🔍 Auto-embedded for semantic search")
+                print("   🔍 Auto-embedded for semantic search")
 
         return 0  # Success
 
@@ -1207,7 +1207,7 @@ def handle_assumption_log_command(args):
             print(f"Assumption logged: {assumption_id[:8]}...")
             print(f"   Confidence: {confidence}")
             if embedded:
-                print(f"   Stored in Qdrant")
+                print("   Stored in Qdrant")
 
         return 0
 
@@ -1336,7 +1336,7 @@ def handle_decision_log_command(args):
             print(f"   Alternatives: {', '.join(alternatives_list) if alternatives_list else 'none'}")
             print(f"   Reversibility: {reversibility}")
             if embedded:
-                print(f"   Stored in Qdrant")
+                print("   Stored in Qdrant")
 
         return 0
 
@@ -1386,7 +1386,7 @@ def handle_refdoc_add_command(args):
             }
             print(json.dumps(result, indent=2))
         else:
-            print(f"✅ Reference doc added successfully")
+            print("✅ Reference doc added successfully")
             print(f"   Doc ID: {doc_id}")
             print(f"   Path: {doc_path}")
 

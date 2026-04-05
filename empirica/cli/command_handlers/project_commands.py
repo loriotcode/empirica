@@ -622,7 +622,7 @@ def handle_project_create_command(args):
                 result["filesystem_init"] = init_result
             print(json.dumps(result, indent=2))
         else:
-            print(f"✅ Project created successfully")
+            print("✅ Project created successfully")
             print(f"   Project ID: {project_id}")
             print(f"   Name: {name}")
             print(f"   Type: {project_type or 'product'}")
@@ -688,10 +688,10 @@ def handle_project_handoff_command(args):
             }
             print(json.dumps(result, indent=2))
         else:
-            print(f"✅ Project handoff created successfully")
+            print("✅ Project handoff created successfully")
             print(f"   Handoff ID: {handoff_id}")
             print(f"   Project: {project_id[:8]}...")
-            print(f"\n📊 Total Learning Deltas:")
+            print("\n📊 Total Learning Deltas:")
             for vector, delta in total_deltas.items():
                 if delta != 0:
                     sign = "+" if delta > 0 else ""
@@ -976,7 +976,7 @@ def handle_project_switch_command(args):
                             ))
                             target_conn.commit()
                             if output_format == 'human':
-                                print(f"📎 Session mirrored to target project database")
+                                print("📎 Session mirrored to target project database")
                         else:
                             # Session exists but may have wrong project_id — update it
                             target_cursor.execute(
@@ -1041,7 +1041,7 @@ def handle_project_switch_command(args):
                         ))
                         target_conn.commit()
                         if output_format == 'human':
-                            print(f"📦 Project record created in local database")
+                            print("📦 Project record created in local database")
                     target_conn.close()
             except Exception as e3:
                 logger.debug(f"Local projects table population failed (non-fatal): {e3}")
@@ -1167,7 +1167,7 @@ def handle_project_switch_command(args):
 
             # Suggest running bootstrap in project directory for full context
             if project_path and project_path.exists():
-                print(f"💡 For full context, run in project directory:")
+                print("💡 For full context, run in project directory:")
                 print(f"   cd {project_path} && empirica project-bootstrap")
                 print()
 

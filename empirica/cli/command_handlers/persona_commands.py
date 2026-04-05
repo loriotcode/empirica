@@ -187,7 +187,7 @@ def handle_persona_promote_command(args):
 
         result = {
             "ok": True,
-            "message": f"Promoted persona to MCO",
+            "message": "Promoted persona to MCO",
             "persona_id": persona.persona_id,
             "mco_path": str(mco_path)
         }

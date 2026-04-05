@@ -164,15 +164,15 @@ def handle_mistake_log_command(args):
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"✅ Mistake logged successfully")
+            print("✅ Mistake logged successfully")
             print(f"   Mistake ID: {mistake_id[:8]}...")
             print(f"   Session: {session_id[:8]}...")
             if project_id:
                 print(f"   Project: {project_id[:8]}...")
             if git_stored:
-                print(f"   📝 Stored in git notes for sync")
+                print("   📝 Stored in git notes for sync")
             if embedded:
-                print(f"   🔍 Auto-embedded for semantic search")
+                print("   🔍 Auto-embedded for semantic search")
             if root_cause_vector:
                 print(f"   Root cause: {root_cause_vector} vector")
             if cost_estimate:

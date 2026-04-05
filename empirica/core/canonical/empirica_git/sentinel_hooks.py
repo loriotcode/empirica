@@ -416,7 +416,7 @@ class SentinelHooks:
                     # LOOPING CONTROL: If looping is disabled, convert INVESTIGATE to PROCEED
                     if decision_type == SentinelDecision.INVESTIGATE and not cls.is_looping_enabled():
                         logger.info(
-                            f"🔄 Sentinel: INVESTIGATE suppressed (looping disabled) → PROCEED"
+                            "🔄 Sentinel: INVESTIGATE suppressed (looping disabled) → PROCEED"
                         )
                         cls._state.last_decision = SentinelDecision.PROCEED
                         return SentinelDecision.PROCEED

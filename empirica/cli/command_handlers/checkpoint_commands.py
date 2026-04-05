@@ -74,7 +74,7 @@ def handle_checkpoint_create_command(args):
                 metadata = json.loads(args.metadata)
             except json.JSONDecodeError:
                 logger.warning("Invalid JSON metadata provided, ignoring")
-                print(f"⚠️  Invalid JSON metadata, ignoring")
+                print("⚠️  Invalid JSON metadata, ignoring")
 
         # Get current vectors from session database
         db = SessionDatabase()
@@ -91,7 +91,7 @@ def handle_checkpoint_create_command(args):
         except Exception as e:
             logger.warning(f"Could not load vectors from session: {e}")
             print(f"⚠️  Could not load vectors from session: {e}")
-            print(f"   Creating checkpoint with empty vectors")
+            print("   Creating checkpoint with empty vectors")
 
         finally:
             db.close()
@@ -110,12 +110,12 @@ def handle_checkpoint_create_command(args):
         )
 
         logger.info(f"Checkpoint created: {checkpoint_id} (phase={phase}, round={round_num})")
-        print(f"✅ Checkpoint created successfully")
+        print("✅ Checkpoint created successfully")
         print(f"   ID: {checkpoint_id}")
         print(f"   Phase: {phase}")
         print(f"   Round: {round_num}")
         print(f"   Storage: {'git notes' if git_logger.git_available else 'SQLite fallback'}")
-        print(f"   Estimated tokens: ~450 (~85% reduction vs typical context)")
+        print("   Estimated tokens: ~450 (~85% reduction vs typical context)")
 
     except Exception as e:
         logger.error(f"Failed to create checkpoint: {e}", exc_info=True)
@@ -169,7 +169,7 @@ def handle_checkpoint_load_command(args):
             print(json.dumps(checkpoint, indent=2))
         else:
             # Table format
-            print(f"✅ Checkpoint loaded successfully\n")
+            print("✅ Checkpoint loaded successfully\n")
             print(f"Session ID:   {session_id}")
             print(f"Checkpoint:   {checkpoint.get('checkpoint_id', 'N/A')}")
             print(f"Phase:        {checkpoint['phase']}")
@@ -179,7 +179,7 @@ def handle_checkpoint_load_command(args):
             print(f"Token count:  {checkpoint.get('token_count', 'N/A')}")
 
             # Show vectors
-            print(f"\nEpistemic Vectors:")
+            print("\nEpistemic Vectors:")
             vectors = checkpoint.get('vectors', {})
             for key, value in sorted(vectors.items()):
                 thresholds = _get_checkpoint_profile_thresholds()
@@ -188,7 +188,7 @@ def handle_checkpoint_load_command(args):
 
             # Show metadata if present
             if checkpoint.get('metadata'):
-                print(f"\nMetadata:")
+                print("\nMetadata:")
                 for key, value in checkpoint['metadata'].items():
                     print(f"  {key}: {value}")
 
@@ -196,7 +196,7 @@ def handle_checkpoint_load_command(args):
             baseline = 6500  # Typical full history
             saved = baseline - checkpoint.get('token_count', 450)
             reduction = (saved / baseline) * 100
-            print(f"\nToken Efficiency:")
+            print("\nToken Efficiency:")
             print(f"  Baseline:   {baseline} tokens")
             print(f"  Actual:     {checkpoint.get('token_count', 450)} tokens")
             print(f"  Reduction:  {reduction:.1f}%")
@@ -309,8 +309,8 @@ def handle_checkpoint_diff_command(args):
 
         if not last_checkpoint:
             logger.info("No checkpoint found for comparison")
-            print(f"⚠️  No checkpoint found for comparison")
-            print(f"   Create a checkpoint first with: empirica checkpoint-create")
+            print("⚠️  No checkpoint found for comparison")
+            print("   Create a checkpoint first with: empirica checkpoint-create")
             return
 
         # Prepare result for output
@@ -355,7 +355,7 @@ def handle_checkpoint_diff_command(args):
 
         # Show metadata
         if last_checkpoint.get('metadata'):
-            print(f"\nMetadata:")
+            print("\nMetadata:")
             for key, value in last_checkpoint['metadata'].items():
                 print(f"  {key}: {value}")
 
@@ -404,7 +404,7 @@ def handle_efficiency_report_command(args):
             reduction = total.get("reduction_percentage", 0)
             savings = total.get("cost_savings_usd", 0)
 
-            print(f"\n📊 Efficiency Summary:")
+            print("\n📊 Efficiency Summary:")
             print(f"   Baseline tokens:  {total.get('baseline_tokens', 'N/A')}")
             print(f"   Actual tokens:    {total.get('actual_tokens', 'N/A')}")
             print(f"   Reduction:        {reduction:.1f}%")

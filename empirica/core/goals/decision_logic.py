@@ -213,16 +213,16 @@ def format_decision_for_ai(decision: GoalDecision) -> str:
     This is GUIDANCE for AI, not a command.
     """
     output = [
-        f"📊 Goal Creation Decision:",
-        f"",
-        f"Assessment:",
+        "📊 Goal Creation Decision:",
+        "",
+        "Assessment:",
         f"  • Clarity: {decision.clarity_score:.2f}",
         f"  • Signal: {decision.signal_score:.2f}",
         f"  • Know: {decision.know_score:.2f}",
         f"  • Context: {decision.context_score:.2f}",
-        f"",
+        "",
         f"Reasoning: {decision.reasoning}",
-        f"",
+        "",
         f"Suggested Action: {decision.suggested_action.upper()}",
     ]
 
@@ -231,10 +231,10 @@ def format_decision_for_ai(decision: GoalDecision) -> str:
         if focus:
             output.append(f"  → Investigation Focus: {focus}")
 
-    output.append(f"")
+    output.append("")
     output.append(f"Confidence in Decision: {decision.confidence:.2f}")
-    output.append(f"")
-    output.append(f"Note: This is guidance. AI can override based on context.")
+    output.append("")
+    output.append("Note: This is guidance. AI can override based on context.")
 
     return "\n".join(output)
 

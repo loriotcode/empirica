@@ -265,7 +265,7 @@ def handle_sync_config_command(args):
             if key == 'provider' and value not in ('github', 'gitlab', 'forgejo', 'gitea', 'bitbucket', 'auto', 'other'):
                 result = {
                     "ok": False,
-                    "error": f"provider must be one of: github, gitlab, forgejo, gitea, bitbucket, auto, other"
+                    "error": "provider must be one of: github, gitlab, forgejo, gitea, bitbucket, auto, other"
                 }
                 print(json.dumps(result, indent=2))
                 return 1
@@ -334,7 +334,7 @@ def handle_sync_config_command(args):
 
             # Show available remotes
             if all_remotes and len(all_remotes) > 1:
-                print(f"\n   Available remotes:")
+                print("\n   Available remotes:")
                 for name, url in all_remotes.items():
                     marker = "→" if name == current_remote else " "
                     print(f"   {marker} {name}: {url}")
@@ -345,7 +345,7 @@ def handle_sync_config_command(args):
             notes_remote = sync_config.get('notes_remote', current_remote)
             code_remote = sync_config.get('code_remote', 'origin')
             if notes_remote != code_remote:
-                print(f"\n   Dual-remote mode:")
+                print("\n   Dual-remote mode:")
                 print(f"      Code:  {code_remote} (public)")
                 print(f"      Notes: {notes_remote} (private)")
 
@@ -411,19 +411,19 @@ def handle_sync_push_command(args):
                 "remote": remote,
                 "remote_url": remote_url,
                 "hint": (
-                    f"Notes contain private epistemic data (findings, mistakes, messages). "
-                    f"Use a private remote: 'empirica sync-config remote forgejo' or "
-                    f"'empirica sync-config notes_remote <private-remote>'. "
-                    f"Use --force to override."
+                    "Notes contain private epistemic data (findings, mistakes, messages). "
+                    "Use a private remote: 'empirica sync-config remote forgejo' or "
+                    "'empirica sync-config notes_remote <private-remote>'. "
+                    "Use --force to override."
                 )
             }
             if output_format == 'json':
                 print(json.dumps(result, indent=2))
             else:
                 print(f"BLOCKED: Won't push notes to {detected} ({remote_url})")
-                print(f"   Notes contain private epistemic data.")
-                print(f"   Set a private remote: empirica sync-config remote forgejo")
-                print(f"   Or use --force to override.")
+                print("   Notes contain private epistemic data.")
+                print("   Set a private remote: empirica sync-config remote forgejo")
+                print("   Or use --force to override.")
             return 1
 
         # Count local notes
@@ -629,7 +629,7 @@ def handle_sync_pull_command(args):
                 else:
                     print("   No changes (already up to date)")
                 if rebuild and 'rebuild' in result:
-                    print(f"   🔄 Rebuilt SQLite from notes")
+                    print("   🔄 Rebuilt SQLite from notes")
             else:
                 print(f"❌ Pull failed from {remote}")
                 for err in errors:
@@ -669,18 +669,18 @@ def handle_sync_status_command(args):
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"📊 Empirica Sync Status")
+            print("📊 Empirica Sync Status")
             print(f"   Remote: {remote} ({'configured' if remote_configured else 'NOT configured'})")
             print(f"   Local refs with data: {refs_with_data}")
             print(f"   Total notes: {total_notes}")
             if local_counts:
-                print(f"\n   Note counts:")
+                print("\n   Note counts:")
                 for ref, count in sorted(local_counts.items()):
                     if count > 0:
                         print(f"      refs/notes/{ref}: {count}")
 
             if not remote_configured:
-                print(f"\n   ⚠️ No remote configured. Run 'git remote add origin <url>' to enable sync.")
+                print("\n   ⚠️ No remote configured. Run 'git remote add origin <url>' to enable sync.")
 
         return 0
 
@@ -948,7 +948,7 @@ def handle_rebuild_command(args):
                     if type_name != 'error' and count > 0:
                         print(f"   {type_name}: {count}")
                 if qdrant and 'qdrant' in result:
-                    print(f"   🔍 Qdrant: rebuilt")
+                    print("   🔍 Qdrant: rebuilt")
             else:
                 print(f"❌ Rebuild failed: {rebuild_result.get('error', 'Unknown error')}")
 

@@ -242,7 +242,7 @@ def handle_issue_show_command(args):
                     print("... (truncated)")
 
             if issue['context']:
-                print(f"\nContext:")
+                print("\nContext:")
                 try:
                     ctx = json.loads(issue['context']) if isinstance(issue['context'], str) else issue['context']
                     for key, value in ctx.items():
@@ -430,7 +430,7 @@ def handle_issue_stats_command(args):
             print(json.dumps(result))
         else:
             print(f"\n{'='*80}")
-            print(f"📊 ISSUE CAPTURE STATISTICS")
+            print("📊 ISSUE CAPTURE STATISTICS")
             print(f"{'='*80}\n")
 
             for key, value in stats.items():

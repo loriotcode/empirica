@@ -133,7 +133,7 @@ def handle_sessions_list_command(args):
         if len(sessions) >= 50 and not hasattr(args, 'limit'):
             print("💡 Showing 50 most recent sessions. Use --limit to see more.")
 
-        print(f"💡 View details: empirica sessions show <session_id>")
+        print("💡 View details: empirica sessions show <session_id>")
 
         db.close()
 
@@ -168,7 +168,7 @@ def handle_sessions_show_command(args):
             else:
                 print(f"\n❌ {str(e)}")
                 print(f"💡 Provided: {session_id_arg}")
-                print(f"💡 List sessions with: empirica sessions-list")
+                print("💡 List sessions with: empirica sessions-list")
             return
 
         db = SessionDatabase()  # Use path resolver
@@ -182,7 +182,7 @@ def handle_sessions_show_command(args):
                 print(json.dumps({"ok": False, "error": f"Session not found: {session_id_arg}"}))
             else:
                 print(f"\n❌ Session not found: {session_id_arg}")
-                print(f"💡 List sessions with: empirica sessions list")
+                print("💡 List sessions with: empirica sessions list")
             db.close()
             return
 
@@ -201,7 +201,7 @@ def handle_sessions_show_command(args):
         if summary.get('end_time'):
             print(f"🏁 Ended: {summary['end_time']}")
         else:
-            print(f"⏳ Status: Active")
+            print("⏳ Status: Active")
 
         # Cascades
         print(f"\n🔄 Total Cascades: {summary['total_cascades']}")
@@ -210,7 +210,7 @@ def handle_sessions_show_command(args):
 
         # Show cascade tasks
         if args.verbose and isinstance(summary.get('cascades'), list):
-            print(f"\n📋 Cascade Tasks:")
+            print("\n📋 Cascade Tasks:")
             for i, cascade in enumerate(summary['cascades'][:10], 1):
                 if isinstance(cascade, dict):
                     task = cascade.get('task', 'Unknown')
@@ -226,57 +226,57 @@ def handle_sessions_show_command(args):
 
         # Epistemic vectors (preflight)
         if summary.get('preflight'):
-            print(f"\n🚀 Preflight Epistemic State:")
+            print("\n🚀 Preflight Epistemic State:")
             vectors = summary['preflight']
             print(f"   • KNOW:    {vectors.get('know', 0.5):.2f}")
             print(f"   • DO:      {vectors.get('do', 0.5):.2f}")
             print(f"   • CONTEXT: {vectors.get('context', 0.5):.2f}")
 
             if args.verbose:
-                print(f"\n   Comprehension:")
+                print("\n   Comprehension:")
                 print(f"   • CLARITY:   {vectors.get('clarity', 0.5):.2f}")
                 print(f"   • COHERENCE: {vectors.get('coherence', 0.5):.2f}")
                 print(f"   • SIGNAL:    {vectors.get('signal', 0.5):.2f}")
                 print(f"   • DENSITY:   {vectors.get('density', 0.5):.2f}")
 
-                print(f"\n   Execution:")
+                print("\n   Execution:")
                 print(f"   • STATE:      {vectors.get('state', 0.5):.2f}")
                 print(f"   • CHANGE:     {vectors.get('change', 0.5):.2f}")
                 print(f"   • COMPLETION: {vectors.get('completion', 0.5):.2f}")
                 print(f"   • IMPACT:     {vectors.get('impact', 0.5):.2f}")
 
-                print(f"\n   Meta-Cognitive:")
+                print("\n   Meta-Cognitive:")
                 print(f"   • ENGAGEMENT:  {vectors.get('engagement', 0.5):.2f}")
                 print(f"   • UNCERTAINTY: {vectors.get('uncertainty', 0.5):.2f}")
 
         # Epistemic vectors (postflight)
         if summary.get('postflight'):
-            print(f"\n🏁 Postflight Epistemic State:")
+            print("\n🏁 Postflight Epistemic State:")
             vectors = summary['postflight']
             print(f"   • KNOW:    {vectors.get('know', 0.5):.2f}")
             print(f"   • DO:      {vectors.get('do', 0.5):.2f}")
             print(f"   • CONTEXT: {vectors.get('context', 0.5):.2f}")
 
             if args.verbose:
-                print(f"\n   Comprehension:")
+                print("\n   Comprehension:")
                 print(f"   • CLARITY:   {vectors.get('clarity', 0.5):.2f}")
                 print(f"   • COHERENCE: {vectors.get('coherence', 0.5):.2f}")
                 print(f"   • SIGNAL:    {vectors.get('signal', 0.5):.2f}")
                 print(f"   • DENSITY:   {vectors.get('density', 0.5):.2f}")
 
-                print(f"\n   Execution:")
+                print("\n   Execution:")
                 print(f"   • STATE:      {vectors.get('state', 0.5):.2f}")
                 print(f"   • CHANGE:     {vectors.get('change', 0.5):.2f}")
                 print(f"   • COMPLETION: {vectors.get('completion', 0.5):.2f}")
                 print(f"   • IMPACT:     {vectors.get('impact', 0.5):.2f}")
 
-                print(f"\n   Meta-Cognitive:")
+                print("\n   Meta-Cognitive:")
                 print(f"   • ENGAGEMENT:  {vectors.get('engagement', 0.5):.2f}")
                 print(f"   • UNCERTAINTY: {vectors.get('uncertainty', 0.5):.2f}")
 
         # Epistemic delta (learning)
         if summary.get('epistemic_delta'):
-            print(f"\n📈 Learning Delta (Preflight → Postflight):")
+            print("\n📈 Learning Delta (Preflight → Postflight):")
             delta = summary['epistemic_delta']
 
             # Show significant changes
@@ -287,11 +287,11 @@ def handle_sessions_show_command(args):
                     icon = "↗" if value > 0 else "↘"
                     print(f"   {icon} {key.upper():12s} {value:+.2f}")
             else:
-                print(f"   ➖ Minimal change (all < ±0.05)")
+                print("   ➖ Minimal change (all < ±0.05)")
 
         # Tools used
         if summary.get('tools_used'):
-            print(f"\n🔧 Investigation Tools Used:")
+            print("\n🔧 Investigation Tools Used:")
             for tool in summary['tools_used']:
                 print(f"   • {tool['tool']}: {tool['count']} times")
 
@@ -334,19 +334,19 @@ def handle_session_snapshot_command(args):
     # Git state
     git = snapshot['git_state']
     if 'error' not in git:
-        print(f"\n🔀 Git State:")
+        print("\n🔀 Git State:")
         print(f"   Branch: {git['branch']}")
         print(f"   Commit: {git['commit']}")
         print(f"   Diff: {git['diff_stat']}")
         if git.get('last_5_commits'):
-            print(f"   Recent commits:")
+            print("   Recent commits:")
             for commit in git['last_5_commits'][:3]:
                 print(f"      {commit}")
 
     # Epistemic trajectory
     trajectory = snapshot['epistemic_trajectory']
     if trajectory:
-        print(f"\n🧠 Epistemic Trajectory:")
+        print("\n🧠 Epistemic Trajectory:")
         if 'preflight' in trajectory:
             pre = trajectory['preflight']
             print(f"   PREFLIGHT: know={pre.get('know', 0):.2f}, uncertainty={pre.get('uncertainty', 0):.2f}")
@@ -359,7 +359,7 @@ def handle_session_snapshot_command(args):
     # Learning delta
     delta = snapshot.get('learning_delta', {})
     if delta:
-        print(f"\n📈 Learning Delta:")
+        print("\n📈 Learning Delta:")
         significant = {k: v for k, v in delta.items() if abs(v) >= 0.1}
         for key, value in sorted(significant.items(), key=lambda x: abs(x[1]), reverse=True)[:5]:
             sign = '+' if value > 0 else ''
@@ -432,21 +432,21 @@ def handle_sessions_export_command(args):
 
         logger.info(f"Session data exported to {output_file}")
 
-        print(f"\n✅ Session exported successfully")
+        print("\n✅ Session exported successfully")
         print(f"📄 File: {output_file}")
         print(f"📊 Size: {len(json.dumps(summary, default=str))} bytes")
 
         # Summary stats
-        print(f"\n📋 Exported Data:")
+        print("\n📋 Exported Data:")
         print(f"   • Session ID: {summary['session_id']}")
         print(f"   • AI: {summary['ai_id']}")
         print(f"   • Cascades: {summary['total_cascades']}")
         if summary.get('preflight'):
-            print(f"   • Preflight vectors: ✅")
+            print("   • Preflight vectors: ✅")
         if summary.get('postflight'):
-            print(f"   • Postflight vectors: ✅")
+            print("   • Postflight vectors: ✅")
         if summary.get('epistemic_delta'):
-            print(f"   • Learning delta: ✅")
+            print("   • Learning delta: ✅")
 
         db.close()
 
@@ -860,14 +860,14 @@ def handle_transaction_adopt_command(args):
             print(json.dumps(result))
         else:
             print("🔍 DRY RUN - No changes made")
-            print(f"\n📋 Transaction to adopt:")
+            print("\n📋 Transaction to adopt:")
             print(f"   ID: {result['transaction']['transaction_id']}...")
             print(f"   Session: {result['transaction']['session_id']}...")
             print(f"   Status: {result['transaction']['status']}")
-            print(f"\n📁 Files:")
+            print("\n📁 Files:")
             print(f"   From: {from_tx_file}")
             print(f"   To:   {to_tx_file}")
-            print(f"\n✅ Run without --dry-run to adopt")
+            print("\n✅ Run without --dry-run to adopt")
         return 0
 
     # Step 1: Rename transaction file (skip if same instance — already in place)
@@ -925,14 +925,14 @@ def handle_transaction_adopt_command(args):
         print(json.dumps(result))
     else:
         print("✅ Transaction adopted successfully")
-        print(f"\n📋 Transaction:")
+        print("\n📋 Transaction:")
         print(f"   ID: {result['transaction']['transaction_id']}...")
         print(f"   Session: {result['transaction']['session_id']}...")
         print(f"   Status: {result['transaction']['status']}")
-        print(f"\n📁 Instance mapping:")
+        print("\n📁 Instance mapping:")
         print(f"   {from_instance} → {to_instance}")
         print(f"\n📂 Project: {project_path}")
-        print(f"\n💡 Your transaction is now active. Continue working!")
+        print("\n💡 Your transaction is now active. Continue working!")
 
     return 0
 

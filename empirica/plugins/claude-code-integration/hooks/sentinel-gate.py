@@ -1893,8 +1893,8 @@ def _handle_investigate_continuation(decision: str, tool_name: str, tool_input: 
             _inv_noetic = _inv_c.get('noetic_since_investigate', 0)
             if _inv_noetic < MIN_NOETIC_AFTER_INVESTIGATE:
                 return ("deny",
-                    f"Previous transaction ended with INVESTIGATE. "
-                    f"Show evidence of investigation (findings) or submit CHECK with proceed decision.")
+                    "Previous transaction ended with INVESTIGATE. "
+                    "Show evidence of investigation (findings) or submit CHECK with proceed decision.")
         # Increment noetic counter for safe bash (read-only investigation)
         _inv_c = _read_inv_counters()
         _inv_c['noetic_since_investigate'] = _inv_c.get('noetic_since_investigate', 0) + 1
@@ -1903,7 +1903,7 @@ def _handle_investigate_continuation(decision: str, tool_name: str, tool_input: 
     # ADVISORY MODE: Sentinel surfaces the investigate recommendation but lets the AI decide.
     # The AI sees the message and can choose to investigate more or proceed with awareness.
     # This is a measurement system, not a rules-based gate — the holistic judgment is the AI's.
-    return ("allow", f"ADVISORY: CHECK returned 'investigate'. Predictions in this domain may be ungrounded. Sentinel recommends noetic (read-only) work to gather grounding evidence before acting.")
+    return ("allow", "ADVISORY: CHECK returned 'investigate'. Predictions in this domain may be ungrounded. Sentinel recommends noetic (read-only) work to gather grounding evidence before acting.")
 
 
 def main():

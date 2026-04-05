@@ -127,7 +127,7 @@ def handle_vision_analyze(args):
         print(json.dumps(result, indent=2))
     else:
         # Human-readable
-        print(f"\n📸 Vision Analysis Results")
+        print("\n📸 Vision Analysis Results")
         print(f"{'='*60}")
         for a in assessments:
             print(f"\n{Path(a.image_path).name}")
@@ -176,7 +176,7 @@ def handle_vision_log(args):
         if args.output == "json":
             print(json.dumps({"ok": True, "logged": True}))
         else:
-            print(f"✓ Visual observation logged to session")
+            print("✓ Visual observation logged to session")
 
         return 0
     finally:

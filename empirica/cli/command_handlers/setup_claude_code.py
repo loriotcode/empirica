@@ -147,7 +147,7 @@ def handle_setup_claude_code_command(args):
             return None
 
         if output_format != 'json':
-            print(f"🧠 Setting up Claude Code integration...")
+            print("🧠 Setting up Claude Code integration...")
             print(f"   Source: {source_dir}\n")
 
         # Find Python for hooks
@@ -717,8 +717,8 @@ def handle_setup_claude_code_command(args):
             print("━" * 60)
             print()
             print(f"📍 Plugin:     {plugin_dir}")
-            print(f"📝 CLAUDE.md:  ~/.claude/CLAUDE.md")
-            print(f"⚙️  Settings:   ~/.claude/settings.json")
+            print("📝 CLAUDE.md:  ~/.claude/CLAUDE.md")
+            print("⚙️  Settings:   ~/.claude/settings.json")
             print()
             print("━" * 60)
             print("WHAT'S CONFIGURED:")

@@ -84,7 +84,7 @@ class SessionDatabase:
             pg_config = db_config.get("postgresql", {})
             self.adapter = DatabaseAdapter.create(db_type="postgresql", **pg_config)
             self.db_path = None  # N/A for PostgreSQL
-            logger.info(f"📊 Session Database initialized (PostgreSQL)")
+            logger.info("📊 Session Database initialized (PostgreSQL)")
 
         else:
             raise ValueError(f"Unsupported database type: {db_type}")

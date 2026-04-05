@@ -232,35 +232,35 @@ class EpistemicHandoffReportGenerator:
         # Generate markdown for planning handoff
         markdown_lines = [
             f"# Planning Handoff: {session_meta.get('ai_id', 'Unknown')}",
-            f"",
+            "",
             f"**Session:** {session_id[:8]}...",
-            f"**Type:** Planning (documentation, no CASCADE workflow)",
+            "**Type:** Planning (documentation, no CASCADE workflow)",
             f"**Time:** {report['timestamp']}",
             f"**Duration:** {duration:.1f}s",
-            f"",
-            f"## Task Summary",
+            "",
+            "## Task Summary",
             f"{task_summary}",
-            f"",
-            f"## Key Findings",
+            "",
+            "## Key Findings",
         ]
 
         for finding in key_findings:
             markdown_lines.append(f"- {finding}")
 
         markdown_lines.extend([
-            f"",
-            f"## Remaining Unknowns",
+            "",
+            "## Remaining Unknowns",
         ])
 
         for unknown in remaining_unknowns:
             markdown_lines.append(f"- {unknown}")
 
         markdown_lines.extend([
-            f"",
-            f"## Context for Next Session",
+            "",
+            "## Context for Next Session",
             f"{next_session_context}",
-            f"",
-            f"## Artifacts Created",
+            "",
+            "## Artifacts Created",
         ])
 
         if artifacts_created:

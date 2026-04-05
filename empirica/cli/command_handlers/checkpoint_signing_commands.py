@@ -49,7 +49,7 @@ def handle_checkpoint_sign_command(args):
                 print(json.dumps(error_result, indent=2))
             else:
                 print(f"❌ Identity not found for AI: {ai_id}")
-                print(f"\n💡 Create identity first:")
+                print("\n💡 Create identity first:")
                 print(f"   empirica identity-create --ai-id {ai_id}")
 
             sys.exit(1)
@@ -65,16 +65,16 @@ def handle_checkpoint_sign_command(args):
             print(json.dumps(result, indent=2))
         else:
             if result['ok']:
-                print(f"✅ Checkpoint signed successfully")
-                print(f"\n📋 Details:")
+                print("✅ Checkpoint signed successfully")
+                print("\n📋 Details:")
                 print(f"   Checkpoint: {result['checkpoint_ref']}")
                 print(f"   SHA: {result['checkpoint_sha'][:16]}...")
                 print(f"   Signature: {result['signature_hex'][:32]}...")
                 print(f"   Signed by: {result['ai_id']}")
                 print(f"   Signed at: {result['signed_at']}")
-                print(f"\n💾 Signature stored in:")
+                print("\n💾 Signature stored in:")
                 print(f"   refs/notes/{result['signature_ref']}")
-                print(f"\n🔍 Verify with:")
+                print("\n🔍 Verify with:")
                 print(f"   empirica checkpoint-verify --session-id {session_id} --phase {phase} --round {round_num}")
             else:
                 print(f"❌ Failed to sign checkpoint: {result.get('message')}")
@@ -142,17 +142,17 @@ def handle_checkpoint_verify_command(args):
                 sys.exit(1)
 
             if result['valid']:
-                print(f"✅ Valid signature")
-                print(f"\n📋 Details:")
+                print("✅ Valid signature")
+                print("\n📋 Details:")
                 print(f"   Checkpoint: {result['checkpoint_ref']}")
                 print(f"   SHA: {result['checkpoint_sha'][:16]}...")
                 print(f"   Signed by: {result['signed_by']}")
                 print(f"   Signed at: {result['signed_at']}")
                 print(f"   Verified with: {result['verified_with']}")
-                print(f"\n🔒 Checkpoint integrity confirmed")
+                print("\n🔒 Checkpoint integrity confirmed")
             else:
-                print(f"❌ Invalid signature")
-                print(f"\n⚠️  Checkpoint may have been tampered with")
+                print("❌ Invalid signature")
+                print("\n⚠️  Checkpoint may have been tampered with")
                 print(f"   Checkpoint: {result.get('checkpoint_ref')}")
                 if result.get('error') == 'sha_mismatch':
                     print(f"   Expected SHA: {result.get('signed_sha', '')[:16]}...")
@@ -211,7 +211,7 @@ def handle_checkpoint_signatures_command(args):
                 print()
 
             if session_id:
-                print(f"💡 Verify a checkpoint:")
+                print("💡 Verify a checkpoint:")
                 first_sig = signatures[0]
                 print(f"   empirica checkpoint-verify --session-id {first_sig['session_id']} --phase {first_sig['phase']} --round {first_sig['round']}")
 

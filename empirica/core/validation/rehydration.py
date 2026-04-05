@@ -160,7 +160,7 @@ class EpistemicRehydration:
         findings_confidence = sum(f.get("certainty", 0.5) for f in findings) / max(len(findings), 1)
         if findings_confidence < 0.6 and len(findings) > 3:
             warnings.append(
-                f"Low confidence findings despite many discoveries - "
+                "Low confidence findings despite many discoveries - "
                 "previous AI may have been uncertain"
             )
 
@@ -174,7 +174,7 @@ class EpistemicRehydration:
         ready: bool
     ) -> str:
         """Format human-readable rehydration message"""
-        msg = f"\n📚 Epistemic Rehydration:\n"
+        msg = "\n📚 Epistemic Rehydration:\n"
         msg += f"   Understanding: {understanding_ratio*100:.0f}%\n"
         msg += f"   Confidence boost: +{confidence_boost:.3f}\n"
 

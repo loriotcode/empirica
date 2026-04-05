@@ -168,7 +168,7 @@ def print_text_report(results: dict):
     print("CLI DOCUMENTATION VALIDATION REPORT")
     print("=" * 70)
     print()
-    print(f"📊 Statistics:")
+    print("📊 Statistics:")
     print(f"  • Actual CLI commands: {results['total_actual_commands']}")
     print(f"  • Documented commands: {results['total_documented_commands']}")
     print(f"  • Accuracy score: {results['accuracy_score']:.1f}%")

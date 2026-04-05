@@ -235,7 +235,7 @@ def handle_profile_sync_command(args):
             print(json.dumps(result, indent=2, default=str))
         else:
             if result['ok']:
-                print(f"✅ Profile sync complete")
+                print("✅ Profile sync complete")
                 if not import_only:
                     print(f"   Fetched from: {remote}")
                 print(f"   Imported: {summary.get('imported', 0)} new artifacts")
@@ -369,7 +369,7 @@ def _apply_prune_rule(db, rule: str, older_than_days: int | None = None,
             candidates.append({
                 'id': row[0], 'type': 'unknown',
                 'summary': str(row[1])[:200],
-                'reason': f'Resolved unknown (stale-resolved-unknowns rule)',
+                'reason': 'Resolved unknown (stale-resolved-unknowns rule)',
             })
 
     elif rule == 'low-impact-findings':
@@ -411,7 +411,7 @@ def _apply_prune_rule(db, rule: str, older_than_days: int | None = None,
             candidates.append({
                 'id': row[0], 'type': 'finding',
                 'summary': str(row[1])[:200],
-                'reason': f'Test session artifact (test-transactions rule)',
+                'reason': 'Test session artifact (test-transactions rule)',
             })
 
     elif rule == 'low-confidence-imports':
@@ -774,10 +774,10 @@ def handle_profile_status_command(args):
 
             # Drift
             if drift:
-                print(f"\n  ⚠️  Drift detected (notes - sqlite):")
+                print("\n  ⚠️  Drift detected (notes - sqlite):")
                 for artifact_type, info in drift.items():
                     print(f"    {artifact_type}: {info['delta']:+d} (notes={info['notes']}, sqlite={info['sqlite']})")
-                print(f"    Run 'empirica profile-sync --import-only' to reconcile")
+                print("    Run 'empirica profile-sync --import-only' to reconcile")
 
             # Sync
             print(f"\n  Sync: {'enabled' if sync_config.get('enabled') else 'disabled'}, "
@@ -785,7 +785,7 @@ def handle_profile_status_command(args):
 
             # Calibration
             if calibration:
-                print(f"\n  Calibration:")
+                print("\n  Calibration:")
                 if 'observations' in calibration:
                     print(f"    Self-referential observations: {calibration['observations']}")
                 if 'grounded_score' in calibration:

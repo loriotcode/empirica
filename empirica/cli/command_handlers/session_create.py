@@ -313,8 +313,8 @@ def handle_session_create_command(args):
                     }))
                 else:
                     print(f"❌ Project not initialized in {git_root.name}")
-                    print(f"\nOptions:")
-                    print(f"  1. Initialize: empirica project-init")
+                    print("\nOptions:")
+                    print("  1. Initialize: empirica project-init")
                     print(f"  2. Auto-init:  empirica session-create --ai-id {ai_id} --auto-init")
                 sys.exit(1)
 
@@ -597,7 +597,7 @@ def handle_session_create_command(args):
             auto_capture = initialize_auto_capture(session_id, enable=True)
             install_auto_capture_hooks(auto_capture)  # Install logging hooks
             if output_format != 'json':
-                print(f"✅ Auto-capture enabled with logging hooks")
+                print("✅ Auto-capture enabled with logging hooks")
         except Exception as e:
             if output_format != 'json':
                 print(f"⚠️  Auto-capture initialization warning: {e}")
@@ -644,14 +644,14 @@ def handle_session_create_command(args):
             }
             print(json.dumps(result, indent=2))
         else:
-            print(f"✅ Session created successfully!")
+            print("✅ Session created successfully!")
             print(f"   📋 Session ID: {session_id}")
             print(f"   🤖 AI ID: {ai_id}")
 
             # Show project breadcrumbs if project was detected
             if project_id:
                 print(f"   📁 Project: {project_id[:8]}...")
-                print(f"\n📚 Project Context:")
+                print("\n📚 Project Context:")
                 db = SessionDatabase()
                 breadcrumbs = db.bootstrap_project_breadcrumbs(project_id, mode="session_start")
                 db.close()
@@ -662,22 +662,22 @@ def handle_session_create_command(args):
                     print(f"   Description: {project['description']}")
 
                     if breadcrumbs.get('findings'):
-                        print(f"\n   Recent Findings (last 5):")
+                        print("\n   Recent Findings (last 5):")
                         for finding in breadcrumbs['findings'][:5]:
                             print(f"     • {finding}")
 
                     unresolved = [u for u in breadcrumbs.get('unknowns', []) if not u['is_resolved']]
                     if unresolved:
-                        print(f"\n   Unresolved Unknowns:")
+                        print("\n   Unresolved Unknowns:")
                         for u in unresolved[:3]:
                             print(f"     • {u['unknown']}")
 
                     if breadcrumbs.get('available_skills'):
-                        print(f"\n   Available Skills:")
+                        print("\n   Available Skills:")
                         for skill in breadcrumbs['available_skills'][:3]:
                             print(f"     • {skill['title']} ({', '.join(skill['tags'])})")
 
-            print(f"\nNext steps:")
+            print("\nNext steps:")
             print(f"   empirica preflight --session-id {session_id} --prompt \"Your task\"")
 
     except Exception as e:

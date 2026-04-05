@@ -386,7 +386,7 @@ def handle_project_bootstrap_command(args):
                 if mco_config['source'] == 'pre_summary_snapshot':
                     safe_print(f"   Source: {mco_config['snapshot_path']}")
                 else:
-                    safe_print(f"   Source: Fresh load from MCO files (snapshot had no MCO)")
+                    safe_print("   Source: Fresh load from MCO files (snapshot had no MCO)")
                 safe_print("=" * 70)
                 safe_print(mco_config['formatted'])
                 safe_print("\n" + "=" * 70)
@@ -421,7 +421,7 @@ def handle_project_bootstrap_command(args):
                 pass
 
             safe_print(f"📍 Location: {db.db_path.parent.parent if hasattr(db, 'db_path') and db.db_path else 'Unknown'}")
-            safe_print(f"💾 Database: .empirica/sessions/sessions.db")
+            safe_print("💾 Database: .empirica/sessions/sessions.db")
             safe_print()
             safe_print("⚠️  All commands write to THIS project's database.")
             safe_print("   Findings, sessions, goals → stored in this project context.")
@@ -430,14 +430,14 @@ def handle_project_bootstrap_command(args):
             safe_print()
 
             # ===== PROJECT SUMMARY =====
-            safe_print(f"📋 Project Summary")
+            safe_print("📋 Project Summary")
             safe_print(f"   {project['description']}")
             if project['repos']:
                 safe_print(f"   Repos: {', '.join(project['repos'])}")
             safe_print(f"   Total sessions: {project['total_sessions']}")
             safe_print()
 
-            safe_print(f"🕐 Last Activity:")
+            safe_print("🕐 Last Activity:")
             safe_print(f"   {last['summary']}")
             safe_print(f"   Next focus: {last['next_focus']}")
             safe_print()
@@ -450,7 +450,7 @@ def handle_project_bootstrap_command(args):
                 deltas = handoff.get('deltas', {})
 
                 if vectors:
-                    safe_print(f"   State (POSTFLIGHT):")
+                    safe_print("   State (POSTFLIGHT):")
                     safe_print(f"      Engagement: {vectors.get('engagement', 'N/A'):.2f}", end='')
                     if 'engagement' in deltas and deltas['engagement'] is not None:
                         delta = deltas['engagement']
@@ -489,7 +489,7 @@ def handle_project_bootstrap_command(args):
                 current = flow.get('current_flow')
 
                 if current:
-                    safe_print(f"⚡ Flow State (AI Productivity):")
+                    safe_print("⚡ Flow State (AI Productivity):")
                     safe_print(f"   Current: {current['emoji']} {current['flow_state']} ({current['flow_score']}/100)")
 
                     # Show trend if available
@@ -504,7 +504,7 @@ def handle_project_bootstrap_command(args):
                     # Show blockers if any
                     blockers = flow.get('blockers', [])
                     if blockers:
-                        safe_print(f"   ⚠️  Blockers:")
+                        safe_print("   ⚠️  Blockers:")
                         for blocker in blockers[:3]:
                             safe_print(f"      • {blocker}")
 
@@ -523,7 +523,7 @@ def handle_project_bootstrap_command(args):
                 current = health.get('current_health')
 
                 if current:
-                    safe_print(f"💪 Health Score (Epistemic Quality):")
+                    safe_print("💪 Health Score (Epistemic Quality):")
                     safe_print(f"   Current: {current['health_score']}/100")
 
                     # Show trend if available
@@ -538,7 +538,7 @@ def handle_project_bootstrap_command(args):
                     # Show component breakdown
                     components = health.get('components', {})
                     if components:
-                        safe_print(f"   Components:")
+                        safe_print("   Components:")
                         kq = components.get('knowledge_quality', {})
                         ep = components.get('epistemic_progress', {})
                         cap = components.get('capability', {})
@@ -553,7 +553,7 @@ def handle_project_bootstrap_command(args):
                     safe_print()
 
             if breadcrumbs.get('findings'):
-                safe_print(f"📝 Recent Findings (last 10):")
+                safe_print("📝 Recent Findings (last 10):")
                 for i, f in enumerate(breadcrumbs['findings'][:10], 1):
                     safe_print(f"   {i}. {f}")
                 safe_print()
@@ -561,20 +561,20 @@ def handle_project_bootstrap_command(args):
             if breadcrumbs.get('unknowns'):
                 unresolved = [u for u in breadcrumbs['unknowns'] if not u['is_resolved']]
                 if unresolved:
-                    safe_print(f"❓ Unresolved Unknowns:")
+                    safe_print("❓ Unresolved Unknowns:")
                     for i, u in enumerate(unresolved[:5], 1):
                         safe_print(f"   {i}. {u['unknown']}")
                     safe_print()
 
             if breadcrumbs.get('dead_ends'):
-                safe_print(f"💀 Dead Ends (What Didn't Work):")
+                safe_print("💀 Dead Ends (What Didn't Work):")
                 for i, d in enumerate(breadcrumbs['dead_ends'][:5], 1):
                     safe_print(f"   {i}. {d['approach']}")
                     safe_print(f"      → Why: {d['why_failed']}")
                 safe_print()
 
             if breadcrumbs['mistakes_to_avoid']:
-                safe_print(f"⚠️  Recent Mistakes to Avoid:")
+                safe_print("⚠️  Recent Mistakes to Avoid:")
                 for i, m in enumerate(breadcrumbs['mistakes_to_avoid'][:3], 1):
                     cost = m.get('cost_estimate', 'unknown')
                     cause = m.get('root_cause_vector', 'unknown')
@@ -583,13 +583,13 @@ def handle_project_bootstrap_command(args):
                 safe_print()
 
             if breadcrumbs.get('key_decisions'):
-                safe_print(f"💡 Key Decisions:")
+                safe_print("💡 Key Decisions:")
                 for i, d in enumerate(breadcrumbs['key_decisions'], 1):
                     safe_print(f"   {i}. {d}")
                 safe_print()
 
             if breadcrumbs.get('reference_docs'):
-                safe_print(f"📄 Reference Docs:")
+                safe_print("📄 Reference Docs:")
                 for i, doc in enumerate(breadcrumbs['reference_docs'][:5], 1):
                     path = doc.get('doc_path', 'unknown')
                     doc_type = doc.get('doc_type', 'unknown')
@@ -599,7 +599,7 @@ def handle_project_bootstrap_command(args):
                 safe_print()
 
             if breadcrumbs.get('recent_artifacts'):
-                safe_print(f"📝 Recently Modified Files (last 10 sessions):")
+                safe_print("📝 Recently Modified Files (last 10 sessions):")
                 for i, artifact in enumerate(breadcrumbs['recent_artifacts'][:10], 1):
                     safe_print(f"   {i}. Session {artifact['session_id']} ({artifact['ai_id']})")
                     safe_print(f"      Task: {artifact['task_summary']}")
@@ -612,12 +612,12 @@ def handle_project_bootstrap_command(args):
 
             # ===== NEW: Active Work Section =====
             if breadcrumbs.get('active_sessions') or breadcrumbs.get('active_goals'):
-                safe_print(f"🚀 Active Work (In Progress):")
+                safe_print("🚀 Active Work (In Progress):")
                 safe_print()
 
                 # Show active sessions
                 if breadcrumbs.get('active_sessions'):
-                    safe_print(f"   📡 Active Sessions:")
+                    safe_print("   📡 Active Sessions:")
                     for sess in breadcrumbs['active_sessions'][:3]:
                         from datetime import datetime
                         start = datetime.fromisoformat(str(sess['start_time']))
@@ -630,7 +630,7 @@ def handle_project_bootstrap_command(args):
 
                 # Show active goals
                 if breadcrumbs.get('active_goals'):
-                    safe_print(f"   🎯 Goals In Progress:")
+                    safe_print("   🎯 Goals In Progress:")
                     for goal in breadcrumbs['active_goals'][:5]:
                         beads_link = f" [BEADS: {goal['beads_issue_id']}]" if goal.get('beads_issue_id') else " ⚠️ No BEADS link"
                         safe_print(f"      • [{goal['id'][:8]}] {goal['objective']}{beads_link}")
@@ -644,7 +644,7 @@ def handle_project_bootstrap_command(args):
 
                 # Show epistemic artifacts
                 if breadcrumbs.get('epistemic_artifacts'):
-                    safe_print(f"   📊 Epistemic Artifacts:")
+                    safe_print("   📊 Epistemic Artifacts:")
                     for artifact in breadcrumbs['epistemic_artifacts'][:3]:
                         size_kb = artifact['size'] / 1024
                         safe_print(f"      • {artifact['path']} ({size_kb:.1f} KB)")
@@ -652,18 +652,18 @@ def handle_project_bootstrap_command(args):
 
                 # Show AI activity summary
                 if breadcrumbs.get('ai_activity'):
-                    safe_print(f"   👥 AI Activity (Last 7 Days):")
+                    safe_print("   👥 AI Activity (Last 7 Days):")
                     for ai in breadcrumbs['ai_activity'][:5]:
                         safe_print(f"      • {ai['ai_id']}: {ai['session_count']} session(s)")
                     safe_print()
-                    safe_print(f"   💡 Tip: Use format '<model>-<workstream>' (e.g., claude-cli-testing)")
+                    safe_print("   💡 Tip: Use format '<model>-<workstream>' (e.g., claude-cli-testing)")
                     safe_print()
 
             # ===== END NEW =====
 
             # ===== FLOW STATE METRICS =====
             if breadcrumbs.get('flow_metrics') is not None:
-                safe_print(f"📊 Flow State Analysis (Recent Sessions):")
+                safe_print("📊 Flow State Analysis (Recent Sessions):")
                 safe_print()
 
                 flow_metrics = breadcrumbs['flow_metrics']
@@ -695,22 +695,22 @@ def handle_project_bootstrap_command(args):
                         safe_print()
 
                     # Show what creates flow
-                    safe_print(f"   💡 Flow Triggers (Optimize for these):")
-                    safe_print(f"      ✅ CASCADE complete (PREFLIGHT → POSTFLIGHT)")
-                    safe_print(f"      ✅ Bootstrap loaded early")
-                    safe_print(f"      ✅ Goal with subtasks")
-                    safe_print(f"      ✅ CHECK for high-scope work")
-                    safe_print(f"      ✅ AI naming convention (<model>-<workstream>)")
+                    safe_print("   💡 Flow Triggers (Optimize for these):")
+                    safe_print("      ✅ CASCADE complete (PREFLIGHT → POSTFLIGHT)")
+                    safe_print("      ✅ Bootstrap loaded early")
+                    safe_print("      ✅ Goal with subtasks")
+                    safe_print("      ✅ CHECK for high-scope work")
+                    safe_print("      ✅ AI naming convention (<model>-<workstream>)")
                     safe_print()
                 else:
-                    safe_print(f"   💡 No completed sessions yet")
-                    safe_print(f"   Tip: Close active sessions with POSTFLIGHT to see flow metrics")
-                    safe_print(f"   Flow score will show patterns from completed work")
+                    safe_print("   💡 No completed sessions yet")
+                    safe_print("   Tip: Close active sessions with POSTFLIGHT to see flow metrics")
+                    safe_print("   Flow score will show patterns from completed work")
                     safe_print()
 
             # ===== DATABASE SCHEMA SUMMARY =====
             if breadcrumbs.get('database_summary'):
-                safe_print(f"🗄️  Database Schema (Epistemic Data Store):")
+                safe_print("🗄️  Database Schema (Epistemic Data Store):")
                 safe_print()
 
                 db_summary = breadcrumbs['database_summary']
@@ -720,14 +720,14 @@ def handle_project_bootstrap_command(args):
 
                 # Show key tables (static knowledge reminder)
                 if db_summary.get('key_tables'):
-                    safe_print(f"   📌 Key Tables:")
+                    safe_print("   📌 Key Tables:")
                     for table, description in list(db_summary['key_tables'].items())[:6]:
                         safe_print(f"      • {table}: {description}")
                     safe_print()
 
                 # Show top tables by row count
                 if db_summary.get('top_tables'):
-                    safe_print(f"   📊 Most Active Tables:")
+                    safe_print("   📊 Most Active Tables:")
                     for table_info in db_summary['top_tables'][:5]:
                         safe_print(f"      • {table_info}")
                     safe_print()
@@ -739,7 +739,7 @@ def handle_project_bootstrap_command(args):
 
             # ===== STRUCTURE HEALTH =====
             if breadcrumbs.get('structure_health'):
-                safe_print(f"🏗️  Project Structure Health:")
+                safe_print("🏗️  Project Structure Health:")
                 safe_print()
 
                 health = breadcrumbs['structure_health']
@@ -778,7 +778,7 @@ def handle_project_bootstrap_command(args):
                 # Show suggestions
                 suggestions = health.get('suggestions', [])
                 if suggestions:
-                    safe_print(f"   💡 Suggestions:")
+                    safe_print("   💡 Suggestions:")
                     for suggestion in suggestions[:3]:
                         safe_print(f"      {suggestion}")
                     safe_print()
@@ -789,7 +789,7 @@ def handle_project_bootstrap_command(args):
                 safe_print(f"📊 Project Dependencies ({dep.get('module_count', '?')} modules):")
                 safe_print()
                 if dep.get('hotspots'):
-                    safe_print(f"   🔥 Coupling Hotspots:")
+                    safe_print("   🔥 Coupling Hotspots:")
                     for h in dep['hotspots'][:5]:
                         safe_print(f"      {h['module']} ({h['importers']} importers)")
                 if dep.get('entry_points'):
@@ -799,7 +799,7 @@ def handle_project_bootstrap_command(args):
                 safe_print()
 
             if breadcrumbs['incomplete_work']:
-                safe_print(f"🎯 Incomplete Work:")
+                safe_print("🎯 Incomplete Work:")
                 for i, w in enumerate(breadcrumbs['incomplete_work'], 1):
                     objective = w.get('objective', w.get('goal', 'Unknown'))
                     status = w.get('status', 'unknown')
@@ -807,7 +807,7 @@ def handle_project_bootstrap_command(args):
                 safe_print()
 
             if breadcrumbs.get('available_skills'):
-                safe_print(f"🛠️  Available Skills:")
+                safe_print("🛠️  Available Skills:")
                 for i, skill in enumerate(breadcrumbs['available_skills'], 1):
                     tags = ', '.join(skill.get('tags', [])) if skill.get('tags') else 'no tags'
                     safe_print(f"   {i}. {skill['title']} ({skill['id']})")
@@ -815,14 +815,14 @@ def handle_project_bootstrap_command(args):
                 safe_print()
 
             if breadcrumbs.get('semantic_docs'):
-                safe_print(f"📖 Core Documentation:")
+                safe_print("📖 Core Documentation:")
                 for i, doc in enumerate(breadcrumbs['semantic_docs'][:3], 1):
                     safe_print(f"   {i}. {doc['title']}")
                     safe_print(f"      Path: {doc['path']}")
                 safe_print()
 
             if breadcrumbs.get('integrity_analysis'):
-                safe_print(f"🔍 Doc-Code Integrity Analysis:")
+                safe_print("🔍 Doc-Code Integrity Analysis:")
                 integrity = breadcrumbs['integrity_analysis']
 
                 if 'error' in integrity:
@@ -871,7 +871,7 @@ def handle_project_bootstrap_command(args):
                     claimed = analysis['claimed_know']
                     expected = analysis['expected_know']
 
-                    safe_print(f"   Knowledge Assessment:")
+                    safe_print("   Knowledge Assessment:")
                     safe_print(f"      Claimed KNOW:  {claimed:.2f}")
                     safe_print(f"      Expected KNOW: {expected:.2f}")
                     safe_print(f"      Gap Score:     {gap_score:.2f}")
@@ -886,7 +886,7 @@ def handle_project_bootstrap_command(args):
 
                     # Display gaps by severity
                     if gaps_by_type:
-                        safe_print(f"\n   Detected Gaps:")
+                        safe_print("\n   Detected Gaps:")
 
                         # Priority order
                         type_order = ['confabulation', 'unreferenced_findings', 'unincorporated_unknowns',
@@ -921,11 +921,11 @@ def handle_project_bootstrap_command(args):
 
                     # Show recommended actions
                     if analysis.get('recommended_actions'):
-                        safe_print(f"\n   Recommended Actions:")
+                        safe_print("\n   Recommended Actions:")
                         for i, action in enumerate(analysis['recommended_actions'][:5], 1):
                             safe_print(f"      {i}. {action}")
                 else:
-                    safe_print(f"   ✅ No memory gaps detected - context is current")
+                    safe_print("   ✅ No memory gaps detected - context is current")
 
                 safe_print()
 

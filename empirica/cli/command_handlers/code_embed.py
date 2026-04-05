@@ -60,7 +60,7 @@ def handle_code_embed_command(args):
     if output == 'json':
         print(json.dumps(result))
     else:
-        print(f"Code API embedding complete:")
+        print("Code API embedding complete:")
         print(f"  Files scanned: {result['files_scanned']}")
         print(f"  Modules embedded: {result['modules_embedded']}")
         print(f"  Skipped (no public API): {result['skipped']}")

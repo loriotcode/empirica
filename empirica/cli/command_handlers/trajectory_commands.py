@@ -117,7 +117,7 @@ def handle_trajectory_show(args):
             print(f"   Snapshots: {snapshots}")
 
             # Key vector changes
-            print(f"   Vectors:")
+            print("   Vectors:")
             for key in ['know', 'uncertainty', 'clarity', 'completion']:
                 if key in start and key in end:
                     delta = deltas.get(key, 0)
@@ -174,7 +174,7 @@ def handle_trajectory_stats(args):
         }, indent=2))
     else:
         print(f"\n{'='*50}")
-        print(f"TRAJECTORY STATISTICS")
+        print("TRAJECTORY STATISTICS")
         print(f"{'='*50}\n")
 
         print(f"Total Trajectories: {total}")

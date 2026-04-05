@@ -104,7 +104,7 @@ def handle_qdrant_cleanup_command(args):
                     print(f"  - {c['name']} ({c['points']} points)")
 
             if dry_run and items:
-                print(f"\nTo actually delete, run: empirica qdrant-cleanup --execute")
+                print("\nTo actually delete, run: empirica qdrant-cleanup --execute")
 
     except Exception as e:
         handle_cli_error(e, "Qdrant cleanup", getattr(args, 'verbose', False))
@@ -166,7 +166,7 @@ def handle_qdrant_status_command(args):
                 "global_collections": globals_list,
             }, indent=2))
         else:
-            print(f"\nQdrant Collection Inventory")
+            print("\nQdrant Collection Inventory")
             print("=" * 60)
             print(f"Total collections: {len(info)}")
             print(f"Total points:      {total_points:,}")
@@ -185,7 +185,7 @@ def handle_qdrant_status_command(args):
                     print(f"      [{marker}] {c['type']}: {c['points'] or 0} points")
 
             if globals_list:
-                print(f"\n  Global collections:")
+                print("\n  Global collections:")
                 for c in sorted(globals_list, key=lambda x: x['name']):
                     print(f"    - {c['name']}: {c['points'] or 0} points")
 

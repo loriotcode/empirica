@@ -449,7 +449,7 @@ def handle_monitor_cost_command(args):
                 avg_cost_per_request = total_cost / total_requests
 
                 print(f"\n   Average cost per request: ${avg_cost_per_request:.6f}")
-                print(f"\n   Projected costs:")
+                print("\n   Projected costs:")
                 print(f"      100 requests:   ${avg_cost_per_request * 100:.2f}")
                 print(f"      1,000 requests: ${avg_cost_per_request * 1000:.2f}")
                 print(f"      10,000 requests: ${avg_cost_per_request * 10000:.2f}")
@@ -878,7 +878,7 @@ def _print_trajectory_human(overall_moon, overall_status, overall_grounding, lay
     print("\n┌─ VIABLE PATHS ─────────────────────────────────────────────────────┐")
     for path in paths[:depth + 2]:
         viable_marker = "✓" if path['viable'] else "○"
-        print(f"│                                                                    │")
+        print("│                                                                    │")
         print(f"│  {path['icon']} {path['name']:15} (confidence: {path['confidence']:.2f}) [{viable_marker}]")
         print(f"│     {path['description'][:60]}")
         if verbose and path['blockers']:
@@ -1845,7 +1845,7 @@ def handle_calibration_report_command(args):
 
             print()
             print("**Apply corrections:** ADD the correction to your self-assessment.")
-            print(f"**Readiness gate:** know >= 0.70 AND uncertainty <= 0.35")
+            print("**Readiness gate:** know >= 0.70 AND uncertainty <= 0.35")
         else:
             # Human-readable output
             print("=" * 70)
@@ -1887,8 +1887,8 @@ def handle_calibration_report_command(args):
             print("-" * 70)
             print()
             print("📋 READINESS GATE:")
-            print(f"   know >= 0.70 AND uncertainty <= 0.35 (after bias correction)")
-            print(f"   Apply: ADD corrections to your self-assessment")
+            print("   know >= 0.70 AND uncertainty <= 0.35 (after bias correction)")
+            print("   Apply: ADD corrections to your self-assessment")
             print()
 
             if verbose:

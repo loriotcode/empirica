@@ -82,7 +82,7 @@ def handle_concept_build(args):
         print(json.dumps(result, indent=2))
     else:
         if result.get("ok"):
-            print(f"\nConcept Graph Built:")
+            print("\nConcept Graph Built:")
             print(f"  Sources processed: {result.get('sources_processed', 0)}")
             print(f"  Concepts extracted: {result.get('concepts_extracted', 0)}")
             print(f"  Nodes stored: {result.get('nodes_stored', 0)}")
@@ -114,19 +114,19 @@ def handle_concept_stats(args):
         print(json.dumps(stats, indent=2))
     else:
         print(f"\n{'='*50}")
-        print(f"CONCEPT GRAPH STATISTICS")
+        print("CONCEPT GRAPH STATISTICS")
         print(f"{'='*50}\n")
 
         nodes = stats.get("nodes", {})
         edges = stats.get("edges", {})
 
-        print(f"Concept Nodes:")
+        print("Concept Nodes:")
         print(f"  Total concepts: {nodes.get('count', 0)}")
         print(f"  Total mentions: {nodes.get('total_mentions', 0)}")
         print(f"  Avg frequency: {nodes.get('avg_frequency', 0):.1f}")
         print(f"  Avg impact: {nodes.get('avg_impact', 0):.2f}")
 
-        print(f"\nCo-occurrence Edges:")
+        print("\nCo-occurrence Edges:")
         print(f"  Total edges: {edges.get('count', 0)}")
         print(f"  Total co-occurrences: {edges.get('total_co_occurrences', 0)}")
         print(f"  Avg weight: {edges.get('avg_weight', 0):.2f}")

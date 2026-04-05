@@ -107,7 +107,7 @@ def bash_line_replacement_sync(file_path, old_str, new_str):
             return {
                 "success": True,
                 "strategy_used": "bash_fallback",
-                "message": f"Successfully replaced using exact match approach",
+                "message": "Successfully replaced using exact match approach",
                 "changes_made": True
             }
         else:
@@ -129,7 +129,7 @@ def bash_line_replacement_sync(file_path, old_str, new_str):
                 return {
                     "success": False,
                     "strategy_used": "bash_fallback",
-                    "message": f"Pattern not found (even with flexible whitespace)",
+                    "message": "Pattern not found (even with flexible whitespace)",
                     "changes_made": False
                 }
 
@@ -140,7 +140,7 @@ def bash_line_replacement_sync(file_path, old_str, new_str):
             return {
                 "success": True,
                 "strategy_used": "bash_fallback",
-                "message": f"Successfully replaced using flexible pattern matching",
+                "message": "Successfully replaced using flexible pattern matching",
                 "changes_made": True
             }
 
@@ -165,7 +165,7 @@ def re_read_then_edit_sync(file_path, old_str, new_str):
             return {
                 "success": False,
                 "strategy_used": "re_read_first",
-                "message": f"After re-reading: pattern still not found",
+                "message": "After re-reading: pattern still not found",
                 "changes_made": False
             }
 
@@ -219,7 +219,7 @@ def handle_edit_with_confidence_command(args):
             if output_format == 'json':
                 print(json.dumps(result, indent=2))
             else:
-                print(f"❌ Missing required arguments")
+                print("❌ Missing required arguments")
             return None
 
         # Validate file exists

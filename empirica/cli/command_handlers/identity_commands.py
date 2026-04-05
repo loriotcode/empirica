@@ -65,18 +65,18 @@ def handle_identity_create_command(args):
             print(json.dumps(result, indent=2))
         else:
             print(f"✅ Identity created: {ai_id}")
-            print(f"\n🔑 Public Key:")
+            print("\n🔑 Public Key:")
             print(f"   {identity.public_key_hex()}")
-            print(f"\n📁 Files:")
+            print("\n📁 Files:")
             print(f"   Private key: {identity.keypair_path}")
             print(f"   Public key:  {identity.public_key_path}")
-            print(f"\n🔒 Security:")
-            print(f"   • Private key permissions: 0600 (owner read/write only)")
-            print(f"   • Keep private key secure!")
-            print(f"   • Share public key freely")
-            print(f"\n💡 Next steps:")
+            print("\n🔒 Security:")
+            print("   • Private key permissions: 0600 (owner read/write only)")
+            print("   • Keep private key secure!")
+            print("   • Share public key freely")
+            print("\n💡 Next steps:")
             print(f"   1. Sign assessments: empirica preflight \"task\" --ai-id {ai_id} --sign")
-            print(f"   2. Verify sessions: empirica identity-verify <session-id>")
+            print("   2. Verify sessions: empirica identity-verify <session-id>")
             print(f"   3. Share public key: empirica identity-export --ai-id {ai_id}")
 
         # Return None to avoid exit code issues and duplicate output
@@ -119,9 +119,9 @@ def handle_identity_list_command(args):
                     print(f"   Key file: {identity['key_file']}")
 
                     if identity['has_public_key']:
-                        print(f"   Public key: ✓")
+                        print("   Public key: ✓")
                     else:
-                        print(f"   Public key: ✗ (missing)")
+                        print("   Public key: ✗ (missing)")
 
                     print()
 
@@ -160,19 +160,19 @@ def handle_identity_export_command(args):
             print(json.dumps(result, indent=2))
         else:
             print(f"📤 Public Key Export: {ai_id}\n")
-            print(f"Public Key:")
+            print("Public Key:")
             print(f"{public_key_data['public_key']}\n")
             print(f"Created: {public_key_data['created_at']}")
 
             if public_key_data.get('metadata'):
-                print(f"\nMetadata:")
+                print("\nMetadata:")
                 for key, value in public_key_data['metadata'].items():
                     print(f"  {key}: {value}")
 
-            print(f"\n💡 Share this public key:")
-            print(f"   • Others can verify your signed assessments")
-            print(f"   • Public key is safe to distribute")
-            print(f"   • Never share your private key!")
+            print("\n💡 Share this public key:")
+            print("   • Others can verify your signed assessments")
+            print("   • Public key is safe to distribute")
+            print("   • Never share your private key!")
 
         # Return None to avoid exit code issues and duplicate output
         return None
@@ -188,7 +188,7 @@ def handle_identity_export_command(args):
             print(json.dumps(result, indent=2))
         else:
             print(f"❌ Identity '{ai_id}' not found")
-            print(f"\n💡 Create it first:")
+            print("\n💡 Create it first:")
             print(f"   empirica identity-create --ai-id {ai_id}")
 
         # Return None to avoid exit code issues and duplicate output
@@ -242,13 +242,13 @@ def handle_identity_verify_command(args):
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"⚠️  Signature verification not yet implemented")
+            print("⚠️  Signature verification not yet implemented")
             print(f"\n   Session: {session_id}")
-            print(f"   Status: Exists in database")
-            print(f"\n💡 Coming soon:")
-            print(f"   • Store signatures in database")
-            print(f"   • Verify cryptographic integrity")
-            print(f"   • Check cascade trace hash")
+            print("   Status: Exists in database")
+            print("\n💡 Coming soon:")
+            print("   • Store signatures in database")
+            print("   • Verify cryptographic integrity")
+            print("   • Check cascade trace hash")
 
         db.close()
         # Return None to avoid exit code issues and duplicate output

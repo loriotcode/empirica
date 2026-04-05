@@ -312,10 +312,10 @@ def handle_goals_create_command(args):
                         "objective": objective
                     }))
                 else:
-                    print(f"⚠️  Similar goal(s) found:")
+                    print("⚠️  Similar goal(s) found:")
                     for sg in similar_goals:
                         print(f"   - {sg['objective'][:60]}... (score: {sg.get('score', 'N/A')})")
-                    print(f"\n   Use --force to create anyway")
+                    print("\n   Use --force to create anyway")
                 sys.exit(1)
 
         # Validate success criteria (make it optional now)
@@ -486,7 +486,7 @@ def handle_goals_create_command(args):
             # Add helpful hint if BEADS not used (only in JSON mode for parsability)
             if result['ok'] and not beads_issue_id and not use_beads:
                 import sys as _sys
-                print(f"\n💡 Tip: Add --use-beads flag to track this goal in BEADS issue tracker", file=_sys.stderr)
+                print("\n💡 Tip: Add --use-beads flag to track this goal in BEADS issue tracker", file=_sys.stderr)
         else:
             # Human-readable output (legacy)
             if result['ok']:
@@ -499,7 +499,7 @@ def handle_goals_create_command(args):
                 if beads_issue_id:
                     print(f"   BEADS Issue: {beads_issue_id}")
                 elif not use_beads:
-                    print(f"\n💡 Tip: Add --use-beads flag to track goals in BEADS issue tracker")
+                    print("\n💡 Tip: Add --use-beads flag to track goals in BEADS issue tracker")
             else:
                 print(f"❌ {result.get('message', 'Failed to create goal')}")
 
@@ -796,7 +796,7 @@ def handle_goals_add_dependency_command(args):
                 'informs': 'is informed by',
                 'extends': 'extends'
             }
-            print(f"Goal dependency added")
+            print("Goal dependency added")
             print(f"  {result['goal_objective']}")
             print(f"    {type_labels.get(dependency_type, dependency_type)}")
             print(f"  {result['depends_on_objective']}")
@@ -1369,10 +1369,10 @@ def handle_goals_search_command(args):
             if not results:
                 print(f"\n🔍 No goals found for: \"{query}\"")
                 print(f"   Project: {project_id[:8]}...")
-                print(f"\n💡 Tips:")
-                print(f"   - Run with --sync to sync SQLite goals to Qdrant first")
-                print(f"   - Try a different query")
-                print(f"   - Check Qdrant is running (EMPIRICA_QDRANT_URL)")
+                print("\n💡 Tips:")
+                print("   - Run with --sync to sync SQLite goals to Qdrant first")
+                print("   - Try a different query")
+                print("   - Check Qdrant is running (EMPIRICA_QDRANT_URL)")
                 return 0
 
             print(f"\n🔍 Found {len(results)} result(s) for: \"{query}\"")
@@ -1766,7 +1766,7 @@ def handle_goals_ready_command(args):
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"📋 Ready Work (Dependency + Epistemic)")
+            print("📋 Ready Work (Dependency + Epistemic)")
             print(f"   BEADS ready: {len(beads_ready)}")
             print(f"   Mapped to goals: {len(ready_work)}")
             print(f"   Epistemically ready: {len(epistemically_ready_work)}")
@@ -1972,14 +1972,14 @@ def handle_goals_claim_command(args):
         else:
             print(f"✅ Claimed goal: {goal_id[:8]}")
             if beads_issue_id and result.get("beads_status_updated"):
-                print(f"✅ Updated BEADS status: in_progress")
+                print("✅ Updated BEADS status: in_progress")
             if result.get("branch_created"):
                 print(f"✅ {'Created' if result['branch_action'] == 'created_new' else 'Checked out'} branch: {result['branch_name']}")
             if result.get("branch_mapping_saved"):
-                print(f"✅ Branch mapping saved")
+                print("✅ Branch mapping saved")
             if result.get("preflight_started"):
-                print(f"🧠 Running PREFLIGHT...")
-            print(f"✅ Ready to start work!")
+                print("🧠 Running PREFLIGHT...")
+            print("✅ Ready to start work!")
 
     except Exception as e:
         handle_cli_error(e, "goals-claim", getattr(args, 'output', 'json'))
@@ -2236,7 +2236,7 @@ def handle_goals_complete_command(args):
         else:
             print(f"✅ Completed goal: {goal_id[:8]}")
             if result.get("postflight_started"):
-                print(f"🧠 POSTFLIGHT completed")
+                print("🧠 POSTFLIGHT completed")
             if result.get("beads_issue_closed"):
                 print(f"✅ Closed BEADS issue: {beads_issue_id}")
             if result.get("branch_merged"):
@@ -2244,10 +2244,10 @@ def handle_goals_complete_command(args):
                 if result.get("branch_deleted"):
                     print(f"✅ Deleted branch: {branch_name}")
             if result.get("branch_mapping_removed"):
-                print(f"✅ Branch mapping archived")
+                print("✅ Branch mapping archived")
             if result.get("handoff_created"):
-                print(f"✅ Handoff report created")
-            print(f"✅ Goal complete!")
+                print("✅ Handoff report created")
+            print("✅ Goal complete!")
 
     except Exception as e:
         handle_cli_error(e, "goals-complete", getattr(args, 'output', 'json'))
@@ -2372,7 +2372,7 @@ def handle_goals_resume_command(args):
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"✅ Goal resumed successfully")
+            print("✅ Goal resumed successfully")
             print(f"   Goal ID: {goal_id[:8]}...")
             print(f"   Original AI: {goal_data['ai_id']}")
             print(f"   Resuming as: {ai_id}")
@@ -2386,10 +2386,10 @@ def handle_goals_resume_command(args):
                     if isinstance(value, (int, float)):
                         print(f"   • {key.upper()}: {value:.2f}")
 
-            print(f"\n💡 Next steps:")
-            print(f"   1. Review original AI's epistemic state")
+            print("\n💡 Next steps:")
+            print("   1. Review original AI's epistemic state")
             print(f"   2. Run your own preflight: empirica preflight \"<task>\" --ai-id {ai_id}")
-            print(f"   3. Compare your vectors with original AI's")
+            print("   3. Compare your vectors with original AI's")
 
         goal_repo.close()
         return result

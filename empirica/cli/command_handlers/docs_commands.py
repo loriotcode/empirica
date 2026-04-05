@@ -1543,7 +1543,7 @@ def _print_turtle_output(result: dict, verbose: bool):
     print(f"   External docs: {final['docs_coverage']}%")
     print(f"   Code docstrings: {final['docstring_coverage']}%")
 
-    print(f"\n📊 Epistemic Vectors:")
+    print("\n📊 Epistemic Vectors:")
     print(f"   know: {vectors['know']:.2f}")
     print(f"   uncertainty: {vectors['uncertainty']:.2f}")
     print(f"   delta: {vectors['delta']:+.3f}")
@@ -1552,27 +1552,27 @@ def _print_turtle_output(result: dict, verbose: bool):
     print(f"   Rounds: {result['total_rounds']}")
 
     if result.get("cross_gaps"):
-        print(f"\n⚠️ Cross-Reference Gaps (in docs but missing docstring):")
+        print("\n⚠️ Cross-Reference Gaps (in docs but missing docstring):")
         for gap in result["cross_gaps"][:5]:
             print(f"   • {gap}")
 
     if verbose and result.get("docstring_gaps"):
         gaps = result["docstring_gaps"]
         if gaps.get("modules"):
-            print(f"\n📄 Modules missing docstrings:")
+            print("\n📄 Modules missing docstrings:")
             for m in gaps["modules"][:5]:
                 print(f"   • {m}")
         if gaps.get("classes"):
-            print(f"\n🏛️ Classes missing docstrings:")
+            print("\n🏛️ Classes missing docstrings:")
             for c in gaps["classes"][:5]:
                 print(f"   • {c}")
         if gaps.get("functions"):
-            print(f"\n⚙️ Functions missing docstrings:")
+            print("\n⚙️ Functions missing docstrings:")
             for f in gaps["functions"][:5]:
                 print(f"   • {f}")
 
     if result.get("recommendations"):
-        print(f"\n💡 Recommendations:")
+        print("\n💡 Recommendations:")
         for rec in result["recommendations"][:3]:
             print(f"   • {rec}")
 
@@ -1645,7 +1645,7 @@ def _print_human_output(result: dict, categories: list[FeatureCoverage], verbose
     print(f"   Features: {overall['documented']}/{overall['total_features']} documented")
 
     # Epistemic assessment
-    print(f"\n📊 Epistemic Assessment:")
+    print("\n📊 Epistemic Assessment:")
     print(f"   know: {epistemic['know']:.2f}")
     print(f"   uncertainty: {epistemic['uncertainty']:.2f}")
     print(f"   → {epistemic['assessment']}")

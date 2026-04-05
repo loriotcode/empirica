@@ -492,7 +492,7 @@ def generate_suggestions(outcomes: list[TransactionOutcome],
                 suggestion=f"Log more artifacts — successful transactions average "
                            f"{avg_artifacts_success:.1f} epistemic logs vs "
                            f"{avg_artifacts_fail:.1f} in unsuccessful",
-                evidence=f"Artifact types: findings, unknowns, dead-ends, assumptions, decisions",
+                evidence="Artifact types: findings, unknowns, dead-ends, assumptions, decisions",
                 confidence=min(0.75, 0.3 + len(outcomes) / 40),
                 pattern="artifact-breadth-correlation",
                 category="artifact",

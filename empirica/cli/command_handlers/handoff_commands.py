@@ -242,14 +242,14 @@ def handle_handoff_create_command(args):
             if handoff.get('epistemic_note'):
                 print(f"   Note: {handoff['epistemic_note']}")
             print(f"   Token count: ~{len(handoff.get('compressed_json', '')) // 4} tokens")
-            print(f"   Storage: git notes (refs/notes/empirica/handoff/)")
+            print("   Storage: git notes (refs/notes/empirica/handoff/)")
             if handoff_type in ["investigation", "complete"]:
                 print(f"   Calibration: {handoff.get('calibration_status', 'N/A')}")
                 if handoff.get('epistemic_deltas'):
                     deltas = handoff['epistemic_deltas']
                     print(f"   Epistemic deltas: KNOW {deltas.get('know', 0):+.2f}, CONTEXT {deltas.get('context', 0):+.2f}, STATE {deltas.get('state', 0):+.2f}")
             else:
-                print(f"   Type: Documentation-only (no CASCADE workflow assessments)")
+                print("   Type: Documentation-only (no CASCADE workflow assessments)")
 
         print(json.dumps(handoff, indent=2))
         return 0

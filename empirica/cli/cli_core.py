@@ -316,13 +316,13 @@ def main(args=None):
             print(f"\n{cat.title()} ({len(_CATEGORIES[cat])} commands):\n")
             for cmd in _CATEGORIES[cat]:
                 print(f"  {cmd}")
-            print(f"\nUse 'empirica <command> --help' for details.")
+            print("\nUse 'empirica <command> --help' for details.")
         else:
             total = sum(len(cmds) for cmds in _CATEGORIES.values())
             print(f"\nAll Empirica Commands ({total} total):\n")
             for cat, cmds in _CATEGORIES.items():
                 print(f"  {cat:16s} ({len(cmds):2d})  {', '.join(cmds[:4])}{'...' if len(cmds) > 4 else ''}")
-            print(f"\nUse 'empirica help <category>' to see all commands in a category.")
+            print("\nUse 'empirica help <category>' to see all commands in a category.")
         sys.exit(0)
 
     # Normalize --project-id: resolve names to UUIDs via workspace.db

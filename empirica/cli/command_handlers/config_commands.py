@@ -176,7 +176,7 @@ def handle_config_validate_command(args):
         if not mco.epistemic_conduct:
             warnings.append("No epistemic conduct configuration")
         else:
-            print(f"   ✅ Epistemic conduct loaded")
+            print("   ✅ Epistemic conduct loaded")
 
         # Check MCO files exist
         print("\n📂 Checking MCO Files...")
@@ -255,28 +255,28 @@ def handle_config_set_command(args):
         key = args.key
         value = args.value
 
-        print(f"\n⚠️  MCO Configuration is Read-Only via CLI")
+        print("\n⚠️  MCO Configuration is Read-Only via CLI")
         print("=" * 70)
 
         mco = get_mco_config()
 
         print(f"\nTo set '{key}' = '{value}':")
-        print(f"\n1. Edit the appropriate YAML file in:")
+        print("\n1. Edit the appropriate YAML file in:")
         print(f"   {mco.config_dir}")
 
         # Suggest which file to edit based on key
         if key.startswith('model_profiles'):
-            print(f"\n2. Edit: model_profiles.yaml")
+            print("\n2. Edit: model_profiles.yaml")
         elif key.startswith('personas'):
-            print(f"\n2. Edit: personas.yaml")
+            print("\n2. Edit: personas.yaml")
         elif key.startswith('epistemic_conduct'):
-            print(f"\n2. Edit: epistemic_conduct.yaml")
+            print("\n2. Edit: epistemic_conduct.yaml")
         elif key.startswith('ask_before_investigate'):
-            print(f"\n2. Edit: ask_before_investigate.yaml")
+            print("\n2. Edit: ask_before_investigate.yaml")
         elif key.startswith('protocols'):
-            print(f"\n2. Edit: protocols.yaml")
+            print("\n2. Edit: protocols.yaml")
         else:
-            print(f"\n2. Check available sections: model_profiles, personas, epistemic_conduct, protocols")
+            print("\n2. Check available sections: model_profiles, personas, epistemic_conduct, protocols")
 
         print("\n3. Restart your session to load the new configuration")
 

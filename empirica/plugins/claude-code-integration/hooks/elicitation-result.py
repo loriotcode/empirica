@@ -32,7 +32,7 @@ def main():
         hook_input = {}
 
     # Log EVERYTHING — we're discovering the payload
-    logger.info(f"=== ElicitationResult Event ===")
+    logger.info("=== ElicitationResult Event ===")
     logger.info(f"Full input: {json.dumps(hook_input, indent=2)}")
     logger.info(f"Keys: {list(hook_input.keys())}")
 

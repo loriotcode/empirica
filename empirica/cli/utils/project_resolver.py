@@ -149,7 +149,7 @@ def resolve_project_id(project_id_or_name: str, db=None) -> str:
 
         if not resolved_id:
             print(f"❌ Error: Project '{project_id_or_name}' not found", file=sys.stderr)
-            print(f"\nTip: List all projects with: empirica project-list", file=sys.stderr)
+            print("\nTip: List all projects with: empirica project-list", file=sys.stderr)
             sys.exit(1)
 
         return resolved_id

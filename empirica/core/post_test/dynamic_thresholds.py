@@ -462,12 +462,12 @@ def export_brier_to_breadcrumbs(
 
         if data.get("status") == "insufficient_data":
             n = data.get("n", 0)
-            lines.append(f"    status: insufficient_data\n")
+            lines.append("    status: insufficient_data\n")
             lines.append(f"    samples: {n}\n")
             continue
 
         if not data or "brier_score" not in data:
-            lines.append(f"    status: no_data\n")
+            lines.append("    status: no_data\n")
             continue
 
         lines.append(f"    brier_score: {data['brier_score']:.4f}\n")

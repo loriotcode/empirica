@@ -113,7 +113,7 @@ if __name__ == '__main__':
 
     index = load_semantic_index()
     if index:
-        print(f"✅ Semantic index loaded")
+        print("✅ Semantic index loaded")
         print(f"   Version: {index.get('version', 'unknown')}")
         print(f"   Docs indexed: {index.get('total_docs_indexed', 0)}")
         print(f"   Index entries: {len(index.get('index', {}))}")

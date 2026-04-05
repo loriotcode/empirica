@@ -225,7 +225,7 @@ def verify_signature(
         if is_valid:
             logger.info(f"✓ Signature verified (creator_id={public_key_hex[:16]}...)")
         else:
-            logger.warning(f"✗ Signature verification failed")
+            logger.warning("✗ Signature verification failed")
 
         return is_valid
 

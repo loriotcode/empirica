@@ -721,7 +721,7 @@ def handle_preflight_submit_command(args):
                 print("✅ PREFLIGHT assessment submitted successfully")
                 print(f"   Session: {session_id[:8]}...")
                 print(f"   Vectors: {len(vectors)} submitted")
-                print(f"   Storage: Database + Git Notes")
+                print("   Storage: Database + Git Notes")
                 if reasoning:
                     print(f"   Reasoning: {reasoning[:80]}...")
             else:
@@ -971,19 +971,19 @@ def handle_check_command(args):
             print(json.dumps(result, indent=2))
         else:
             # Human-readable output
-            print(f"\n🔍 CHECK - Mid-Session Grounding")
+            print("\n🔍 CHECK - Mid-Session Grounding")
             print("=" * 70)
             print(f"Session: {session_id}")
             print(f"Decision: {decision.upper()} ({strength} suggestion)")
-            print(f"\n📊 Drift Analysis:")
+            print("\n📊 Drift Analysis:")
             print(f"   Overall drift: {drift:.2%} ({drift_level})")
             print(f"   Know: {deltas.get('know', 0):+.2f}")
             print(f"   Uncertainty: {deltas.get('uncertainty', 0):+.2f}")
             print(f"   Completion: {deltas.get('completion', 0):+.2f}")
-            print(f"\n📚 Evidence:")
+            print("\n📚 Evidence:")
             print(f"   Findings: {findings_count}")
             print(f"   Unknowns: {unknowns_count}")
-            print(f"\n💡 Recommendation:")
+            print("\n💡 Recommendation:")
             print(f"   {reasoning}")
             for suggestion in suggestions:
                 print(f"   • {suggestion}")
@@ -1657,7 +1657,7 @@ def handle_check_submit_command(args):
             print(f"   Decision: {decision.upper()}")
             print(f"   Cycle: {cycle}")
             print(f"   Vectors: {len(vectors)} submitted")
-            print(f"   Storage: SQLite + Git Notes + JSON")
+            print("   Storage: SQLite + Git Notes + JSON")
             if reasoning:
                 print(f"   Reasoning: {reasoning[:80]}...")
 
@@ -2854,7 +2854,7 @@ def handle_postflight_submit_command(args):
                 print("✅ POSTFLIGHT assessment submitted successfully")
                 print(f"   Session: {session_id[:8]}...")
                 print(f"   Vectors: {len(vectors)} submitted")
-                print(f"   Storage: Database + Git Notes")
+                print("   Storage: Database + Git Notes")
                 print(f"   Internal consistency: {internal_consistency}")
                 if grounded_verification:
                     cal_score = grounded_verification.get('calibration_score', 0)
@@ -2887,7 +2887,7 @@ def handle_postflight_submit_command(args):
                     db.close()
 
                     if "error" not in breadcrumbs:
-                        print(f"\n📚 Project Context (for next session):")
+                        print("\n📚 Project Context (for next session):")
                         if breadcrumbs.get('findings'):
                             print(f"   Recent findings recorded: {len(breadcrumbs['findings'])}")
                         if breadcrumbs.get('unknowns'):
@@ -2902,9 +2902,9 @@ def handle_postflight_submit_command(args):
                         from empirica.core.docs.doc_planner import compute_doc_plan
                         doc_plan = compute_doc_plan(project_id, session_id=session_id)
                         if doc_plan and doc_plan.get('suggested_updates'):
-                            print(f"\n📄 Documentation Requirements:")
+                            print("\n📄 Documentation Requirements:")
                             print(f"   Completeness: {doc_plan['doc_completeness_score']}/1.0")
-                            print(f"   Suggested updates:")
+                            print("   Suggested updates:")
                             for update in doc_plan['suggested_updates'][:3]:
                                 print(f"     • {update['doc_path']}")
                                 print(f"       Reason: {update['reason']}")

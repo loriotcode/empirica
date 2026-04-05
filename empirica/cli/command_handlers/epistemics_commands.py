@@ -53,7 +53,7 @@ def handle_epistemics_search_command(args):
             }, indent=2))
         else:
             # Human-readable format
-            print(f"\n🧠 Epistemic Trajectory Search Results")
+            print("\n🧠 Epistemic Trajectory Search Results")
             print(f"{'=' * 70}")
             print(f"Query: {query}")
             if min_learning:

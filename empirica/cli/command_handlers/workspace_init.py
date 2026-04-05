@@ -313,14 +313,14 @@ def handle_workspace_init_command(args):
         )
 
         if output_format != 'json':
-            print(f"Initial epistemic state:")
+            print("Initial epistemic state:")
             print(f"  know: {initial_state['know']:.2f}     (Low - just started scanning)")
             print(f"  context: {initial_state['context']:.2f}  (Low - don't know file structure yet)")
             print(f"  uncertainty: {initial_state['uncertainty']:.2f} (High - many unknowns)\n")
-            print(f"Findings:")
+            print("Findings:")
             for finding in initial_state['findings']:
                 print(f"  • {finding}")
-            print(f"\nUnknowns:")
+            print("\nUnknowns:")
             for unknown in initial_state['unknowns']:
                 print(f"  • {unknown}")
             print("\n" + "━" * 64 + "\n")
@@ -360,11 +360,11 @@ def handle_workspace_init_command(args):
             )
 
             if output_format != 'json':
-                print(f"Updated epistemic state:")
+                print("Updated epistemic state:")
                 print(f"  know: {investigation_state['know']:.2f} ↑    (Medium - now understand projects)")
                 print(f"  context: {investigation_state['context']:.2f} ↑ (Medium - have activity data)")
                 print(f"  uncertainty: {investigation_state['uncertainty']:.2f} ↓ (Medium-Low)\n")
-                print(f"New findings:")
+                print("New findings:")
                 for finding in investigation_state['findings'][:5]:  # Show first 5
                     print(f"  • {finding}")
                 if len(investigation_state['findings']) > 5:
@@ -560,7 +560,7 @@ def handle_workspace_init_command(args):
             print("Final epistemic state:")
             print(f"  know: {final_know:.2f} ↑       (Excellent - comprehensive understanding)")
             print(f"  context: {final_context:.2f} ↑    (Excellent - full workspace mapped)")
-            print(f"  completion: 1.0 ↑  (Complete - all projects registered)")
+            print("  completion: 1.0 ↑  (Complete - all projects registered)")
             print(f"  uncertainty: {final_uncertainty:.2f} ↓ (Very low - high confidence)\n")
             print("Learning delta (PREFLIGHT → POSTFLIGHT):")
             print(f"  know: +{final_know - initial_state['know']:.2f}")
@@ -569,7 +569,7 @@ def handle_workspace_init_command(args):
             print(f"Session recorded: {session_id}\n")
             print("━" * 64 + "\n")
             print("📊 Your Epistemic Workspace\n")
-            print(f"Run 'empirica workspace-overview' to see:")
+            print("Run 'empirica workspace-overview' to see:")
             print("  • Epistemic health of all projects")
             print("  • Cross-project knowledge patterns")
             print("  • Recommended next actions\n")

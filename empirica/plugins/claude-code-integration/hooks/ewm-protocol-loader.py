@@ -129,7 +129,7 @@ def sanitize_value(value: str) -> str:
 
     for pattern in INJECTION_PATTERNS:
         if re.search(pattern, value):
-            return f"[SANITIZED: suspicious pattern detected in value]"
+            return "[SANITIZED: suspicious pattern detected in value]"
 
     return value
 
@@ -321,7 +321,7 @@ def format_unknown_user_prompt(protocol: dict) -> str:
         f"Team members: **{', '.join(names)}**",
         "",
         "Ask who is speaking to load their behavioral profile.",
-        f"Set `EMPIRICA_USER` env var or create `~/.empirica/current_user` to auto-detect.",
+        "Set `EMPIRICA_USER` env var or create `~/.empirica/current_user` to auto-detect.",
     ]
     return "\n".join(parts)
 
@@ -421,7 +421,7 @@ def main():
     ecosystem = protocol.get('ecosystem_vision', {})
     if ecosystem.get('architecture'):
         context_parts.append("")
-        context_parts.append(f"### Ecosystem Vision")
+        context_parts.append("### Ecosystem Vision")
         context_parts.append(f"*{ecosystem['architecture']}*")
 
     full_context = "\n".join(context_parts)

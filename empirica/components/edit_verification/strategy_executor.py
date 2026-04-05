@@ -160,7 +160,7 @@ class EditStrategyExecutor:
                     return {
                         "success": False,
                         "strategy_used": "bash_fallback",
-                        "message": f"Pattern not found (even with flexible whitespace)",
+                        "message": "Pattern not found (even with flexible whitespace)",
                         "changes_made": False
                     }
 
@@ -171,7 +171,7 @@ class EditStrategyExecutor:
             return {
                 "success": True,
                 "strategy_used": "bash_fallback",
-                "message": f"Successfully replaced using line-based approach",
+                "message": "Successfully replaced using line-based approach",
                 "changes_made": True
             }
 
@@ -205,7 +205,7 @@ class EditStrategyExecutor:
                 return {
                     "success": False,
                     "strategy_used": "re_read_first",
-                    "message": f"After re-reading: pattern still not found",
+                    "message": "After re-reading: pattern still not found",
                     "changes_made": False
                 }
 

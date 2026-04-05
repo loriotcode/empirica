@@ -63,7 +63,7 @@ def handle_benchmark_command(args):
 
         end_time = time.time()
 
-        print(f"✅ Benchmark complete")
+        print("✅ Benchmark complete")
         print(f"   🏁 Type: {benchmark_type}")
         print(f"   🔄 Iterations: {iterations}")
         print(f"   ⏱️ Total time: {format_execution_time(start_time, end_time)}")
@@ -138,7 +138,7 @@ def handle_performance_command(args):
             detailed=detailed
         )
 
-        print(f"✅ Performance analysis complete")
+        print("✅ Performance analysis complete")
         print(f"   🎯 Target: {target}")
         print(f"   📊 Performance score: {result.get('performance_score', 0):.2f}")
         print(f"   🏆 Grade: {result.get('performance_grade', 'unknown')}")

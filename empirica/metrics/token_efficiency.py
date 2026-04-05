@@ -310,28 +310,28 @@ class TokenEfficiencyMetrics:
     def _format_markdown_report(self, report: dict[str, Any]) -> str:
         """Format report as Markdown."""
         lines = [
-            f"# Token Efficiency Report",
-            f"",
+            "# Token Efficiency Report",
+            "",
             f"**Session:** `{report['session_id']}`  ",
             f"**Baseline:** `{report['baseline_session_id']}`  ",
             f"**Generated:** {report['timestamp']}",
-            f"",
-            f"## Summary",
-            f"",
-            f"| Metric | Value |",
-            f"|--------|-------|",
+            "",
+            "## Summary",
+            "",
+            "| Metric | Value |",
+            "|--------|-------|",
             f"| Baseline Tokens | {report['total']['baseline_tokens']:,} |",
             f"| Actual Tokens | {report['total']['actual_tokens']:,} |",
             f"| Reduction | {report['total']['reduction_absolute']:,} ({report['total']['reduction_percentage']:.1f}%) |",
             f"| Cost Savings | ${report['total']['cost_savings_usd']:.4f} |",
-            f"",
+            "",
             f"**Target Met:** {'✅ YES' if report['success_criteria']['target_met'] else '❌ NO'} "
             f"({report['success_criteria']['achieved_reduction_pct']:.1f}% vs {report['success_criteria']['target_reduction_pct']}% target)",
-            f"",
-            f"## Per-Phase Breakdown",
-            f"",
-            f"| Phase | Baseline | Actual | Reduction | % |",
-            f"|-------|----------|--------|-----------|---|"
+            "",
+            "## Per-Phase Breakdown",
+            "",
+            "| Phase | Baseline | Actual | Reduction | % |",
+            "|-------|----------|--------|-----------|---|"
         ]
 
         for phase, metrics in report['phases'].items():
@@ -343,11 +343,11 @@ class TokenEfficiencyMetrics:
             )
 
         lines.extend([
-            f"",
-            f"## Detailed Measurements",
-            f"",
+            "",
+            "## Detailed Measurements",
+            "",
             f"Total measurements recorded: {len(self.measurements)}",
-            f""
+            ""
         ])
 
         for i, measurement in enumerate(self.measurements, 1):

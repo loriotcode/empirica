@@ -60,7 +60,7 @@ def handle_mcp_start_command(args):
         if _is_mcp_running():
             print(f"✅ MCP server started successfully (PID: {process.pid})")
             print(f"📝 Logs: {log_file}")
-            print(f"\n💡 Configure your IDE to use this MCP server:")
+            print("\n💡 Configure your IDE to use this MCP server:")
             print(f"   Command: {python_exe}")
             print(f"   Args: [\"{MCP_SERVER_PATH}\"]")
         else:
@@ -100,7 +100,7 @@ def handle_mcp_stop_command(args):
             time.sleep(0.5)
             print(f"✅ MCP server force stopped (PID: {pid})")
         except ProcessLookupError:
-            print(f"ℹ️  MCP server already stopped")
+            print("ℹ️  MCP server already stopped")
 
         MCP_PID_FILE.unlink(missing_ok=True)
 
@@ -115,7 +115,7 @@ def handle_mcp_status_command(args):
 
         if _is_mcp_running():
             pid = _get_mcp_pid()
-            print(f"✅ Status: Running")
+            print("✅ Status: Running")
             print(f"🆔 PID: {pid}")
             print(f"📝 Log file: {MCP_PID_FILE.parent / 'mcp_server.log'}")
 
@@ -124,7 +124,7 @@ def handle_mcp_status_command(args):
                 try:
                     import psutil
                     proc = psutil.Process(pid)
-                    print(f"\n📈 Process Info:")
+                    print("\n📈 Process Info:")
                     print(f"   CPU: {proc.cpu_percent(interval=0.1):.1f}%")
                     print(f"   Memory: {proc.memory_info().rss / 1024 / 1024:.1f} MB")
                     print(f"   Threads: {proc.num_threads()}")
@@ -132,8 +132,8 @@ def handle_mcp_status_command(args):
                 except ImportError:
                     print("\n💡 Install psutil for detailed process info: pip install psutil")
         else:
-            print(f"❌ Status: Not Running")
-            print(f"\n💡 Start with: empirica mcp start")
+            print("❌ Status: Not Running")
+            print("\n💡 Start with: empirica mcp start")
 
     except Exception as e:
         handle_cli_error(e, "Checking MCP server status", getattr(args, 'verbose', False))
@@ -266,8 +266,8 @@ def handle_mcp_list_tools_command(args):
         print(f"\n📊 Total tools: {total}")
 
         if args.verbose:
-            print(f"\n💡 Use 'empirica mcp call <tool_name>' to test a tool")
-            print(f"💡 See docs/human/developers/MCP_SERVER_REFERENCE.md for detailed documentation")
+            print("\n💡 Use 'empirica mcp call <tool_name>' to test a tool")
+            print("💡 See docs/human/developers/MCP_SERVER_REFERENCE.md for detailed documentation")
 
     except Exception as e:
         handle_cli_error(e, "Listing MCP tools", getattr(args, 'verbose', False))
@@ -293,8 +293,8 @@ def handle_mcp_call_command(args):
         print("⏳ Direct MCP tool calling from CLI is experimental")
         print(f"\n📝 Tool: {args.tool_name}")
         print(f"📝 Arguments: {json.dumps(tool_args, indent=2)}")
-        print(f"\n💡 To use this tool, configure it in your IDE's MCP client")
-        print(f"💡 See docs/human/developers/MCP_SERVER_REFERENCE.md")
+        print("\n💡 To use this tool, configure it in your IDE's MCP client")
+        print("💡 See docs/human/developers/MCP_SERVER_REFERENCE.md")
 
     except Exception as e:
         handle_cli_error(e, "Calling MCP tool", getattr(args, 'verbose', False))

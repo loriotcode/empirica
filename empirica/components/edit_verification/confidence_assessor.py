@@ -284,7 +284,7 @@ if __name__ == "__main__":
         context_source="view_output"
     )
     strategy1, reason1 = assessor.recommend_strategy(assessment1)
-    print(f"Test 1 - Fresh view, simple string:")
+    print("Test 1 - Fresh view, simple string:")
     print(f"  Assessment: {assessment1}")
     print(f"  Strategy: {strategy1}")
     print(f"  Reason: {reason1}\n")
@@ -296,7 +296,7 @@ if __name__ == "__main__":
         context_source="memory"
     )
     strategy2, reason2 = assessor.recommend_strategy(assessment2)
-    print(f"Test 2 - Memory, multi-line with indentation:")
+    print("Test 2 - Memory, multi-line with indentation:")
     print(f"  Assessment: {assessment2}")
     print(f"  Strategy: {strategy2}")
     print(f"  Reason: {reason2}")

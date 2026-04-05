@@ -112,10 +112,10 @@ def handle_agent_spawn_command(args) -> dict:
             print(f"Persona: {result.persona_id} (turtle-matched: {turtle_match.name})")
         else:
             print(f"Persona: {result.persona_id}")
-        print(f"\n--- AGENT PROMPT ---\n")
+        print("\n--- AGENT PROMPT ---\n")
         print(result.output)
-        print(f"\n--- END PROMPT ---\n")
-        print(f"After agent completes, report with:")
+        print("\n--- END PROMPT ---\n")
+        print("After agent completes, report with:")
         print(f"  empirica agent-report --branch-id {result.branch_id} --postflight '<json>'")
 
 
@@ -479,7 +479,7 @@ def handle_agent_import_command(args) -> dict:
         if output_format == 'json':
             print(json.dumps(response, indent=2))
         else:
-            print(f"✅ Agent imported successfully")
+            print("✅ Agent imported successfully")
             print(f"   Imported: {agent_package.get('agent_id')}")
             print(f"   New Branch: {branch_id[:8]}...")
             print(f"   Source Score: {agent_package.get('epistemic_profile', {}).get('merge_score', 'N/A')}")
@@ -617,7 +617,7 @@ def handle_agent_parallel_command(args) -> dict:
         if output_format == 'json':
             print(json.dumps(response, indent=2))
         else:
-            print(f"Parallel Orchestration Plan")
+            print("Parallel Orchestration Plan")
             print(f"{'='*50}")
             print(f"Task: {task}")
             print(f"Budget: {plan.budget.total_budget} findings")
@@ -635,7 +635,7 @@ def handle_agent_parallel_command(args) -> dict:
                 print()
 
             print(f"Budget ID: {plan.budget.id}")
-            print(f"\nLaunch agents with:")
+            print("\nLaunch agents with:")
             for agent in plan.agents:
                 print(f"  empirica agent-spawn --session-id {session_id} "
                       f"--task \"{agent.task_focus}\" --turtle")

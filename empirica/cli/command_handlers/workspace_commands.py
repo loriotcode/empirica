@@ -104,9 +104,9 @@ def handle_workspace_overview_command(args):
 
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
         print("💡 Quick Commands:")
-        print(f"   • Bootstrap project:  empirica project-bootstrap --project-id <PROJECT_ID>")
-        print(f"   • Check ready goals:  empirica goals-ready --session-id <SESSION_ID>")
-        print(f"   • List all projects:  empirica project-list")
+        print("   • Bootstrap project:  empirica project-bootstrap --project-id <PROJECT_ID>")
+        print("   • Check ready goals:  empirica goals-ready --session-id <SESSION_ID>")
+        print("   • List all projects:  empirica project-list")
         print()
 
         # Return None to avoid exit code issues and duplicate output
@@ -350,7 +350,7 @@ def handle_workspace_map_command(args):
                     print(f"   Remote: {repo['remote_url']}")
                     print(f"   → To track: empirica project-create --name '{repo['name']}' --repos '[\"{repo['remote_url']}\"]'")
                 else:
-                    print(f"   ⚠️  No remote configured")
+                    print("   ⚠️  No remote configured")
                 print()
 
         if eco_graph:
@@ -361,10 +361,10 @@ def handle_workspace_map_command(args):
 
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
         print("Quick Commands:")
-        print(f"   empirica workspace-overview           # Epistemic health of all projects")
-        print(f"   empirica ecosystem-check              # Full ecosystem dependency map")
-        print(f"   empirica ecosystem-check --project X  # Upstream/downstream for project X")
-        print(f"   empirica ecosystem-check --file F     # Impact analysis for file F")
+        print("   empirica workspace-overview           # Epistemic health of all projects")
+        print("   empirica ecosystem-check              # Full ecosystem dependency map")
+        print("   empirica ecosystem-check --project X  # Upstream/downstream for project X")
+        print("   empirica ecosystem-check --file F     # Impact analysis for file F")
         print()
         return 0
 

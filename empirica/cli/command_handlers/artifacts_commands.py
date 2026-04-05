@@ -968,7 +968,7 @@ def _render_readme(counts, recent_items):
         f"| \U0001f4d6 [Lessons](lessons.md) | **{counts.get('lessons', 0)}** | Procedural knowledge |",
         f"| \U0001f4ce [Sources](sources.md) | **{counts.get('sources', 0)}** | Reference documents |",
         f"| \U0001f510 [Signatures](signatures.md) | **{counts.get('signatures', 0)}** | Crypto provenance |",
-        f"| \U0001f3af [Calibration](calibration.md) | \u2014 | Bias corrections |",
+        "| \U0001f3af [Calibration](calibration.md) | \u2014 | Bias corrections |",
         "",
     ]
 
@@ -1179,7 +1179,7 @@ def handle_artifacts_generate_command(args):
             print(json.dumps(result, indent=2))
         else:
             counts = result["counts"]
-            print(f"\n\u2705 Generated .empirica/ audit trail:")
+            print("\n\u2705 Generated .empirica/ audit trail:")
             print(f"   \U0001f4dd Findings:      {counts['findings']}")
             print(f"   \u2753 Unknowns:      {counts['unknowns']}")
             print(f"   \U0001f6ab Dead Ends:     {counts['dead_ends']}")

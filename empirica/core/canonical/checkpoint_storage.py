@@ -69,7 +69,7 @@ class CheckpointStorage:
             vectors = checkpoint.get('vectors', {})
 
             if not session_id or not phase:
-                logger.error(f"Cannot save checkpoint: missing session_id or phase")
+                logger.error("Cannot save checkpoint: missing session_id or phase")
                 return False
 
             db = SessionDatabase()

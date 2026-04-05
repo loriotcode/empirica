@@ -101,8 +101,8 @@ def handle_investigate_command(args):
 
             if recalibration_attempt >= 3:
                 print(f"⚠️  Recalibration attempt limit reached ({recalibration_attempt})")
-                print(f"   Consider: pausing investigation, taking a snapshot, or starting fresh")
-                print(f"   Further investigation may not resolve drift")
+                print("   Consider: pausing investigation, taking a snapshot, or starting fresh")
+                print("   Further investigation may not resolve drift")
                 return None
 
             try:
@@ -148,7 +148,7 @@ def handle_investigate_command(args):
             result = {"error": f"Unknown investigation type: {investigation_type}"}
 
         # Display results
-        print(f"✅ Investigation complete")
+        print("✅ Investigation complete")
         print(f"   🎯 Target: {target}")
         print(f"   📊 Type: {result.get('type', 'unknown')}")
 
@@ -205,7 +205,7 @@ def handle_analyze_command(args):
             detailed=getattr(args, 'detailed', False)
         )
 
-        print(f"✅ Analysis complete")
+        print("✅ Analysis complete")
         print(f"   🎯 Subject: {args.subject}")
         print(f"   📊 Analysis type: {result.get('analysis_type', 'general')}")
         print(f"   🏆 Score: {result.get('score', 0):.2f}")
@@ -360,7 +360,7 @@ def handle_investigate_create_branch_command(args):
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"✅ Investigation branch created")
+            print("✅ Investigation branch created")
             print(f"   Branch: {git_branch_name}")
             print(f"   Path: {investigation_path}")
             print(f"   ID: {branch_id[:8]}...")
@@ -419,7 +419,7 @@ def handle_investigate_checkpoint_branch_command(args):
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"✅ Branch checkpointed successfully")
+            print("✅ Branch checkpointed successfully")
             print(f"   Merge Score: {score_data.get('merge_score', 0):.4f}")
             print(f"   Quality: {score_data.get('quality', 0):.4f}")
             print(f"   Confidence: {score_data.get('confidence', 0):.4f}")
@@ -537,7 +537,7 @@ def handle_investigate_merge_branches_command(args):
             print(json.dumps(result, indent=2))
         else:
             if result.get("ok"):
-                print(f"Epistemic Auto-Merge Complete")
+                print("Epistemic Auto-Merge Complete")
                 print(f"   Winner: {merge_result['winning_branch_name']}")
                 print(f"   Merge Score: {merge_result['winning_score']:.4f}")
                 print(f"   Decision ID: {merge_result['merge_decision_id'][:8]}...")
@@ -620,8 +620,8 @@ def handle_investigate_multi_command(args):
             "branches": branches,
             "aggregate_strategy": strategy,
             "next_steps": [
-                f"Execute each agent's prompt (see branches[persona_id].prompt)",
-                f"Report results: empirica agent-report --branch-id <ID> --postflight '<json>'",
+                "Execute each agent's prompt (see branches[persona_id].prompt)",
+                "Report results: empirica agent-report --branch-id <ID> --postflight '<json>'",
                 f"Aggregate: empirica agent-aggregate --session-id {session_id}"
             ]
         }
@@ -636,18 +636,18 @@ def handle_investigate_multi_command(args):
                 json_response['branches'][pid]['prompt'] = f"[{len(branches[pid]['prompt'])} chars - use --output human to see]"
             print(json.dumps(json_response, indent=2))
         else:
-            print(f"✅ Multi-Persona Investigation Started")
+            print("✅ Multi-Persona Investigation Started")
             print(f"   Task: {task}")
             print(f"   Personas: {', '.join(persona_ids)}")
             print(f"   Strategy: {strategy}")
-            print(f"\n📋 Branches Created:")
+            print("\n📋 Branches Created:")
             for pid, branch in branches.items():
                 print(f"\n   [{pid}] Branch: {branch['branch_id'][:8]}...")
                 print(f"   Priors: know={branch['preflight_vectors'].get('know', 0.5):.2f}, uncertainty={branch['preflight_vectors'].get('uncertainty', 0.5):.2f}")
 
-            print(f"\n📝 Next Steps:")
-            print(f"   1. Execute each agent prompt (shown below)")
-            print(f"   2. Report: empirica agent-report --branch-id <ID> --postflight '<json>'")
+            print("\n📝 Next Steps:")
+            print("   1. Execute each agent prompt (shown below)")
+            print("   2. Report: empirica agent-report --branch-id <ID> --postflight '<json>'")
             print(f"   3. Aggregate: empirica agent-aggregate --session-id {session_id}")
 
             # Show prompts

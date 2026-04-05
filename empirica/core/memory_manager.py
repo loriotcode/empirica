@@ -264,11 +264,11 @@ def update_hot_cache(session_id: str, project_path: str | None = None,
 
     # Footer with retrieval hints
     total_items = sum(len(v) for v in artifacts.values())
-    auto_lines.append(f"\n---")
+    auto_lines.append("\n---")
     auto_lines.append(f"📊 **{total_items} items ranked** | For deeper context:")
     auto_lines.append(f"- `empirica project-bootstrap --session-id {session_id[:8]}` (full load + subtasks)")
-    auto_lines.append(f"- `empirica project-search --task \"<query>\"` (Qdrant semantic)")
-    auto_lines.append(f"- `git notes show --ref=breadcrumbs HEAD` (session narrative)")
+    auto_lines.append("- `empirica project-search --task \"<query>\"` (Qdrant semantic)")
+    auto_lines.append("- `git notes show --ref=breadcrumbs HEAD` (session narrative)")
 
     auto_section = '\n'.join(auto_lines) + '\n'
 

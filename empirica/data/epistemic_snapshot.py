@@ -220,7 +220,7 @@ Use this to maintain context continuity without full conversation history.
         if self.domain_vectors:
             prompt += f"\n## Domain-Specific Vectors\n{self._format_domain_vectors()}\n"
 
-        prompt += f"\n## Quality Metrics\n"
+        prompt += "\n## Quality Metrics\n"
         prompt += f"- Information Loss: {self.information_loss_estimate:.1%}\n"
         prompt += f"- Transfer Count: {self.transfer_count} hops\n"
         prompt += f"- DB Reference: {self.db_session_ref}\n"

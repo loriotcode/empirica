@@ -1908,7 +1908,7 @@ def get_active_context(claude_session_id: str = None) -> dict:
             context['empirica_session_id'] = tx_session
         if tx_id:
             context['transaction_id'] = tx_id
-        logger.debug(f"get_active_context: from transaction file (P0)")
+        logger.debug("get_active_context: from transaction file (P0)")
 
     # Priority 1: Instance projects (updated by hooks AND project-switch CLI)
     if context['instance_id'] and (not context['empirica_session_id'] or not context['project_path']):
@@ -1923,7 +1923,7 @@ def get_active_context(claude_session_id: str = None) -> dict:
                         context['empirica_session_id'] = data.get('empirica_session_id')
                     if not context['claude_session_id']:
                         context['claude_session_id'] = data.get('claude_session_id')
-                    logger.debug(f"get_active_context: supplemented from instance_projects (P1)")
+                    logger.debug("get_active_context: supplemented from instance_projects (P1)")
             except Exception:
                 pass
 
@@ -1938,7 +1938,7 @@ def get_active_context(claude_session_id: str = None) -> dict:
                         context['project_path'] = data.get('project_path')
                     if not context['empirica_session_id']:
                         context['empirica_session_id'] = data.get('empirica_session_id')
-                    logger.debug(f"get_active_context: supplemented from active_work (P2)")
+                    logger.debug("get_active_context: supplemented from active_work (P2)")
             except Exception:
                 pass
 
