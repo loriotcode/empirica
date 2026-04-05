@@ -371,3 +371,179 @@ def get_memory_stats(project_path: Optional[str] = None) -> dict:
         })
 
     return stats
+
+
+# =============================================================================
+# Promotion: Qdrant eidetic facts → CC memory/*.md files
+# =============================================================================
+
+# Promotion thresholds
+PROMOTE_MIN_CONFIDENCE = 0.7
+PROMOTE_MIN_CONFIRMATIONS = 3
+
+
+def _slugify(text: str, max_len: int = 40) -> str:
+    """Convert text to a filename-safe slug."""
+    import re
+    slug = text.lower().strip()
+    slug = re.sub(r'[^a-z0-9]+', '_', slug)
+    slug = slug.strip('_')
+    return slug[:max_len]
+
+
+def _get_promoted_tracker(memory_dir: Path) -> set[str]:
+    """Read the set of already-promoted content hashes to avoid duplicates."""
+    tracker_file = memory_dir / '.promoted_hashes'
+    if tracker_file.exists():
+        try:
+            return set(tracker_file.read_text().strip().split('\n'))
+        except Exception:
+            pass
+    return set()
+
+
+def _save_promoted_tracker(memory_dir: Path, hashes: set[str]) -> None:
+    """Save the promoted content hashes."""
+    tracker_file = memory_dir / '.promoted_hashes'
+    try:
+        tracker_file.write_text('\n'.join(sorted(hashes)))
+    except Exception:
+        pass
+
+
+def promote_eidetic_to_memory(
+    project_id: str,
+    project_path: Optional[str] = None,
+    min_confidence: float = PROMOTE_MIN_CONFIDENCE,
+    min_confirmations: int = PROMOTE_MIN_CONFIRMATIONS,
+    max_promote: int = 3,
+) -> list[str]:
+    """Promote high-confidence eidetic facts to CC memory/*.md files.
+
+    Queries Qdrant for eidetic facts meeting thresholds, checks against
+    already-promoted hashes, and creates new memory files for untracked facts.
+
+    Args:
+        project_id: Project UUID for Qdrant collection
+        project_path: Explicit project path for memory dir resolution
+        min_confidence: Minimum confidence to promote (default 0.7)
+        min_confirmations: Minimum confirmation_count (default 3)
+        max_promote: Max new files to create per call (prevents spam)
+
+    Returns:
+        List of created memory file names
+    """
+    memory_dir = get_memory_dir(project_path)
+    if not memory_dir:
+        return []
+
+    # Query Qdrant for promotable facts
+    try:
+        from empirica.core.qdrant.connection import _get_qdrant_client
+        from empirica.core.qdrant.collections import _eidetic_collection
+    except ImportError:
+        logger.debug("Qdrant not available for promotion")
+        return []
+
+    try:
+        client = _get_qdrant_client()
+        if not client:
+            return []
+
+        collection = _eidetic_collection(project_id)
+
+        # Scroll for high-confidence, well-confirmed facts
+        # Filter: confidence >= threshold AND confirmation_count >= threshold AND type=fact
+        from qdrant_client.models import Filter, FieldCondition, Range, MatchValue
+
+        results = client.scroll(
+            collection_name=collection,
+            scroll_filter=Filter(
+                must=[
+                    FieldCondition(key="confidence", range=Range(gte=min_confidence)),
+                    FieldCondition(key="confirmation_count", range=Range(gte=min_confirmations)),
+                    FieldCondition(key="type", match=MatchValue(value="fact")),
+                ]
+            ),
+            limit=20,
+            with_payload=True,
+            with_vectors=False,
+        )
+
+        if not results or not results[0]:
+            return []
+
+        points = results[0]
+    except Exception as e:
+        logger.debug(f"Qdrant scroll for promotion failed: {e}")
+        return []
+
+    # Check against already-promoted hashes
+    promoted_hashes = _get_promoted_tracker(memory_dir)
+    promoted_files = []
+
+    for point in points:
+        if len(promoted_files) >= max_promote:
+            break
+
+        payload = point.payload or {}
+        content = payload.get('content', '')
+        if not content:
+            continue
+
+        # Hash for dedup
+        import hashlib
+        content_hash = hashlib.md5(content.encode()).hexdigest()[:12]
+        if content_hash in promoted_hashes:
+            continue
+
+        # Determine memory type and name from the fact
+        domain = payload.get('domain', '')
+        confidence = payload.get('confidence', 0.5)
+        confirmations = payload.get('confirmation_count', 1)
+
+        # Build a descriptive name from content
+        first_line = content.split('\n')[0][:80]
+        if domain:
+            name = f"{domain}: {first_line}"
+        else:
+            name = first_line
+
+        slug = _slugify(name)
+        if not slug:
+            slug = f"eidetic_{content_hash}"
+
+        filename = f"promoted_{slug}.md"
+        filepath = memory_dir / filename
+
+        # Don't overwrite existing files
+        if filepath.exists():
+            promoted_hashes.add(content_hash)
+            continue
+
+        # Write memory file with CC auto-memory frontmatter format
+        memory_content = f"""---
+name: {name[:80]}
+description: Auto-promoted from eidetic memory (confidence: {confidence:.2f}, confirmed: {confirmations}x)
+type: project
+---
+
+{content[:500]}
+
+**Source:** Eidetic memory (auto-promoted at POSTFLIGHT)
+**Confidence:** {confidence:.2f} | **Confirmations:** {confirmations}
+"""
+
+        try:
+            filepath.write_text(memory_content)
+            promoted_hashes.add(content_hash)
+            promoted_files.append(filename)
+            logger.debug(f"Promoted eidetic fact to memory: {filename}")
+        except Exception as e:
+            logger.warning(f"Failed to write promoted memory file: {e}")
+
+    # Save updated tracker
+    if promoted_files:
+        _save_promoted_tracker(memory_dir, promoted_hashes)
+
+    return promoted_files

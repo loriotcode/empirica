@@ -2619,6 +2619,14 @@ def handle_postflight_submit_command(args):
                 )
                 if _mem_updated:
                     logger.debug("Updated MEMORY.md hot cache at POSTFLIGHT")
+                # Promote high-confidence eidetic facts to memory files
+                from empirica.core.memory_manager import promote_eidetic_to_memory
+                _promoted = promote_eidetic_to_memory(
+                    project_id=session.get('project_id') if session else None,
+                    project_path=resolved_project_path,
+                )
+                if _promoted:
+                    logger.debug(f"Promoted {len(_promoted)} eidetic facts to memory: {_promoted}")
             except Exception as e:
                 logger.debug(f"MEMORY.md hot cache update skipped: {e}")
 
