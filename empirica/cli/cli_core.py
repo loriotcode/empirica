@@ -73,11 +73,9 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
                     '    workflow-patterns           Detect repeated workflows\n',
                     '    profile-status              Artifact counts + drift\n',
                     '\n' + '=' * 60 + '\n',
-                    '\nAll categories: session, workflow, goals, logging, project,\n',
-                    '  workspace, checkpoint, sync, profile, identity, handoff,\n',
-                    '  issue, investigation, monitoring, skills, architecture,\n',
-                    '  agents, sentinel, personas, lessons, mcp, memory, vision\n',
-                    '\nUse "empirica <command> --help" for any command.\n',
+                    '\n180+ commands in 26 categories. To explore:\n',
+                    '  empirica help                  Show all commands by category\n',
+                    '  empirica <command> --help      Detailed help for one command\n',
                 ]
                 return ''.join(parts)
         except Exception:
@@ -251,6 +249,9 @@ def create_argument_parser():
     add_concept_graph_parsers(subparsers)
     add_mcp_parsers(subparsers)
     add_message_parsers(subparsers)
+
+    # Built-in help command (handled in main(), not via handler)
+    subparsers.add_parser('help', help='Show all commands by category')
     add_memory_parsers(subparsers)
     add_profile_parsers(subparsers)
     add_serve_parsers(subparsers)
@@ -263,11 +264,66 @@ def main(args=None):
     start_time = time.time()
 
     parser = create_argument_parser()
-    parsed_args = parser.parse_args(args)
+
+    # Intercept 'help <category>' before argparse rejects the category as unknown
+    raw_args = args if args is not None else sys.argv[1:]
+    if raw_args and raw_args[0] == 'help':
+        # Handled below after parse — but argparse needs to accept it
+        # Strip category arg so argparse only sees 'help'
+        help_category = raw_args[1] if len(raw_args) > 1 else None
+        parsed_args = parser.parse_args(['help'])
+        # Stash the category for the handler below
+        parsed_args._help_category = help_category
+    else:
+        parsed_args = parser.parse_args(args)
 
     if not parsed_args.command:
         parser.print_help()
         sys.exit(1)
+
+    # Built-in 'help' command — show full categorised command list
+    if parsed_args.command == 'help':
+        _CATEGORIES = {
+            'session': ['session-create', 'sessions-list', 'sessions-show', 'sessions-export', 'sessions-resume', 'session-snapshot', 'memory-compact', 'transaction-adopt'],
+            'workflow': ['preflight-submit', 'check', 'check-submit', 'postflight-submit'],
+            'goals': ['goals-create', 'goals-list', 'goals-search', 'goals-complete', 'goals-claim', 'goals-add-subtask', 'goals-add-dependency', 'goals-complete-subtask', 'goals-get-subtasks', 'goals-progress', 'goals-discover', 'goals-ready', 'goals-resume', 'goals-mark-stale', 'goals-get-stale', 'goals-refresh'],
+            'logging': ['finding-log', 'unknown-log', 'unknown-list', 'unknown-resolve', 'deadend-log', 'assumption-log', 'decision-log', 'mistake-log', 'mistake-query', 'refdoc-add', 'source-add', 'act-log', 'investigate-log'],
+            'project': ['project-init', 'project-update', 'project-create', 'project-list', 'project-switch', 'project-bootstrap', 'project-handoff', 'project-search', 'project-embed', 'code-embed', 'doc-check'],
+            'workspace': ['workspace-init', 'workspace-map', 'workspace-list', 'workspace-overview', 'workspace-search', 'engagement-focus', 'ecosystem-check', 'save', 'history'],
+            'checkpoint': ['checkpoint-create', 'checkpoint-load', 'checkpoint-list', 'checkpoint-diff', 'checkpoint-sign', 'checkpoint-verify', 'checkpoint-signatures'],
+            'sync': ['sync-config', 'sync-push', 'sync-pull', 'sync-status', 'rebuild', 'artifacts-generate'],
+            'profile': ['profile-sync', 'profile-prune', 'profile-status', 'profile-import'],
+            'identity': ['identity-create', 'identity-export', 'identity-list', 'identity-verify'],
+            'handoff': ['handoff-create', 'handoff-query'],
+            'issue': ['issue-list', 'issue-show', 'issue-handoff', 'issue-resolve', 'issue-export', 'issue-stats'],
+            'investigation': ['investigate', 'investigate-create-branch', 'investigate-checkpoint-branch', 'investigate-merge-branches', 'investigate-multi'],
+            'monitoring': ['monitor', 'assess-state', 'trajectory-project', 'efficiency-report', 'workflow-patterns', 'calibration-report'],
+            'skills': ['skill-suggest', 'skill-fetch', 'skill-extract'],
+            'architecture': ['assess-component', 'assess-compare', 'assess-directory'],
+            'agents': ['agent-spawn', 'agent-report', 'agent-aggregate', 'agent-parallel', 'agent-export', 'agent-import', 'agent-discover'],
+            'sentinel': ['sentinel-orchestrate', 'sentinel-load-profile', 'sentinel-status', 'sentinel-check'],
+            'personas': ['persona-list', 'persona-show', 'persona-promote', 'persona-find'],
+            'lessons': ['lesson-create', 'lesson-load', 'lesson-list', 'lesson-search', 'lesson-recommend', 'lesson-path', 'lesson-replay-start', 'lesson-replay-end', 'lesson-stats'],
+            'mcp': ['mcp-start', 'mcp-stop', 'mcp-status', 'mcp-test', 'mcp-list-tools', 'mcp-call'],
+            'memory': ['memory-prime', 'memory-scope', 'memory-value', 'pattern-check', 'session-rollup', 'memory-report'],
+            'vision': ['vision'],
+            'setup': ['onboard', 'setup-claude-code', 'serve'],
+        }
+        # Check if user requested a specific category
+        cat_arg = getattr(parsed_args, '_help_category', None)
+        if cat_arg and cat_arg in _CATEGORIES:
+            cat = cat_arg
+            print(f"\n{cat.title()} ({len(_CATEGORIES[cat])} commands):\n")
+            for cmd in _CATEGORIES[cat]:
+                print(f"  {cmd}")
+            print(f"\nUse 'empirica <command> --help' for details.")
+        else:
+            total = sum(len(cmds) for cmds in _CATEGORIES.values())
+            print(f"\nAll Empirica Commands ({total} total):\n")
+            for cat, cmds in _CATEGORIES.items():
+                print(f"  {cat:16s} ({len(cmds):2d})  {', '.join(cmds[:4])}{'...' if len(cmds) > 4 else ''}")
+            print(f"\nUse 'empirica help <category>' to see all commands in a category.")
+        sys.exit(0)
 
     # Normalize --project-id: resolve names to UUIDs via workspace.db
     if hasattr(parsed_args, 'project_id') and parsed_args.project_id:
