@@ -2687,6 +2687,93 @@ def handle_postflight_submit_command(args):
             except Exception as e:
                 logger.debug(f"Retrospective feedback failed (non-fatal): {e}")
 
+            # ── Cortex sync push (transaction boundary) ──────────────
+            # Push this transaction's artifacts to remote Cortex.
+            # Each POSTFLIGHT is a sync boundary — artifacts flow to the
+            # cloud intelligence layer at the natural measurement cadence.
+            try:
+                _cortex_url = os.environ.get('CORTEX_REMOTE_URL', '')
+                _cortex_key = os.environ.get('CORTEX_API_KEY', '')
+                if _cortex_url and _cortex_key and result.get('ok'):
+                    import urllib.request
+                    import urllib.error
+
+                    # Resolve project UUID
+                    _sync_pid = ""
+                    try:
+                        from empirica.cli.utils.project_resolver import resolve_project_id as _rpi
+                        _pyaml = Path.cwd() / '.empirica' / 'project.yaml'
+                        if _pyaml.exists():
+                            for _ln in open(_pyaml):
+                                if _ln.startswith('project_id:'):
+                                    _pn = _ln.split(':', 1)[1].strip()
+                                    _sync_pid = _rpi(_pn) or _pn
+                                    break
+                    except Exception:
+                        pass
+
+                    # Extract this transaction's artifacts
+                    _tx_delta = {}
+                    try:
+                        _tx_data = R.transaction_read()
+                        _tx_id = _tx_data.get('transaction_id', '') if _tx_data else ''
+                        if _tx_id:
+                            _sdb = _get_db_for_session(session_id)
+                            for _tbl, _key, _delta_key in [
+                                ("project_findings", "finding", "findings"),
+                                ("project_unknowns", "unknown", "unknowns"),
+                                ("decisions", "choice", "decisions"),
+                            ]:
+                                _rows = _sdb.conn.execute(
+                                    f"SELECT id, {_key}" + (", impact" if _tbl == "project_findings" else ", rationale" if _tbl == "decisions" else "") +
+                                    f" FROM {_tbl} WHERE transaction_id = ? LIMIT 20",
+                                    (_tx_id,)
+                                ).fetchall()
+                                if _rows:
+                                    if _tbl == "project_findings":
+                                        _tx_delta[_delta_key] = [{"id": r["id"], "finding": r[_key], "impact": r["impact"] or 0.5} for r in _rows if r[_key]]
+                                    elif _tbl == "decisions":
+                                        _tx_delta[_delta_key] = [{"id": r["id"], "choice": r[_key], "rationale": r["rationale"] or ""} for r in _rows if r[_key]]
+                                    else:
+                                        _tx_delta[_delta_key] = [{"id": r["id"], "unknown": r[_key]} for r in _rows if r[_key]]
+                    except Exception:
+                        pass
+
+                    # Read calibration summary
+                    _cal = {}
+                    try:
+                        import yaml as _yaml
+                        _bcf = Path.cwd() / ".breadcrumbs.yaml"
+                        if _bcf.exists():
+                            _bcd = _yaml.safe_load(open(_bcf)) or {}
+                            _gc = _bcd.get("grounded_calibration", {})
+                            if _gc:
+                                _cal = {
+                                    "calibration_score": _gc.get("holistic_calibration_score", 0.5),
+                                    "observations": _gc.get("observations", 0),
+                                    "grounded_coverage": _gc.get("grounded_coverage", 0),
+                                }
+                    except Exception:
+                        pass
+
+                    _payload = json.dumps({
+                        "project_id": _sync_pid,
+                        "task_context": reasoning[:200] if reasoning else "",
+                        "calibration_summary": _cal,
+                        "delta": _tx_delta,
+                    }).encode("utf-8")
+
+                    _req = urllib.request.Request(
+                        f"{_cortex_url.rstrip('/')}/v1/sync",
+                        data=_payload,
+                        headers={"Authorization": f"Bearer {_cortex_key}", "Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    urllib.request.urlopen(_req, timeout=5)
+                    logger.debug("Cortex sync push at POSTFLIGHT boundary")
+            except Exception:
+                pass  # Non-fatal — Cortex unavailable doesn't block POSTFLIGHT
+
             # NOTE: Statusline cache was removed (2026-02-06). Statusline reads directly from DB.
 
             # NOTE: Transaction file is NOT deleted here. It persists with status="closed"
