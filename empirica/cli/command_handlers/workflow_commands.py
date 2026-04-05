@@ -2627,6 +2627,15 @@ def handle_postflight_submit_command(args):
                 )
                 if _promoted:
                     logger.debug(f"Promoted {len(_promoted)} eidetic facts to memory: {_promoted}")
+                # Demote stale promoted memory files
+                from empirica.core.memory_manager import demote_stale_memories, enforce_memory_md_cap
+                _demoted = demote_stale_memories(project_path=resolved_project_path)
+                if _demoted:
+                    logger.debug(f"Demoted {len(_demoted)} stale memory files: {_demoted}")
+                # Enforce MEMORY.md line cap
+                _evicted = enforce_memory_md_cap(project_path=resolved_project_path)
+                if _evicted:
+                    logger.debug(f"Evicted {_evicted} lines from MEMORY.md")
             except Exception as e:
                 logger.debug(f"MEMORY.md hot cache update skipped: {e}")
 

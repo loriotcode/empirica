@@ -547,3 +547,148 @@ type: project
         _save_promoted_tracker(memory_dir, promoted_hashes)
 
     return promoted_files
+
+
+# =============================================================================
+# Demotion: Archive stale memory/*.md files
+# =============================================================================
+
+DEMOTE_STALE_DAYS = 30  # Days without modification before demotion
+
+
+def demote_stale_memories(
+    project_path: Optional[str] = None,
+    stale_days: int = DEMOTE_STALE_DAYS,
+    dry_run: bool = False,
+) -> list[str]:
+    """Archive stale promoted memory files.
+
+    Only auto-demotes promoted_*.md files (auto-managed).
+    Manual memory files (user-created) are never auto-archived.
+
+    Moves stale files to memory/_archive/ (reversible).
+
+    Args:
+        project_path: Explicit project path
+        stale_days: Days without modification to consider stale
+        dry_run: If True, return what would be archived without acting
+
+    Returns:
+        List of archived file names
+    """
+    import time
+
+    memory_dir = get_memory_dir(project_path)
+    if not memory_dir:
+        return []
+
+    archive_dir = memory_dir / '_archive'
+    now = time.time()
+    cutoff = now - (stale_days * 86400)
+    archived = []
+
+    for f in memory_dir.glob('promoted_*.md'):
+        if f.stat().st_mtime < cutoff:
+            if dry_run:
+                archived.append(f.name)
+            else:
+                try:
+                    archive_dir.mkdir(exist_ok=True)
+                    dest = archive_dir / f.name
+                    f.rename(dest)
+                    archived.append(f.name)
+                    logger.debug(f"Demoted stale memory file: {f.name}")
+                except Exception as e:
+                    logger.warning(f"Failed to archive {f.name}: {e}")
+
+    # Update MEMORY.md index — remove references to archived files
+    if archived and not dry_run:
+        _remove_from_memory_index(memory_dir, archived)
+
+    return archived
+
+
+def _remove_from_memory_index(memory_dir: Path, filenames: list[str]) -> None:
+    """Remove references to demoted files from MEMORY.md."""
+    memory_md = memory_dir / 'MEMORY.md'
+    if not memory_md.exists():
+        return
+
+    try:
+        content = memory_md.read_text()
+        for fname in filenames:
+            # Remove lines referencing the file
+            stem = fname.replace('.md', '')
+            lines = content.split('\n')
+            content = '\n'.join(
+                line for line in lines
+                if stem not in line and fname not in line
+            )
+        memory_md.write_text(content)
+    except Exception as e:
+        logger.warning(f"Failed to update MEMORY.md index after demotion: {e}")
+
+
+# =============================================================================
+# MEMORY.md Eviction: Keep auto-section under cap
+# =============================================================================
+
+def enforce_memory_md_cap(
+    project_path: Optional[str] = None,
+    max_total_lines: int = 180,
+) -> int:
+    """Enforce line cap on MEMORY.md by trimming auto-generated section.
+
+    Never touches manual content. Only trims the auto-generated section
+    (between MEMORY_AUTO_START and the end markers).
+
+    Args:
+        project_path: Explicit project path
+        max_total_lines: Max total lines for MEMORY.md (default 180, CC cap is 200)
+
+    Returns:
+        Number of lines evicted
+    """
+    memory_path = get_memory_md_path(project_path)
+    if not memory_path or not memory_path.exists():
+        return 0
+
+    content = memory_path.read_text()
+    total_lines = content.count('\n')
+
+    if total_lines <= max_total_lines:
+        return 0
+
+    # Find auto section boundaries
+    if MEMORY_AUTO_START not in content:
+        return 0  # No auto section to trim
+
+    start_idx = content.index(MEMORY_AUTO_START)
+    manual_section = content[:start_idx]
+    auto_section = content[start_idx:]
+
+    manual_lines = manual_section.count('\n')
+    auto_lines = auto_section.count('\n')
+
+    # Calculate how many auto lines to keep
+    available_for_auto = max_total_lines - manual_lines
+    if available_for_auto < 10:
+        available_for_auto = 10  # Always keep at least 10 auto lines
+
+    if auto_lines <= available_for_auto:
+        return 0
+
+    # Trim auto section from the bottom (lowest-ranked items)
+    auto_lines_list = auto_section.split('\n')
+    trimmed = '\n'.join(auto_lines_list[:available_for_auto])
+    evicted = auto_lines - available_for_auto
+
+    # Write back
+    try:
+        memory_path.write_text(manual_section + trimmed + '\n')
+        logger.debug(f"Evicted {evicted} lines from MEMORY.md auto section")
+    except Exception as e:
+        logger.warning(f"Failed to enforce MEMORY.md cap: {e}")
+        return 0
+
+    return evicted
