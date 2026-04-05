@@ -615,8 +615,18 @@ def handle_setup_claude_code_command(args):
             if output_format != 'json':
                 print("\n🔌 Configuring MCP server...")
 
-            # Find empirica-mcp
-            mcp_cmd = shutil.which("empirica-mcp")
+            # Find empirica-mcp — prefer the binary matching the current Python environment
+            # This prevents stale pipx binaries from shadowing dev installs
+            mcp_cmd = None
+            # Priority 1: Same virtualenv as the running empirica CLI
+            venv_prefix = Path(sys.executable).parent
+            venv_mcp = venv_prefix / "empirica-mcp"
+            if venv_mcp.exists():
+                mcp_cmd = str(venv_mcp)
+            # Priority 2: shutil.which (whatever's first in PATH)
+            if not mcp_cmd:
+                mcp_cmd = shutil.which("empirica-mcp")
+            # Priority 3: pipx default location
             if not mcp_cmd:
                 local_bin = home / ".local" / "bin" / "empirica-mcp"
                 if local_bin.exists():
@@ -653,23 +663,32 @@ def handle_setup_claude_code_command(args):
                 mcp_file = claude_dir / "mcp.json"
                 mcp_config = _ensure_json_file(mcp_file, {"mcpServers": {}})
 
-                if 'empirica' not in mcp_config.get('mcpServers', {}):
+                existing = mcp_config.get('mcpServers', {}).get('empirica')
+                needs_update = (
+                    not existing
+                    or force
+                    or existing.get('command') != mcp_cmd  # Binary path changed
+                )
+                if needs_update:
                     mcp_config.setdefault('mcpServers', {})['empirica'] = {
                         "command": mcp_cmd,
                         "args": [],
                         "type": "stdio",
-                        "env": {"EMPIRICA_EPISTEMIC_MODE": "true"},
                         "tools": ["*"],
                         "description": "Empirica epistemic framework - CASCADE workflow, goals, findings"
                     }
                     _write_json_file(mcp_file, mcp_config)
                     mcp_installed = True
                     if output_format != 'json':
-                        print("   ✓ MCP server configured in ~/.claude/mcp.json")
+                        if existing and existing.get('command') != mcp_cmd:
+                            print(f"   ✓ MCP server updated: {mcp_cmd}")
+                            print(f"     (was: {existing.get('command', 'unknown')})")
+                        else:
+                            print(f"   ✓ MCP server configured: {mcp_cmd}")
                 else:
                     mcp_installed = True
                     if output_format != 'json':
-                        print("   MCP server already configured")
+                        print(f"   MCP server already configured: {mcp_cmd}")
 
         # ==================== OUTPUT ====================
         if output_format == 'json':
