@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.7.7-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.7)
+[![Version](https://img.shields.io/badge/version-1.7.8-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.8)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -98,13 +98,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.7.7-alpine
+docker pull nubaeon/empirica:1.7.8-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.7.7
+docker pull nubaeon/empirica:1.7.8
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.7.7 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.7.8 /bin/bash
 ```
 </details>
 
@@ -264,7 +264,7 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.7.7
+## What's New in 1.7.8
 
 - **Intelligence search kind** — New `kind='intelligence'` search mode with collection-type boost weights for cross-domain knowledge discovery. Filters `code_api` from eidetic queries to reduce noise. Renamed from initial `kind='cross-domain'` for clarity
 - **Workflow Pattern Mining** — Detect repeated tool sequences across transactions via sequential pattern analysis. New `workflow-patterns` CLI command and MCP tool
@@ -315,6 +315,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.7.7
+**Version:** 1.7.8
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*

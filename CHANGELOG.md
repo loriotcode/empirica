@@ -5,23 +5,33 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.7.8] - 2026-04-05
 
 ### Added
-- **Intelligence search kind** — New `kind='intelligence'` search mode with collection-type boost weights for cross-domain knowledge discovery. Filters `code_api` from eidetic queries to reduce noise. Renamed from initial `kind='cross-domain'` for clarity
+- **5-tier memory management system** — CC `memory/*.md` managed as KV cache. POSTFLIGHT pipeline: hot-cache update → eidetic promotion → stale demotion → MEMORY.md eviction. Manual files never auto-managed
+- **Memory promotion** — High-confidence Qdrant eidetic facts (>=0.7 confidence, 3+ confirmations) auto-promoted to `promoted_*.md` at POSTFLIGHT
+- **Memory demotion** — Stale promoted files (>30 days) archived to `memory/_archive/` (reversible)
+- **MEMORY.md eviction** — Auto section trimmed at 180 lines. Lowest-ranked items evicted, stay in Qdrant
+- **Compact CLI help** — 267→60 lines. All 6 artifact types shown prominently
+- **`empirica help` command** — `empirica help` (all categories), `empirica help <category>` (drill-down)
+- **CC memory stats in memory-report** — File count, sizes, MEMORY.md lines, manual vs promoted
+- **`profile-prune --scope memory`** — Archive stale promoted memory files
+- **Intelligence search kind** — `kind='intelligence'` with collection-type boost weights
 - **Workflow Pattern Mining** — Detect repeated tool sequences across transactions via sequential pattern analysis. New `workflow-patterns` CLI command and MCP tool
 - **Workflow Suggestion Engine** — Epistemic-correlated pattern analysis surfaces workflow suggestions based on historical transaction data
 
 ### Changed
-- **Sentinel noetic allow list** — Added `ToolSearch` (deferred tool discovery), intelligence layer MCP tools, and `git notes show`/`git notes list` as always-allowed noetic tools
-- **Sentinel closed-transaction noetic check** — Closed transactions now correctly allow noetic tools and safe Bash commands without requiring a new PREFLIGHT. Praxic tools with closed transactions get the correct error message
+- **Sentinel noetic allow list** — Added `ToolSearch`, intelligence layer MCP tools, `git notes show`/`git notes list`
+- **Sentinel closed-transaction noetic check** — Closed transactions allow noetic tools without new PREFLIGHT
+- **Cortex POSTFLIGHT push** — Verified predictions pushed at transaction boundary, not just session end
 
 ### Fixed
-- **PreCompact hook schema** — `hookSpecificOutput` is not supported by PreCompact events (only PreToolUse, UserPromptSubmit, PostToolUse). Switched to `systemMessage` for compact guidance output
+- **MCP CASCADE timeout** — POSTFLIGHT/PREFLIGHT/CHECK commands now use 120s timeout (was 30s). Configurable via `EMPIRICA_MCP_CASCADE_TIMEOUT`
+- **PreCompact hook schema** — Switched to `systemMessage` for compact guidance
 
 ### Security
-- **Docker `token-gen` removed from safe commands** — `docker token-gen` no longer classified as a safe noetic command in Sentinel
-- **POSTFLIGHT intelligence layer auth** — Session-end POSTFLIGHT push now includes `Authorization: Bearer` header when `CORTEX_API_KEY` is set
+- **Docker `token-gen` removed from safe commands**
+- **POSTFLIGHT intelligence layer auth** — Includes `Authorization: Bearer` header
 
 ## [1.7.6] - 2026-04-04
 
