@@ -42,6 +42,9 @@ if not EMPIRICA_CLI:
             break
 
 CLI_TIMEOUT = int(os.environ.get("EMPIRICA_MCP_TIMEOUT", "30"))
+# CASCADE commands (POSTFLIGHT especially) run grounded verification,
+# Qdrant embedding, memory management — need more time than standard commands
+CASCADE_TIMEOUT = int(os.environ.get("EMPIRICA_MCP_CASCADE_TIMEOUT", "120"))
 MAX_OUTPUT = 30000
 
 # =============================================================================
@@ -514,7 +517,8 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         except Exception:
             pass
 
-    # Execute
+    # Execute — CASCADE commands get longer timeout
+    timeout = CASCADE_TIMEOUT if entry.get("stdin_json") else CLI_TIMEOUT
     loop = asyncio.get_event_loop()
     try:
         result = await loop.run_in_executor(
@@ -526,13 +530,13 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 input=stdin_data.decode("utf-8") if stdin_data else None,
                 stdin=None if stdin_data else subprocess.DEVNULL,
                 cwd=cwd,
-                timeout=CLI_TIMEOUT,
+                timeout=timeout,
             ),
         )
     except subprocess.TimeoutExpired:
         return [types.TextContent(type="text", text=json.dumps({
             "ok": False,
-            "error": f"Command timed out ({CLI_TIMEOUT}s): {entry['cli']}",
+            "error": f"Command timed out ({timeout}s): {entry['cli']}",
         }, indent=2))]
 
     if result.returncode == 0:
