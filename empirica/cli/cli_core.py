@@ -43,46 +43,42 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
         """Format action with grouped subcommands by category."""
         try:
             if isinstance(action, argparse._SubParsersAction):
-                categories = {
-                    'Getting Started': ['onboard', 'setup-claude-code'],
-                    'Session Management': ['session-create', 'sessions-list', 'sessions-show', 'sessions-export', 'sessions-resume', 'session-snapshot', 'memory-compact', 'transaction-adopt'],
-                    'CASCADE Workflow': ['preflight-submit', 'check', 'check-submit', 'postflight-submit'],
-                    'Goals & Tasks': ['goals-create', 'goals-list', 'goals-search', 'goals-complete', 'goals-claim', 'goals-add-subtask', 'goals-add-dependency', 'goals-complete-subtask', 'goals-get-subtasks', 'goals-progress', 'goals-discover', 'goals-ready', 'goals-resume', 'goals-mark-stale', 'goals-get-stale', 'goals-refresh'],
-                    'Project Management': ['project-init', 'project-update', 'project-create', 'project-list', 'project-switch', 'project-bootstrap', 'project-handoff', 'project-search', 'project-embed', 'code-embed', 'doc-check'],
-                    'Workspace': ['workspace-init', 'workspace-map', 'workspace-list', 'workspace-overview', 'workspace-search', 'engagement-focus', 'ecosystem-check', 'save', 'history'],
-                    'Checkpoints': ['checkpoint-create', 'checkpoint-load', 'checkpoint-list', 'checkpoint-diff', 'checkpoint-sign', 'checkpoint-verify', 'checkpoint-signatures'],
-                    'Sync': ['sync-config', 'sync-push', 'sync-pull', 'sync-status', 'rebuild', 'artifacts-generate'],
-                    'Profile': ['profile-sync', 'profile-prune', 'profile-status', 'profile-import'],
-                    'Identity': ['identity-create', 'identity-export', 'identity-list', 'identity-verify'],
-                    'Handoffs': ['handoff-create', 'handoff-query'],
-                    'Logging': ['finding-log', 'unknown-log', 'unknown-list', 'unknown-resolve', 'deadend-log', 'assumption-log', 'decision-log', 'refdoc-add', 'source-add', 'mistake-log', 'mistake-query', 'act-log', 'investigate-log'],
-                    'Issue Capture': ['issue-list', 'issue-show', 'issue-handoff', 'issue-resolve', 'issue-export', 'issue-stats'],
-                    'Investigation': ['investigate', 'investigate-create-branch', 'investigate-checkpoint-branch', 'investigate-merge-branches', 'investigate-multi'],
-                    'Monitoring': ['monitor', 'assess-state', 'trajectory-project', 'efficiency-report', 'workflow-patterns'],
-                    'Skills': ['skill-suggest', 'skill-fetch', 'skill-extract'],
-                    'Utilities': ['log-token-saving', 'config', 'performance', 'qdrant-status', 'qdrant-cleanup', 'training-export'],
-                    'Vision': ['vision'],
-                    'Epistemics': ['epistemics-list', 'epistemics-show'],
-                    'User Interface': ['chat'],
-                    'Architecture': ['assess-component', 'assess-compare', 'assess-directory'],
-                    'Agents': ['agent-spawn', 'agent-report', 'agent-aggregate', 'agent-parallel', 'agent-export', 'agent-import', 'agent-discover'],
-                    'Sentinel': ['sentinel-orchestrate', 'sentinel-load-profile', 'sentinel-status', 'sentinel-check'],
-                    'Personas': ['persona-list', 'persona-show', 'persona-promote', 'persona-find'],
-                    'Lessons': ['lesson-create', 'lesson-load', 'lesson-list', 'lesson-search', 'lesson-recommend', 'lesson-path', 'lesson-replay-start', 'lesson-replay-end', 'lesson-stats'],
-                    'MCP Server': ['mcp-start', 'mcp-stop', 'mcp-status', 'mcp-test', 'mcp-list-tools', 'mcp-call'],
-                    'Memory': ['memory-prime', 'memory-scope', 'memory-value', 'pattern-check', 'session-rollup', 'memory-report'],
-                    'Server': ['serve'],
-                }
-
-                parts = ['\nAvailable Commands (grouped by category):\n', '=' * 70 + '\n']
-                for category, commands in categories.items():
-                    parts.append(f'\n{category} ({len(commands)} commands):\n')
-                    parts.append('-' * 70 + '\n')
-                    for cmd in commands:
-                        if cmd in action.choices:
-                            parts.append(f'  {cmd:30s}\n')
-                parts.append('\n' + '=' * 70 + '\n')
-                parts.append('\nUse "empirica <command> --help" for detailed help on a specific command.\n')
+                # Compact default help — show core commands only
+                # Full list available via 'empirica help <category>'
+                parts = [
+                    '\nCore Commands:\n',
+                    '=' * 60 + '\n',
+                    '\n  Workflow:\n',
+                    '    preflight-submit (pre)    Start measurement transaction\n',
+                    '    check-submit (check)      Gate: ready to act?\n',
+                    '    postflight-submit (post)   Close transaction, measure learning\n',
+                    '\n  Epistemic Artifacts (log as you discover):\n',
+                    '    finding-log (fl)           What was learned\n',
+                    '    unknown-log (ul)           What needs investigation\n',
+                    '    deadend-log (de)           Approach that didn\'t work\n',
+                    '    mistake-log                Error to avoid in future\n',
+                    '    assumption-log             Unverified belief\n',
+                    '    decision-log               Choice with rationale\n',
+                    '\n  Goals:\n',
+                    '    goals-create (gc)          Create a goal\n',
+                    '    goals-list (gl)            List goals\n',
+                    '    goals-complete             Mark goal done\n',
+                    '\n  Context:\n',
+                    '    session-create (sc)        Start session\n',
+                    '    project-bootstrap (pb)     Load project context\n',
+                    '    project-switch             Switch active project\n',
+                    '    project-search             Search knowledge (Qdrant)\n',
+                    '\n  Monitoring:\n',
+                    '    calibration-report         Calibration accuracy\n',
+                    '    workflow-patterns           Detect repeated workflows\n',
+                    '    profile-status              Artifact counts + drift\n',
+                    '\n' + '=' * 60 + '\n',
+                    '\nAll categories: session, workflow, goals, logging, project,\n',
+                    '  workspace, checkpoint, sync, profile, identity, handoff,\n',
+                    '  issue, investigation, monitoring, skills, architecture,\n',
+                    '  agents, sentinel, personas, lessons, mcp, memory, vision\n',
+                    '\nUse "empirica <command> --help" for any command.\n',
+                ]
                 return ''.join(parts)
         except Exception:
             pass
@@ -213,9 +209,10 @@ def create_argument_parser():
     """Create and configure the main argument parser"""
     parser = argparse.ArgumentParser(
         prog='empirica',
-        description='🧠 Empirica - Epistemic Vector-Based Functional Self-Awareness Framework',
+        usage='empirica [--version] [--verbose] <command> [args]',
+        description='🧠 Empirica — Measurement and calibration layer for AI',
         formatter_class=GroupedHelpFormatter,
-        epilog="Global Flags (must come BEFORE command name):\n  empirica [--version] [--verbose] <command> [args]\n\nExamples:\n  empirica session-create --ai-id myai      # Create session\n  empirica --verbose sessions-list          # Show debug info\n  empirica preflight-submit --session-id xyz # PREFLIGHT\n  empirica --verbose check --session-id xyz # CHECK with debugging"
+        epilog="Examples:\n  empirica session-create --ai-id claude-code\n  empirica preflight-submit -     # JSON on stdin\n  empirica finding-log --finding \"Discovered X\" --impact 0.7\n  empirica goals-create --objective \"Implement Y\"\n  empirica project-bootstrap     # Load project context"
     )
 
     # Global options (must come before subcommand)
@@ -224,7 +221,7 @@ def create_argument_parser():
     parser.add_argument('--config', help='Path to configuration file')
 
     # Create subcommands
-    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    subparsers = parser.add_subparsers(dest='command', metavar='<command>')
 
     # Add all parser groups
     add_session_parsers(subparsers)
