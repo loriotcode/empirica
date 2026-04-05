@@ -5,6 +5,19 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.9] - 2026-04-06
+
+### Fixed
+- **MCP TOOL_REGISTRY audit** — 23 param mismatches fixed across 16 tools. All 45 tools verified against CLI `--help`. Added positional argument support for investigate and goals-search
+- **MCP binary path drift** — `setup-claude-code` now prefers venv binary over stale pipx install. Always updates mcp.json command path when binary changes
+- **Transaction-scoped completion scoring** — CHECK proceed reminds "Rate completion for THIS TRANSACTION only." POSTFLIGHT detects goals completed in transaction and hints completion should be near 1.0
+- **Ruff callable|None runtime error** — UP045 auto-fix produced invalid `callable | None` union. Fixed by removing type annotation
+
+### Changed
+- **Ruff auto-fix** — 8343 → 1723 issues (-79%). UP045 optional annotations (1121), F541 empty f-strings (384)
+- **generate_suggestions refactored** — F/46 → B/8. Extracted 5 analysis functions + 3 shared helpers
+- **MCP server tools updated to 45** — Added `workflow_patterns` tool
+
 ## [1.7.8] - 2026-04-05
 
 ### Added

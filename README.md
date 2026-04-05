@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.7.8-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.8)
+[![Version](https://img.shields.io/badge/version-1.7.9-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.9)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -98,13 +98,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.7.8-alpine
+docker pull nubaeon/empirica:1.7.9-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.7.8
+docker pull nubaeon/empirica:1.7.9
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.7.8 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.7.9 /bin/bash
 ```
 </details>
 
@@ -264,7 +264,7 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.7.8
+## What's New in 1.7.9
 
 - **5-tier memory management system** — CC `memory/*.md` managed as KV cache. POSTFLIGHT pipeline: hot-cache update → eidetic promotion → stale demotion → MEMORY.md eviction. Manual files never auto-managed
 - **Memory promotion** — High-confidence Qdrant eidetic facts (>=0.7 confidence, 3+ confirmations) auto-promoted to `promoted_*.md` at POSTFLIGHT
@@ -315,6 +315,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.7.8
+**Version:** 1.7.9
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*
