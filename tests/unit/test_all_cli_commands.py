@@ -248,15 +248,18 @@ class TestCLISummary:
         assert b"Empirica" in result.stdout
     
     def test_total_command_count(self):
-        """Verify core commands exist (38 working commands after cleanup)"""
+        """Verify core commands exist in compact help output"""
         result = subprocess.run(["empirica", "--help"], capture_output=True, text=True)
-        # Sanity check - verify CASCADE workflow and project commands exist
+        # Compact help shows core commands (workflow, artifacts, goals, context)
         assert "preflight-submit" in result.stdout
         assert "check" in result.stdout
         assert "postflight-submit" in result.stdout
         assert "goals-create" in result.stdout
-        assert "checkpoint-list" in result.stdout
+        assert "finding-log" in result.stdout
         assert "project-bootstrap" in result.stdout
+        # Non-core commands available via 'empirica help'
+        result2 = subprocess.run(["empirica", "help"], capture_output=True, text=True)
+        assert "checkpoint" in result2.stdout
 
 
 if __name__ == "__main__":
