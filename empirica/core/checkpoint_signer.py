@@ -58,8 +58,8 @@ class CheckpointSigner:
     def __init__(
         self,
         ai_id: str,
-        git_repo_path: Optional[str] = None,
-        identity_dir: Optional[str] = None
+        git_repo_path: str | None = None,
+        identity_dir: str | None = None
     ):
         """
         Initialize checkpoint signer
@@ -199,7 +199,7 @@ class CheckpointSigner:
         session_id: str,
         phase: str,
         round_num: int,
-        public_key_hex: Optional[str] = None
+        public_key_hex: str | None = None
     ) -> dict[str, Any]:
         """
         Verify a signed checkpoint
@@ -355,7 +355,7 @@ class CheckpointSigner:
 
     def list_signed_checkpoints(
         self,
-        session_id: Optional[str] = None
+        session_id: str | None = None
     ) -> list[dict[str, Any]]:
         """
         List all signed checkpoints

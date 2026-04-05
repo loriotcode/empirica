@@ -40,14 +40,14 @@ class EpistemicAgentConfig:
     task: str  # What the agent should do
 
     # Persona (load by ID or provide directly)
-    persona_id: Optional[str] = None
-    persona: Optional[PersonaProfile] = None
+    persona_id: str | None = None
+    persona: PersonaProfile | None = None
 
     # Branch tracking
-    investigation_path: Optional[str] = None  # Auto-generated if not provided
+    investigation_path: str | None = None  # Auto-generated if not provided
 
     # Transaction linkage (for epistemic continuity)
-    transaction_id: Optional[str] = None  # Parent's transaction ID
+    transaction_id: str | None = None  # Parent's transaction ID
 
     # Behavior
     max_tokens: int = 50000
@@ -55,7 +55,7 @@ class EpistemicAgentConfig:
     require_postflight: bool = True
 
     # Context injection
-    parent_context: Optional[str] = None  # Additional context from parent
+    parent_context: str | None = None  # Additional context from parent
     findings_so_far: list[str] = field(default_factory=list)
 
     def __post_init__(self):
@@ -80,7 +80,7 @@ class EpistemicAgentResult:
 
     # Epistemic state
     preflight_vectors: dict[str, float]
-    postflight_vectors: Optional[dict[str, float]]
+    postflight_vectors: dict[str, float] | None
     learning_delta: dict[str, float]
 
     # Output
@@ -91,11 +91,11 @@ class EpistemicAgentResult:
     # Metrics
     tokens_spent: int
     time_spent_minutes: float
-    merge_score: Optional[float]
+    merge_score: float | None
 
     # Status
     success: bool
-    error: Optional[str] = None
+    error: str | None = None
 
 
 def load_persona(config: EpistemicAgentConfig) -> PersonaProfile:
@@ -250,7 +250,7 @@ Begin your work now.
     return prompt
 
 
-def parse_postflight(output: str, branch_id: str) -> Optional[dict[str, Any]]:
+def parse_postflight(output: str, branch_id: str) -> dict[str, Any] | None:
     """
     Parse POSTFLIGHT block from agent output.
 

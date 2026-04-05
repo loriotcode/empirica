@@ -74,15 +74,15 @@ class StatuslineCacheEntry:
     session_id: str
     ai_id: str
     instance_id: str  # tmux pane or process identifier
-    project_id: Optional[str] = None
-    project_name: Optional[str] = None
-    project_path: Optional[str] = None
+    project_id: str | None = None
+    project_name: str | None = None
+    project_path: str | None = None
 
     # Epistemic state
-    phase: Optional[str] = None  # PREFLIGHT, CHECK, POSTFLIGHT
-    vectors: Optional[dict[str, float]] = None
-    gate_decision: Optional[str] = None  # proceed, investigate
-    deltas: Optional[dict[str, float]] = None  # PREFLIGHT→POSTFLIGHT learning delta
+    phase: str | None = None  # PREFLIGHT, CHECK, POSTFLIGHT
+    vectors: dict[str, float] | None = None
+    gate_decision: str | None = None  # proceed, investigate
+    deltas: dict[str, float] | None = None  # PREFLIGHT→POSTFLIGHT learning delta
 
     # Counts
     open_goals: int = 0
@@ -90,7 +90,7 @@ class StatuslineCacheEntry:
     goal_linked_unknowns: int = 0
 
     # Computed metrics
-    confidence: Optional[float] = None
+    confidence: float | None = None
 
     # Timestamps
     updated_at: float = 0.0
@@ -148,7 +148,7 @@ def get_project_hash(project_path: str) -> str:
     return hashlib.sha256(project_path.encode()).hexdigest()[:8]
 
 
-def get_cache_path(instance_id: str, project_path: Optional[str] = None) -> Path:
+def get_cache_path(instance_id: str, project_path: str | None = None) -> Path:
     """Get the cache file path for an instance+project combination."""
     project_hash = get_project_hash(project_path or "")
     return CACHE_DIR / f"{instance_id}_{project_hash}.json"
@@ -176,7 +176,7 @@ class StatuslineCache:
             print(f"Phase: {entry.phase}, Know: {entry.vectors.get('know')}")
     """
 
-    def __init__(self, instance_id: Optional[str] = None, project_path: Optional[str] = None):
+    def __init__(self, instance_id: str | None = None, project_path: str | None = None):
         """
         Initialize cache for a specific instance and project.
 
@@ -226,7 +226,7 @@ class StatuslineCache:
             # Silent fail - statusline should never crash
             return False
 
-    def read(self, max_age: float = 300.0) -> Optional[StatuslineCacheEntry]:
+    def read(self, max_age: float = 300.0) -> StatuslineCacheEntry | None:
         """
         Read cache entry with file locking.
 
@@ -350,16 +350,16 @@ class StatuslineCache:
 def write_statusline_cache(
     session_id: str,
     ai_id: str,
-    phase: Optional[str] = None,
-    vectors: Optional[dict[str, float]] = None,
-    gate_decision: Optional[str] = None,
-    project_path: Optional[str] = None,
-    project_name: Optional[str] = None,
+    phase: str | None = None,
+    vectors: dict[str, float] | None = None,
+    gate_decision: str | None = None,
+    project_path: str | None = None,
+    project_name: str | None = None,
     open_goals: int = 0,
     open_unknowns: int = 0,
     goal_linked_unknowns: int = 0,
-    confidence: Optional[float] = None,
-    deltas: Optional[dict[str, float]] = None,
+    confidence: float | None = None,
+    deltas: dict[str, float] | None = None,
 ) -> bool:
     """
     Write to statusline cache.
@@ -386,9 +386,9 @@ def write_statusline_cache(
 
 
 def read_statusline_cache(
-    project_path: Optional[str] = None,
+    project_path: str | None = None,
     max_age: float = 300.0
-) -> Optional[StatuslineCacheEntry]:
+) -> StatuslineCacheEntry | None:
     """
     Read from statusline cache.
 
@@ -400,7 +400,7 @@ def read_statusline_cache(
 
 def update_statusline_vectors(
     vectors: dict[str, float],
-    project_path: Optional[str] = None
+    project_path: str | None = None
 ) -> bool:
     """
     Update just the vectors in the cache.
@@ -413,8 +413,8 @@ def update_statusline_vectors(
 
 def update_statusline_phase(
     phase: str,
-    gate_decision: Optional[str] = None,
-    project_path: Optional[str] = None
+    gate_decision: str | None = None,
+    project_path: str | None = None
 ) -> bool:
     """
     Update the CASCADE phase in the cache.

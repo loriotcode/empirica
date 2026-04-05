@@ -45,12 +45,12 @@ class SubTask:
 
     # Optional fields
     dependencies: list[str] = field(default_factory=list)  # Other subtask IDs
-    estimated_tokens: Optional[int] = None
-    actual_tokens: Optional[int] = None
-    completion_evidence: Optional[str] = None  # Git commit hash, file path, etc.
+    estimated_tokens: int | None = None
+    actual_tokens: int | None = None
+    completion_evidence: str | None = None  # Git commit hash, file path, etc.
     notes: str = ""
     created_timestamp: float = field(default_factory=time.time)
-    completed_timestamp: Optional[float] = None
+    completed_timestamp: float | None = None
 
     # Epistemic investigation tracking (v4.0)
     findings: list[str] = field(default_factory=list)  # Validated discoveries

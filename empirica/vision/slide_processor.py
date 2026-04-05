@@ -60,7 +60,7 @@ class SlideEpistemicAssessment:
 class SlideProcessor:
     """Process slides and assess epistemic value"""
 
-    def __init__(self, output_dir: Optional[Path] = None) -> None:
+    def __init__(self, output_dir: Path | None = None) -> None:
         """Initialize slide processor with output directory."""
         if not HAS_VISION:
             raise ImportError(

@@ -156,7 +156,7 @@ class BayesianBeliefManager:
         return adjustments
 
     def update_belief(self, session_id: str, vector_name: str, observation: float,
-                      phase: str = "CHECK", round_num: int = 1) -> Optional[dict]:
+                      phase: str = "CHECK", round_num: int = 1) -> dict | None:
         """
         Update belief for a single vector during CHECK phase.
 

@@ -48,7 +48,7 @@ def _get_qdrant_imports():
     return QdrantClient, Distance, VectorParams, PointStruct
 
 
-def _get_embedding_safe(text: str) -> Optional[list[float]]:
+def _get_embedding_safe(text: str) -> list[float] | None:
     """Get embedding with graceful fallback."""
     try:
         from .embeddings import get_embedding
@@ -58,7 +58,7 @@ def _get_embedding_safe(text: str) -> Optional[list[float]]:
         return None
 
 
-def _get_embeddings_batch(texts: list[str]) -> list[Optional[list[float]]]:
+def _get_embeddings_batch(texts: list[str]) -> list[list[float] | None]:
     """Batch embed multiple texts. Returns list of vectors (None for failures)."""
     try:
         from .embeddings import get_embedding_provider
@@ -113,7 +113,7 @@ def _get_qdrant_client():
     return None
 
 
-def _service_url() -> Optional[str]:
+def _service_url() -> str | None:
     return os.getenv("EMPIRICA_QDRANT_URL")
 
 

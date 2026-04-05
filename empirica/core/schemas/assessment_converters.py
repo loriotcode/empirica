@@ -233,7 +233,7 @@ def _convert_action(old_action):
         return 'investigate'  # Default to investigate
 
 
-def _convert_action_to_old(new_action: Optional[str]):
+def _convert_action_to_old(new_action: str | None):
     """Convert NEW action string to OLD Action enum."""
     if new_action is None:
         from empirica.core.canonical.reflex_frame import Action

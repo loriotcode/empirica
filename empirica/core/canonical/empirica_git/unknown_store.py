@@ -43,7 +43,7 @@ class GitUnknownStore:
         }
     """
 
-    def __init__(self, workspace_root: Optional[str] = None):
+    def __init__(self, workspace_root: str | None = None):
         """Initialize git unknown store"""
         self.workspace_root = workspace_root or os.getcwd()
         self._git_available = self._check_git_repo()
@@ -85,10 +85,10 @@ class GitUnknownStore:
         session_id: str,
         ai_id: str,
         unknown: str,
-        goal_id: Optional[str] = None,
-        subtask_id: Optional[str] = None,
+        goal_id: str | None = None,
+        subtask_id: str | None = None,
         resolved: bool = False,
-        resolved_by: Optional[str] = None
+        resolved_by: str | None = None
     ) -> bool:
         """
         Store unknown in git notes
@@ -157,7 +157,7 @@ class GitUnknownStore:
             logger.warning(f"Failed to store unknown in git: {e}")
             return False
 
-    def load_unknown(self, unknown_id: str) -> Optional[dict[str, Any]]:
+    def load_unknown(self, unknown_id: str) -> dict[str, Any] | None:
         """Load unknown from git notes"""
         if not self._git_available or not self._has_commits():
             return None
@@ -238,9 +238,9 @@ class GitUnknownStore:
 
     def discover_unknowns(
         self,
-        project_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        ai_id: Optional[str] = None,
+        project_id: str | None = None,
+        session_id: str | None = None,
+        ai_id: str | None = None,
         include_resolved: bool = False
     ) -> list[dict[str, Any]]:
         """

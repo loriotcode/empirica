@@ -194,7 +194,7 @@ class ArtifactExtractor:
     def __init__(
         self,
         min_confidence: float = 0.3,
-        dedup_existing: Optional[set[str]] = None,
+        dedup_existing: set[str] | None = None,
     ):
         """
         Args:

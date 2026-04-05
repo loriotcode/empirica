@@ -38,10 +38,10 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey,
 logger = logging.getLogger(__name__)
 
 # Password configuration
-_IDENTITY_PASSWORD: Optional[bytes] = None
+_IDENTITY_PASSWORD: bytes | None = None
 
 
-def _get_identity_password() -> Optional[bytes]:
+def _get_identity_password() -> bytes | None:
     """Get identity encryption password from environment."""
     global _IDENTITY_PASSWORD
     if _IDENTITY_PASSWORD is None:
@@ -70,7 +70,7 @@ class AIIdentity:
         verified = identity.verify(signature, message, public_key)
     """
 
-    def __init__(self, ai_id: str, identity_dir: Optional[str] = None):
+    def __init__(self, ai_id: str, identity_dir: str | None = None):
         """
         Initialize AI Identity
         
@@ -80,9 +80,9 @@ class AIIdentity:
         """
         self.ai_id = ai_id
         self.identity_dir = Path(identity_dir or ".empirica/identity")
-        self.private_key: Optional[Ed25519PrivateKey] = None
-        self.public_key: Optional[Ed25519PublicKey] = None
-        self.created_at: Optional[str] = None
+        self.private_key: Ed25519PrivateKey | None = None
+        self.public_key: Ed25519PublicKey | None = None
+        self.created_at: str | None = None
         self.metadata: dict[str, Any] = {}
 
     @property
@@ -112,7 +112,7 @@ class AIIdentity:
 
         logger.info(f"✓ Generated Ed25519 keypair for {self.ai_id}")
 
-    def save_keypair(self, overwrite: bool = False, password: Optional[bytes] = None) -> None:
+    def save_keypair(self, overwrite: bool = False, password: bytes | None = None) -> None:
         """
         Save keypair to disk with optional encryption.
 
@@ -203,7 +203,7 @@ class AIIdentity:
         logger.info(f"✓ Saved keypair ({encryption_status}) to {self.keypair_path}")
         logger.info(f"✓ Saved public key to {self.public_key_path}")
 
-    def load_keypair(self, password: Optional[bytes] = None) -> None:
+    def load_keypair(self, password: bytes | None = None) -> None:
         """
         Load keypair from disk.
 
@@ -360,7 +360,7 @@ class IdentityManager:
         identity = manager.create_identity("new-agent")
     """
 
-    def __init__(self, identity_dir: Optional[str] = None):
+    def __init__(self, identity_dir: str | None = None):
         """Initialize identity manager"""
         self.identity_dir = Path(identity_dir or ".empirica/identity")
 

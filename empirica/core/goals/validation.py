@@ -76,7 +76,7 @@ def validate_success_criteria(success_criteria: list[SuccessCriterion]) -> None:
                 )
 
 
-def validate_complexity(complexity: Optional[float]) -> None:
+def validate_complexity(complexity: float | None) -> None:
     """
     Validate complexity estimate
     

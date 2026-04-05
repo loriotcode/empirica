@@ -30,11 +30,11 @@ class ProjectRepository(BaseRepository):
     def create_project(
         self,
         name: str,
-        description: Optional[str] = None,
-        repos: Optional[list[str]] = None,
-        project_type: Optional[str] = None,
-        project_tags: Optional[list[str]] = None,
-        parent_project_id: Optional[str] = None
+        description: str | None = None,
+        repos: list[str] | None = None,
+        project_type: str | None = None,
+        project_tags: list[str] | None = None,
+        parent_project_id: str | None = None
     ) -> str:
         """
         Create a new project for multi-repo/multi-session tracking.
@@ -84,19 +84,19 @@ class ProjectRepository(BaseRepository):
 
         return project_id
 
-    def get_project(self, project_id: str) -> Optional[dict]:
+    def get_project(self, project_id: str) -> dict | None:
         """Get project data"""
         cursor = self._execute("SELECT * FROM projects WHERE id = ?", (project_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_project_by_name(self, name: str) -> Optional[dict]:
+    def get_project_by_name(self, name: str) -> dict | None:
         """Get project data by name (case-insensitive)"""
         cursor = self._execute("SELECT * FROM projects WHERE LOWER(name) = LOWER(?)", (name,))
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def resolve_project_id(self, project_id_or_name: str) -> Optional[str]:
+    def resolve_project_id(self, project_id_or_name: str) -> str | None:
         """
         Resolve project identifier to UUID.
         Accepts either project name (folder_name) or UUID.
@@ -207,9 +207,9 @@ class ProjectRepository(BaseRepository):
         self,
         project_id: str,
         project_summary: str,
-        key_decisions: Optional[list[str]] = None,
-        patterns_discovered: Optional[list[str]] = None,
-        remaining_work: Optional[list[str]] = None
+        key_decisions: list[str] | None = None,
+        patterns_discovered: list[str] | None = None,
+        remaining_work: list[str] | None = None
     ) -> str:
         """
         Create project-level handoff report by aggregating session handoffs.
@@ -293,7 +293,7 @@ class ProjectRepository(BaseRepository):
 
         return handoff_id
 
-    def get_latest_project_handoff(self, project_id: str) -> Optional[dict]:
+    def get_latest_project_handoff(self, project_id: str) -> dict | None:
         """Get the most recent project handoff"""
         cursor = self._execute("""
             SELECT * FROM project_handoffs
@@ -304,7 +304,7 @@ class ProjectRepository(BaseRepository):
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_ai_epistemic_handoff(self, project_id: str, ai_id: str) -> Optional[dict]:
+    def get_ai_epistemic_handoff(self, project_id: str, ai_id: str) -> dict | None:
         """Get latest epistemic handoff (POSTFLIGHT checkpoint) for a specific AI in this project.
         
         This loads the most recent session's POSTFLIGHT checkpoint for the given AI ID,
@@ -415,7 +415,7 @@ class ProjectRepository(BaseRepository):
 
         return result
 
-    def _calculate_delta(self, before: Optional[float], after: Optional[float]) -> Optional[float]:
+    def _calculate_delta(self, before: float | None, after: float | None) -> float | None:
         """Calculate change from before to after, returning None if either is None"""
         if before is None or after is None:
             return None

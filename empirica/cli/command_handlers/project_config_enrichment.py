@@ -15,7 +15,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
-def find_project_config(start_path: Optional[Path] = None) -> Optional[Path]:
+def find_project_config(start_path: Path | None = None) -> Path | None:
     """
     Find .empirica-project/PROJECT_CONFIG.yaml by walking up directory tree.
     
@@ -55,7 +55,7 @@ def save_project_config(config_path: Path, config: dict[str, Any]):
         logger.error(f"Error saving config: {e}")
 
 
-def enrich_with_finding(finding: str, session_id: Optional[str] = None) -> bool:
+def enrich_with_finding(finding: str, session_id: str | None = None) -> bool:
     """
     Add finding to PROJECT_CONFIG.yaml in current project.
     
@@ -99,7 +99,7 @@ def enrich_with_finding(finding: str, session_id: Optional[str] = None) -> bool:
     return True
 
 
-def enrich_with_unknown(unknown: str, session_id: Optional[str] = None) -> bool:
+def enrich_with_unknown(unknown: str, session_id: str | None = None) -> bool:
     """
     Add unknown to PROJECT_CONFIG.yaml in current project.
     
@@ -144,7 +144,7 @@ def enrich_with_unknown(unknown: str, session_id: Optional[str] = None) -> bool:
     return True
 
 
-def enrich_with_dead_end(approach: str, why_failed: str, session_id: Optional[str] = None) -> bool:
+def enrich_with_dead_end(approach: str, why_failed: str, session_id: str | None = None) -> bool:
     """
     Add dead end to PROJECT_CONFIG.yaml in current project.
     

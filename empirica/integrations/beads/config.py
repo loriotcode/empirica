@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class BeadsConfig:
     """BEADS integration configuration"""
 
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Path | None = None):
         """Initialize BEADS configuration
         
         Args:
@@ -74,7 +74,7 @@ class BeadsConfig:
         return self._config.get('agent_mail_url', 'http://127.0.0.1:8765')
 
     @property
-    def agent_name(self) -> Optional[str]:
+    def agent_name(self) -> str | None:
         """Agent name for Agent Mail"""
         return self._config.get('agent_name')
 

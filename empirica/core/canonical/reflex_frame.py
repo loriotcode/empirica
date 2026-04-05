@@ -46,10 +46,10 @@ class VectorState:
     """
     score: float
     rationale: str
-    evidence: Optional[str] = None
+    evidence: str | None = None
     warrants_investigation: bool = False
-    investigation_priority: Optional[str] = None  # 'low', 'medium', 'high', 'critical'
-    investigation_reason: Optional[str] = None
+    investigation_priority: str | None = None  # 'low', 'medium', 'high', 'critical'
+    investigation_reason: str | None = None
 
     def __post_init__(self):
         """Validate that vector score is within valid 0.0-1.0 range."""

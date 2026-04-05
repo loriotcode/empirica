@@ -41,8 +41,8 @@ class CheckpointStorage:
     def save_to_sqlite(
         self,
         checkpoint: dict[str, Any],
-        git_commit_sha: Optional[str] = None,
-        git_notes_ref: Optional[str] = None
+        git_commit_sha: str | None = None,
+        git_notes_ref: str | None = None
     ) -> bool:
         """
         Save checkpoint pointer to SQLite reflexes table.
@@ -113,9 +113,9 @@ class CheckpointStorage:
 
     def load_from_sqlite(
         self,
-        phase: Optional[str] = None,
+        phase: str | None = None,
         max_age_hours: int = 24
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Load checkpoint from SQLite fallback storage (JSON files).
 
@@ -162,7 +162,7 @@ class CheckpointStorage:
 
         return None
 
-    def save_to_json(self, checkpoint: dict[str, Any]) -> Optional[Path]:
+    def save_to_json(self, checkpoint: dict[str, Any]) -> Path | None:
         """
         Save checkpoint to JSON file for audit trail.
 

@@ -34,8 +34,8 @@ class EditConfidenceAssessor:
         file_path: str,
         old_str: str,
         context_source: str = "memory",
-        last_read_turn: Optional[int] = None,
-        current_turn: Optional[int] = None
+        last_read_turn: int | None = None,
+        current_turn: int | None = None
     ) -> dict[str, float]:
         """
         Assess confidence for an edit operation.
@@ -138,8 +138,8 @@ class EditConfidenceAssessor:
         self,
         file_path: str,
         context_source: str,
-        last_read_turn: Optional[int],
-        current_turn: Optional[int]
+        last_read_turn: int | None,
+        current_turn: int | None
     ) -> float:
         """
         Assess how recently the file was read.

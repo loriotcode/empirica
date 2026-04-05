@@ -47,7 +47,7 @@ class CredentialsLoader:
         if self._credentials_cache is None:
             self._load_credentials()
 
-    def _find_config_file(self) -> Optional[Path]:
+    def _find_config_file(self) -> Path | None:
         """
         Find credentials config file in order of precedence:
         1. Environment variable EMPIRICA_CREDENTIALS_PATH
@@ -182,7 +182,7 @@ class CredentialsLoader:
         logger.info(f"   Loaded {loaded_count} API keys from dotfiles")
         return credentials
 
-    def get_provider_config(self, provider: str) -> Optional[dict[str, Any]]:
+    def get_provider_config(self, provider: str) -> dict[str, Any] | None:
         """
         Get configuration for a specific provider
 
@@ -198,12 +198,12 @@ class CredentialsLoader:
         providers = self._credentials_cache.get('providers', {})
         return providers.get(provider)
 
-    def get_api_key(self, provider: str) -> Optional[str]:
+    def get_api_key(self, provider: str) -> str | None:
         """Get API key for provider"""
         config = self.get_provider_config(provider)
         return config.get('api_key') if config else None
 
-    def get_base_url(self, provider: str) -> Optional[str]:
+    def get_base_url(self, provider: str) -> str | None:
         """Get base URL for provider"""
         config = self.get_provider_config(provider)
         return config.get('base_url') if config else None
@@ -231,7 +231,7 @@ class CredentialsLoader:
 
         return interpolated_headers
 
-    def get_default_model(self, provider: str) -> Optional[str]:
+    def get_default_model(self, provider: str) -> str | None:
         """Get default model for provider"""
         config = self.get_provider_config(provider)
         return config.get('default_model') if config else None

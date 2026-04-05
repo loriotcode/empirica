@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class TaskRepository:
     """Database operations for Task persistence"""
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         """
         Initialize repository
 
@@ -30,7 +30,7 @@ class TaskRepository:
         self.db = SessionDatabase(db_path=db_path)
         self._ensure_tables()
 
-    def _resolve_subtask_id(self, subtask_id: str) -> Optional[str]:
+    def _resolve_subtask_id(self, subtask_id: str) -> str | None:
         """
         Resolve partial subtask ID to full UUID.
 
@@ -175,7 +175,7 @@ class TaskRepository:
             self.db.conn.rollback()
             return False
 
-    def get_subtask(self, subtask_id: str) -> Optional[SubTask]:
+    def get_subtask(self, subtask_id: str) -> SubTask | None:
         """
         Retrieve subtask by ID (supports partial UUID)
 
@@ -238,7 +238,7 @@ class TaskRepository:
         self,
         subtask_id: str,
         status: TaskStatus,
-        completion_evidence: Optional[str] = None
+        completion_evidence: str | None = None
     ) -> bool:
         """
         Update subtask status (supports partial UUID)
@@ -329,7 +329,7 @@ class TaskRepository:
             self.db.conn.rollback()
             return False
 
-    def get_decomposition(self, goal_id: str) -> Optional[TaskDecomposition]:
+    def get_decomposition(self, goal_id: str) -> TaskDecomposition | None:
         """
         Retrieve task decomposition for a goal
         
@@ -358,9 +358,9 @@ class TaskRepository:
 
     def query_subtasks(
         self,
-        goal_id: Optional[str] = None,
-        status: Optional[TaskStatus] = None,
-        epistemic_importance: Optional[EpistemicImportance] = None
+        goal_id: str | None = None,
+        status: TaskStatus | None = None,
+        epistemic_importance: EpistemicImportance | None = None
     ) -> list[SubTask]:
         """
         Query subtasks with filters

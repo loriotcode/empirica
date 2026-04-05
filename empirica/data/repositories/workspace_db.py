@@ -174,7 +174,7 @@ class WorkspaceDBRepository(BaseRepository):
 
     # --- global_projects ---
 
-    def get_project_by_path(self, trajectory_path: str) -> Optional[dict[str, Any]]:
+    def get_project_by_path(self, trajectory_path: str) -> dict[str, Any] | None:
         """Look up a project by its filesystem path (the stable key)."""
         cursor = self._execute(
             "SELECT * FROM global_projects WHERE trajectory_path = ? AND status = 'active'",
@@ -183,7 +183,7 @@ class WorkspaceDBRepository(BaseRepository):
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_project_by_id(self, project_id: str) -> Optional[dict[str, Any]]:
+    def get_project_by_id(self, project_id: str) -> dict[str, Any] | None:
         """Look up a project by UUID."""
         cursor = self._execute(
             "SELECT * FROM global_projects WHERE id = ?",
@@ -192,7 +192,7 @@ class WorkspaceDBRepository(BaseRepository):
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_project_by_name(self, name: str) -> Optional[dict[str, Any]]:
+    def get_project_by_name(self, name: str) -> dict[str, Any] | None:
         """Look up a project by name (case-insensitive)."""
         cursor = self._execute(
             "SELECT * FROM global_projects WHERE LOWER(name) = LOWER(?) AND status = 'active'",
@@ -219,7 +219,7 @@ class WorkspaceDBRepository(BaseRepository):
         git_branch: str = 'main',
         status: str = 'active',
         project_type: str = 'product',
-        metadata: Optional[str] = None,
+        metadata: str | None = None,
     ) -> None:
         """Insert or update a project in the global registry."""
         now = time.time()
@@ -247,13 +247,13 @@ class WorkspaceDBRepository(BaseRepository):
     def update_project_stats(
         self,
         project_id: str,
-        total_transactions: Optional[int] = None,
-        total_findings: Optional[int] = None,
-        total_unknowns: Optional[int] = None,
-        total_dead_ends: Optional[int] = None,
-        total_goals: Optional[int] = None,
-        last_transaction_id: Optional[str] = None,
-        last_transaction_timestamp: Optional[float] = None,
+        total_transactions: int | None = None,
+        total_findings: int | None = None,
+        total_unknowns: int | None = None,
+        total_dead_ends: int | None = None,
+        total_goals: int | None = None,
+        last_transaction_id: str | None = None,
+        last_transaction_timestamp: float | None = None,
     ) -> None:
         """Update project statistics (transaction counts, last activity).
 
@@ -308,7 +308,7 @@ class WorkspaceDBRepository(BaseRepository):
 
     # --- instance_bindings ---
 
-    def get_instance_binding(self, instance_id: str) -> Optional[dict[str, Any]]:
+    def get_instance_binding(self, instance_id: str) -> dict[str, Any] | None:
         """Get the project binding for a TMUX pane instance."""
         cursor = self._execute(
             "SELECT * FROM instance_bindings WHERE instance_id = ?",
@@ -340,8 +340,8 @@ class WorkspaceDBRepository(BaseRepository):
         session_id: str,
         ai_id: str,
         project_id: str,
-        instance_id: Optional[str] = None,
-        parent_session_id: Optional[str] = None,
+        instance_id: str | None = None,
+        parent_session_id: str | None = None,
     ) -> None:
         """Register a session in the global session registry."""
         now = time.time()
@@ -371,11 +371,11 @@ class WorkspaceDBRepository(BaseRepository):
         entity_id: str,
         relationship: str = 'about',
         relevance: float = 1.0,
-        discovered_via: Optional[str] = None,
-        engagement_id: Optional[str] = None,
-        transaction_id: Optional[str] = None,
-        created_by_ai: Optional[str] = None,
-    ) -> Optional[str]:
+        discovered_via: str | None = None,
+        engagement_id: str | None = None,
+        transaction_id: str | None = None,
+        created_by_ai: str | None = None,
+    ) -> str | None:
         """Link an artifact to a CRM entity. Returns the link ID or None on conflict."""
         import uuid
         link_id = str(uuid.uuid4())

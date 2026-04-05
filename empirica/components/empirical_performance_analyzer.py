@@ -100,7 +100,7 @@ class EmpiricalPerformanceAnalyzer:
     def analyze_performance(
         self,
         target: str = "system",
-        context: Optional[dict] = None,
+        context: dict | None = None,
         detailed: bool = False
     ) -> dict[str, Any]:
         """

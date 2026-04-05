@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class GitAssumptionStore:
     """Git-based assumption storage for epistemic sync."""
 
-    def __init__(self, workspace_root: Optional[str] = None):
+    def __init__(self, workspace_root: str | None = None):
         self.workspace_root = workspace_root or os.getcwd()
         self._git_available = self._check_git_repo()
 
@@ -56,8 +56,8 @@ class GitAssumptionStore:
         ai_id: str,
         assumption: str,
         confidence: float = 0.5,
-        domain: Optional[str] = None,
-        goal_id: Optional[str] = None,
+        domain: str | None = None,
+        goal_id: str | None = None,
     ) -> bool:
         if not self._git_available or not self._has_commits():
             return False
@@ -98,7 +98,7 @@ class GitAssumptionStore:
             logger.warning(f"Failed to store assumption in git: {e}")
             return False
 
-    def load_assumption(self, assumption_id: str) -> Optional[dict[str, Any]]:
+    def load_assumption(self, assumption_id: str) -> dict[str, Any] | None:
         if not self._git_available or not self._has_commits():
             return None
 
@@ -135,8 +135,8 @@ class GitAssumptionStore:
 
     def discover_assumptions(
         self,
-        project_id: Optional[str] = None,
-        session_id: Optional[str] = None,
+        project_id: str | None = None,
+        session_id: str | None = None,
     ) -> list[dict[str, Any]]:
         if not self._git_available:
             return []

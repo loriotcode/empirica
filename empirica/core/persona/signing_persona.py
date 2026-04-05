@@ -103,7 +103,7 @@ class SigningPersona:
         self,
         epistemic_vectors: dict[str, float],
         phase: str,
-        timestamp: Optional[str] = None
+        timestamp: str | None = None
     ) -> dict[str, Any]:
         """
         Create canonical representation of epistemic state
@@ -153,8 +153,8 @@ class SigningPersona:
         self,
         epistemic_vectors: dict[str, float],
         phase: str,
-        additional_data: Optional[dict[str, Any]] = None,
-        timestamp: Optional[str] = None
+        additional_data: dict[str, Any] | None = None,
+        timestamp: str | None = None
     ) -> dict[str, Any]:
         """
         Sign an epistemic state with the persona's private key

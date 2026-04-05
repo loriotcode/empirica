@@ -55,7 +55,7 @@ class ThresholdLoader:
     _instance: Optional['ThresholdLoader'] = None
     _initialized: bool = False
 
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Path | None = None):
         """
         Initialize threshold loader.
         
@@ -78,7 +78,7 @@ class ThresholdLoader:
         self._load_profiles()
 
     @classmethod
-    def get_instance(cls, config_path: Optional[Path] = None) -> 'ThresholdLoader':
+    def get_instance(cls, config_path: Path | None = None) -> 'ThresholdLoader':
         """
         Get singleton instance of ThresholdLoader.
         
@@ -225,8 +225,8 @@ class ThresholdLoader:
 
     @staticmethod
     def select_profile_for_work(
-        work_type: Optional[str] = None,
-        work_context: Optional[str] = None,
+        work_type: str | None = None,
+        work_context: str | None = None,
     ) -> str:
         """Select the best cascade_styles profile for the given work parameters.
 
@@ -333,7 +333,7 @@ class ThresholdLoader:
             self.overrides = {}
 
     def create_custom_profile(self, name: str, base: str = 'default',
-                            overrides: Optional[dict[str, Any]] = None) -> bool:
+                            overrides: dict[str, Any] | None = None) -> bool:
         """
         Create a custom profile based on existing profile with overrides.
         

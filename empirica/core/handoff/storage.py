@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class GitHandoffStorage:
     """Store handoff reports in git notes"""
 
-    def __init__(self, repo_path: Optional[str] = None):
+    def __init__(self, repo_path: str | None = None):
         """
         Initialize git storage
         
@@ -109,7 +109,7 @@ class GitHandoffStorage:
         self,
         session_id: str,
         format: str = 'json'
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """
         Load handoff report from git notes
         
@@ -190,7 +190,7 @@ class GitHandoffStorage:
             logger.debug(f"Failed to list handoffs from git: {e}")
             return []
 
-    def _get_note_sha(self, note_ref: str) -> Optional[str]:
+    def _get_note_sha(self, note_ref: str) -> str | None:
         """Get SHA of note"""
         try:
             result = subprocess.run(
@@ -212,7 +212,7 @@ class GitHandoffStorage:
 class DatabaseHandoffStorage:
     """Store handoff reports in session database"""
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         """
         Initialize database storage
         
@@ -325,7 +325,7 @@ class DatabaseHandoffStorage:
             logger.error(f"Failed to store handoff in database: {e}")
             raise
 
-    def load_handoff(self, session_id: str) -> Optional[dict]:
+    def load_handoff(self, session_id: str) -> dict | None:
         """
         Load handoff report from database
         
@@ -348,8 +348,8 @@ class DatabaseHandoffStorage:
 
     def query_handoffs(
         self,
-        ai_id: Optional[str] = None,
-        since: Optional[str] = None,
+        ai_id: str | None = None,
+        since: str | None = None,
         limit: int = 10
     ) -> list[dict]:
         """
@@ -431,7 +431,7 @@ class HybridHandoffStorage:
     Both stores are kept in sync. Reads prefer database (faster).
     """
 
-    def __init__(self, repo_path: Optional[str] = None, db_path: Optional[str] = None):
+    def __init__(self, repo_path: str | None = None, db_path: str | None = None):
         """
         Initialize hybrid storage with both backends
         
@@ -497,7 +497,7 @@ class HybridHandoffStorage:
         session_id: str,
         format: str = 'json',
         prefer: str = 'database'
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """
         Load handoff from preferred storage, fallback to alternative
         
@@ -538,8 +538,8 @@ class HybridHandoffStorage:
 
     def query_handoffs(
         self,
-        ai_id: Optional[str] = None,
-        since: Optional[str] = None,
+        ai_id: str | None = None,
+        since: str | None = None,
         limit: int = 5,
         include_git: bool = True
     ) -> list[dict]:

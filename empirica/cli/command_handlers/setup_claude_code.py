@@ -79,7 +79,7 @@ def _find_python() -> str:
     return sys.executable
 
 
-def _get_plugin_source_dir() -> Optional[Path]:
+def _get_plugin_source_dir() -> Path | None:
     """Find the bundled plugin source directory.
 
     The canonical source lives inside the empirica package at:

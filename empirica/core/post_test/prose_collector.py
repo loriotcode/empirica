@@ -27,9 +27,9 @@ logger = logging.getLogger(__name__)
 class ProseEvidenceCollector:
     """Collects deterministic evidence from prose and research artifacts."""
 
-    def __init__(self, session_id: str, project_id: Optional[str] = None,
+    def __init__(self, session_id: str, project_id: str | None = None,
                  db=None, phase: str = "combined",
-                 check_timestamp: Optional[float] = None):
+                 check_timestamp: float | None = None):
         self.session_id = session_id
         self.project_id = project_id
         self.phase = phase

@@ -39,8 +39,8 @@ def safe_print(*args, **kwargs):
 def run_empirica_subprocess(
     command: Sequence[str],
     *,
-    cwd: Optional[str] = None,
-    timeout: Optional[float] = None
+    cwd: str | None = None,
+    timeout: float | None = None
 ) -> subprocess.CompletedProcess:
     """
     Run an Empirica CLI subprocess with UTF-8-safe decoding.
@@ -66,7 +66,7 @@ def run_empirica_subprocess(
     )
 
 
-def print_component_status(component_name: str, status: str, details: Optional[str] = None):
+def print_component_status(component_name: str, status: str, details: str | None = None):
     """Print standardized component status information"""
     status_emoji = {
         'success': '✅',
@@ -101,7 +101,7 @@ def format_uncertainty_output(uncertainty_scores: dict[str, float], verbose: boo
     return "\n".join(output)
 
 
-def handle_cli_error(error: Exception, command: str, verbose: bool = False, session_id: Optional[str] = None) -> None:
+def handle_cli_error(error: Exception, command: str, verbose: bool = False, session_id: str | None = None) -> None:
     """
     Standardized error handling for CLI commands with auto-capture integration.
 
@@ -181,7 +181,7 @@ def handle_cli_error(error: Exception, command: str, verbose: bool = False, sess
             safe_print(f"⚠️  Auto-capture failed: {capture_error}")
 
 
-def parse_json_safely(json_string: Optional[str], default: dict = None) -> dict[str, Any]:
+def parse_json_safely(json_string: str | None, default: dict = None) -> dict[str, Any]:
     """Safely parse JSON string with fallback and escape sequence repair"""
     if not json_string:
         return default or {}
@@ -249,7 +249,7 @@ def _fix_json_escapes(json_str: str) -> str:
     return temp_str
 
 
-def format_execution_time(start_time: float, end_time: Optional[float] = None) -> str:
+def format_execution_time(start_time: float, end_time: float | None = None) -> str:
     """Format execution time for display"""
     if end_time is None:
         end_time = time.time()
@@ -304,7 +304,7 @@ def format_component_list(components: list[dict[str, Any]], show_details: bool =
     return "\n".join(output)
 
 
-def print_project_context(quiet: bool = False, verbose: bool = False) -> Optional[dict[str, str]]:
+def print_project_context(quiet: bool = False, verbose: bool = False) -> dict[str, str] | None:
     """
     Print current project context banner.
     

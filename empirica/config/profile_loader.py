@@ -43,7 +43,7 @@ class PostflightMode(Enum):
 @dataclass
 class InvestigationConstraints:
     """Investigation phase constraints"""
-    max_rounds: Optional[int] = None  # None = no limit
+    max_rounds: int | None = None  # None = no limit
     confidence_threshold: float = 0.65
     confidence_threshold_dynamic: bool = False  # If "dynamic" in config
     tool_suggestion_mode: ToolSuggestionMode = ToolSuggestionMode.SUGGESTIVE
@@ -158,7 +158,7 @@ class UniversalConstraints:
 class ProfileLoader:
     """Loads and manages investigation profiles"""
 
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Path | None = None):
         """
         Initialize profile loader
         
@@ -171,7 +171,7 @@ class ProfileLoader:
         self.config_path = config_path
         self.config: dict[str, Any] = {}
         self.profiles: dict[str, InvestigationProfile] = {}
-        self.universal_constraints: Optional[UniversalConstraints] = None
+        self.universal_constraints: UniversalConstraints | None = None
 
         if config_path.exists():
             self.load_config()
@@ -269,15 +269,15 @@ class ProfileLoader:
             learning=learning,
         )
 
-    def get_profile(self, profile_name: str) -> Optional[InvestigationProfile]:
+    def get_profile(self, profile_name: str) -> InvestigationProfile | None:
         """Get profile by name"""
         return self.profiles.get(profile_name)
 
     def select_profile(
         self,
-        ai_model: Optional[str] = None,
-        domain: Optional[str] = None,
-        explicit_profile: Optional[str] = None,
+        ai_model: str | None = None,
+        domain: str | None = None,
+        explicit_profile: str | None = None,
     ) -> InvestigationProfile:
         """
         Select appropriate profile based on context
@@ -352,7 +352,7 @@ class ProfileLoader:
         with open(output_path, 'w') as f:
             yaml.dump(profile.to_dict(), f, default_flow_style=False)
 
-    def import_profile(self, input_path: Path, profile_name: Optional[str] = None) -> None:
+    def import_profile(self, input_path: Path, profile_name: str | None = None) -> None:
         """Import profile from YAML file"""
         with open(input_path) as f:
             data = yaml.safe_load(f)
@@ -362,7 +362,7 @@ class ProfileLoader:
 
 
 # Singleton instance
-_loader_instance: Optional[ProfileLoader] = None
+_loader_instance: ProfileLoader | None = None
 
 
 def get_profile_loader() -> ProfileLoader:
@@ -383,9 +383,9 @@ def load_profile(profile_name: str) -> InvestigationProfile:
 
 
 def select_profile(
-    ai_model: Optional[str] = None,
-    domain: Optional[str] = None,
-    explicit_profile: Optional[str] = None,
+    ai_model: str | None = None,
+    domain: str | None = None,
+    explicit_profile: str | None = None,
 ) -> InvestigationProfile:
     """Select appropriate profile based on context (convenience function)"""
     loader = get_profile_loader()

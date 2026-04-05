@@ -159,7 +159,7 @@ SAFE_PIPE_TARGETS = (
 # Work-type-aware command expansion.
 # When PREFLIGHT declares work_type, the Sentinel expands the safe command list.
 # The user explicitly chose the work type — this is a scope declaration.
-_current_work_type: Optional[str] = None
+_current_work_type: str | None = None
 
 # Additional safe commands for infra/config/debug work types
 INFRA_SAFE_PREFIXES = (
@@ -362,7 +362,7 @@ def is_safe_empirica_command(command: str) -> bool:
     return False
 
 
-def is_toggle_command(command: str) -> Optional[str]:
+def is_toggle_command(command: str) -> str | None:
     """Detect if a command is writing or removing the Sentinel pause file.
 
     Returns 'pause' if writing, 'unpause' if removing, None otherwise.
@@ -439,7 +439,7 @@ _last_read_count = 0  # Module-level: how many times current file was read this 
 
 
 def _find_transaction_file(empirica_dir: Path, suffix: str,
-                           session_id: Optional[str] = None) -> Optional[Path]:
+                           session_id: str | None = None) -> Path | None:
     """Find the active transaction file, with suffix-mismatch fallback.
 
     Primary: exact file matching the current instance suffix.
@@ -472,7 +472,7 @@ def _find_transaction_file(empirica_dir: Path, suffix: str,
     return None
 
 
-def _resolve_empirica_session_id(claude_session_id: Optional[str]) -> Optional[str]:
+def _resolve_empirica_session_id(claude_session_id: str | None) -> str | None:
     """Resolve empirica session_id from claude_session_id via active_work file."""
     if not claude_session_id:
         return None
@@ -486,9 +486,9 @@ def _resolve_empirica_session_id(claude_session_id: Optional[str]) -> Optional[s
     return None
 
 
-def _try_increment_tool_count(claude_session_id: Optional[str] = None,
-                              tool_name: Optional[str] = None,
-                              tool_input: Optional[dict] = None) -> tuple:
+def _try_increment_tool_count(claude_session_id: str | None = None,
+                              tool_name: str | None = None,
+                              tool_input: dict | None = None) -> tuple:
     """Increment tool_call_count in the hook counters file (separate from transaction).
 
     Transaction file is READ-ONLY here (for status check and avg_turns).
@@ -685,7 +685,7 @@ def respond(decision: str, reason: str = "") -> None:
     print(json.dumps(output))
 
 
-def resolve_project_root(claude_session_id: Optional[str] = None) -> Optional[Path]:
+def resolve_project_root(claude_session_id: str | None = None) -> Path | None:
     """Resolve the correct project root using the shared project_resolver.
 
     Uses canonical get_active_project_path() from lib/project_resolver.py.
@@ -705,7 +705,7 @@ def resolve_project_root(claude_session_id: Optional[str] = None) -> Optional[Pa
     return None
 
 
-def find_empirica_package() -> Optional[Path]:
+def find_empirica_package() -> Path | None:
     """Find where empirica package can be imported from.
 
     This is ONLY for setting up sys.path to enable imports.
@@ -746,7 +746,7 @@ def find_empirica_package() -> Optional[Path]:
     return None
 
 
-def _get_current_project_id(db_conn, session_id: str) -> Optional[str]:
+def _get_current_project_id(db_conn, session_id: str) -> str | None:
     """Get project_id from session table (authoritative source).
 
     The session table stores the project_id that was resolved at session
@@ -773,7 +773,7 @@ def _get_current_project_id(db_conn, session_id: str) -> Optional[str]:
     return None
 
 
-def get_last_compact_timestamp(project_root: Path) -> Optional[datetime]:
+def get_last_compact_timestamp(project_root: Path) -> datetime | None:
     """Get timestamp of most recent compact from pre_summary snapshot."""
     try:
         ref_docs_dir = project_root / ".empirica" / "ref-docs"
@@ -1472,7 +1472,7 @@ def _confidence_gate_remote(claude_session_id: str = None) -> str:
         return ''  # Fail-closed: if we can't read vectors, require normal gating
 
 
-def _noetic_firewall_check(tool_name: str, tool_input: dict, hook_input: dict) -> Optional[tuple]:
+def _noetic_firewall_check(tool_name: str, tool_input: dict, hook_input: dict) -> tuple | None:
     """Check if a tool invocation is noetic (read/investigate) and should be allowed.
 
     Returns (True, message) if the tool is noetic and should be allowed,
@@ -1577,8 +1577,8 @@ def _detect_subagent(claude_session_id: str) -> bool:
     return False
 
 
-def _check_postflight_loop_closed(cursor, session_id: str, current_transaction_id: Optional[str],
-                                  preflight_timestamp, tool_name: str, tool_input: dict) -> Optional[tuple]:
+def _check_postflight_loop_closed(cursor, session_id: str, current_transaction_id: str | None,
+                                  preflight_timestamp, tool_name: str, tool_input: dict) -> tuple | None:
     """Check if the epistemic loop is closed (POSTFLIGHT exists after PREFLIGHT).
 
     Returns (status, message) if the loop is closed and a decision was made,
@@ -1831,8 +1831,8 @@ def _handle_no_preflight(tool_name: str, tool_input: dict, session_id: str, env_
 
 
 def _handle_investigate_continuation(decision: str, tool_name: str, tool_input: dict,
-                                     suffix: str, tx_file: Optional[Path],
-                                     db) -> Optional[tuple]:
+                                     suffix: str, tx_file: Path | None,
+                                     db) -> tuple | None:
     """Handle the case where CHECK returned 'investigate'.
 
     Noetic tools and safe Bash (read-only) are still allowed —

@@ -94,9 +94,9 @@ class NoeticFilter:
     allow_with_justification: bool = False  # If True, can proceed with explicit justification
     action_on_match: GateAction = GateAction.INVESTIGATE
     log_matches: bool = True
-    description: Optional[str] = None
+    description: str | None = None
 
-    def evaluate(self, investigation_context: dict[str, Any]) -> Optional[dict]:
+    def evaluate(self, investigation_context: dict[str, Any]) -> dict | None:
         """
         Evaluate if investigation should be filtered.
 
@@ -156,9 +156,9 @@ class AxiologicGate:
     required_vectors: dict[str, float] = field(default_factory=dict)  # Min vectors required
     action_on_violation: GateAction = GateAction.REQUIRE_HUMAN
     audit_required: bool = True
-    description: Optional[str] = None
+    description: str | None = None
 
-    def evaluate(self, action_context: dict[str, Any]) -> Optional[dict]:
+    def evaluate(self, action_context: dict[str, Any]) -> dict | None:
         """
         Evaluate if action should be gated.
 
@@ -209,8 +209,8 @@ class ComplianceGate:
     gate_id: str
     condition: str  # e.g., "uncertainty > 0.5", "pii_detected"
     action: GateAction
-    threshold: Optional[float] = None
-    description: Optional[str] = None
+    threshold: float | None = None
+    description: str | None = None
     priority: str = "medium"  # low, medium, high, critical
 
     def evaluate(self, context: dict[str, Any]) -> bool:
@@ -260,7 +260,7 @@ class ComplianceGate:
 class DomainProfile:
     """Domain-specific configuration for Sentinel"""
     name: str
-    compliance_framework: Optional[str] = None  # HIPAA, SOX, etc.
+    compliance_framework: str | None = None  # HIPAA, SOX, etc.
 
     # MCO overrides
     uncertainty_trigger: float = 0.5
@@ -324,8 +324,8 @@ class OrchestrationResult:
     aggregated_unknowns: list[str] = field(default_factory=list)
     merge_strategy: MergeStrategy = MergeStrategy.UNION
     merged_vectors: dict[str, float] = field(default_factory=dict)
-    compliance_check: Optional[dict[str, Any]] = None
-    error: Optional[str] = None
+    compliance_check: dict[str, Any] | None = None
+    error: str | None = None
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
@@ -396,7 +396,7 @@ class EpistemicLoopTracker:
     scope_coordination: float = 0.3 # Multi-agent needed
 
     # Loop configuration
-    max_loops: Optional[int] = None  # Hard limit (None = derive from scope)
+    max_loops: int | None = None  # Hard limit (None = derive from scope)
     min_loops: int = 1               # Minimum before allowing termination
     convergence_threshold: float = 0.03  # Delta below this = converged
     convergence_window: int = 2      # Consecutive low-delta loops to confirm
@@ -408,7 +408,7 @@ class EpistemicLoopTracker:
     current_loop: int = 0
     loop_history: list[LoopRecord] = field(default_factory=list)
     cumulative_delta: dict[str, float] = field(default_factory=dict)
-    _current_preflight: Optional[dict[str, float]] = field(default=None, repr=False)
+    _current_preflight: dict[str, float] | None = field(default=None, repr=False)
 
     def __post_init__(self):
         """Derive max_loops from scope if not specified"""
@@ -664,23 +664,23 @@ class Sentinel:
             qdrant_port: Qdrant server port
         """
         self.session_id = session_id
-        self.domain_profile: Optional[DomainProfile] = None
+        self.domain_profile: DomainProfile | None = None
         self.decision_logic = DecisionLogic(
             qdrant_host=qdrant_host,
             qdrant_port=qdrant_port
         )
-        self._spawn_fn: Optional[Callable] = None
-        self._aggregate_fn: Optional[Callable] = None
+        self._spawn_fn: Callable | None = None
+        self._aggregate_fn: Callable | None = None
 
         # Epistemic loop tracking
-        self.loop_tracker: Optional[EpistemicLoopTracker] = None
+        self.loop_tracker: EpistemicLoopTracker | None = None
 
     def init_loop_tracking(
         self,
         scope_breadth: float = 0.5,
         scope_duration: float = 0.5,
         scope_coordination: float = 0.3,
-        max_loops: Optional[int] = None,
+        max_loops: int | None = None,
         mode: LoopMode = LoopMode.SENTINEL
     ) -> EpistemicLoopTracker:
         """
@@ -744,7 +744,7 @@ class Sentinel:
             "converged": self.loop_tracker._is_converged()
         }
 
-    def get_loop_summary(self) -> Optional[dict[str, Any]]:
+    def get_loop_summary(self) -> dict[str, Any] | None:
         """Get current loop tracking summary"""
         if not self.loop_tracker:
             return None
@@ -753,7 +753,7 @@ class Sentinel:
     def load_domain_profile(
         self,
         profile_name: str,
-        custom_profile: Optional[dict[str, Any]] = None
+        custom_profile: dict[str, Any] | None = None
     ) -> DomainProfile:
         """
         Load a domain profile for compliance configuration.
@@ -925,7 +925,7 @@ class Sentinel:
         vectors: dict[str, float],
         findings: list[str],
         unknowns: list[str],
-        flags: Optional[dict[str, bool]] = None
+        flags: dict[str, bool] | None = None
     ) -> dict[str, Any]:
         """
         Run compliance gates and return CHECK decision.

@@ -155,7 +155,7 @@ def calculate_completeness_score(session_id: str, db) -> dict[str, Any]:
 
 def get_workflow_suggestions(
     project_id: str,
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
     db = None
 ) -> dict[str, Any]:
     """

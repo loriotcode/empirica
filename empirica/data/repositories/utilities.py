@@ -84,9 +84,9 @@ class CommandRepository(BaseRepository):
         self,
         session_id: str,
         command: str,
-        args: Optional[dict] = None,
+        args: dict | None = None,
         success: bool = True,
-        error_msg: Optional[str] = None
+        error_msg: str | None = None
     ) -> str:
         """
         Log command usage

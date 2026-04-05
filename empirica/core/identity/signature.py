@@ -37,10 +37,10 @@ def create_eep1_payload(
     content: str,
     epistemic_state: dict[str, float],
     ai_id: str,
-    cascade_trace_hash: Optional[str] = None,
-    metadata_sources: Optional[list[str]] = None,
-    model_id: Optional[str] = None,
-    session_id: Optional[str] = None
+    cascade_trace_hash: str | None = None,
+    metadata_sources: list[str] | None = None,
+    model_id: str | None = None,
+    session_id: str | None = None
 ) -> dict[str, Any]:
     """
     Create EEP-1 signature payload
@@ -99,10 +99,10 @@ def sign_assessment(
     content: str,
     epistemic_state: dict[str, float],
     identity: AIIdentity,
-    cascade_trace_hash: Optional[str] = None,
-    metadata_sources: Optional[list[str]] = None,
-    model_id: Optional[str] = None,
-    session_id: Optional[str] = None
+    cascade_trace_hash: str | None = None,
+    metadata_sources: list[str] | None = None,
+    model_id: str | None = None,
+    session_id: str | None = None
 ) -> dict[str, Any]:
     """
     Sign assessment with EEP-1 signature
@@ -180,7 +180,7 @@ def sign_assessment(
 
 def verify_signature(
     signed_package: dict[str, Any],
-    public_key_hex: Optional[str] = None
+    public_key_hex: str | None = None
 ) -> bool:
     """
     Verify EEP-1 signature
@@ -236,8 +236,8 @@ def verify_signature(
 
 def verify_eep1_payload(
     signed_package: dict[str, Any],
-    content: Optional[str] = None,
-    cascade_trace_hash: Optional[str] = None
+    content: str | None = None,
+    cascade_trace_hash: str | None = None
 ) -> dict[str, Any]:
     """
     Comprehensive EEP-1 payload verification

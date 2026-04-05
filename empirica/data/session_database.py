@@ -50,7 +50,7 @@ from .formatters import generate_context_markdown
 class SessionDatabase:
     """Central database for all session data (supports SQLite and PostgreSQL)"""
 
-    def __init__(self, db_path: Optional[str] = None, db_type: Optional[str] = None):
+    def __init__(self, db_path: str | None = None, db_type: str | None = None):
         """
         Initialize session database with pluggable backend
 
@@ -264,10 +264,10 @@ class SessionDatabase:
         self.conn.commit()
 
     def create_session(self, ai_id: str, components_loaded: int = 0,
-                      user_id: Optional[str] = None, subject: Optional[str] = None,
+                      user_id: str | None = None, subject: str | None = None,
                       bootstrap_level: int = 1,
-                      parent_session_id: Optional[str] = None,
-                      project_id: Optional[str] = None) -> str:
+                      parent_session_id: str | None = None,
+                      project_id: str | None = None) -> str:
         """
         Create new session, return session_id (delegates to SessionRepository)
 
@@ -289,14 +289,14 @@ class SessionDatabase:
             project_id=project_id
         )
 
-    def end_session(self, session_id: str, avg_confidence: Optional[float] = None,
-                   drift_detected: bool = False, notes: Optional[str] = None):
+    def end_session(self, session_id: str, avg_confidence: float | None = None,
+                   drift_detected: bool = False, notes: str | None = None):
         """Mark session as ended (delegates to SessionRepository)"""
         self._validate_session_id(session_id)
         return self.sessions.end_session(session_id, avg_confidence, drift_detected, notes)
 
     def create_cascade(self, session_id: str, task: str, context: dict[str, Any],
-                      goal_id: Optional[str] = None, goal: Optional[dict[str, Any]] = None) -> str:
+                      goal_id: str | None = None, goal: dict[str, Any] | None = None) -> str:
         """Create cascade record (delegates to CascadeRepository)"""
         self._validate_session_id(session_id)
         return self.cascades.create_cascade(session_id, task, context, goal_id, goal)
@@ -394,7 +394,7 @@ class SessionDatabase:
 
         self.conn.commit()
 
-    def get_session(self, session_id: str) -> Optional[dict]:
+    def get_session(self, session_id: str) -> dict | None:
         """Get session data (delegates to SessionRepository)"""
         return self.sessions.get_session(session_id)
 
@@ -414,7 +414,7 @@ class SessionDatabase:
         """, (cascade_id,))
         return [dict(row) for row in cursor.fetchall()]
 
-    def log_preflight_assessment(self, session_id: str, cascade_id: Optional[str],
+    def log_preflight_assessment(self, session_id: str, cascade_id: str | None,
                                  prompt_summary: str, vectors: dict[str, float],
                                  uncertainty_notes: str = "") -> str:
         """
@@ -437,14 +437,14 @@ class SessionDatabase:
             reasoning=uncertainty_notes
         )
 
-    def log_check_phase_assessment(self, session_id: str, cascade_id: Optional[str],
+    def log_check_phase_assessment(self, session_id: str, cascade_id: str | None,
                                    investigation_cycle: int, confidence: float,
                                    decision: str, gaps: list[str],
                                    next_targets: list[str],
                                    notes: str = "",
-                                   vectors: Optional[dict[str, float]] = None,
-                                   findings: Optional[list[str]] = None,
-                                   remaining_unknowns: Optional[list[str]] = None) -> str:
+                                   vectors: dict[str, float] | None = None,
+                                   findings: list[str] | None = None,
+                                   remaining_unknowns: list[str] | None = None) -> str:
         """
         DEPRECATED: Use store_vectors() instead.
         
@@ -474,7 +474,7 @@ class SessionDatabase:
             reasoning=notes
         )
 
-    def log_postflight_assessment(self, session_id: str, cascade_id: Optional[str],
+    def log_postflight_assessment(self, session_id: str, cascade_id: str | None,
                                   task_summary: str, vectors: dict[str, float],
                                   postflight_confidence: float,
                                   calibration_accuracy: str,
@@ -500,7 +500,7 @@ class SessionDatabase:
             reasoning=learning_notes
         )
 
-    def get_preflight_assessment(self, session_id: str) -> Optional[dict]:
+    def get_preflight_assessment(self, session_id: str) -> dict | None:
         """
         DEPRECATED: Use get_latest_vectors(session_id, phase='PREFLIGHT') instead.
         
@@ -516,7 +516,7 @@ class SessionDatabase:
         """
         return self.get_vectors_by_phase(session_id, phase="CHECK")
 
-    def get_postflight_assessment(self, session_id: str) -> Optional[dict]:
+    def get_postflight_assessment(self, session_id: str) -> dict | None:
         """
         DEPRECATED: Use get_latest_vectors(session_id, phase='POSTFLIGHT') instead.
         
@@ -524,15 +524,15 @@ class SessionDatabase:
         """
         return self.get_latest_vectors(session_id, phase="POSTFLIGHT")
 
-    def get_preflight_vectors(self, session_id: str) -> Optional[dict]:
+    def get_preflight_vectors(self, session_id: str) -> dict | None:
         """Get latest PREFLIGHT vectors for session (delegates to VectorRepository)"""
         return self.vectors.get_preflight_vectors(session_id)
 
-    def get_check_vectors(self, session_id: str, cycle: Optional[int] = None) -> list[dict]:
+    def get_check_vectors(self, session_id: str, cycle: int | None = None) -> list[dict]:
         """Get CHECK phase vectors (delegates to VectorRepository)"""
         return self.vectors.get_check_vectors(session_id, cycle)
 
-    def get_postflight_vectors(self, session_id: str) -> Optional[dict]:
+    def get_postflight_vectors(self, session_id: str) -> dict | None:
         """Get latest POSTFLIGHT vectors for session (delegates to VectorRepository)"""
         return self.vectors.get_postflight_vectors(session_id)
 
@@ -544,7 +544,7 @@ class SessionDatabase:
         """Store epistemic delta for calibration tracking (delegates to CascadeRepository)"""
         return self.cascades.store_epistemic_delta(cascade_id, delta)
 
-    def get_last_session_by_ai(self, ai_id: str) -> Optional[dict]:
+    def get_last_session_by_ai(self, ai_id: str) -> dict | None:
         """Get most recent session for an AI agent"""
         cursor = self.conn.cursor()
         cursor.execute("""
@@ -556,7 +556,7 @@ class SessionDatabase:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_session_snapshot(self, session_id: str) -> Optional[dict]:
+    def get_session_snapshot(self, session_id: str) -> dict | None:
         """
         Get git-native session snapshot showing where you left off
         
@@ -708,7 +708,7 @@ class SessionDatabase:
             'subject': session.get('subject')
         }
 
-    def get_session_summary(self, session_id: str, detail_level: str = "summary") -> Optional[dict]:
+    def get_session_summary(self, session_id: str, detail_level: str = "summary") -> dict | None:
         """Generate session summary (delegates to SessionRepository)"""
         return self.sessions.get_session_summary(session_id, detail_level)
 
@@ -720,7 +720,7 @@ class SessionDatabase:
         """Calculate epistemic health score (delegates to MetricsRepository)"""
         return self.metrics.calculate_health_score(project_id, limit)
 
-    def _load_feature_status(self, project_root: str) -> Optional[dict]:
+    def _load_feature_status(self, project_root: str) -> dict | None:
         """
         Load feature completion status from FEATURE_STATUS.md.
 
@@ -771,7 +771,7 @@ class SessionDatabase:
             logger.debug(f"Failed to parse FEATURE_STATUS.md: {e}")
             return None
 
-    def get_git_checkpoint(self, session_id: str, phase: Optional[str] = None) -> Optional[dict]:
+    def get_git_checkpoint(self, session_id: str, phase: str | None = None) -> dict | None:
         """
         Retrieve checkpoint from git notes with SQLite fallback (Phase 2).
         
@@ -802,7 +802,7 @@ class SessionDatabase:
         # Fallback to SQLite reflexes
         return self._get_checkpoint_from_reflexes(session_id, phase)
 
-    def list_git_checkpoints(self, session_id: str, limit: int = 10, phase: Optional[str] = None) -> list[dict]:
+    def list_git_checkpoints(self, session_id: str, limit: int = 10, phase: str | None = None) -> list[dict]:
         """
         List all checkpoints for session from git notes (Phase 2).
         
@@ -893,7 +893,7 @@ class SessionDatabase:
             'threshold': threshold
         }
 
-    def _get_checkpoint_from_reflexes(self, session_id: str, phase: Optional[str] = None) -> Optional[dict]:
+    def _get_checkpoint_from_reflexes(self, session_id: str, phase: str | None = None) -> dict | None:
         """SQLite fallback for checkpoint retrieval using reflexes table"""
         cursor = self.conn.cursor()
 
@@ -960,11 +960,11 @@ class SessionDatabase:
 
         return None
 
-    def store_vectors(self, session_id: str, phase: str, vectors: dict[str, float], cascade_id: Optional[str] = None, round_num: int = 1, metadata: Optional[dict] = None, reasoning: Optional[str] = None, transaction_id: Optional[str] = None):
+    def store_vectors(self, session_id: str, phase: str, vectors: dict[str, float], cascade_id: str | None = None, round_num: int = 1, metadata: dict | None = None, reasoning: str | None = None, transaction_id: str | None = None):
         """Store epistemic vectors (delegates to VectorRepository)"""
         return self.vectors.store_vectors(session_id, phase, vectors, cascade_id, round_num, metadata, reasoning, transaction_id=transaction_id)
 
-    def get_latest_vectors(self, session_id: str, phase: Optional[str] = None) -> Optional[dict]:
+    def get_latest_vectors(self, session_id: str, phase: str | None = None) -> dict | None:
         """Get latest epistemic vectors for session (delegates to VectorRepository)"""
         return self.vectors.get_latest_vectors(session_id, phase)
 
@@ -1038,7 +1038,7 @@ class SessionDatabase:
         """
         return self.goals.complete_subtask(subtask_id, evidence)
 
-    def get_all_sessions(self, ai_id: Optional[str] = None, limit: int = 50) -> list[dict]:
+    def get_all_sessions(self, ai_id: str | None = None, limit: int = 50) -> list[dict]:
         """List all sessions, optionally filtered by ai_id (delegates to SessionRepository)
 
         Args:
@@ -1074,7 +1074,7 @@ class SessionDatabase:
         """
         return self.goals.query_unknowns_summary(session_id)
 
-    def query_goals(self, session_id: Optional[str] = None, is_completed: Optional[bool] = None) -> list:
+    def query_goals(self, session_id: str | None = None, is_completed: bool | None = None) -> list:
         """Query goals with optional filters (delegates to core GoalsRepository)
 
         Args:
@@ -1089,7 +1089,7 @@ class SessionDatabase:
             is_completed=is_completed
         )
 
-    def query_subtasks(self, goal_id: Optional[str] = None, status: Optional[str] = None) -> list:
+    def query_subtasks(self, goal_id: str | None = None, status: str | None = None) -> list:
         """Query subtasks with optional filters (delegates to TaskRepository)
 
         Args:
@@ -1202,11 +1202,11 @@ class SessionDatabase:
     def create_project(
         self,
         name: str,
-        description: Optional[str] = None,
-        repos: Optional[list[str]] = None,
-        project_type: Optional[str] = None,
-        project_tags: Optional[list[str]] = None,
-        parent_project_id: Optional[str] = None
+        description: str | None = None,
+        repos: list[str] | None = None,
+        project_type: str | None = None,
+        project_tags: list[str] | None = None,
+        parent_project_id: str | None = None
     ) -> str:
         """Create a new project (delegates to ProjectRepository)
 
@@ -1228,11 +1228,11 @@ class SessionDatabase:
             parent_project_id=parent_project_id
         )
 
-    def get_project(self, project_id: str) -> Optional[dict]:
+    def get_project(self, project_id: str) -> dict | None:
         """Get project data (delegates to ProjectRepository)"""
         return self.projects.get_project(project_id)
 
-    def resolve_project_id(self, project_id_or_name: str) -> Optional[str]:
+    def resolve_project_id(self, project_id_or_name: str) -> str | None:
         """Resolve project name or UUID to UUID (delegates to ProjectRepository)"""
         return self.projects.resolve_project_id(project_id_or_name)
 
@@ -1253,20 +1253,20 @@ class SessionDatabase:
         self,
         project_id: str,
         project_summary: str,
-        key_decisions: Optional[list[str]] = None,
-        patterns_discovered: Optional[list[str]] = None,
-        remaining_work: Optional[list[str]] = None
+        key_decisions: list[str] | None = None,
+        patterns_discovered: list[str] | None = None,
+        remaining_work: list[str] | None = None
     ) -> str:
         """Create project-level handoff report (delegates to ProjectRepository)"""
         return self.projects.create_project_handoff(
             project_id, project_summary, key_decisions, patterns_discovered, remaining_work
         )
 
-    def get_latest_project_handoff(self, project_id: str) -> Optional[dict]:
+    def get_latest_project_handoff(self, project_id: str) -> dict | None:
         """Get the most recent project handoff (delegates to ProjectRepository)"""
         return self.projects.get_latest_project_handoff(project_id)
 
-    def get_ai_epistemic_handoff(self, project_id: str, ai_id: str) -> Optional[dict]:
+    def get_ai_epistemic_handoff(self, project_id: str, ai_id: str) -> dict | None:
         """Get latest epistemic handoff (POSTFLIGHT checkpoint) for a specific AI.
         
         Enables epistemic continuity by loading the previous session's ending epistemic state.
@@ -1318,7 +1318,7 @@ class SessionDatabase:
 
         return unique_issues
 
-    def get_git_status(self, project_root: str) -> Optional[dict]:
+    def get_git_status(self, project_root: str) -> dict | None:
         """Get git status information for the project.
         
         Returns dict with:
@@ -1381,7 +1381,7 @@ class SessionDatabase:
             logger.debug(f"Error getting git status: {e}")
             return None
 
-    def _generate_dependency_summary(self, project_root: str) -> Optional[dict]:
+    def _generate_dependency_summary(self, project_root: str) -> dict | None:
         """Generate lightweight dependency summary using AST import analysis.
 
         Produces a compact summary of project dependencies suitable for context
@@ -1528,7 +1528,7 @@ class SessionDatabase:
         return result
 
 
-    def _resolve_and_validate_project(self, project_id: str) -> Optional[dict]:
+    def _resolve_and_validate_project(self, project_id: str) -> dict | None:
         """Resolve project name to UUID and validate it exists"""
         resolved_id = self.resolve_project_id(project_id)
         if not resolved_id:
@@ -1537,7 +1537,7 @@ class SessionDatabase:
         project = self.get_project(resolved_id)
         return project
 
-    def _load_breadcrumbs_for_mode(self, project_id: str, mode: str, subject: Optional[str] = None) -> dict:
+    def _load_breadcrumbs_for_mode(self, project_id: str, mode: str, subject: str | None = None) -> dict:
         """Load all breadcrumbs (findings, unknowns, dead_ends, mistakes, reference_docs) based on mode
 
         SEARCH-FIRST ARCHITECTURE: Limits items to prevent context bloat.
@@ -1643,12 +1643,12 @@ class SessionDatabase:
 
     def _capture_live_state_if_requested(
         self,
-        session_id: Optional[str],
+        session_id: str | None,
         project_id: str,
         include_live_state: bool,
         fresh_assess: bool,
-        trigger: Optional[str]
-    ) -> Optional[dict]:
+        trigger: str | None
+    ) -> dict | None:
         """Capture live epistemic state if requested"""
         if not include_live_state:
             return None
@@ -1682,13 +1682,13 @@ class SessionDatabase:
         task_description: str = None,
         epistemic_state: dict[str, float] = None,
         context_to_inject: bool = False,
-        subject: Optional[str] = None,
-        session_id: Optional[str] = None,
+        subject: str | None = None,
+        session_id: str | None = None,
         include_live_state: bool = False,
         fresh_assess: bool = False,
-        trigger: Optional[str] = None,
+        trigger: str | None = None,
         depth: str = "auto",
-        ai_id: Optional[str] = None
+        ai_id: str | None = None
     ) -> dict:
         """
         Generate epistemic breadcrumbs for starting a new session on existing project.
@@ -1864,7 +1864,7 @@ class SessionDatabase:
         return breadcrumbs
 
 
-    def _auto_resolve_session(self, project_id: str, trigger: Optional[str]) -> Optional[str]:
+    def _auto_resolve_session(self, project_id: str, trigger: str | None) -> str | None:
         """
         Auto-resolve session_id from project and trigger context.
 
@@ -1967,7 +1967,7 @@ class SessionDatabase:
             "fresh": True  # Flag to indicate this is fresh, not loaded checkpoint
         }
 
-    def _load_latest_checkpoint_state(self, session_id: str) -> Optional[dict]:
+    def _load_latest_checkpoint_state(self, session_id: str) -> dict | None:
         """Load latest checkpoint from session (via GitEnhancedReflexLogger)"""
         try:
 
@@ -2033,7 +2033,7 @@ class SessionDatabase:
         except Exception as e:
             return {"error": str(e)}
 
-    def _apply_depth_filter(self, breadcrumbs: dict, depth: str, trigger: Optional[str]) -> dict:
+    def _apply_depth_filter(self, breadcrumbs: dict, depth: str, trigger: str | None) -> dict:
         """
         Apply adaptive depth filtering to breadcrumbs based on drift or explicit depth.
 
@@ -2174,13 +2174,13 @@ class SessionDatabase:
         project_id: str,
         session_id: str,
         finding: str,
-        goal_id: Optional[str] = None,
-        subtask_id: Optional[str] = None,
-        subject: Optional[str] = None,
-        impact: Optional[float] = None,
-        transaction_id: Optional[str] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[str] = None
+        goal_id: str | None = None,
+        subtask_id: str | None = None,
+        subject: str | None = None,
+        impact: float | None = None,
+        transaction_id: str | None = None,
+        entity_type: str | None = None,
+        entity_id: str | None = None
     ) -> str:
         """Log a project finding (delegates to BreadcrumbRepository)"""
         # Auto-derive impact from latest CASCADE if not provided
@@ -2198,10 +2198,10 @@ class SessionDatabase:
         self,
         session_id: str,
         finding: str,
-        goal_id: Optional[str] = None,
-        subtask_id: Optional[str] = None,
-        subject: Optional[str] = None,
-        impact: Optional[float] = None
+        goal_id: str | None = None,
+        subtask_id: str | None = None,
+        subject: str | None = None,
+        impact: float | None = None
     ) -> str:
         """Log a session-scoped finding (ephemeral, session-specific learning)"""
         # Auto-derive impact from latest CASCADE if not provided
@@ -2216,10 +2216,10 @@ class SessionDatabase:
         self,
         session_id: str,
         unknown: str,
-        goal_id: Optional[str] = None,
-        subtask_id: Optional[str] = None,
-        subject: Optional[str] = None,
-        impact: Optional[float] = None
+        goal_id: str | None = None,
+        subtask_id: str | None = None,
+        subject: str | None = None,
+        impact: float | None = None
     ) -> str:
         """Log a session-scoped unknown"""
         if impact is None:
@@ -2234,10 +2234,10 @@ class SessionDatabase:
         session_id: str,
         approach: str,
         why_failed: str,
-        goal_id: Optional[str] = None,
-        subtask_id: Optional[str] = None,
-        subject: Optional[str] = None,
-        impact: Optional[float] = None
+        goal_id: str | None = None,
+        subtask_id: str | None = None,
+        subject: str | None = None,
+        impact: float | None = None
     ) -> str:
         """Log a session-scoped dead end"""
         if impact is None:
@@ -2252,10 +2252,10 @@ class SessionDatabase:
         session_id: str,
         mistake: str,
         why_wrong: str,
-        cost_estimate: Optional[str] = None,
-        root_cause_vector: Optional[str] = None,
-        prevention: Optional[str] = None,
-        goal_id: Optional[str] = None
+        cost_estimate: str | None = None,
+        root_cause_vector: str | None = None,
+        prevention: str | None = None,
+        goal_id: str | None = None
     ) -> str:
         """Log a session-scoped mistake"""
         return self.breadcrumbs.log_session_mistake(
@@ -2268,13 +2268,13 @@ class SessionDatabase:
         project_id: str,
         session_id: str,
         unknown: str,
-        goal_id: Optional[str] = None,
-        subtask_id: Optional[str] = None,
-        subject: Optional[str] = None,
-        impact: Optional[float] = None,
-        transaction_id: Optional[str] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[str] = None
+        goal_id: str | None = None,
+        subtask_id: str | None = None,
+        subject: str | None = None,
+        impact: float | None = None,
+        transaction_id: str | None = None,
+        entity_type: str | None = None,
+        entity_id: str | None = None
     ) -> str:
         """Log a project unknown (delegates to BreadcrumbRepository)"""
         # Auto-derive impact from latest CASCADE if not provided
@@ -2298,13 +2298,13 @@ class SessionDatabase:
         session_id: str,
         approach: str,
         why_failed: str,
-        goal_id: Optional[str] = None,
-        subtask_id: Optional[str] = None,
-        subject: Optional[str] = None,
-        impact: Optional[float] = None,
-        transaction_id: Optional[str] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[str] = None
+        goal_id: str | None = None,
+        subtask_id: str | None = None,
+        subject: str | None = None,
+        impact: float | None = None,
+        transaction_id: str | None = None,
+        entity_type: str | None = None,
+        entity_id: str | None = None
     ) -> str:
         """Log a project dead end (delegates to BreadcrumbRepository)
 
@@ -2326,8 +2326,8 @@ class SessionDatabase:
         self,
         project_id: str,
         doc_path: str,
-        doc_type: Optional[str] = None,
-        description: Optional[str] = None
+        doc_type: str | None = None,
+        description: str | None = None
     ) -> str:
         """Add a reference document to project (delegates to BreadcrumbRepository)"""
         return self.breadcrumbs.add_reference_doc(project_id, doc_path, doc_type, description)
@@ -2335,10 +2335,10 @@ class SessionDatabase:
     def get_project_findings(
         self,
         project_id: str,
-        limit: Optional[int] = None,
-        subject: Optional[str] = None,
+        limit: int | None = None,
+        subject: str | None = None,
         depth: str = "moderate",
-        uncertainty: Optional[float] = None
+        uncertainty: float | None = None
     ) -> list[dict]:
         """
         Get all findings for a project with deprecation filtering.
@@ -2361,11 +2361,11 @@ class SessionDatabase:
             uncertainty=uncertainty
         )
 
-    def get_project_unknowns(self, project_id: str, resolved: Optional[bool] = None, subject: Optional[str] = None, limit: Optional[int] = None) -> list[dict]:
+    def get_project_unknowns(self, project_id: str, resolved: bool | None = None, subject: str | None = None, limit: int | None = None) -> list[dict]:
         """Get unknowns for a project (delegates to BreadcrumbRepository)"""
         return self.breadcrumbs.get_project_unknowns(project_id, resolved, subject, limit)
 
-    def get_project_dead_ends(self, project_id: str, limit: Optional[int] = None, subject: Optional[str] = None) -> list[dict]:
+    def get_project_dead_ends(self, project_id: str, limit: int | None = None, subject: str | None = None) -> list[dict]:
         """Get all dead ends for a project (delegates to BreadcrumbRepository)"""
         return self.breadcrumbs.get_project_dead_ends(project_id, limit, subject)
 
@@ -2378,15 +2378,15 @@ class SessionDatabase:
         project_id: str,
         source_type: str,
         title: str,
-        session_id: Optional[str] = None,
-        source_url: Optional[str] = None,
-        description: Optional[str] = None,
+        session_id: str | None = None,
+        source_url: str | None = None,
+        description: str | None = None,
         confidence: float = 0.5,
-        epistemic_layer: Optional[str] = None,
-        supports_vectors: Optional[dict[str, float]] = None,
-        related_findings: Optional[list[str]] = None,
-        discovered_by_ai: Optional[str] = None,
-        source_metadata: Optional[dict] = None
+        epistemic_layer: str | None = None,
+        supports_vectors: dict[str, float] | None = None,
+        related_findings: list[str] | None = None,
+        discovered_by_ai: str | None = None,
+        source_metadata: dict | None = None
     ) -> str:
         """Add an epistemic source to ground project knowledge
         
@@ -2437,10 +2437,10 @@ class SessionDatabase:
     def get_epistemic_sources(
         self,
         project_id: str,
-        session_id: Optional[str] = None,
-        source_type: Optional[str] = None,
+        session_id: str | None = None,
+        source_type: str | None = None,
         min_confidence: float = 0.0,
-        limit: Optional[int] = None
+        limit: int | None = None
     ) -> list[dict]:
         """Get epistemic sources for a project
         
@@ -2497,14 +2497,14 @@ class SessionDatabase:
         session_id: str,
         mistake: str,
         why_wrong: str,
-        cost_estimate: Optional[str] = None,
-        root_cause_vector: Optional[str] = None,
-        prevention: Optional[str] = None,
-        goal_id: Optional[str] = None,
-        project_id: Optional[str] = None,
-        transaction_id: Optional[str] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[str] = None
+        cost_estimate: str | None = None,
+        root_cause_vector: str | None = None,
+        prevention: str | None = None,
+        goal_id: str | None = None,
+        project_id: str | None = None,
+        transaction_id: str | None = None,
+        entity_type: str | None = None,
+        entity_id: str | None = None
     ) -> str:
         """Log a mistake for learning (delegates to BreadcrumbRepository)
 
@@ -2529,8 +2529,8 @@ class SessionDatabase:
 
     def get_mistakes(
         self,
-        session_id: Optional[str] = None,
-        goal_id: Optional[str] = None,
+        session_id: str | None = None,
+        goal_id: str | None = None,
         limit: int = 10
     ) -> list[dict]:
         """Retrieve logged mistakes (delegates to BreadcrumbRepository)
@@ -2551,11 +2551,11 @@ class SessionDatabase:
         session_id: str,
         assumption: str,
         confidence: float = 0.5,
-        domain: Optional[str] = None,
-        goal_id: Optional[str] = None,
-        transaction_id: Optional[str] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[str] = None,
+        domain: str | None = None,
+        goal_id: str | None = None,
+        transaction_id: str | None = None,
+        entity_type: str | None = None,
+        entity_id: str | None = None,
     ) -> str:
         """Log an unverified belief (delegates to BreadcrumbRepository)."""
         return self.breadcrumbs.log_assumption(
@@ -2569,13 +2569,13 @@ class SessionDatabase:
         session_id: str,
         choice: str,
         rationale: str,
-        alternatives: Optional[str] = None,
+        alternatives: str | None = None,
         confidence: float = 0.7,
         reversibility: str = 'exploratory',
-        goal_id: Optional[str] = None,
-        transaction_id: Optional[str] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[str] = None,
+        goal_id: str | None = None,
+        transaction_id: str | None = None,
+        entity_type: str | None = None,
+        entity_id: str | None = None,
     ) -> str:
         """Log a decision choice point (delegates to BreadcrumbRepository)."""
         return self.breadcrumbs.log_decision(

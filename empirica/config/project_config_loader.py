@@ -121,7 +121,7 @@ class ProjectConfig:
             d['domain_config'] = self.domain_config
         return d
 
-    def get_subject_for_path(self, current_path: str) -> Optional[str]:
+    def get_subject_for_path(self, current_path: str) -> str | None:
         """
         Detect subject from current working directory.
         
@@ -154,7 +154,7 @@ class ProjectConfig:
         logger.debug(f"No subject auto-detected for path: {current_path}")
         return None
 
-    def get_subject_info(self, subject_id: str) -> Optional[dict[str, Any]]:
+    def get_subject_info(self, subject_id: str) -> dict[str, Any] | None:
         """Get subject configuration"""
         return self.subjects.get(subject_id)
 
@@ -163,7 +163,7 @@ class ProjectConfig:
         return list(self.subjects.keys())
 
 
-def load_project_config(project_root: Optional[Path] = None) -> Optional[ProjectConfig]:
+def load_project_config(project_root: Path | None = None) -> ProjectConfig | None:
     """
     Load project configuration from .empirica/project.yaml
 
@@ -208,8 +208,8 @@ def load_project_config(project_root: Optional[Path] = None) -> Optional[Project
         return None
 
 
-def get_current_subject(project_config: Optional[ProjectConfig] = None,
-                       current_path: Optional[Path] = None) -> Optional[str]:
+def get_current_subject(project_config: ProjectConfig | None = None,
+                       current_path: Path | None = None) -> str | None:
     """
     Get current subject based on working directory.
     

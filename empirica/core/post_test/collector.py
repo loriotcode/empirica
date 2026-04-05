@@ -100,8 +100,8 @@ class EvidenceProfile:
     VALID = {CODE, PROSE, WEB, HYBRID, AUTO}
 
     @staticmethod
-    def resolve(explicit: Optional[str] = None,
-                project_path: Optional[str] = None) -> str:
+    def resolve(explicit: str | None = None,
+                project_path: str | None = None) -> str:
         """Resolve the evidence profile from explicit flag, config, or env."""
         import os
 
@@ -135,13 +135,13 @@ class EvidenceProfile:
 class PostTestCollector:
     """Collects objective evidence from multiple sources."""
 
-    def __init__(self, session_id: str, project_id: Optional[str] = None,
+    def __init__(self, session_id: str, project_id: str | None = None,
                  db=None, phase: str = "combined",
-                 check_timestamp: Optional[float] = None,
-                 evidence_profile: Optional[str] = None,
-                 work_context: Optional[str] = None,
-                 preflight_timestamp: Optional[float] = None,
-                 transaction_id: Optional[str] = None):
+                 check_timestamp: float | None = None,
+                 evidence_profile: str | None = None,
+                 work_context: str | None = None,
+                 preflight_timestamp: float | None = None,
+                 transaction_id: str | None = None):
         self.session_id = session_id
         self.project_id = project_id
         self.phase = phase  # "noetic", "praxic", or "combined"
@@ -152,9 +152,9 @@ class PostTestCollector:
         self.work_context = work_context  # greenfield|iteration|investigation|refactor
         self._db = db
         self._owns_db = False
-        self._session_goal_ids: Optional[list[str]] = None
-        self._project_root: Optional[str] = None  # Lazy-resolved
-        self._project_maturity: Optional[dict[str, Any]] = None  # Lazy-resolved
+        self._session_goal_ids: list[str] | None = None
+        self._project_root: str | None = None  # Lazy-resolved
+        self._project_maturity: dict[str, Any] | None = None  # Lazy-resolved
 
     def _get_db(self):
         if self._db is None:
@@ -218,7 +218,7 @@ class PostTestCollector:
                 return EvidenceProfile.PROSE
         return profile
 
-    def _resolve_project_root(self) -> Optional[str]:
+    def _resolve_project_root(self) -> str | None:
         """Resolve the project root path for subprocess cwd and file lookups.
 
         Priority chain:
@@ -1292,7 +1292,7 @@ class PostTestCollector:
         return []
 
     @staticmethod
-    def _is_outside_git(file_path: str, git_root: Optional[str]) -> bool:
+    def _is_outside_git(file_path: str, git_root: str | None) -> bool:
         """Check if a file path is outside the git repository."""
         if not git_root:
             return True  # No git root = everything is non-git
@@ -1428,7 +1428,7 @@ class PostTestCollector:
 
         return items
 
-    def _get_transaction_since(self) -> Optional[str]:
+    def _get_transaction_since(self) -> str | None:
         """Get the transaction start timestamp as a git --since argument.
 
         Priority: preflight_timestamp > check_timestamp (praxic) > session start.

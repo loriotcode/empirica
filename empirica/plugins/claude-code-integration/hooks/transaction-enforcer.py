@@ -38,7 +38,7 @@ SOFT_THRESHOLD = int(os.environ.get('EMPIRICA_TX_SOFT_TURNS', '12'))
 HARD_THRESHOLD = int(os.environ.get('EMPIRICA_TX_HARD_TURNS', '20'))
 
 
-def _find_transaction_file(instance_id: str) -> Optional[Path]:
+def _find_transaction_file(instance_id: str) -> Path | None:
     """
     Find the active transaction file for this instance.
 

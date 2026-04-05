@@ -35,8 +35,8 @@ class GoalDecision:
     signal_score: float
     know_score: float
     context_score: float
-    health_score: Optional[float] = None
-    health_gate_passed: Optional[bool] = None
+    health_score: float | None = None
+    health_gate_passed: bool | None = None
 
 
 def decide_goal_creation(
@@ -44,7 +44,7 @@ def decide_goal_creation(
     signal: float,
     know: float,
     context: float,
-    health_score: Optional[float] = None,
+    health_score: float | None = None,
     health_threshold: float = 60.0,
     clarity_threshold: float = 0.6,
     signal_threshold: float = 0.5,
@@ -189,7 +189,7 @@ def decide_goal_creation(
         )
 
 
-def get_investigation_focus(decision: GoalDecision) -> Optional[str]:
+def get_investigation_focus(decision: GoalDecision) -> str | None:
     """
     Helper: What should investigation focus on?
     

@@ -117,9 +117,9 @@ class SqliteBusObserver(EpistemicObserver):
 
     @staticmethod
     def query_events(
-        session_id: Optional[str] = None,
-        event_type: Optional[str] = None,
-        since: Optional[float] = None,
+        session_id: str | None = None,
+        event_type: str | None = None,
+        since: float | None = None,
         limit: int = 50,
     ) -> list[dict[str, Any]]:
         """Query persisted events from SQLite.
@@ -266,7 +266,7 @@ class QdrantBusObserver(EpistemicObserver):
         self,
         query_text: str,
         limit: int = 10,
-        event_type: Optional[str] = None,
+        event_type: str | None = None,
     ) -> list[dict[str, Any]]:
         """Semantic search over persisted events.
 

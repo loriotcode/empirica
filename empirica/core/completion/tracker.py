@@ -31,7 +31,7 @@ class CompletionTracker:
     Phase 2: Git notes integration for task metadata storage.
     """
 
-    def __init__(self, db_path: Optional[str] = None, enable_git_notes: bool = True):
+    def __init__(self, db_path: str | None = None, enable_git_notes: bool = True):
         """
         Initialize tracker
         
@@ -153,7 +153,7 @@ class CompletionTracker:
     def record_subtask_completion(
         self,
         subtask_id: str,
-        evidence: Optional[str] = None
+        evidence: str | None = None
     ) -> bool:
         """
         Mark subtask as complete with optional evidence
@@ -364,8 +364,8 @@ class CompletionTracker:
     def _add_task_note(
         self,
         subtask_id: str,
-        commit_hash: Optional[str] = None
-    ) -> Optional[str]:
+        commit_hash: str | None = None
+    ) -> str | None:
         """
         Add task completion note to git
         

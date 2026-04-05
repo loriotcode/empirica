@@ -86,7 +86,7 @@ class AttentionBudget:
             return 0.0
         return self.allocated / self.total_budget
 
-    def get_domain_allocation(self, domain: str) -> Optional[DomainAllocation]:
+    def get_domain_allocation(self, domain: str) -> DomainAllocation | None:
         """Get allocation for a specific domain."""
         for alloc in self.allocations:
             if alloc.domain == domain:
@@ -134,10 +134,10 @@ class AttentionBudgetCalculator:
     def create_budget(
         self,
         domains: list[str],
-        current_vectors: Optional[dict[str, float]] = None,
-        prior_findings_by_domain: Optional[dict[str, int]] = None,
-        dead_ends_by_domain: Optional[dict[str, int]] = None,
-        total_budget: Optional[int] = None,
+        current_vectors: dict[str, float] | None = None,
+        prior_findings_by_domain: dict[str, int] | None = None,
+        dead_ends_by_domain: dict[str, int] | None = None,
+        total_budget: int | None = None,
     ) -> AttentionBudget:
         """
         Create an attention budget with domain allocations.
@@ -319,7 +319,7 @@ def persist_budget(budget: AttentionBudget) -> bool:
         return False
 
 
-def load_budget(budget_id: str) -> Optional[AttentionBudget]:
+def load_budget(budget_id: str) -> AttentionBudget | None:
     """Load an attention budget from the database."""
     try:
         from empirica.data.session_database import SessionDatabase

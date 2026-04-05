@@ -162,9 +162,9 @@ class ParallelOrchestrator:
     def plan(
         self,
         task: str,
-        domains: Optional[list[str]] = None,
-        max_agents: Optional[int] = None,
-        current_vectors: Optional[dict[str, float]] = None,
+        domains: list[str] | None = None,
+        max_agents: int | None = None,
+        current_vectors: dict[str, float] | None = None,
     ) -> OrchestrationPlan:
         """
         Plan parallel agent execution for a task.
@@ -250,7 +250,7 @@ class ParallelOrchestrator:
         self,
         rollup_result: RollupResult,
         round_number: int,
-        current_vectors: Optional[dict[str, float]] = None,
+        current_vectors: dict[str, float] | None = None,
     ) -> RegulationDecision:
         """
         After a round of agent execution, decide next action.
@@ -324,7 +324,7 @@ class ParallelOrchestrator:
     def aggregate(
         self,
         agent_results: list[dict[str, Any]],
-        agent_confidences: Optional[dict[str, float]] = None,
+        agent_confidences: dict[str, float] | None = None,
     ) -> AggregatedSynthesis:
         """
         Aggregate results from all parallel agents.

@@ -42,8 +42,8 @@ class ArtifactPayload(BaseModel):
     type: str = Field(..., description="Artifact type: finding, decision, dead_end, mistake, unknown")
     content: str = Field(..., description="Artifact content text")
     confidence: float = Field(0.5, ge=0.0, le=1.0)
-    confidenceTier: Optional[str] = None
-    contentHash: Optional[str] = None
+    confidenceTier: str | None = None
+    contentHash: str | None = None
     metadata: dict = Field(default_factory=dict)
 
 
@@ -65,7 +65,7 @@ class ProfileStatusResponse(BaseModel):
     ok: bool = True
     artifact_counts: dict = Field(default_factory=dict)
     total_artifacts: int = 0
-    last_sync: Optional[str] = None
+    last_sync: str | None = None
 
 
 class SyncResponse(BaseModel):

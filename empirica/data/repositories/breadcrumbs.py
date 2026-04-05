@@ -60,7 +60,7 @@ class BreadcrumbRepository(BaseRepository):
         normalized = " ".join(text.strip().lower().split())
         return hashlib.md5(normalized.encode()).hexdigest()
 
-    def _find_duplicate_finding(self, project_id: str, finding: str) -> Optional[str]:
+    def _find_duplicate_finding(self, project_id: str, finding: str) -> str | None:
         """Check if a finding with identical content already exists."""
         content_hash = self._content_hash(finding)
         cursor = self._execute("""
@@ -75,7 +75,7 @@ class BreadcrumbRepository(BaseRepository):
                 return existing_id
         return None
 
-    def _find_duplicate_unknown(self, project_id: str, unknown: str) -> Optional[str]:
+    def _find_duplicate_unknown(self, project_id: str, unknown: str) -> str | None:
         """Check if an unknown with identical content already exists."""
         content_hash = self._content_hash(unknown)
         cursor = self._execute("""
@@ -90,7 +90,7 @@ class BreadcrumbRepository(BaseRepository):
                 return existing_id
         return None
 
-    def _find_duplicate_dead_end(self, project_id: str, approach: str, why_failed: str) -> Optional[str]:
+    def _find_duplicate_dead_end(self, project_id: str, approach: str, why_failed: str) -> str | None:
         """Check if a dead end with identical content already exists.
 
         Normalizes each field individually before combining to avoid
@@ -119,13 +119,13 @@ class BreadcrumbRepository(BaseRepository):
         project_id: str,
         session_id: str,
         finding: str,
-        goal_id: Optional[str] = None,
-        subtask_id: Optional[str] = None,
-        subject: Optional[str] = None,
-        impact: Optional[float] = None,
-        transaction_id: Optional[str] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[str] = None
+        goal_id: str | None = None,
+        subtask_id: str | None = None,
+        subject: str | None = None,
+        impact: float | None = None,
+        transaction_id: str | None = None,
+        entity_type: str | None = None,
+        entity_id: str | None = None
     ) -> str:
         """Log a project finding (what was learned/discovered)
 
@@ -200,13 +200,13 @@ class BreadcrumbRepository(BaseRepository):
         project_id: str,
         session_id: str,
         unknown: str,
-        goal_id: Optional[str] = None,
-        subtask_id: Optional[str] = None,
-        subject: Optional[str] = None,
-        impact: Optional[float] = None,
-        transaction_id: Optional[str] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[str] = None
+        goal_id: str | None = None,
+        subtask_id: str | None = None,
+        subject: str | None = None,
+        impact: float | None = None,
+        transaction_id: str | None = None,
+        entity_type: str | None = None,
+        entity_id: str | None = None
     ) -> str:
         """Log a project unknown (what's still unclear)
 
@@ -304,13 +304,13 @@ class BreadcrumbRepository(BaseRepository):
         session_id: str,
         approach: str,
         why_failed: str,
-        goal_id: Optional[str] = None,
-        subtask_id: Optional[str] = None,
-        subject: Optional[str] = None,
+        goal_id: str | None = None,
+        subtask_id: str | None = None,
+        subject: str | None = None,
         impact: float = 0.5,
-        transaction_id: Optional[str] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[str] = None
+        transaction_id: str | None = None,
+        entity_type: str | None = None,
+        entity_id: str | None = None
     ) -> str:
         """Log a project dead end (what didn't work)
 
@@ -406,7 +406,7 @@ class BreadcrumbRepository(BaseRepository):
         project_id = self._resolve_project_id(session_id)
         return self.log_mistake(session_id, mistake, why_wrong, cost_estimate, root_cause_vector, prevention, goal_id, project_id)
 
-    def _resolve_project_id(self, session_id: str) -> Optional[str]:
+    def _resolve_project_id(self, session_id: str) -> str | None:
         """Resolve project_id from a session_id."""
         try:
             cursor = self._execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
@@ -419,8 +419,8 @@ class BreadcrumbRepository(BaseRepository):
         self,
         project_id: str,
         doc_path: str,
-        doc_type: Optional[str] = None,
-        description: Optional[str] = None
+        doc_type: str | None = None,
+        description: str | None = None
     ) -> str:
         """Add a reference document to project"""
         doc_id = str(uuid.uuid4())
@@ -449,10 +449,10 @@ class BreadcrumbRepository(BaseRepository):
     def get_project_findings(
         self,
         project_id: str,
-        limit: Optional[int] = None,
-        subject: Optional[str] = None,
+        limit: int | None = None,
+        subject: str | None = None,
         depth: str = "moderate",
-        uncertainty: Optional[float] = None
+        uncertainty: float | None = None
     ) -> list[dict]:
         """
         Get findings for a project with deprecation filtering.
@@ -529,7 +529,7 @@ class BreadcrumbRepository(BaseRepository):
 
         return filtered
 
-    def get_project_unknowns(self, project_id: str, resolved: Optional[bool] = None, subject: Optional[str] = None, limit: Optional[int] = None) -> list[dict]:
+    def get_project_unknowns(self, project_id: str, resolved: bool | None = None, subject: str | None = None, limit: int | None = None) -> list[dict]:
         """Get unknowns for a project (project-scoped)."""
         query = """
             SELECT id, session_id, goal_id, subtask_id, unknown, is_resolved, resolved_by,
@@ -555,7 +555,7 @@ class BreadcrumbRepository(BaseRepository):
         cursor = self._execute(query, tuple(params))
         return [dict(row) for row in cursor.fetchall()]
 
-    def get_project_dead_ends(self, project_id: str, limit: Optional[int] = None, subject: Optional[str] = None) -> list[dict]:
+    def get_project_dead_ends(self, project_id: str, limit: int | None = None, subject: str | None = None) -> list[dict]:
         """Get all dead ends for a project (project-scoped)."""
         query = """
             SELECT id, session_id, goal_id, subtask_id, approach, why_failed,
@@ -591,14 +591,14 @@ class BreadcrumbRepository(BaseRepository):
         session_id: str,
         mistake: str,
         why_wrong: str,
-        cost_estimate: Optional[str] = None,
-        root_cause_vector: Optional[str] = None,
-        prevention: Optional[str] = None,
-        goal_id: Optional[str] = None,
-        project_id: Optional[str] = None,
-        transaction_id: Optional[str] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[str] = None
+        cost_estimate: str | None = None,
+        root_cause_vector: str | None = None,
+        prevention: str | None = None,
+        goal_id: str | None = None,
+        project_id: str | None = None,
+        transaction_id: str | None = None,
+        entity_type: str | None = None,
+        entity_id: str | None = None
     ) -> str:
         """
         Log a mistake for learning and future prevention.
@@ -656,8 +656,8 @@ class BreadcrumbRepository(BaseRepository):
 
     def get_mistakes(
         self,
-        session_id: Optional[str] = None,
-        goal_id: Optional[str] = None,
+        session_id: str | None = None,
+        goal_id: str | None = None,
         limit: int = 10
     ) -> list[dict]:
         """
@@ -701,7 +701,7 @@ class BreadcrumbRepository(BaseRepository):
 
         return [dict(row) for row in cursor.fetchall()]
 
-    def get_project_mistakes(self, project_id: str, limit: Optional[int] = None) -> list[dict]:
+    def get_project_mistakes(self, project_id: str, limit: int | None = None) -> list[dict]:
         """Get mistakes for a project (uses direct project_id column)"""
         query = """
             SELECT mistake, prevention, cost_estimate, root_cause_vector, created_timestamp
@@ -725,11 +725,11 @@ class BreadcrumbRepository(BaseRepository):
         session_id: str,
         assumption: str,
         confidence: float = 0.5,
-        domain: Optional[str] = None,
-        goal_id: Optional[str] = None,
-        transaction_id: Optional[str] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[str] = None,
+        domain: str | None = None,
+        goal_id: str | None = None,
+        transaction_id: str | None = None,
+        entity_type: str | None = None,
+        entity_id: str | None = None,
     ) -> str:
         """Log an unverified belief to the assumptions table."""
         assumption_id = str(uuid.uuid4())
@@ -764,13 +764,13 @@ class BreadcrumbRepository(BaseRepository):
         session_id: str,
         choice: str,
         rationale: str,
-        alternatives: Optional[str] = None,
+        alternatives: str | None = None,
         confidence: float = 0.7,
         reversibility: str = 'exploratory',
-        goal_id: Optional[str] = None,
-        transaction_id: Optional[str] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[str] = None,
+        goal_id: str | None = None,
+        transaction_id: str | None = None,
+        entity_type: str | None = None,
+        entity_id: str | None = None,
     ) -> str:
         """Log a decision choice point to the decisions table."""
         decision_id = str(uuid.uuid4())

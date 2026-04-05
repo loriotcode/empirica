@@ -35,7 +35,7 @@ class GitMessageStore:
     Channel is encoded in the ref path for efficient discovery.
     """
 
-    def __init__(self, workspace_root: Optional[str] = None):
+    def __init__(self, workspace_root: str | None = None):
         """Initialize git message store"""
         self.workspace_root = workspace_root or os.getcwd()
         self._git_available = self._check_git_repo()
@@ -71,7 +71,7 @@ class GitMessageStore:
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
 
-    def _get_head_commit(self) -> Optional[str]:
+    def _get_head_commit(self) -> str | None:
         """Get current HEAD commit hash"""
         try:
             result = subprocess.run(
@@ -104,14 +104,14 @@ class GitMessageStore:
         subject: str,
         body: str,
         message_type: str = "request",
-        to_machine: Optional[str] = None,
-        from_session_id: Optional[str] = None,
-        reply_to: Optional[str] = None,
-        thread_id: Optional[str] = None,
+        to_machine: str | None = None,
+        from_session_id: str | None = None,
+        reply_to: str | None = None,
+        thread_id: str | None = None,
         ttl: int = 86400,
         priority: str = "normal",
-        metadata: Optional[dict] = None,
-    ) -> Optional[str]:
+        metadata: dict | None = None,
+    ) -> str | None:
         """
         Send a message to another agent.
 
@@ -171,7 +171,7 @@ class GitMessageStore:
             logger.warning(f"Failed to send message: {e}")
             return None
 
-    def load_message(self, channel: str, message_id: str) -> Optional[dict[str, Any]]:
+    def load_message(self, channel: str, message_id: str) -> dict[str, Any] | None:
         """Load a single message by channel and ID."""
         if not self._git_available:
             return None
@@ -214,8 +214,8 @@ class GitMessageStore:
     def get_inbox(
         self,
         ai_id: str,
-        machine: Optional[str] = None,
-        channel: Optional[str] = None,
+        machine: str | None = None,
+        channel: str | None = None,
         status: str = "unread",
         include_expired: bool = False,
         limit: int = 50,
@@ -304,7 +304,7 @@ class GitMessageStore:
         channel: str,
         message_id: str,
         ai_id: str,
-        machine: Optional[str] = None,
+        machine: str | None = None,
     ) -> bool:
         """Mark a message as read by this agent."""
         msg = self.load_message(channel, message_id)
@@ -359,10 +359,10 @@ class GitMessageStore:
         from_ai_id: str,
         body: str,
         message_type: str = "response",
-        from_session_id: Optional[str] = None,
+        from_session_id: str | None = None,
         ttl: int = 86400,
-        metadata: Optional[dict] = None,
-    ) -> Optional[str]:
+        metadata: dict | None = None,
+    ) -> str | None:
         """Reply to an existing message."""
         original = self.load_message(original_channel, original_message_id)
         if not original:
@@ -388,7 +388,7 @@ class GitMessageStore:
     def get_thread(
         self,
         thread_id: str,
-        channel: Optional[str] = None,
+        channel: str | None = None,
     ) -> list[dict[str, Any]]:
         """Get all messages in a thread, ordered by timestamp."""
         if not self._git_available:
@@ -460,7 +460,7 @@ class GitMessageStore:
         except Exception:
             return []
 
-    def count_unread(self, ai_id: str, machine: Optional[str] = None) -> dict[str, int]:
+    def count_unread(self, ai_id: str, machine: str | None = None) -> dict[str, int]:
         """Count unread messages per channel."""
         channels = self.discover_channels()
         counts = {}

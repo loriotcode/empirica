@@ -124,13 +124,13 @@ class SentinelConfig:
 @dataclass
 class PersonaMetadata:
     """Metadata about the persona"""
-    created_by: Optional[str] = None
-    created_at: Optional[str] = None
-    modified_at: Optional[str] = None
-    description: Optional[str] = None
+    created_by: str | None = None
+    created_at: str | None = None
+    modified_at: str | None = None
+    description: str | None = None
     tags: list[str] = field(default_factory=list)
-    parent_persona: Optional[str] = None
-    derived_from: Optional[str] = None
+    parent_persona: str | None = None
+    derived_from: str | None = None
     verified_sessions: int = 0
 
     def __post_init__(self):

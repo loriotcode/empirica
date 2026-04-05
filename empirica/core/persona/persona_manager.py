@@ -43,7 +43,7 @@ class PersonaManager:
         all_personas = manager.list_personas()
     """
 
-    def __init__(self, personas_dir: Optional[str] = None):
+    def __init__(self, personas_dir: str | None = None):
         """
         Initialize PersonaManager
 
@@ -60,10 +60,10 @@ class PersonaManager:
         name: str,
         version: str = "1.0.0",
         user_id: str = "unknown",
-        identity_name: Optional[str] = None,
-        epistemic_priors: Optional[dict[str, float]] = None,
-        focus_domains: Optional[list[str]] = None,
-        template: Optional[str] = None
+        identity_name: str | None = None,
+        epistemic_priors: dict[str, float] | None = None,
+        focus_domains: list[str] | None = None,
+        template: str | None = None
     ) -> PersonaProfile:
         """
         Create a new persona profile

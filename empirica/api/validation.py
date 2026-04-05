@@ -52,7 +52,7 @@ def validation_error(message: str, param: str, status_code: int = 400) -> tuple[
     }), status_code
 
 
-def validate_session_id(session_id: str) -> Optional[tuple[Any, int]]:
+def validate_session_id(session_id: str) -> tuple[Any, int] | None:
     """
     Validate session ID format.
 
@@ -81,7 +81,7 @@ def validate_session_id(session_id: str) -> Optional[tuple[Any, int]]:
     return None
 
 
-def validate_ai_id(ai_id: str) -> Optional[tuple[Any, int]]:
+def validate_ai_id(ai_id: str) -> tuple[Any, int] | None:
     """
     Validate AI ID format.
 
@@ -108,7 +108,7 @@ def validate_ai_id(ai_id: str) -> Optional[tuple[Any, int]]:
     return None
 
 
-def validate_limit(limit: Any, default: int = 20) -> tuple[int, Optional[tuple[Any, int]]]:
+def validate_limit(limit: Any, default: int = 20) -> tuple[int, tuple[Any, int] | None]:
     """
     Validate and sanitize limit parameter.
 
@@ -143,7 +143,7 @@ def validate_limit(limit: Any, default: int = 20) -> tuple[int, Optional[tuple[A
     return limit_int, None
 
 
-def validate_offset(offset: Any, default: int = 0) -> tuple[int, Optional[tuple[Any, int]]]:
+def validate_offset(offset: Any, default: int = 0) -> tuple[int, tuple[Any, int] | None]:
     """
     Validate and sanitize offset parameter.
 
@@ -174,7 +174,7 @@ def validate_offset(offset: Any, default: int = 0) -> tuple[int, Optional[tuple[
     return offset_int, None
 
 
-def validate_timestamp(timestamp: Optional[str]) -> Optional[tuple[Any, int]]:
+def validate_timestamp(timestamp: str | None) -> tuple[Any, int] | None:
     """
     Validate ISO timestamp format.
 
@@ -200,11 +200,11 @@ def validate_timestamp(timestamp: Optional[str]) -> Optional[tuple[Any, int]]:
 
 
 def validate_string_length(
-    value: Optional[str],
+    value: str | None,
     param_name: str,
     max_length: int = MAX_STRING_LENGTH,
     required: bool = False
-) -> Optional[tuple[Any, int]]:
+) -> tuple[Any, int] | None:
     """
     Validate string length.
 
@@ -231,7 +231,7 @@ def validate_string_length(
     return None
 
 
-def validate_phase(phase: Optional[str]) -> Optional[tuple[Any, int]]:
+def validate_phase(phase: str | None) -> tuple[Any, int] | None:
     """
     Validate CASCADE phase.
 
@@ -251,7 +251,7 @@ def validate_phase(phase: Optional[str]) -> Optional[tuple[Any, int]]:
     return None
 
 
-def validate_vectors(vectors: Optional[dict]) -> Optional[tuple[Any, int]]:
+def validate_vectors(vectors: dict | None) -> tuple[Any, int] | None:
     """
     Validate epistemic vectors.
 
@@ -294,7 +294,7 @@ def validate_vectors(vectors: Optional[dict]) -> Optional[tuple[Any, int]]:
     return None
 
 
-def sanitize_sql_identifier(identifier: str) -> Optional[str]:
+def sanitize_sql_identifier(identifier: str) -> str | None:
     """
     Sanitize SQL identifier (table/column name).
 

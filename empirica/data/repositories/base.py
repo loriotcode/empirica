@@ -31,7 +31,7 @@ class BaseRepository:
         if isinstance(conn, sqlite3.Connection):
             self.conn.row_factory = sqlite3.Row
 
-    def _execute(self, query: str, params: Optional[tuple] = None):
+    def _execute(self, query: str, params: tuple | None = None):
         """
         Execute a SQL query with optional parameters.
 

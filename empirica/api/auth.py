@@ -30,8 +30,8 @@ from flask import g, jsonify, request
 logger = logging.getLogger(__name__)
 
 # Auth configuration
-_AUTH_ENABLED: Optional[bool] = None
-_API_KEY: Optional[str] = None
+_AUTH_ENABLED: bool | None = None
+_API_KEY: str | None = None
 
 
 def _is_auth_enabled() -> bool:
@@ -51,7 +51,7 @@ def _is_auth_enabled() -> bool:
     return _AUTH_ENABLED
 
 
-def _get_api_key() -> Optional[str]:
+def _get_api_key() -> str | None:
     """Get configured API key."""
     global _API_KEY
     if _API_KEY is None:
@@ -93,7 +93,7 @@ def validate_api_key(provided_key: str) -> bool:
     return hmac.compare_digest(provided_key, expected_key)
 
 
-def extract_api_key() -> Optional[str]:
+def extract_api_key() -> str | None:
     """
     Extract API key from request.
 

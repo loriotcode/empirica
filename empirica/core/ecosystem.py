@@ -26,7 +26,7 @@ def _get_yaml():
     return _yaml
 
 
-def find_ecosystem_manifest(start_path: str = None) -> Optional[Path]:
+def find_ecosystem_manifest(start_path: str = None) -> Path | None:
     """Find ecosystem.yaml by walking up from start_path or cwd.
 
     Search order:
@@ -174,7 +174,7 @@ class EcosystemGraph:
 
         return visited
 
-    def project_for_path(self, file_path: str) -> Optional[str]:
+    def project_for_path(self, file_path: str) -> str | None:
         """Determine which project a file path belongs to.
 
         Matches by project path prefix against the file path.

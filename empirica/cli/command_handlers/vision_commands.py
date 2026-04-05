@@ -27,7 +27,7 @@ except ImportError:
 class BasicImageAssessment:
     """Basic image assessment without OCR"""
     image_path: str
-    slide_number: Optional[int]
+    slide_number: int | None
 
     # Basic metadata
     width: int
@@ -60,7 +60,7 @@ class VisionAnalyzer:
                 "Install: pip install pillow"
             )
 
-    def analyze_image(self, image_path: Path, slide_number: Optional[int] = None) -> BasicImageAssessment:
+    def analyze_image(self, image_path: Path, slide_number: int | None = None) -> BasicImageAssessment:
         """Analyze single image - basic metadata only"""
         img = Image.open(image_path)
         file_size = image_path.stat().st_size / 1024  # KB

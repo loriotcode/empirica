@@ -30,7 +30,7 @@ class EditStrategyExecutor:
         file_path: str,
         old_str: str,
         new_str: str,
-        assessment: Optional[dict[str, float]] = None
+        assessment: dict[str, float] | None = None
     ) -> dict:
         """
         Execute edit using the specified strategy.

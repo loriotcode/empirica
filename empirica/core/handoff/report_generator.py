@@ -35,7 +35,7 @@ class EpistemicHandoffReportGenerator:
     - Recommendations (suggested next steps)
     """
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         """
         Initialize report generator
         
@@ -53,9 +53,9 @@ class EpistemicHandoffReportGenerator:
         key_findings: list[str],
         remaining_unknowns: list[str],
         next_session_context: str,
-        artifacts_created: Optional[list[str]] = None,
-        start_assessment: Optional[dict] = None,
-        end_assessment: Optional[dict] = None,
+        artifacts_created: list[str] | None = None,
+        start_assessment: dict | None = None,
+        end_assessment: dict | None = None,
         handoff_subtype: str = "complete"
     ) -> dict[str, Any]:
         """
@@ -187,7 +187,7 @@ class EpistemicHandoffReportGenerator:
         key_findings: list[str],
         remaining_unknowns: list[str],
         next_session_context: str,
-        artifacts_created: Optional[list[str]] = None
+        artifacts_created: list[str] | None = None
     ) -> dict[str, Any]:
         """
         Generate planning handoff (documentation without CASCADE workflow assessments)
@@ -278,7 +278,7 @@ class EpistemicHandoffReportGenerator:
 
         return report
 
-    def _get_preflight_assessment(self, session_id: str) -> Optional[dict]:
+    def _get_preflight_assessment(self, session_id: str) -> dict | None:
         """Fetch PREFLIGHT assessment from database (now uses reflexes table)"""
         try:
             vectors_data = self.db.get_latest_vectors(session_id, phase="PREFLIGHT")
@@ -294,7 +294,7 @@ class EpistemicHandoffReportGenerator:
             logger.warning(f"Failed to fetch PREFLIGHT: {e}")
             return None
 
-    def _get_postflight_assessment(self, session_id: str) -> Optional[dict]:
+    def _get_postflight_assessment(self, session_id: str) -> dict | None:
         """Fetch POSTFLIGHT assessment from database (now uses reflexes table)"""
         try:
             vectors_data = self.db.get_latest_vectors(session_id, phase="POSTFLIGHT")

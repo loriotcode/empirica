@@ -32,7 +32,7 @@ class EmergedPersona:
     persona_id: str
     name: str
     source_session_id: str
-    source_branch_id: Optional[str] = None
+    source_branch_id: str | None = None
 
     # Vector profile
     initial_vectors: dict[str, float] = field(default_factory=dict)
@@ -79,7 +79,7 @@ def extract_persona_from_loop_tracker(
     loop_tracker: EpistemicLoopTracker,
     task_description: str = "",
     branch_id: str = None
-) -> Optional[EmergedPersona]:
+) -> EmergedPersona | None:
     """
     Extract an emerged persona from a successful loop tracker.
 
@@ -228,7 +228,7 @@ class EmergedPersonaStore:
         logger.info(f"Saved emerged persona: {filepath}")
         return str(filepath)
 
-    def load(self, persona_id: str) -> Optional[EmergedPersona]:
+    def load(self, persona_id: str) -> EmergedPersona | None:
         """Load persona by ID."""
         # Try with and without emerged_ prefix
         for pattern in [f"emerged_{persona_id}.yaml", f"{persona_id}.yaml"]:
@@ -237,7 +237,7 @@ class EmergedPersonaStore:
                 return self._load_file(filepath)
         return None
 
-    def _load_file(self, filepath: Path) -> Optional[EmergedPersona]:
+    def _load_file(self, filepath: Path) -> EmergedPersona | None:
         """Load persona from file."""
         try:
             import yaml
@@ -307,7 +307,7 @@ def extract_and_store_persona(
     task_description: str = "",
     branch_id: str = None,
     store_path: str = None
-) -> Optional[str]:
+) -> str | None:
     """
     Convenience function to extract and store a persona in one call.
 
@@ -335,7 +335,7 @@ def sentinel_match_persona(
     grounding_vectors: dict[str, float] = None,
     min_reputation: float = 0.5,
     store_path: str = None
-) -> Optional[EmergedPersona]:
+) -> EmergedPersona | None:
     """
     Sentinel-level persona matching: finds best persona for task + grounding.
 
@@ -551,7 +551,7 @@ def promote_emerged_to_personas_dir(
     persona_id: str,
     personas_dir: str = None,
     store_path: str = None
-) -> Optional[str]:
+) -> str | None:
     """
     Promote an emerged persona to the standard personas directory,
     making it available for agent generation.

@@ -115,17 +115,17 @@ class _HTMLStructureValidator(HTMLParser):
 class WebEvidenceCollector:
     """Collects deterministic evidence from web/static-site artifacts."""
 
-    def __init__(self, session_id: str, project_id: Optional[str] = None,
+    def __init__(self, session_id: str, project_id: str | None = None,
                  db=None, phase: str = "combined",
-                 check_timestamp: Optional[float] = None):
+                 check_timestamp: float | None = None):
         self.session_id = session_id
         self.project_id = project_id
         self.phase = phase
         self.check_timestamp = check_timestamp
         self._db = db
         self._owns_db = False
-        self._project_path: Optional[Path] = None
-        self._web_config: Optional[dict[str, Any]] = None
+        self._project_path: Path | None = None
+        self._web_config: dict[str, Any] | None = None
 
     def _get_db(self):
         if self._db is None:
@@ -140,7 +140,7 @@ class WebEvidenceCollector:
             self._db = None
             self._owns_db = False
 
-    def _get_project_path(self) -> Optional[Path]:
+    def _get_project_path(self) -> Path | None:
         """Detect project root from git."""
         if self._project_path is not None:
             return self._project_path
@@ -177,7 +177,7 @@ class WebEvidenceCollector:
             pass
         return self._web_config
 
-    def _detect_build_tool(self) -> Optional[dict[str, str]]:
+    def _detect_build_tool(self) -> dict[str, str] | None:
         """Auto-detect the build tool from project structure."""
         project_path = self._get_project_path()
         if not project_path:
@@ -221,7 +221,7 @@ class WebEvidenceCollector:
 
         return None
 
-    def _get_output_dir(self) -> Optional[Path]:
+    def _get_output_dir(self) -> Path | None:
         """Get the build output directory."""
         project_path = self._get_project_path()
         if not project_path:

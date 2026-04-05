@@ -44,7 +44,7 @@ class GitMistakeStore:
         }
     """
 
-    def __init__(self, workspace_root: Optional[str] = None):
+    def __init__(self, workspace_root: str | None = None):
         """Initialize git mistake store"""
         self.workspace_root = workspace_root or os.getcwd()
         self._git_available = self._check_git_repo()
@@ -87,11 +87,11 @@ class GitMistakeStore:
         ai_id: str,
         mistake: str,
         why_wrong: str,
-        prevention: Optional[str] = None,
-        cost_estimate: Optional[str] = None,
-        root_cause_vector: Optional[str] = None,
-        goal_id: Optional[str] = None,
-        subtask_id: Optional[str] = None
+        prevention: str | None = None,
+        cost_estimate: str | None = None,
+        root_cause_vector: str | None = None,
+        goal_id: str | None = None,
+        subtask_id: str | None = None
     ) -> bool:
         """
         Store mistake in git notes
@@ -163,7 +163,7 @@ class GitMistakeStore:
             logger.warning(f"Failed to store mistake in git: {e}")
             return False
 
-    def load_mistake(self, mistake_id: str) -> Optional[dict[str, Any]]:
+    def load_mistake(self, mistake_id: str) -> dict[str, Any] | None:
         """Load mistake from git notes"""
         if not self._git_available or not self._has_commits():
             return None
@@ -207,10 +207,10 @@ class GitMistakeStore:
 
     def discover_mistakes(
         self,
-        project_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        ai_id: Optional[str] = None,
-        root_cause_vector: Optional[str] = None
+        project_id: str | None = None,
+        session_id: str | None = None,
+        ai_id: str | None = None,
+        root_cause_vector: str | None = None
     ) -> list[dict[str, Any]]:
         """
         Discover mistakes from git notes

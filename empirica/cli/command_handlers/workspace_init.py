@@ -192,7 +192,7 @@ class WorkspaceScanner:
 
         return repo_info
 
-    def _extract_description(self, readme_path: Path) -> Optional[str]:
+    def _extract_description(self, readme_path: Path) -> str | None:
         """Extract first meaningful line from README as description"""
         try:
             with open(readme_path, encoding='utf-8', errors='ignore') as f:
@@ -648,10 +648,10 @@ def _register_in_workspace_db(
     project_id: str,
     name: str,
     trajectory_path: str,
-    description: Optional[str] = None,
-    git_remote_url: Optional[str] = None,
+    description: str | None = None,
+    git_remote_url: str | None = None,
     project_type: str = 'software',
-    metadata: Optional[str] = None,
+    metadata: str | None = None,
 ) -> bool:
     """
     Register a project in workspace.db's global_projects table.
@@ -723,7 +723,7 @@ def _register_in_workspace_db(
         return False
 
 
-def _get_existing_project_id_from_local_db(repo_path: Path) -> Optional[str]:
+def _get_existing_project_id_from_local_db(repo_path: Path) -> str | None:
     """
     Check if repo has existing project ID in its local .empirica/sessions/sessions.db.
 

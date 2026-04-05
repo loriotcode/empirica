@@ -156,7 +156,7 @@ def _load_domain_weights(domain: str = "default") -> dict[str, Any]:
 def _compute_weighted_calibration(
     calibration_gaps: dict[str, float],
     domain: str = "default",
-    per_vector_weights: Optional[dict[str, float]] = None,
+    per_vector_weights: dict[str, float] | None = None,
 ) -> float:
     """Compute category-weighted calibration score.
 
@@ -216,8 +216,8 @@ class EvidenceMapper:
         self_assessed_vectors: dict[str, float],
         phase: str = "combined",
         domain: str = "default",
-        per_vector_weights: Optional[dict[str, float]] = None,
-        work_type: Optional[str] = None,
+        per_vector_weights: dict[str, float] | None = None,
+        work_type: str | None = None,
     ) -> GroundedAssessment:
         """Map evidence to grounded vector estimates and compare to self-assessment."""
         # Work-type relevance profile (scales evidence weights by source relevance)

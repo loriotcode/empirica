@@ -27,30 +27,30 @@ class VectorValues(BaseModel):
     """Epistemic vector values (0.0-1.0 scale)."""
     know: float = Field(ge=0.0, le=1.0, description="Knowledge level")
     uncertainty: float = Field(ge=0.0, le=1.0, description="Uncertainty level")
-    context: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Context understanding")
-    engagement: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Engagement level")
-    clarity: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Clarity of understanding")
-    coherence: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Coherence of knowledge")
-    signal: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Signal strength")
-    density: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Information density")
-    state: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Current state")
-    change: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Rate of change")
-    completion: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Phase-aware completion: NOETIC='Have I learned enough?' PRAXIC='Have I implemented enough?'")
-    impact: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Expected impact")
-    do: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Execution capability")
+    context: float | None = Field(default=None, ge=0.0, le=1.0, description="Context understanding")
+    engagement: float | None = Field(default=None, ge=0.0, le=1.0, description="Engagement level")
+    clarity: float | None = Field(default=None, ge=0.0, le=1.0, description="Clarity of understanding")
+    coherence: float | None = Field(default=None, ge=0.0, le=1.0, description="Coherence of knowledge")
+    signal: float | None = Field(default=None, ge=0.0, le=1.0, description="Signal strength")
+    density: float | None = Field(default=None, ge=0.0, le=1.0, description="Information density")
+    state: float | None = Field(default=None, ge=0.0, le=1.0, description="Current state")
+    change: float | None = Field(default=None, ge=0.0, le=1.0, description="Rate of change")
+    completion: float | None = Field(default=None, ge=0.0, le=1.0, description="Phase-aware completion: NOETIC='Have I learned enough?' PRAXIC='Have I implemented enough?'")
+    impact: float | None = Field(default=None, ge=0.0, le=1.0, description="Expected impact")
+    do: float | None = Field(default=None, ge=0.0, le=1.0, description="Execution capability")
 
 
 class PreflightInput(BaseModel):
     """Input model for preflight-submit command."""
     session_id: str = Field(min_length=1, max_length=100, description="Session identifier")
     vectors: dict[str, float] = Field(description="Epistemic vector values")
-    reasoning: Optional[str] = Field(default="", max_length=5000, description="Reasoning for assessment")
-    task_context: Optional[str] = Field(default="", max_length=2000, description="Context for pattern retrieval")
-    work_context: Optional[str] = Field(
+    reasoning: str | None = Field(default="", max_length=5000, description="Reasoning for assessment")
+    task_context: str | None = Field(default="", max_length=2000, description="Context for pattern retrieval")
+    work_context: str | None = Field(
         default=None, description="Work context for maturity-aware calibration normalization",
         pattern="^(greenfield|iteration|investigation|refactor)$",
     )
-    work_type: Optional[str] = Field(
+    work_type: str | None = Field(
         default=None,
         description="Type of work being done — determines which evidence sources are relevant for grounded calibration",
         pattern="^(code|infra|research|release|debug|config|docs|data|comms|design|audit)$",
@@ -93,9 +93,9 @@ class PreflightInput(BaseModel):
 class CheckInput(BaseModel):
     """Input model for check-submit command."""
     session_id: str = Field(min_length=1, max_length=100, description="Session identifier")
-    vectors: Optional[dict[str, float]] = Field(default=None, description="Updated vector values")
-    approach: Optional[str] = Field(default="", max_length=2000, description="Planned approach")
-    reasoning: Optional[str] = Field(default="", max_length=5000, description="Reasoning for check")
+    vectors: dict[str, float] | None = Field(default=None, description="Updated vector values")
+    approach: str | None = Field(default="", max_length=2000, description="Planned approach")
+    reasoning: str | None = Field(default="", max_length=5000, description="Reasoning for check")
 
     @field_validator('session_id')
     @classmethod
@@ -107,7 +107,7 @@ class CheckInput(BaseModel):
 
     @field_validator('vectors')
     @classmethod
-    def validate_vectors(cls, v: Optional[dict[str, float]]) -> Optional[dict[str, float]]:
+    def validate_vectors(cls, v: dict[str, float] | None) -> dict[str, float] | None:
         """Validate optional vector values are in valid 0.0-1.0 range."""
         if v is None:
             return v
@@ -123,9 +123,9 @@ class PostflightInput(BaseModel):
     """Input model for postflight-submit command."""
     session_id: str = Field(min_length=1, max_length=100, description="Session identifier")
     vectors: dict[str, float] = Field(description="Final epistemic vector values")
-    reasoning: Optional[str] = Field(default="", max_length=5000, description="Reasoning for assessment")
-    learnings: Optional[str] = Field(default="", max_length=5000, description="Key learnings from session")
-    goal_id: Optional[str] = Field(default=None, max_length=100, description="Associated goal ID")
+    reasoning: str | None = Field(default="", max_length=5000, description="Reasoning for assessment")
+    learnings: str | None = Field(default="", max_length=5000, description="Key learnings from session")
+    goal_id: str | None = Field(default=None, max_length=100, description="Associated goal ID")
 
     @field_validator('session_id')
     @classmethod
@@ -158,8 +158,8 @@ class FindingInput(BaseModel):
     session_id: str = Field(min_length=1, max_length=100)
     finding: str = Field(min_length=1, max_length=5000)
     impact: float = Field(ge=0.0, le=1.0, default=0.5)
-    domain: Optional[str] = Field(default=None, max_length=100)
-    goal_id: Optional[str] = Field(default=None, max_length=100)
+    domain: str | None = Field(default=None, max_length=100)
+    goal_id: str | None = Field(default=None, max_length=100)
 
 
 class UnknownInput(BaseModel):
@@ -167,7 +167,7 @@ class UnknownInput(BaseModel):
     session_id: str = Field(min_length=1, max_length=100)
     unknown: str = Field(min_length=1, max_length=5000)
     impact: float = Field(ge=0.0, le=1.0, default=0.5)
-    goal_id: Optional[str] = Field(default=None, max_length=100)
+    goal_id: str | None = Field(default=None, max_length=100)
 
 
 # =============================================================================
@@ -213,7 +213,7 @@ def validate_dict_input(data: dict[str, Any], model: type[T]) -> T:
     return model.model_validate(data)
 
 
-def safe_validate(data: dict[str, Any], model: type[T]) -> tuple[Optional[T], Optional[str]]:
+def safe_validate(data: dict[str, Any], model: type[T]) -> tuple[T | None, str | None]:
     """
     Safely validate data, returning (validated, None) or (None, error_message).
 

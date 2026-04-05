@@ -31,7 +31,7 @@ MEMORY_AUTO_END = "---\n📊"
 MEMORY_AUTO_MAX_LINES = 100
 
 
-def get_memory_dir(project_path: Optional[str] = None) -> Optional[Path]:
+def get_memory_dir(project_path: str | None = None) -> Path | None:
     """Resolve the CC memory directory for a project.
 
     CC stores memories at: ~/.claude/projects/{path-key}/memory/
@@ -75,7 +75,7 @@ def get_memory_dir(project_path: Optional[str] = None) -> Optional[Path]:
     return None
 
 
-def get_memory_md_path(project_path: Optional[str] = None) -> Optional[Path]:
+def get_memory_md_path(project_path: str | None = None) -> Path | None:
     """Get the MEMORY.md path for the current project."""
     memory_dir = get_memory_dir(project_path)
     if memory_dir:
@@ -83,7 +83,7 @@ def get_memory_md_path(project_path: Optional[str] = None) -> Optional[Path]:
     return None
 
 
-def resolve_project_id(session_id: str, db_path: Optional[str] = None) -> Optional[str]:
+def resolve_project_id(session_id: str, db_path: str | None = None) -> str | None:
     """Resolve project_id from session_id via DB lookup."""
     if not db_path:
         candidate = Path.cwd() / '.empirica' / 'sessions' / 'sessions.db'
@@ -109,7 +109,7 @@ def resolve_project_id(session_id: str, db_path: Optional[str] = None) -> Option
     return None
 
 
-def fetch_ranked_artifacts(session_id: str, db_path: Optional[str] = None,
+def fetch_ranked_artifacts(session_id: str, db_path: str | None = None,
                            limit: int = 20) -> dict:
     """Fetch recent artifacts from DB, scoped to project.
 
@@ -199,8 +199,8 @@ def fetch_ranked_artifacts(session_id: str, db_path: Optional[str] = None,
     return result
 
 
-def update_hot_cache(session_id: str, project_path: Optional[str] = None,
-                     db_path: Optional[str] = None) -> bool:
+def update_hot_cache(session_id: str, project_path: str | None = None,
+                     db_path: str | None = None) -> bool:
     """Update MEMORY.md auto-generated section with ranked artifacts.
 
     Preserves manual content. Auto section is delimited by markers.
@@ -328,7 +328,7 @@ def update_hot_cache(session_id: str, project_path: Optional[str] = None,
         return False
 
 
-def get_memory_stats(project_path: Optional[str] = None) -> dict:
+def get_memory_stats(project_path: str | None = None) -> dict:
     """Get stats about the CC memory layer for memory-report.
 
     Returns:
@@ -340,11 +340,12 @@ def get_memory_stats(project_path: Optional[str] = None) -> dict:
         return {"error": "Memory directory not found"}
 
     md_files = list(memory_dir.glob('*.md'))
-    stats = {
+    file_list: list[dict] = []
+    stats: dict = {
         "memory_dir": str(memory_dir),
         "file_count": len(md_files),
         "total_size_bytes": sum(f.stat().st_size for f in md_files),
-        "files": [],
+        "files": file_list,
     }
 
     # MEMORY.md specific stats
@@ -364,7 +365,7 @@ def get_memory_stats(project_path: Optional[str] = None) -> dict:
     for f in sorted(md_files, key=lambda p: p.stat().st_mtime, reverse=True):
         if f.name == 'MEMORY.md':
             continue
-        stats["files"].append({
+        file_list.append({
             "name": f.name,
             "size": f.stat().st_size,
             "modified": f.stat().st_mtime,
@@ -413,7 +414,7 @@ def _save_promoted_tracker(memory_dir: Path, hashes: set[str]) -> None:
 
 def promote_eidetic_to_memory(
     project_id: str,
-    project_path: Optional[str] = None,
+    project_path: str | None = None,
     min_confidence: float = PROMOTE_MIN_CONFIDENCE,
     min_confirmations: int = PROMOTE_MIN_CONFIRMATIONS,
     max_promote: int = 3,
@@ -557,7 +558,7 @@ DEMOTE_STALE_DAYS = 30  # Days without modification before demotion
 
 
 def demote_stale_memories(
-    project_path: Optional[str] = None,
+    project_path: str | None = None,
     stale_days: int = DEMOTE_STALE_DAYS,
     dry_run: bool = False,
 ) -> list[str]:
@@ -634,7 +635,7 @@ def _remove_from_memory_index(memory_dir: Path, filenames: list[str]) -> None:
 # =============================================================================
 
 def enforce_memory_md_cap(
-    project_path: Optional[str] = None,
+    project_path: str | None = None,
     max_total_lines: int = 180,
 ) -> int:
     """Enforce line cap on MEMORY.md by trimming auto-generated section.

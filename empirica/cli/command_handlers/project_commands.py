@@ -390,7 +390,7 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
         return False
 
 
-def resolve_workspace_project(identifier: str) -> Optional[dict[str, Any]]:
+def resolve_workspace_project(identifier: str) -> dict[str, Any] | None:
     """
     Resolve a project by name, folder name, or UUID from workspace database.
 

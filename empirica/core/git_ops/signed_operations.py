@@ -120,8 +120,8 @@ class SignedGitOperations:
         epistemic_state: dict[str, float],
         phase: str,
         message: str,
-        additional_data: Optional[dict[str, Any]] = None,
-        required_personas: Optional[list[str]] = None
+        additional_data: dict[str, Any] | None = None,
+        required_personas: list[str] | None = None
     ) -> str:
         """
         Create a Git commit with signed epistemic state in notes
@@ -213,7 +213,7 @@ class SignedGitOperations:
             logger.error(f"Git command failed: {e.stderr}")
             raise GitCommandError("git notes add", e.returncode, e.stderr)
 
-    def get_signed_state_from_commit(self, commit_sha: str) -> Optional[dict[str, Any]]:
+    def get_signed_state_from_commit(self, commit_sha: str) -> dict[str, Any] | None:
         """
         Retrieve signed epistemic state from commit's git notes
 
@@ -238,7 +238,7 @@ class SignedGitOperations:
         self,
         start_commit: str,
         end_commit: str,
-        known_personas: Optional[dict[str, str]] = None
+        known_personas: dict[str, str] | None = None
     ) -> list[dict[str, Any]]:
         """
         Verify entire CASCADE trace from start to end commit
@@ -380,7 +380,7 @@ class SignedGitOperations:
         self,
         start_commit: str,
         end_commit: str,
-        output_file: Optional[str] = None
+        output_file: str | None = None
     ) -> dict[str, Any]:
         """
         Export CASCADE chain verification report
@@ -434,7 +434,7 @@ class SignedGitOperations:
     def _validate_cascade_phase(
         self,
         phase: str,
-        required_personas: Optional[list[str]] = None
+        required_personas: list[str] | None = None
     ) -> None:
         """
         Validate CASCADE phase ordering and requirements
@@ -471,7 +471,7 @@ class SignedGitOperations:
 
         logger.info(f"✓ CASCADE phase validation passed: {phase}")
 
-    def _get_last_cascade_phase(self) -> Optional[str]:
+    def _get_last_cascade_phase(self) -> str | None:
         """
         Get the last CASCADE phase that was committed
 

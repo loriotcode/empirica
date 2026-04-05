@@ -10,7 +10,7 @@ def export_to_reflex_logs(
     phase: str,
     assessment_data: dict[str, Any],
     log_dir: str = ".empirica_reflex_logs"
-) -> Optional[Path]:
+) -> Path | None:
     """
     Export assessment to reflex log format for dashboard visualization
 

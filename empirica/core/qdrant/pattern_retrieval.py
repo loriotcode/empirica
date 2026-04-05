@@ -37,7 +37,7 @@ TIME_GAP_THRESHOLDS = {
 }
 
 
-def compute_time_gap_info(last_session_timestamp: Optional[float] = None) -> dict[str, any]:
+def compute_time_gap_info(last_session_timestamp: float | None = None) -> dict[str, any]:
     """
     Compute time gap information since last session.
 
@@ -94,7 +94,7 @@ def compute_time_gap_info(last_session_timestamp: Optional[float] = None) -> dic
     }
 
 
-def get_qdrant_url() -> Optional[str]:
+def get_qdrant_url() -> str | None:
     """Check if Qdrant is configured."""
     return os.getenv("EMPIRICA_QDRANT_URL")
 
@@ -205,7 +205,7 @@ def _search_related_docs(
         return []
 
 
-def _compute_adaptive_limits(vectors: Optional[dict], base_limit: int) -> dict[str, int]:
+def _compute_adaptive_limits(vectors: dict | None, base_limit: int) -> dict[str, int]:
     """Compute per-collection retrieval limits based on vector state.
 
     Higher uncertainty → more context from all collections (up to 2x).
@@ -250,14 +250,14 @@ def retrieve_task_patterns(
     task_context: str,
     threshold: float = DEFAULT_THRESHOLD,
     limit: int = DEFAULT_LIMIT,
-    last_session_timestamp: Optional[float] = None,
+    last_session_timestamp: float | None = None,
     include_eidetic: bool = False,
     include_episodic: bool = False,
     include_related_docs: bool = False,
     include_goals: bool = False,
     include_assumptions: bool = False,
     include_decisions: bool = False,
-    vectors: Optional[dict] = None,
+    vectors: dict | None = None,
 ) -> dict[str, any]:
     """
     PREFLIGHT hook: Retrieve relevant patterns for a task (Noetic RAG).
@@ -532,7 +532,7 @@ def retrieve_task_patterns(
 def check_against_patterns(
     project_id: str,
     current_approach: str,
-    vectors: Optional[dict] = None,
+    vectors: dict | None = None,
     threshold: float = DEFAULT_THRESHOLD,
     limit: int = DEFAULT_LIMIT,
     include_findings: bool = False,
@@ -706,7 +706,7 @@ def check_against_patterns(
 def search_lessons_for_task(
     project_id: str,
     task_context: str,
-    domain: Optional[str] = None,
+    domain: str | None = None,
     limit: int = DEFAULT_LIMIT,
     min_score: float = DEFAULT_THRESHOLD
 ) -> list[dict]:

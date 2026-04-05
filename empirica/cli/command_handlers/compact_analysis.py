@@ -140,7 +140,7 @@ def get_post_compact_sessions(db_path: Path, after_timestamp: float) -> list[dic
     return sessions
 
 
-def get_post_check_vectors(db_path: Path, session_id: str) -> Optional[dict]:
+def get_post_check_vectors(db_path: Path, session_id: str) -> dict | None:
     """Get the first CHECK vectors for a session (post-context-load state)."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()

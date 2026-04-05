@@ -24,7 +24,7 @@ class HotLessonEntry:
     prereq_ids: set[str]
     enables_ids: set[str]
     requires_ids: set[str]
-    domain: Optional[str] = None
+    domain: str | None = None
 
 
 class LessonHotCache:
@@ -62,7 +62,7 @@ class LessonHotCache:
         self._lock = threading.RLock()
 
         # Stats
-        self._load_timestamp: Optional[float] = None
+        self._load_timestamp: float | None = None
         self._query_count: int = 0
 
     def load_lesson(self, lesson_hot_dict: dict) -> None:
@@ -143,7 +143,7 @@ class LessonHotCache:
 
     # ==================== FAST QUERIES ====================
 
-    def get_lesson(self, lesson_id: str) -> Optional[HotLessonEntry]:
+    def get_lesson(self, lesson_id: str) -> HotLessonEntry | None:
         """Get lesson by ID - O(1)"""
         self._query_count += 1
         return self._lessons.get(lesson_id)
@@ -347,7 +347,7 @@ class LessonHotCache:
 
 
 # Global singleton
-_hot_cache: Optional[LessonHotCache] = None
+_hot_cache: LessonHotCache | None = None
 
 
 def get_hot_cache() -> LessonHotCache:

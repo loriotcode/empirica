@@ -347,7 +347,7 @@ def _prune_artifact(db, artifact_id: str, artifact_type: str, reason: str) -> di
         return {'ok': False, 'error': str(e)}
 
 
-def _apply_prune_rule(db, rule: str, older_than_days: Optional[int] = None,
+def _apply_prune_rule(db, rule: str, older_than_days: int | None = None,
                       dry_run: bool = False) -> dict[str, Any]:
     """Apply a mechanical pruning rule.
 

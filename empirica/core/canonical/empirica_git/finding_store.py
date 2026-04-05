@@ -44,7 +44,7 @@ class GitFindingStore:
         }
     """
 
-    def __init__(self, workspace_root: Optional[str] = None):
+    def __init__(self, workspace_root: str | None = None):
         """Initialize git finding store"""
         self.workspace_root = workspace_root or os.getcwd()
         self._git_available = self._check_git_repo()
@@ -86,11 +86,11 @@ class GitFindingStore:
         session_id: str,
         ai_id: str,
         finding: str,
-        impact: Optional[float] = None,
-        goal_id: Optional[str] = None,
-        subtask_id: Optional[str] = None,
-        subject: Optional[str] = None,
-        finding_data: Optional[dict[str, Any]] = None
+        impact: float | None = None,
+        goal_id: str | None = None,
+        subtask_id: str | None = None,
+        subject: str | None = None,
+        finding_data: dict[str, Any] | None = None
     ) -> bool:
         """
         Store finding in git notes
@@ -164,7 +164,7 @@ class GitFindingStore:
             logger.warning(f"Failed to store finding in git: {e}")
             return False
 
-    def load_finding(self, finding_id: str) -> Optional[dict[str, Any]]:
+    def load_finding(self, finding_id: str) -> dict[str, Any] | None:
         """
         Load finding from git notes
 
@@ -219,10 +219,10 @@ class GitFindingStore:
 
     def discover_findings(
         self,
-        project_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        ai_id: Optional[str] = None,
-        min_impact: Optional[float] = None
+        project_id: str | None = None,
+        session_id: str | None = None,
+        ai_id: str | None = None,
+        min_impact: float | None = None
     ) -> list[dict[str, Any]]:
         """
         Discover findings from git notes

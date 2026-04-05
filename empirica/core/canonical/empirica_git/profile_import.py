@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class ProfileImporter:
     """Import epistemic artifacts from git notes into SQLite."""
 
-    def __init__(self, workspace_root: Optional[str] = None):
+    def __init__(self, workspace_root: str | None = None):
         self.workspace_root = workspace_root or str(Path.cwd())
         self._stats: dict[str, dict[str, int]] = {}
 
@@ -70,7 +70,7 @@ class ProfileImporter:
                 ids.append(artifact_id)
         return ids
 
-    def _load_note(self, ref: str) -> Optional[dict[str, Any]]:
+    def _load_note(self, ref: str) -> dict[str, Any] | None:
         """Load JSON payload from a git note ref."""
         # List which commit has the note
         result = self._git_cmd(['notes', f'--ref={ref}', 'list'])
@@ -93,7 +93,7 @@ class ProfileImporter:
             logger.warning(f"Invalid JSON in note ref {ref}")
             return None
 
-    def _parse_timestamp(self, iso_str: Optional[str]) -> Optional[float]:
+    def _parse_timestamp(self, iso_str: str | None) -> float | None:
         """Convert ISO timestamp string to epoch float."""
         if not iso_str:
             return None

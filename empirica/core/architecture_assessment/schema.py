@@ -157,8 +157,8 @@ class ComponentAssessment:
     vectors: ArchitectureVectors = field(default_factory=ArchitectureVectors)
 
     # Detailed metrics
-    coupling: Optional[CouplingMetrics] = None
-    stability: Optional[StabilityMetrics] = None
+    coupling: CouplingMetrics | None = None
+    stability: StabilityMetrics | None = None
 
     # Analysis metadata
     analyzed_at: datetime = field(default_factory=datetime.now)

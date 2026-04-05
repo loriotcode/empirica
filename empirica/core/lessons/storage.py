@@ -39,7 +39,7 @@ class LessonStorageManager:
     def __init__(
         self,
         db_conn=None,
-        cold_storage_path: Optional[Path] = None,
+        cold_storage_path: Path | None = None,
         qdrant_client=None
     ):
         """
@@ -280,7 +280,7 @@ class LessonStorageManager:
         self._conn.commit()
         logger.debug(f"WARM: Wrote lesson {lesson.id} to SQLite")
 
-    def _write_search(self, lesson: Lesson) -> Optional[str]:
+    def _write_search(self, lesson: Lesson) -> str | None:
         """Write lesson to Qdrant for semantic search"""
         try:
             from qdrant_client.models import PointStruct
@@ -339,7 +339,7 @@ class LessonStorageManager:
 
     # ==================== READ ====================
 
-    def get_lesson(self, lesson_id: str, layer: str = 'auto') -> Optional[Lesson]:
+    def get_lesson(self, lesson_id: str, layer: str = 'auto') -> Lesson | None:
         """
         Get lesson by ID.
 
@@ -370,7 +370,7 @@ class LessonStorageManager:
         else:
             raise ValueError(f"Unknown layer: {layer}")
 
-    def _read_cold(self, lesson_id: str) -> Optional[Lesson]:
+    def _read_cold(self, lesson_id: str) -> Lesson | None:
         """Read full lesson from YAML file"""
         path = self._cold_path / f"{lesson_id}.yaml"
         if not path.exists():
@@ -381,7 +381,7 @@ class LessonStorageManager:
 
         return Lesson.from_dict(data)
 
-    def _read_warm(self, lesson_id: str) -> Optional[Lesson]:
+    def _read_warm(self, lesson_id: str) -> Lesson | None:
         """Read lesson from SQLite (may have less detail than cold)"""
         cursor = self._conn.cursor()
         cursor.execute("""
@@ -599,7 +599,7 @@ class LessonStorageManager:
     def decay_related_lessons(
         self,
         finding_text: str,
-        domain: Optional[str] = None,
+        domain: str | None = None,
         decay_amount: float = 0.05,
         min_confidence: float = 0.3,
         keywords_threshold: int = 2
@@ -731,8 +731,8 @@ class LessonStorageManager:
         target_id: str,
         relation_type: str,
         weight: float = 1.0,
-        metadata: Optional[dict] = None
-    ) -> Optional[str]:
+        metadata: dict | None = None
+    ) -> str | None:
         """
         Create an edge between two lessons in the knowledge graph.
 
@@ -799,7 +799,7 @@ class LessonStorageManager:
         logger.info(f"Created edge {edge_id}: {source_id} --{relation_type}--> {target_id}")
         return edge_id
 
-    def get_lesson_map(self, domain: Optional[str] = None) -> dict:
+    def get_lesson_map(self, domain: str | None = None) -> dict:
         """
         Get orthogonal view of lessons organized by relationships.
 
@@ -908,7 +908,7 @@ class LessonStorageManager:
             ) // 2  # Divide by 2 to avoid double counting
         }
 
-    def print_lesson_map(self, domain: Optional[str] = None) -> str:
+    def print_lesson_map(self, domain: str | None = None) -> str:
         """
         Print a visual ASCII representation of the lesson map.
 
@@ -1037,7 +1037,7 @@ class LessonStorageManager:
 
 
 # Singleton instance
-_storage: Optional[LessonStorageManager] = None
+_storage: LessonStorageManager | None = None
 
 
 def _try_get_qdrant_client():

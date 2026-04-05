@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 def _register_session_globally(
     session_id: str,
     ai_id: str,
-    project_id: Optional[str],
-    instance_id: Optional[str],
-    parent_session_id: Optional[str] = None
+    project_id: str | None,
+    instance_id: str | None,
+    parent_session_id: str | None = None
 ) -> bool:
     """
     Register session in global_sessions table (workspace.db).
@@ -107,12 +107,12 @@ class SessionRepository(BaseRepository):
         self,
         ai_id: str,
         components_loaded: int = 0,
-        user_id: Optional[str] = None,
-        subject: Optional[str] = None,
+        user_id: str | None = None,
+        subject: str | None = None,
         bootstrap_level: int = 1,
-        instance_id: Optional[str] = None,
-        parent_session_id: Optional[str] = None,
-        project_id: Optional[str] = None
+        instance_id: str | None = None,
+        parent_session_id: str | None = None,
+        project_id: str | None = None
     ) -> str:
         """
         Create a new session
@@ -160,7 +160,7 @@ class SessionRepository(BaseRepository):
 
         return session_id
 
-    def get_session(self, session_id: str) -> Optional[dict]:
+    def get_session(self, session_id: str) -> dict | None:
         """Get session data by ID"""
         cursor = self._execute(
             "SELECT * FROM sessions WHERE session_id = ?",
@@ -171,7 +171,7 @@ class SessionRepository(BaseRepository):
 
     def get_all_sessions(
         self,
-        ai_id: Optional[str] = None,
+        ai_id: str | None = None,
         limit: int = 50
     ) -> list[dict]:
         """
@@ -212,9 +212,9 @@ class SessionRepository(BaseRepository):
     def end_session(
         self,
         session_id: str,
-        avg_confidence: Optional[float] = None,
+        avg_confidence: float | None = None,
         drift_detected: bool = False,
-        notes: Optional[str] = None
+        notes: str | None = None
     ):
         """
         End a session and record summary stats
@@ -242,9 +242,9 @@ class SessionRepository(BaseRepository):
 
     def get_latest_session(
         self,
-        ai_id: Optional[str] = None,
-        project_id: Optional[str] = None
-    ) -> Optional[dict]:
+        ai_id: str | None = None,
+        project_id: str | None = None
+    ) -> dict | None:
         """
         Get the most recent session, optionally filtered by AI or project
 
@@ -295,7 +295,7 @@ class SessionRepository(BaseRepository):
         """, (parent_session_id,))
         return [dict(row) for row in cursor.fetchall()]
 
-    def get_session_summary(self, session_id: str, detail_level: str = "summary") -> Optional[dict]:
+    def get_session_summary(self, session_id: str, detail_level: str = "summary") -> dict | None:
         """
         Generate comprehensive session summary for resume/handoff
 

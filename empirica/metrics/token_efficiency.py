@@ -98,7 +98,7 @@ class TokenEfficiencyMetrics:
         method: str,
         content: str,
         content_type: str = "checkpoint",
-        metadata: Optional[dict[str, Any]] = None
+        metadata: dict[str, Any] | None = None
     ) -> TokenMeasurement:
         """
         Measure token usage for context loading operation.
@@ -154,7 +154,7 @@ class TokenEfficiencyMetrics:
         word_count = len(text.split())
         return int(word_count * 1.3)
 
-    def get_phase_total(self, phase: str, method: Optional[str] = None) -> int:
+    def get_phase_total(self, phase: str, method: str | None = None) -> int:
         """
         Get total tokens for a specific phase.
         
@@ -172,7 +172,7 @@ class TokenEfficiencyMetrics:
 
         return sum(m.tokens for m in filtered)
 
-    def get_session_total(self, method: Optional[str] = None) -> int:
+    def get_session_total(self, method: str | None = None) -> int:
         """
         Get total tokens for entire session.
         
@@ -219,7 +219,7 @@ class TokenEfficiencyMetrics:
             "cost_savings_usd": round(cost_savings, 4)
         }
 
-    def compare_efficiency(self, baseline_session_id: Optional[str] = None) -> dict[str, Any]:
+    def compare_efficiency(self, baseline_session_id: str | None = None) -> dict[str, Any]:
         """
         Compare current session efficiency against baseline.
         
@@ -269,7 +269,7 @@ class TokenEfficiencyMetrics:
     def export_report(
         self,
         format: str = "json",
-        output_path: Optional[str] = None
+        output_path: str | None = None
     ) -> str:
         """
         Export efficiency report.

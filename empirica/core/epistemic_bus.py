@@ -32,7 +32,7 @@ class EpistemicEvent:
         agent_id: str,
         session_id: str,
         data: dict[str, Any],
-        timestamp: Optional[float] = None
+        timestamp: float | None = None
     ) -> None:
         """Initialize epistemic event with type, agent, session, and data."""
         self.event_type = event_type
@@ -236,7 +236,7 @@ class CallbackObserver(EpistemicObserver):
 
 
 # Global bus instance (optional convenience)
-_global_bus: Optional[EpistemicBus] = None
+_global_bus: EpistemicBus | None = None
 
 
 def get_global_bus() -> EpistemicBus:
@@ -247,7 +247,7 @@ def get_global_bus() -> EpistemicBus:
     return _global_bus
 
 
-def set_global_bus(bus: Optional[EpistemicBus]) -> None:
+def set_global_bus(bus: EpistemicBus | None) -> None:
     """Set the global epistemic bus (useful for testing)"""
     global _global_bus
     _global_bus = bus

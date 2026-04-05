@@ -70,8 +70,8 @@ class GitEnhancedReflexLogger:
         session_id: str,
         enable_git_notes: bool = True,
         base_log_dir: str = ".empirica_reflex_logs",
-        git_repo_path: Optional[str] = None,
-        signing_persona: Optional[SigningPersona] = None
+        git_repo_path: str | None = None,
+        signing_persona: SigningPersona | None = None
     ):
         """
         Initialize checkpoint logger.
@@ -165,12 +165,12 @@ class GitEnhancedReflexLogger:
     def add_checkpoint(
         self,
         phase: str,
-        round_num: Optional[int] = None,
-        vectors: Optional[dict[str, float]] = None,
-        metadata: Optional[dict[str, Any]] = None,
-        epistemic_tags: Optional[dict[str, Any]] = None,
-        noema: Optional[dict[str, Any]] = None
-    ) -> Optional[str]:
+        round_num: int | None = None,
+        vectors: dict[str, float] | None = None,
+        metadata: dict[str, Any] | None = None,
+        epistemic_tags: dict[str, Any] | None = None,
+        noema: dict[str, Any] | None = None
+    ) -> str | None:
         """
         Add compressed checkpoint to git notes and SQLite with optional signing.
 
@@ -242,9 +242,9 @@ class GitEnhancedReflexLogger:
         phase: str,
         round_num: int,
         vectors: dict[str, float],
-        metadata: Optional[dict[str, Any]] = None,
-        epistemic_tags: Optional[dict[str, Any]] = None,
-        noema: Optional[dict[str, Any]] = None
+        metadata: dict[str, Any] | None = None,
+        epistemic_tags: dict[str, Any] | None = None,
+        noema: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """
         Create compressed checkpoint (target: 200-500 tokens).
@@ -324,8 +324,8 @@ class GitEnhancedReflexLogger:
     def get_last_checkpoint(
         self,
         max_age_hours: int = 24,
-        phase: Optional[str] = None
-    ) -> Optional[dict[str, Any]]:
+        phase: str | None = None
+    ) -> dict[str, Any] | None:
         """
         Load most recent checkpoint (git notes preferred, SQLite fallback).
 
@@ -356,9 +356,9 @@ class GitEnhancedReflexLogger:
 
     def list_checkpoints(
         self,
-        session_id: Optional[str] = None,
-        limit: Optional[int] = None,
-        phase: Optional[str] = None
+        session_id: str | None = None,
+        limit: int | None = None,
+        phase: str | None = None
     ) -> list[dict[str, Any]]:
         """
         List checkpoints from git notes (using hierarchical namespace).

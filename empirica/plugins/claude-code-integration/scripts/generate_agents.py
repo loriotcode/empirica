@@ -55,7 +55,7 @@ PHASE_DESCRIPTIONS = {
 }
 
 
-def load_persona(path: Path) -> Optional[dict]:
+def load_persona(path: Path) -> dict | None:
     """Load a persona JSON file."""
     try:
         with open(path) as f:
@@ -245,7 +245,7 @@ As a praxic agent, you can implement changes directly:
     return prompt
 
 
-def generate_agent_md(persona: dict, agent_name: str) -> Optional[str]:
+def generate_agent_md(persona: dict, agent_name: str) -> str | None:
     """Generate a complete agent .md file from persona JSON."""
     capabilities = persona.get("capabilities", {})
     phase = resolve_phase(capabilities)

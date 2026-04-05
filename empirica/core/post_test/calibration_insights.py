@@ -64,7 +64,7 @@ class CalibrationInsightsAnalyzer:
         insights.extend(self._detect_volatile_vectors(records))
         return [i for i in insights if i.severity >= self.MIN_SEVERITY]
 
-    def store_insights(self, insights: list[CalibrationInsight], transaction_id: Optional[str] = None):
+    def store_insights(self, insights: list[CalibrationInsight], transaction_id: str | None = None):
         """Store insights in the calibration_insights table."""
         self._ensure_table()
         cursor = self.db.conn.cursor()

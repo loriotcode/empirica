@@ -71,7 +71,7 @@ class AutoIssueCaptureService:
     interrupting work flow. Enables handoff to other AIs with full context.
     """
 
-    def __init__(self, session_id: str, db_path: Optional[str] = None, enable: bool = True):
+    def __init__(self, session_id: str, db_path: str | None = None, enable: bool = True):
         """
         Initialize issue capture service.
         
@@ -148,8 +148,8 @@ class AutoIssueCaptureService:
         message: str,
         severity: IssueSeverity = IssueSeverity.HIGH,
         category: IssueCategory = IssueCategory.ERROR,
-        context: Optional[dict[str, Any]] = None,
-        exc_info: Optional[Exception] = None
+        context: dict[str, Any] | None = None,
+        exc_info: Exception | None = None
     ) -> str:
         """
         Capture an error/exception without raising it.
@@ -253,7 +253,7 @@ class AutoIssueCaptureService:
         self,
         message: str,
         category: IssueCategory = IssueCategory.WARNING,
-        context: Optional[dict[str, Any]] = None
+        context: dict[str, Any] | None = None
     ) -> str:
         """Capture a warning without raising"""
         return self.capture_error(
@@ -399,9 +399,9 @@ class AutoIssueCaptureService:
 
     def list_issues(
         self,
-        status: Optional[str] = None,
-        category: Optional[str] = None,
-        severity: Optional[str] = None,
+        status: str | None = None,
+        category: str | None = None,
+        severity: str | None = None,
         limit: int = 100
     ) -> list[dict[str, Any]]:
         """
@@ -578,7 +578,7 @@ class AutoIssueCaptureService:
 
 
 # Global instance for easy access
-_auto_capture_instance: Optional[AutoIssueCaptureService] = None
+_auto_capture_instance: AutoIssueCaptureService | None = None
 
 
 class AutoCaptureLoggingHandler(logging.Handler):
@@ -719,6 +719,6 @@ def initialize_auto_capture(session_id: str, enable: bool = True) -> AutoIssueCa
     return _auto_capture_instance
 
 
-def get_auto_capture() -> Optional[AutoIssueCaptureService]:
+def get_auto_capture() -> AutoIssueCaptureService | None:
     """Get the global auto-capture service instance"""
     return _auto_capture_instance

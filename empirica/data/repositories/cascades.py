@@ -15,8 +15,8 @@ class CascadeRepository(BaseRepository):
         session_id: str,
         task: str,
         context: dict[str, Any],
-        goal_id: Optional[str] = None,
-        goal: Optional[dict[str, Any]] = None
+        goal_id: str | None = None,
+        goal: dict[str, Any] | None = None
     ) -> str:
         """
         Create cascade record, return cascade_id
@@ -108,7 +108,7 @@ class CascadeRepository(BaseRepository):
             drift_monitored, cascade_id
         ))
 
-    def get_cascade(self, cascade_id: str) -> Optional[dict]:
+    def get_cascade(self, cascade_id: str) -> dict | None:
         """Get cascade by ID"""
         cursor = self._execute(
             "SELECT * FROM cascades WHERE cascade_id = ?",

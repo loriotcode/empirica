@@ -178,7 +178,7 @@ def get_crm_connection() -> sqlite3.Connection:
     return conn
 
 
-def ensure_crm_schema(conn: Optional[sqlite3.Connection] = None) -> bool:
+def ensure_crm_schema(conn: sqlite3.Connection | None = None) -> bool:
     """
     Ensure CRM tables exist in the database.
 

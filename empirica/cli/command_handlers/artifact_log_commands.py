@@ -235,7 +235,7 @@ def _resolve_artifact_context(config_data, args, required_fields=None):
     }
 
 
-def _resolve_db_for_artifact(project_id: Optional[str]):
+def _resolve_db_for_artifact(project_id: str | None):
     """Resolve the correct SessionDatabase for artifact writing.
 
     If project_id is a project name (not UUID), attempts cross-project
@@ -318,10 +318,10 @@ def _create_entity_artifact_link(
     artifact_id: str,
     entity_type: str,
     entity_id: str,
-    project_path: Optional[str] = None,
-    discovered_via: Optional[str] = None,
-    transaction_id: Optional[str] = None,
-    engagement_id: Optional[str] = None,
+    project_path: str | None = None,
+    discovered_via: str | None = None,
+    transaction_id: str | None = None,
+    engagement_id: str | None = None,
 ):
     """Create cross-reference in workspace.db entity_artifacts table.
 

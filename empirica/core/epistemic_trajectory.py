@@ -70,7 +70,7 @@ def flatten_vectors(vectors: dict[str, Any]) -> dict[str, float]:
     return flat
 
 
-def extract_trajectory(session_id: str, db: SessionDatabase) -> Optional[dict[str, Any]]:
+def extract_trajectory(session_id: str, db: SessionDatabase) -> dict[str, Any] | None:
     """
     Extract complete epistemic trajectory for a session from SQLite.
     
@@ -187,8 +187,8 @@ def store_trajectory(project_id: str, session_id: str, db: SessionDatabase) -> b
 def search_trajectories(
     project_id: str,
     query: str,
-    min_learning_delta: Optional[float] = None,
-    calibration_quality: Optional[str] = None,
+    min_learning_delta: float | None = None,
+    calibration_quality: str | None = None,
     limit: int = 5
 ) -> list[dict[str, Any]]:
     """

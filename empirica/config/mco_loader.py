@@ -55,7 +55,7 @@ class MCOLoader:
         'confidence_weights': ('confidence_weights.yaml', None),
     }
 
-    def __init__(self, config_dir: Optional[Path] = None, eager: bool = False):
+    def __init__(self, config_dir: Path | None = None, eager: bool = False):
         """
         Initialize MCO loader.
 
@@ -83,7 +83,7 @@ class MCOLoader:
         raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
 
     @classmethod
-    def get_instance(cls, config_dir: Optional[Path] = None) -> 'MCOLoader':
+    def get_instance(cls, config_dir: Path | None = None) -> 'MCOLoader':
         """Get singleton instance"""
         if cls._instance is None:
             cls._instance = cls(config_dir)
@@ -195,7 +195,7 @@ class MCOLoader:
         """Get persona configuration"""
         return self.personas.get(persona_name, {})
 
-    def infer_persona(self, ai_id: Optional[str] = None, task_type: Optional[str] = None) -> str:
+    def infer_persona(self, ai_id: str | None = None, task_type: str | None = None) -> str:
         """
         Infer persona based on AI ID or task type.
 
@@ -224,7 +224,7 @@ class MCOLoader:
         # Default to implementer
         return 'implementer'
 
-    def infer_model(self, ai_id: Optional[str] = None) -> str:
+    def infer_model(self, ai_id: str | None = None) -> str:
         """
         Infer model type from AI ID.
 
@@ -251,8 +251,8 @@ class MCOLoader:
         # Default
         return 'claude_sonnet'
 
-    def export_snapshot(self, session_id: str, ai_id: Optional[str] = None,
-                       model: Optional[str] = None, persona: Optional[str] = None,
+    def export_snapshot(self, session_id: str, ai_id: str | None = None,
+                       model: str | None = None, persona: str | None = None,
                        cascade_style: str = 'default') -> dict[str, Any]:
         """
         Export MCO configuration snapshot for pre-compact saving.

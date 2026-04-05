@@ -54,7 +54,7 @@ class EpistemicSnapshotProvider:
     - epistemic_snapshot.py (data structures)
     """
 
-    def __init__(self, db: Optional[SessionDatabase] = None):
+    def __init__(self, db: SessionDatabase | None = None):
         """
         Initialize snapshot provider
 
@@ -65,12 +65,12 @@ class EpistemicSnapshotProvider:
 
     def create_snapshot_from_session(self,
                                     session_id: str,
-                                    context_summary: Optional[ContextSummary] = None,
-                                    context_summary_text: Optional[str] = None,
-                                    semantic_tags: Optional[dict] = None,
-                                    evidence_refs: Optional[list[str]] = None,
-                                    cascade_phase: Optional[str] = None,
-                                    domain_vectors: Optional[dict[str, dict[str, float]]] = None) -> EpistemicStateSnapshot:
+                                    context_summary: ContextSummary | None = None,
+                                    context_summary_text: str | None = None,
+                                    semantic_tags: dict | None = None,
+                                    evidence_refs: list[str] | None = None,
+                                    cascade_phase: str | None = None,
+                                    domain_vectors: dict[str, dict[str, float]] | None = None) -> EpistemicStateSnapshot:
         """
         Create epistemic snapshot from current session state
 
@@ -231,7 +231,7 @@ class EpistemicSnapshotProvider:
         import sys
         print(f"📸 Snapshot saved: {snapshot.snapshot_id} (compression: {snapshot.compression_ratio:.1%})", file=sys.stderr)
 
-    def get_latest_snapshot(self, session_id: str) -> Optional[EpistemicStateSnapshot]:
+    def get_latest_snapshot(self, session_id: str) -> EpistemicStateSnapshot | None:
         """
         Get most recent snapshot for session
 
@@ -255,7 +255,7 @@ class EpistemicSnapshotProvider:
 
         return self._row_to_snapshot(row)
 
-    def get_snapshot_by_id(self, snapshot_id: str) -> Optional[EpistemicStateSnapshot]:
+    def get_snapshot_by_id(self, snapshot_id: str) -> EpistemicStateSnapshot | None:
         """
         Get snapshot by ID
 
@@ -418,8 +418,8 @@ class EpistemicSnapshotProvider:
 
     def _estimate_snapshot_tokens(self,
                                   vectors: dict[str, float],
-                                  context_summary: Optional[ContextSummary],
-                                  domain_vectors: Optional[dict]) -> int:
+                                  context_summary: ContextSummary | None,
+                                  domain_vectors: dict | None) -> int:
         """
         Estimate snapshot token count
 
@@ -443,7 +443,7 @@ class EpistemicSnapshotProvider:
 
     def _estimate_fidelity(self,
                           vectors: dict[str, float],
-                          context_summary: Optional[ContextSummary]) -> float:
+                          context_summary: ContextSummary | None) -> float:
         """
         Estimate snapshot fidelity (how well it represents original context)
 

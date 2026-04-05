@@ -41,7 +41,7 @@ class GitDeadEndStore:
         }
     """
 
-    def __init__(self, workspace_root: Optional[str] = None):
+    def __init__(self, workspace_root: str | None = None):
         """Initialize git dead end store"""
         self.workspace_root = workspace_root or os.getcwd()
         self._git_available = self._check_git_repo()
@@ -84,8 +84,8 @@ class GitDeadEndStore:
         ai_id: str,
         approach: str,
         why_failed: str,
-        goal_id: Optional[str] = None,
-        subtask_id: Optional[str] = None
+        goal_id: str | None = None,
+        subtask_id: str | None = None
     ) -> bool:
         """
         Store dead end in git notes
@@ -151,7 +151,7 @@ class GitDeadEndStore:
             logger.warning(f"Failed to store dead end in git: {e}")
             return False
 
-    def load_dead_end(self, dead_end_id: str) -> Optional[dict[str, Any]]:
+    def load_dead_end(self, dead_end_id: str) -> dict[str, Any] | None:
         """Load dead end from git notes"""
         if not self._git_available or not self._has_commits():
             return None
@@ -195,9 +195,9 @@ class GitDeadEndStore:
 
     def discover_dead_ends(
         self,
-        project_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        ai_id: Optional[str] = None
+        project_id: str | None = None,
+        session_id: str | None = None,
+        ai_id: str | None = None
     ) -> list[dict[str, Any]]:
         """
         Discover dead ends from git notes

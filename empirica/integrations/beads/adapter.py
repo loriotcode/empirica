@@ -47,8 +47,8 @@ class BeadsAdapter:
         description: str = "",
         priority: int = 2,
         issue_type: str = "task",
-        labels: Optional[list[str]] = None
-    ) -> Optional[str]:
+        labels: list[str] | None = None
+    ) -> str | None:
         """Create BEADS issue, return hash ID (e.g., bd-a1b2)
         
         Args:
@@ -128,7 +128,7 @@ class BeadsAdapter:
             logger.error(f"Failed to add dependency: {e.stderr}")
             return False
 
-    def get_ready_work(self, limit: int = 10, priority: Optional[int] = None) -> list[dict[str, Any]]:
+    def get_ready_work(self, limit: int = 10, priority: int | None = None) -> list[dict[str, Any]]:
         """Get ready work from BEADS (issues with no open blockers)
         
         Args:
@@ -220,7 +220,7 @@ class BeadsAdapter:
             logger.error(f"Failed to close issue: {e.stderr}")
             return False
 
-    def get_issue(self, issue_id: str) -> Optional[dict[str, Any]]:
+    def get_issue(self, issue_id: str) -> dict[str, Any] | None:
         """Get BEADS issue details
         
         Args:
@@ -251,7 +251,7 @@ class BeadsAdapter:
             logger.error(f"Failed to parse issue response: {e}")
             return None
 
-    def get_dependency_tree(self, issue_id: str) -> Optional[str]:
+    def get_dependency_tree(self, issue_id: str) -> str | None:
         """Get dependency tree for an issue (ASCII tree output)
         
         Args:

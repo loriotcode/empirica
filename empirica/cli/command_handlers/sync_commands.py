@@ -112,7 +112,7 @@ def _detect_provider(remote_url: str) -> str:
         return 'unknown'
 
 
-def _get_remote_url(remote: str = 'origin') -> Optional[str]:
+def _get_remote_url(remote: str = 'origin') -> str | None:
     """Get the URL for a remote"""
     try:
         result = subprocess.run(
@@ -126,7 +126,7 @@ def _get_remote_url(remote: str = 'origin') -> Optional[str]:
     return None
 
 
-def _is_public_repo() -> Optional[bool]:
+def _is_public_repo() -> bool | None:
     """Try to detect if repo is public (best effort, may return None)"""
     # This is a heuristic - we can't truly know without API calls
     # For now, return None (unknown) and rely on user config

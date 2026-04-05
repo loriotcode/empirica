@@ -33,7 +33,7 @@ class GitNotesStorage:
         self,
         session_id: str,
         git_repo_path: Path,
-        signing_persona: Optional[SigningPersona] = None
+        signing_persona: SigningPersona | None = None
     ):
         """
         Initialize git notes storage.
@@ -46,8 +46,8 @@ class GitNotesStorage:
         self.session_id = session_id
         self.git_repo_path = git_repo_path
         self.signing_persona = signing_persona
-        self.signed_git_ops: Optional[SignedGitOperations] = None
-        self._is_git_repo: Optional[bool] = None
+        self.signed_git_ops: SignedGitOperations | None = None
+        self._is_git_repo: bool | None = None
 
         # Initialize signed git operations if persona provided
         if signing_persona:
@@ -80,7 +80,7 @@ class GitNotesStorage:
 
         return self._is_git_repo
 
-    def add_note(self, checkpoint: dict[str, Any]) -> Optional[str]:
+    def add_note(self, checkpoint: dict[str, Any]) -> str | None:
         """
         Add checkpoint to git notes with session-specific namespace.
 
@@ -156,7 +156,7 @@ class GitNotesStorage:
             logger.warning(f"Git note operation failed: {e}. Using fallback storage.")
             return None
 
-    def add_signed_note(self, checkpoint: dict[str, Any], phase: str) -> Optional[str]:
+    def add_signed_note(self, checkpoint: dict[str, Any], phase: str) -> str | None:
         """
         Add cryptographically signed checkpoint to git notes.
 
@@ -235,7 +235,7 @@ class GitNotesStorage:
             logger.warning(f"Failed to add signed git note: {e}. Falling back to unsigned.")
             return self.add_note(checkpoint)
 
-    def get_latest_note(self, phase: Optional[str] = None) -> Optional[dict[str, Any]]:
+    def get_latest_note(self, phase: str | None = None) -> dict[str, Any] | None:
         """
         Retrieve most recent checkpoint from hierarchical git notes structure.
 
@@ -290,9 +290,9 @@ class GitNotesStorage:
 
     def list_checkpoints(
         self,
-        session_id: Optional[str] = None,
-        limit: Optional[int] = None,
-        phase: Optional[str] = None
+        session_id: str | None = None,
+        limit: int | None = None,
+        phase: str | None = None
     ) -> list[dict[str, Any]]:
         """
         List checkpoints from git notes (using hierarchical namespace).

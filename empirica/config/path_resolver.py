@@ -42,7 +42,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 # Cache for git root (expensive to compute repeatedly)
-_git_root_cache: Optional[Path] = None
+_git_root_cache: Path | None = None
 
 # Forbidden system paths for workspace/data directories
 FORBIDDEN_PATH_PREFIXES = ['/etc', '/var/log', '/usr', '/bin', '/sbin', '/root', '/boot', '/proc', '/sys']
@@ -75,7 +75,7 @@ def _validate_user_path(path_str: str, env_var_name: str) -> Path:
     return resolved
 
 
-def get_git_root() -> Optional[Path]:
+def get_git_root() -> Path | None:
     """
     Get git repository root directory.
 
@@ -106,7 +106,7 @@ def get_git_root() -> Optional[Path]:
     return None
 
 
-def load_empirica_config() -> Optional[dict]:
+def load_empirica_config() -> dict | None:
     """
     Load .empirica/config.yaml from git root.
 
@@ -314,7 +314,7 @@ def get_session_db_path() -> Path:
     )
 
 
-def resolve_session_db_path(session_id: str) -> Optional[Path]:
+def resolve_session_db_path(session_id: str) -> Path | None:
     """
     Resolve which database contains a given session.
 

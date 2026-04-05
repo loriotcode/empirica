@@ -29,7 +29,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
-def load_semantic_index(project_root: Optional[str] = None) -> Optional[dict[str, Any]]:
+def load_semantic_index(project_root: str | None = None) -> dict[str, Any] | None:
     """
     Load SEMANTIC_INDEX.yaml from project root.
     
@@ -75,7 +75,7 @@ def load_semantic_index(project_root: Optional[str] = None) -> Optional[dict[str
     return None
 
 
-def get_semantic_index_path(project_root: Optional[str] = None) -> Optional[Path]:
+def get_semantic_index_path(project_root: str | None = None) -> Path | None:
     """
     Get path to SEMANTIC_INDEX.yaml if it exists.
     

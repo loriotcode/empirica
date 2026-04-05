@@ -51,7 +51,7 @@ class GitGoalStore:
         }
     """
 
-    def __init__(self, workspace_root: Optional[str] = None):
+    def __init__(self, workspace_root: str | None = None):
         """Initialize git goal store"""
         self.workspace_root = workspace_root or os.getcwd()
         self._git_available = self._check_git_repo()
@@ -92,8 +92,8 @@ class GitGoalStore:
         session_id: str,
         ai_id: str,
         goal_data: dict[str, Any],
-        epistemic_state: Optional[dict[str, float]] = None,
-        lineage: Optional[list[dict[str, str]]] = None
+        epistemic_state: dict[str, float] | None = None,
+        lineage: list[dict[str, str]] | None = None
     ) -> bool:
         """
         Store goal in git notes
@@ -165,7 +165,7 @@ class GitGoalStore:
             logger.warning(f"Failed to store goal in git: {e}")
             return False
 
-    def load_goal(self, goal_id: str) -> Optional[dict[str, Any]]:
+    def load_goal(self, goal_id: str) -> dict[str, Any] | None:
         """
         Load goal from git notes
 
@@ -221,8 +221,8 @@ class GitGoalStore:
 
     def discover_goals(
         self,
-        from_ai_id: Optional[str] = None,
-        session_id: Optional[str] = None
+        from_ai_id: str | None = None,
+        session_id: str | None = None
     ) -> list[dict[str, Any]]:
         """
         Discover goals from other AIs

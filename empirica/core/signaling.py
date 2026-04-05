@@ -93,7 +93,7 @@ HEALTH_EMOJIS = {
 }
 
 
-def get_vector_health(vector_name: str, value: Optional[float]) -> VectorHealth:
+def get_vector_health(vector_name: str, value: float | None) -> VectorHealth:
     """
     Get health state for a vector value using moon phase scale.
 
@@ -162,7 +162,7 @@ def get_health_emoji(health: VectorHealth) -> str:
     return HEALTH_EMOJIS.get(health, '⚪')
 
 
-def format_vector_state(vector_name: str, value: Optional[float], show_value: bool = False, use_percentage: bool = True) -> str:
+def format_vector_state(vector_name: str, value: float | None, show_value: bool = False, use_percentage: bool = True) -> str:
     """
     Format a single vector's state as string.
 
@@ -202,7 +202,7 @@ def format_vector_state(vector_name: str, value: Optional[float], show_value: bo
 
 def format_vectors_compact(
     vectors: dict[str, float],
-    keys: Optional[list[str]] = None,
+    keys: list[str] | None = None,
     show_values: bool = False,
     use_percentage: bool = True
 ) -> str:

@@ -69,9 +69,9 @@ class SentinelState:
     decision_consistency: float = 1.0   # 0-1: agreement between evaluators
     response_latency: float = 0.0       # seconds (lower is better)
     evaluation_count: int = 0           # evaluations this session
-    last_decision: Optional[SentinelDecision] = None
+    last_decision: SentinelDecision | None = None
     confidence: float = 0.8             # Sentinel's self-confidence
-    last_turtle_check: Optional[float] = None  # timestamp of last turtle check
+    last_turtle_check: float | None = None  # timestamp of last turtle check
 
     def get_grounding_score(self) -> float:
         """Calculate overall grounding score (0-1)."""
@@ -339,7 +339,7 @@ class SentinelHooks:
         checkpoint_data: dict[str, Any],
         blocking: bool = False,
         turtle: bool = None  # None = use class default, True/False = override
-    ) -> Optional[SentinelDecision]:
+    ) -> SentinelDecision | None:
         """
         Evaluate checkpoint with Sentinel
 
@@ -440,7 +440,7 @@ class SentinelHooks:
         ai_id: str,
         phase: str,
         checkpoint_data: dict[str, Any]
-    ) -> Optional[SentinelDecision]:
+    ) -> SentinelDecision | None:
         """
         Hook called automatically after checkpoint creation
         

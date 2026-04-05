@@ -9,7 +9,7 @@ import subprocess
 from typing import Any, Optional
 
 
-def get_current_git_commit(repo_path: str = ".") -> Optional[str]:
+def get_current_git_commit(repo_path: str = ".") -> str | None:
     """Get current git commit SHA"""
     try:
         result = subprocess.run(
@@ -97,9 +97,9 @@ def parse_url_references(text: str) -> list[str]:
 
 def structure_finding(
     finding_text: str,
-    commit_sha: Optional[str] = None,
-    session_id: Optional[str] = None,
-    check_id: Optional[str] = None
+    commit_sha: str | None = None,
+    session_id: str | None = None,
+    check_id: str | None = None
 ) -> dict[str, Any]:
     """
     Convert plain text finding into structured format.
@@ -136,9 +136,9 @@ def structure_finding(
 
 def structure_findings_list(
     findings: list[str],
-    commit_sha: Optional[str] = None,
-    session_id: Optional[str] = None,
-    check_id: Optional[str] = None
+    commit_sha: str | None = None,
+    session_id: str | None = None,
+    check_id: str | None = None
 ) -> list[dict[str, Any]]:
     """Structure a list of findings"""
     if commit_sha is None:

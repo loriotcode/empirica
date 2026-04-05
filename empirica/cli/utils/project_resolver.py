@@ -47,7 +47,7 @@ def normalize_git_url(url: str) -> str:
     return url
 
 
-def get_current_git_repo() -> Optional[str]:
+def get_current_git_repo() -> str | None:
     """Get normalized git repo URL for current directory."""
     try:
         result = subprocess.run(
@@ -61,7 +61,7 @@ def get_current_git_repo() -> Optional[str]:
     return None
 
 
-def resolve_project_by_git_repo(git_repo: str, db) -> Optional[str]:
+def resolve_project_by_git_repo(git_repo: str, db) -> str | None:
     """Resolve project by normalized git repo URL.
 
     Searches the projects table for a project whose repos JSON array contains

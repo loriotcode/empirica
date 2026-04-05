@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class DocCodeIntegrityAnalyzer:
     """Analyze integrity between documentation and codebase"""
 
-    def __init__(self, project_root: Optional[str] = None) -> None:
+    def __init__(self, project_root: str | None = None) -> None:
         """Initialize analyzer with project root directory."""
         self.project_root = Path(project_root) if project_root else Path.cwd()
         self.docs_dir = self.project_root / "docs"
@@ -197,7 +197,7 @@ class DocCodeIntegrityAnalyzer:
         return mentions
 
 
-def analyze_project_integrity(project_root: Optional[str] = None) -> dict:
+def analyze_project_integrity(project_root: str | None = None) -> dict:
     """
     Convenience function to run full integrity analysis
     
@@ -208,7 +208,7 @@ def analyze_project_integrity(project_root: Optional[str] = None) -> dict:
     return analyzer.get_detailed_gaps()
 
 
-def analyze_complete_integrity(project_root: Optional[str] = None) -> dict:
+def analyze_complete_integrity(project_root: str | None = None) -> dict:
     """
     Run complete integrity analysis including deprecation and superfluity
     

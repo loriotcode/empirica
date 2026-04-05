@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class GitDecisionStore:
     """Git-based decision storage for epistemic sync."""
 
-    def __init__(self, workspace_root: Optional[str] = None):
+    def __init__(self, workspace_root: str | None = None):
         self.workspace_root = workspace_root or os.getcwd()
         self._git_available = self._check_git_repo()
 
@@ -56,10 +56,10 @@ class GitDecisionStore:
         ai_id: str,
         choice: str,
         rationale: str,
-        alternatives: Optional[str] = None,
+        alternatives: str | None = None,
         confidence: float = 0.7,
         reversibility: str = 'exploratory',
-        goal_id: Optional[str] = None,
+        goal_id: str | None = None,
     ) -> bool:
         if not self._git_available or not self._has_commits():
             return False
@@ -101,7 +101,7 @@ class GitDecisionStore:
             logger.warning(f"Failed to store decision in git: {e}")
             return False
 
-    def load_decision(self, decision_id: str) -> Optional[dict[str, Any]]:
+    def load_decision(self, decision_id: str) -> dict[str, Any] | None:
         if not self._git_available or not self._has_commits():
             return None
 
@@ -138,8 +138,8 @@ class GitDecisionStore:
 
     def discover_decisions(
         self,
-        project_id: Optional[str] = None,
-        session_id: Optional[str] = None,
+        project_id: str | None = None,
+        session_id: str | None = None,
     ) -> list[dict[str, Any]]:
         if not self._git_available:
             return []

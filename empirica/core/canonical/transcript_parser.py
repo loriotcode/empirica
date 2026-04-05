@@ -74,7 +74,7 @@ class TranscriptRecord:
     uuid: str
     timestamp: str
     record_type: RecordType
-    parent_uuid: Optional[str] = None
+    parent_uuid: str | None = None
     session_id: str = ""
     git_branch: str = ""
     is_sidechain: bool = False
@@ -142,7 +142,7 @@ class SessionMetadata:
     git_branch: str = ""
     project_path: str = ""
     is_sidechain: bool = False
-    pr_number: Optional[int] = None
+    pr_number: int | None = None
     pr_url: str = ""
 
 
@@ -152,7 +152,7 @@ class SessionMetadata:
 class SessionIndex:
     """Reads sessions-index.json to discover available sessions."""
 
-    def __init__(self, claude_dir: Optional[str] = None):
+    def __init__(self, claude_dir: str | None = None):
         self.claude_dir = Path(claude_dir or Path.home() / ".claude")
 
     def discover_projects(self) -> list[str]:
@@ -269,7 +269,7 @@ class TranscriptParser:
 
         return sorted(records, key=lambda r: r.timestamp)
 
-    def _parse_record(self, raw: dict[str, Any]) -> Optional[TranscriptRecord]:
+    def _parse_record(self, raw: dict[str, Any]) -> TranscriptRecord | None:
         """Parse a single JSON record into a TranscriptRecord."""
         raw_type = raw.get("type", "unknown")
         try:
@@ -659,7 +659,7 @@ class ClaudeAIParser:
         metadata["total_turns"] = len(all_turns)
         return all_turns, metadata
 
-    def _extract_zip(self, zip_path: Path) -> tuple[Optional[Any], Optional[Any], Optional[Any]]:
+    def _extract_zip(self, zip_path: Path) -> tuple[Any | None, Any | None, Any | None]:
         """Extract conversations, memories, and projects from a ZIP export."""
         import zipfile
         conversations = None

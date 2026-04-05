@@ -28,10 +28,10 @@ class TrajectoryPoint:
     ai_id: str
     vector_name: str
     self_assessed: float
-    grounded: Optional[float]
-    gap: Optional[float]
-    domain: Optional[str]
-    goal_id: Optional[str]
+    grounded: float | None
+    gap: float | None
+    domain: str | None
+    goal_id: str | None
     timestamp: float
 
 
@@ -57,8 +57,8 @@ class TrajectoryTracker:
         self,
         session_id: str,
         assessment: GroundedAssessment,
-        domain: Optional[str] = None,
-        goal_id: Optional[str] = None,
+        domain: str | None = None,
+        goal_id: str | None = None,
         phase: str = "combined",
     ) -> int:
         """
@@ -113,7 +113,7 @@ class TrajectoryTracker:
         ai_id: str,
         vector_name: str,
         lookback: int = 20,
-        phase: Optional[str] = None,
+        phase: str | None = None,
     ) -> list[TrajectoryPoint]:
         """Get recent trajectory points for a vector, optionally filtered by phase."""
         cursor = self.conn.cursor()
@@ -162,7 +162,7 @@ class TrajectoryTracker:
         self,
         ai_id: str,
         lookback: int = 10,
-        phase: Optional[str] = None,
+        phase: str | None = None,
     ) -> dict[str, CalibrationTrend]:
         """
         Detect calibration trend per vector, optionally filtered by phase.

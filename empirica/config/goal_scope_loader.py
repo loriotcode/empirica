@@ -57,7 +57,7 @@ class GoalScopeLoader:
     - Includes validation coherence checks
     """
 
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Path | None = None):
         """
         Initialize goal scope loader.
         
@@ -123,8 +123,8 @@ class GoalScopeLoader:
     def get_scope_recommendations(
         self,
         epistemic_vectors: dict[str, float],
-        context: Optional[dict[str, Any]] = None
-    ) -> Optional[dict[str, Any]]:
+        context: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         """
         Get scope recommendations based on epistemic vector pattern.
         
@@ -355,8 +355,8 @@ class GoalScopeLoader:
 # Global instance accessor
 def get_scope_recommendations(
     epistemic_vectors: dict[str, float],
-    context: Optional[dict[str, Any]] = None
-) -> Optional[dict[str, Any]]:
+    context: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
     """
     Get scope recommendations based on epistemic state.
     

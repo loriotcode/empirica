@@ -19,7 +19,7 @@ from typing import Optional
 class BranchMapping:
     """Manages branch-to-goal mapping in .empirica/branch_mapping.json"""
 
-    def __init__(self, repo_root: Optional[str] = None):
+    def __init__(self, repo_root: str | None = None):
         """
         Initialize branch mapping manager.
         
@@ -69,9 +69,9 @@ class BranchMapping:
         self,
         branch_name: str,
         goal_id: str,
-        beads_issue_id: Optional[str] = None,
-        ai_id: Optional[str] = None,
-        session_id: Optional[str] = None
+        beads_issue_id: str | None = None,
+        ai_id: str | None = None,
+        session_id: str | None = None
     ) -> bool:
         """
         Add a branch-to-goal mapping.
@@ -101,11 +101,11 @@ class BranchMapping:
         self._save_mappings()
         return True
 
-    def get_mapping(self, branch_name: str) -> Optional[dict]:
+    def get_mapping(self, branch_name: str) -> dict | None:
         """Get mapping for a branch."""
         return self._mappings["mappings"].get(branch_name)
 
-    def get_branch_for_goal(self, goal_id: str) -> Optional[str]:
+    def get_branch_for_goal(self, goal_id: str) -> str | None:
         """Find branch associated with a goal."""
         for branch, mapping in self._mappings["mappings"].items():
             if mapping["goal_id"] == goal_id and mapping["status"] == "active":
@@ -154,7 +154,7 @@ class BranchMapping:
         return self._mappings["history"][-limit:]
 
 
-def get_branch_mapping(repo_root: Optional[str] = None) -> BranchMapping:
+def get_branch_mapping(repo_root: str | None = None) -> BranchMapping:
     """
     Get branch mapping instance.
     

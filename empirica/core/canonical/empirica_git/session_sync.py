@@ -30,7 +30,7 @@ class SessionSync:
     - Safe degradation if git unavailable
     """
 
-    def __init__(self, workspace_root: Optional[str] = None):
+    def __init__(self, workspace_root: str | None = None):
         """Initialize session sync"""
         self.workspace_root = workspace_root or os.getcwd()
         self._git_available = self._check_git_repo()

@@ -65,12 +65,12 @@ class EpistemicReleaseAgent:
     - "Protect what shouldn't be known" - Privacy scan guards secrets
     """
 
-    def __init__(self, project_root: Optional[Path] = None, quick: bool = False):
+    def __init__(self, project_root: Path | None = None, quick: bool = False):
         """Initialize release agent with project root and quick mode setting."""
         self.root = project_root or Path.cwd()
         self.quick = quick
         self.results: list[CheckResult] = []
-        self.version: Optional[str] = None
+        self.version: str | None = None
 
     def _score_to_moon(self, score: float) -> str:
         """Convert 0-1 score to moon phase."""

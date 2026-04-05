@@ -36,7 +36,7 @@ class GitStateCapture:
             git_repo_path: Path to git repository
         """
         self.git_repo_path = git_repo_path
-        self._is_git_repo: Optional[bool] = None
+        self._is_git_repo: bool | None = None
 
     def is_git_repo(self) -> bool:
         """
@@ -62,7 +62,7 @@ class GitStateCapture:
 
         return self._is_git_repo
 
-    def capture_state(self, get_last_checkpoint_fn: Optional[callable] = None) -> dict[str, Any]:
+    def capture_state(self, get_last_checkpoint_fn=None) -> dict[str, Any]:
         """
         Capture current git state at checkpoint time.
 

@@ -25,11 +25,11 @@ class CodebaseModelRepository(BaseRepository):
         self,
         name: str,
         entity_type: str,
-        file_path: Optional[str] = None,
-        signature: Optional[str] = None,
-        project_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        file_path: str | None = None,
+        signature: str | None = None,
+        project_id: str | None = None,
+        session_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         """Create or update an entity. Returns entity ID.
 
@@ -75,10 +75,10 @@ class CodebaseModelRepository(BaseRepository):
 
     def find_entities(
         self,
-        project_id: Optional[str] = None,
-        entity_type: Optional[str] = None,
-        file_path: Optional[str] = None,
-        name_like: Optional[str] = None,
+        project_id: str | None = None,
+        entity_type: str | None = None,
+        file_path: str | None = None,
+        name_like: str | None = None,
         active_only: bool = True,
     ) -> list[dict[str, Any]]:
         """Query entities with optional filters."""
@@ -121,7 +121,7 @@ class CodebaseModelRepository(BaseRepository):
         cursor = self._execute(query, tuple(params))
         return cursor.fetchone()[0]
 
-    def entities_for_file(self, file_path: str, project_id: Optional[str] = None) -> list[dict[str, Any]]:
+    def entities_for_file(self, file_path: str, project_id: str | None = None) -> list[dict[str, Any]]:
         """Get all active entities in a file."""
         query = "SELECT * FROM codebase_entities WHERE file_path = ? AND last_seen IS NULL"
         params: list = [file_path]
@@ -140,10 +140,10 @@ class CodebaseModelRepository(BaseRepository):
         fact_text: str,
         evidence_type: str = "source_code",
         evidence_path: str = "",
-        entity_ids: Optional[list[str]] = None,
+        entity_ids: list[str] | None = None,
         confidence: float = 1.0,
-        project_id: Optional[str] = None,
-        session_id: Optional[str] = None,
+        project_id: str | None = None,
+        session_id: str | None = None,
     ) -> str:
         """Create a new fact. Returns fact ID."""
         fact_id = str(uuid.uuid4())
@@ -161,8 +161,8 @@ class CodebaseModelRepository(BaseRepository):
 
     def query_facts(
         self,
-        project_id: Optional[str] = None,
-        entity_id: Optional[str] = None,
+        project_id: str | None = None,
+        entity_id: str | None = None,
         current_only: bool = True,
     ) -> list[dict[str, Any]]:
         """Query facts with optional filters."""
@@ -193,7 +193,7 @@ class CodebaseModelRepository(BaseRepository):
         )
         self.commit()
 
-    def facts_for_file(self, file_path: str, project_id: Optional[str] = None) -> list[dict[str, Any]]:
+    def facts_for_file(self, file_path: str, project_id: str | None = None) -> list[dict[str, Any]]:
         """Get current facts with evidence pointing to a file."""
         query = """SELECT * FROM codebase_facts
                    WHERE evidence_path LIKE ? AND invalid_at IS NULL"""
@@ -214,7 +214,7 @@ class CodebaseModelRepository(BaseRepository):
         source_entity_id: str,
         target_entity_id: str,
         relationship_type: str,
-        project_id: Optional[str] = None,
+        project_id: str | None = None,
     ) -> str:
         """Create or update a relationship. Increments evidence_count on update."""
         now = time.time()
@@ -278,12 +278,12 @@ class CodebaseModelRepository(BaseRepository):
         self,
         rule_name: str,
         constraint_type: str = "convention",
-        file_pattern: Optional[str] = None,
+        file_pattern: str | None = None,
         description: str = "",
-        examples: Optional[list[dict[str, str]]] = None,
+        examples: list[dict[str, str]] | None = None,
         severity: str = "warning",
-        project_id: Optional[str] = None,
-        session_id: Optional[str] = None,
+        project_id: str | None = None,
+        session_id: str | None = None,
     ) -> str:
         """Create or update a constraint. Increments violation_count on update."""
         now = time.time()
@@ -326,8 +326,8 @@ class CodebaseModelRepository(BaseRepository):
 
     def get_constraints(
         self,
-        file_path: Optional[str] = None,
-        project_id: Optional[str] = None,
+        file_path: str | None = None,
+        project_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Get constraints, optionally filtered by file glob pattern."""
         query = "SELECT * FROM codebase_constraints WHERE 1=1"

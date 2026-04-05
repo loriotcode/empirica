@@ -280,9 +280,9 @@ class ContextBudgetManager(EpistemicObserver):
     def __init__(
         self,
         session_id: str,
-        thresholds: Optional[BudgetThresholds] = None,
+        thresholds: BudgetThresholds | None = None,
         auto_subscribe: bool = True,
-        node_id: Optional[str] = None,
+        node_id: str | None = None,
     ):
         self.session_id = session_id
         self.node_id = node_id or os.getenv("EMPIRICA_AI_ID", "unknown")
@@ -412,7 +412,7 @@ class ContextBudgetManager(EpistemicObserver):
         )
         return True
 
-    def unregister_item(self, item_id: str) -> Optional[ContextItem]:
+    def unregister_item(self, item_id: str) -> ContextItem | None:
         """Remove an item from the inventory (no longer in context)."""
         item = self._inventory.pop(item_id, None)
         if item:
@@ -427,9 +427,9 @@ class ContextBudgetManager(EpistemicObserver):
 
     def find_items(
         self,
-        zone: Optional[MemoryZone] = None,
-        content_type: Optional[ContentType] = None,
-        min_priority: Optional[float] = None,
+        zone: MemoryZone | None = None,
+        content_type: ContentType | None = None,
+        min_priority: float | None = None,
     ) -> list[ContextItem]:
         """Find items matching criteria."""
         results = []
@@ -872,13 +872,13 @@ def load_thresholds_from_config() -> BudgetThresholds:
 
 # --- Singleton ---
 
-_global_manager: Optional[ContextBudgetManager] = None
+_global_manager: ContextBudgetManager | None = None
 
 
 def get_budget_manager(
-    session_id: Optional[str] = None,
-    thresholds: Optional[BudgetThresholds] = None,
-    node_id: Optional[str] = None,
+    session_id: str | None = None,
+    thresholds: BudgetThresholds | None = None,
+    node_id: str | None = None,
 ) -> ContextBudgetManager:
     """Get or create the global Context Budget Manager."""
     global _global_manager

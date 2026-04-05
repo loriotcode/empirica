@@ -32,8 +32,8 @@ def detect_language(file_path: str) -> str:
 def extract_entities_from_content(
     file_path: str,
     content: str,
-    project_id: Optional[str] = None,
-    session_id: Optional[str] = None,
+    project_id: str | None = None,
+    session_id: str | None = None,
 ) -> tuple[list[Entity], list[Relationship]]:
     """
     Extract entities and relationships from file content.
@@ -57,8 +57,8 @@ def extract_entities_from_content(
 def extract_entities_from_diff(
     file_path: str,
     diff_text: str,
-    project_id: Optional[str] = None,
-    session_id: Optional[str] = None,
+    project_id: str | None = None,
+    session_id: str | None = None,
 ) -> tuple[list[Entity], list[Fact]]:
     """
     Extract entities and facts from a diff (added lines only).
@@ -114,7 +114,7 @@ _PY_CONSTANT = re.compile(
 
 def _extract_python(
     file_path: str, content: str,
-    project_id: Optional[str], session_id: Optional[str],
+    project_id: str | None, session_id: str | None,
 ) -> tuple[list[Entity], list[Relationship]]:
     entities: list[Entity] = []
     relationships: list[Relationship] = []
@@ -215,7 +215,7 @@ _TS_API = re.compile(
 
 def _extract_typescript(
     file_path: str, content: str,
-    project_id: Optional[str], session_id: Optional[str],
+    project_id: str | None, session_id: str | None,
 ) -> tuple[list[Entity], list[Relationship]]:
     entities: list[Entity] = []
     relationships: list[Relationship] = []
@@ -293,7 +293,7 @@ _GO_INTERFACE = re.compile(
 
 def _extract_go(
     file_path: str, content: str,
-    project_id: Optional[str], session_id: Optional[str],
+    project_id: str | None, session_id: str | None,
 ) -> tuple[list[Entity], list[Relationship]]:
     entities: list[Entity] = []
     relationships: list[Relationship] = []
@@ -354,7 +354,7 @@ _RS_IMPL = re.compile(
 
 def _extract_rust(
     file_path: str, content: str,
-    project_id: Optional[str], session_id: Optional[str],
+    project_id: str | None, session_id: str | None,
 ) -> tuple[list[Entity], list[Relationship]]:
     entities: list[Entity] = []
     relationships: list[Relationship] = []

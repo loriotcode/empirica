@@ -337,7 +337,7 @@ class PersonaRegistry:
             logger.warning(f"Error finding similar personas: {e}")
             return []
 
-    def get_persona_by_id(self, persona_id: str) -> Optional[dict[str, Any]]:
+    def get_persona_by_id(self, persona_id: str) -> dict[str, Any] | None:
         """
         Get persona by ID
 

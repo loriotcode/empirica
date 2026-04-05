@@ -8,7 +8,7 @@ from typing import Optional
 from .base import BaseRepository
 
 
-def _get_project_id_from_session(conn, session_id: str) -> Optional[str]:
+def _get_project_id_from_session(conn, session_id: str) -> str | None:
     """Get project_id from the session's already-resolved project_id.
 
     This is the AUTHORITATIVE source - the session table stores project_id
@@ -34,7 +34,7 @@ def _get_project_id_from_session(conn, session_id: str) -> Optional[str]:
     return None
 
 
-def _get_project_id_fallback() -> Optional[str]:
+def _get_project_id_fallback() -> str | None:
     """Fallback project_id detection for CI/headless environments.
 
     Only used when session lookup fails. Uses git remote URL hash
@@ -73,12 +73,12 @@ class VectorRepository(BaseRepository):
         session_id: str,
         phase: str,
         vectors: dict[str, float],
-        cascade_id: Optional[str] = None,
+        cascade_id: str | None = None,
         round_num: int = 1,
-        metadata: Optional[dict] = None,
-        reasoning: Optional[str] = None,
-        project_id: Optional[str] = None,
-        transaction_id: Optional[str] = None
+        metadata: dict | None = None,
+        reasoning: str | None = None,
+        project_id: str | None = None,
+        transaction_id: str | None = None
     ) -> int:
         """
         Store epistemic vectors in the reflexes table
@@ -153,8 +153,8 @@ class VectorRepository(BaseRepository):
     def get_latest_vectors(
         self,
         session_id: str,
-        phase: Optional[str] = None
-    ) -> Optional[dict]:
+        phase: str | None = None
+    ) -> dict | None:
         """
         Get the latest epistemic vectors for a session from the reflexes table
 
@@ -208,18 +208,18 @@ class VectorRepository(BaseRepository):
 
         return None
 
-    def get_preflight_vectors(self, session_id: str) -> Optional[dict]:
+    def get_preflight_vectors(self, session_id: str) -> dict | None:
         """Get latest PREFLIGHT vectors for session (convenience method)"""
         return self.get_latest_vectors(session_id, phase="PREFLIGHT")
 
-    def get_check_vectors(self, session_id: str, cycle: Optional[int] = None) -> list[dict]:
+    def get_check_vectors(self, session_id: str, cycle: int | None = None) -> list[dict]:
         """Get CHECK phase vectors, optionally filtered by cycle"""
         vectors = self.get_vectors_by_phase(session_id, phase="CHECK")
         if cycle is not None:
             return [v for v in vectors if v.get('round') == cycle]
         return vectors
 
-    def get_postflight_vectors(self, session_id: str) -> Optional[dict]:
+    def get_postflight_vectors(self, session_id: str) -> dict | None:
         """Get latest POSTFLIGHT vectors for session (convenience method)"""
         return self.get_latest_vectors(session_id, phase="POSTFLIGHT")
 

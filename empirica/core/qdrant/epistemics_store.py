@@ -50,7 +50,7 @@ def upsert_epistemics(project_id: str, items: list[dict]) -> int:
 def search_epistemics(
     project_id: str,
     query_text: str,
-    filters: Optional[dict] = None,
+    filters: dict | None = None,
     limit: int = 5
 ) -> list[dict]:
     """

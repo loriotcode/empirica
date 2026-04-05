@@ -137,7 +137,7 @@ class GitProgressQuery:
         self,
         commit_hash: str,
         note_ref: str
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get task note for a specific commit
         

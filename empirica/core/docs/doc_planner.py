@@ -27,7 +27,7 @@ def _load_semantic_index(root: str) -> dict[str, dict]:
     return index.get('index', {}) or {}
 
 
-def _find_cli_reference(root: str) -> Optional[str]:
+def _find_cli_reference(root: str) -> str | None:
     ref_dir = os.path.join(root, 'docs', 'reference')
     if not os.path.isdir(ref_dir):
         return None
@@ -37,7 +37,7 @@ def _find_cli_reference(root: str) -> Optional[str]:
     return None
 
 
-def compute_doc_plan(project_id: str, session_id: Optional[str] = None, goal_id: Optional[str] = None) -> dict:
+def compute_doc_plan(project_id: str, session_id: str | None = None, goal_id: str | None = None) -> dict:
     """
     Heuristic planner that:
     - Loads semantic index

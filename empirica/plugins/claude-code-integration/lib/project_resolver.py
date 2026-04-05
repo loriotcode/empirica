@@ -62,7 +62,7 @@ class InstanceResolver:
         except ImportError:
             pass
 
-    def instance_id(self) -> Optional[str]:
+    def instance_id(self) -> str | None:
         if self._canonical:
             return self._canonical.instance_id()
         return get_instance_id()
@@ -72,17 +72,17 @@ class InstanceResolver:
             return self._canonical.instance_suffix()
         return _get_instance_suffix()
 
-    def project_path(self, claude_session_id: str = None) -> Optional[str]:
+    def project_path(self, claude_session_id: str = None) -> str | None:
         if self._canonical:
             return self._canonical.project_path(claude_session_id)
         return get_active_project_path(claude_session_id)
 
-    def session_id(self, claude_session_id: str = None) -> Optional[str]:
+    def session_id(self, claude_session_id: str = None) -> str | None:
         if self._canonical:
             return self._canonical.session_id(claude_session_id)
         return get_active_session_id(claude_session_id)
 
-    def transaction_read(self, claude_session_id: str = None) -> Optional[dict]:
+    def transaction_read(self, claude_session_id: str = None) -> dict | None:
         if self._canonical:
             return self._canonical.transaction_read(claude_session_id)
         # No local fallback for transaction read — hooks should use canonical
@@ -92,18 +92,18 @@ class InstanceResolver:
         if self._canonical:
             self._canonical.transaction_write(**kwargs)
 
-    def tty_key(self) -> Optional[str]:
+    def tty_key(self) -> str | None:
         if self._canonical:
             return self._canonical.tty_key()
         return None
 
-    def tty_session(self, warn_if_stale: bool = True) -> Optional[dict]:
+    def tty_session(self, warn_if_stale: bool = True) -> dict | None:
         if self._canonical:
             return self._canonical.tty_session(warn_if_stale=warn_if_stale)
         return None
 
 
-def get_instance_id() -> Optional[str]:
+def get_instance_id() -> str | None:
     """
     Get a unique instance identifier for multi-instance isolation.
 
@@ -221,7 +221,7 @@ def detect_environment() -> dict:
     }
 
 
-def get_active_project_path(claude_session_id: str = None) -> Optional[str]:
+def get_active_project_path(claude_session_id: str = None) -> str | None:
     """
     Get the active project path for the current instance.
 
@@ -280,7 +280,7 @@ def get_active_project_path(claude_session_id: str = None) -> Optional[str]:
     return None
 
 
-def get_active_session_id(claude_session_id: str = None) -> Optional[str]:
+def get_active_session_id(claude_session_id: str = None) -> str | None:
     """
     Get the active Empirica session ID for the current instance.
 
@@ -387,7 +387,7 @@ def has_valid_db(project_path: Path) -> bool:
         return False
 
 
-def _find_git_root() -> Optional[Path]:
+def _find_git_root() -> Path | None:
     """Find the git repo root from CWD."""
     try:
         result = subprocess.run(
@@ -401,7 +401,7 @@ def _find_git_root() -> Optional[Path]:
     return None
 
 
-def _read_json_file(path: Path) -> Optional[dict]:
+def _read_json_file(path: Path) -> dict | None:
     """Read a JSON file, returning None on any error."""
     try:
         if path.exists():
@@ -412,7 +412,7 @@ def _read_json_file(path: Path) -> Optional[dict]:
     return None
 
 
-def _scan_workspace_for_project(instance_id: Optional[str]) -> Optional[Path]:
+def _scan_workspace_for_project(instance_id: str | None) -> Path | None:
     """Scan all registered projects in workspace.db for one with an open transaction.
 
     Checks both the current instance suffix AND any orphaned transaction files
@@ -477,13 +477,13 @@ def _scan_workspace_for_project(instance_id: Optional[str]) -> Optional[Path]:
 
 
 def find_project_root(
-    claude_session_id: Optional[str] = None,
+    claude_session_id: str | None = None,
     *,
     check_compact_handoff: bool = False,
     allow_workspace_scan: bool = True,
     allow_cwd_fallback: bool = False,
     allow_git_root: bool = False,
-) -> Optional[Path]:
+) -> Path | None:
     """
     Comprehensive project root resolution for hooks.
 

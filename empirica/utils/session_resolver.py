@@ -62,7 +62,7 @@ class InstanceResolver:
     # --- Instance Identity ---
 
     @staticmethod
-    def instance_id() -> 'Optional[str]':
+    def instance_id() -> 'str | None':
         """Get current instance ID (TMUX_PANE, WINDOWID, TTY, etc.)."""
         return get_instance_id()
 
@@ -76,7 +76,7 @@ class InstanceResolver:
     # --- Project Resolution ---
 
     @staticmethod
-    def project_path(claude_session_id: str = None) -> 'Optional[str]':
+    def project_path(claude_session_id: str = None) -> 'str | None':
         """Resolve the active project path.
 
         Priority: instance_projects > active_work_{uuid} > active_work.json
@@ -87,7 +87,7 @@ class InstanceResolver:
     # --- Session Resolution ---
 
     @staticmethod
-    def session_id(claude_session_id: str = None) -> 'Optional[str]':
+    def session_id(claude_session_id: str = None) -> 'str | None':
         """Resolve the active Empirica session ID.
 
         Priority: transaction > active_work_{uuid} > instance_projects >
@@ -101,7 +101,7 @@ class InstanceResolver:
         return resolve_session_id(session_id_or_alias, ai_id)
 
     @staticmethod
-    def latest_session_id(ai_id: str = None, active_only: bool = False) -> 'Optional[str]':
+    def latest_session_id(ai_id: str = None, active_only: bool = False) -> 'str | None':
         """Get the most recent session ID, optionally filtered by ai_id."""
         return get_latest_session_id(ai_id, active_only)
 
@@ -113,19 +113,19 @@ class InstanceResolver:
         return get_active_context(claude_session_id)
 
     @staticmethod
-    def engagement(claude_session_id: str = None) -> 'Optional[str]':
+    def engagement(claude_session_id: str = None) -> 'str | None':
         """Get the active engagement ID."""
         return get_active_engagement(claude_session_id)
 
     # --- Transaction Lifecycle ---
 
     @staticmethod
-    def transaction_id(claude_session_id: str = None) -> 'Optional[str]':
+    def transaction_id(claude_session_id: str = None) -> 'str | None':
         """Read just the active transaction ID."""
         return read_active_transaction(claude_session_id)
 
     @staticmethod
-    def transaction_read(claude_session_id: str = None) -> 'Optional[dict]':
+    def transaction_read(claude_session_id: str = None) -> 'dict | None':
         """Read the full active transaction state from filesystem."""
         return read_active_transaction_full(claude_session_id)
 
@@ -152,14 +152,14 @@ class InstanceResolver:
         clear_active_transaction(claude_session_id)
 
     @staticmethod
-    def transaction_increment(claude_session_id: str = None) -> 'Optional[dict]':
+    def transaction_increment(claude_session_id: str = None) -> 'dict | None':
         """Increment the tool call counter in the active transaction."""
         return increment_transaction_tool_count(claude_session_id)
 
     # --- Hook Counters (separate from transaction lifecycle) ---
 
     @staticmethod
-    def counters_read(claude_session_id: str = None) -> 'Optional[dict]':
+    def counters_read(claude_session_id: str = None) -> 'dict | None':
         """Read the hook counters file."""
         return read_hook_counters(claude_session_id)
 
@@ -176,12 +176,12 @@ class InstanceResolver:
     # --- TTY Session ---
 
     @staticmethod
-    def tty_key() -> 'Optional[str]':
+    def tty_key() -> 'str | None':
         """Get the TTY device key for this terminal."""
         return get_tty_key()
 
     @staticmethod
-    def tty_session(warn_if_stale: bool = True) -> 'Optional[dict]':
+    def tty_session(warn_if_stale: bool = True) -> 'dict | None':
         """Read the TTY session file for this terminal."""
         return get_tty_session(warn_if_stale=warn_if_stale)
 
@@ -201,12 +201,12 @@ class InstanceResolver:
     # --- Project Helpers ---
 
     @staticmethod
-    def project_id_from_db(project_path) -> 'Optional[str]':
+    def project_id_from_db(project_path) -> 'str | None':
         """Get project_id from a project's local sessions.db."""
         return _get_project_id_from_local_db(project_path)
 
     @staticmethod
-    def resolve_workspace_project(identifier: str) -> 'Optional[dict]':
+    def resolve_workspace_project(identifier: str) -> 'dict | None':
         """Resolve a project name/path/id via the workspace database."""
         return _resolve_via_workspace_db(identifier)
 
@@ -260,7 +260,7 @@ def is_headless() -> bool:
 # TTY-based Session Isolation (Multi-Instance Support)
 # =============================================================================
 
-def get_tty_key() -> Optional[str]:
+def get_tty_key() -> str | None:
     """Get a TTY-based key for session isolation. Returns None if no TTY.
 
     Walks up the process tree to find the controlling TTY. This handles
@@ -309,7 +309,7 @@ def get_tty_key() -> Optional[str]:
     return None  # No fallback - fail safely
 
 
-def get_tty_session(warn_if_stale: bool = True) -> Optional[dict[str, Any]]:
+def get_tty_session(warn_if_stale: bool = True) -> dict[str, Any] | None:
     """Read session mapping from TTY-keyed file.
 
     Returns dict with:
@@ -446,7 +446,7 @@ def write_tty_session(
         return False
 
 
-def get_claude_session_id() -> Optional[str]:
+def get_claude_session_id() -> str | None:
     """Get the Claude Code session ID for the current terminal.
 
     Convenience function that reads the TTY session file and returns
@@ -540,7 +540,7 @@ def validate_tty_session(session: dict[str, Any] = None) -> dict[str, Any]:
 # =============================================================================
 
 
-def resolve_session_id(session_id_or_alias: str, ai_id: Optional[str] = None) -> str:
+def resolve_session_id(session_id_or_alias: str, ai_id: str | None = None) -> str:
     """
     Resolve session ID from alias or return original UUID.
 
@@ -717,7 +717,7 @@ def _resolve_partial_uuid(partial_or_full_uuid: str) -> str:
         raise ValueError(f"Cannot resolve partial UUID - database unavailable: {e}")
 
 
-def get_latest_session_id(ai_id: Optional[str] = None, active_only: bool = False) -> str:
+def get_latest_session_id(ai_id: str | None = None, active_only: bool = False) -> str:
     """
     Get the most recent session ID.
 
@@ -780,7 +780,7 @@ def is_session_alias(session_id_or_alias: str) -> bool:
     return session_id_or_alias.startswith("latest") or session_id_or_alias in ("last", "auto")
 
 
-def get_instance_id() -> Optional[str]:
+def get_instance_id() -> str | None:
     """
     Get a unique instance identifier for multi-instance isolation.
 
@@ -875,7 +875,7 @@ def _get_instance_suffix() -> str:
 
 
 
-def get_active_project_path(claude_session_id: str = None) -> 'Optional[str]':
+def get_active_project_path(claude_session_id: str = None) -> 'str | None':
     """Get the active project path for the current instance.
 
     CANONICAL function for project resolution. All components should use this
@@ -1038,7 +1038,7 @@ def write_active_transaction(
         raise
 
 
-def increment_transaction_tool_count(claude_session_id: str = None) -> Optional[dict]:
+def increment_transaction_tool_count(claude_session_id: str = None) -> dict | None:
     """Atomically increment tool_call_count in the active transaction file.
 
     Called by Sentinel on every PreToolUse (both noetic and praxic) to track
@@ -1091,7 +1091,7 @@ def increment_transaction_tool_count(claude_session_id: str = None) -> Optional[
 
 
 def _find_transaction_file(empirica_dir: 'Path', suffix: str,
-                           session_id: str = None) -> 'Optional[Path]':
+                           session_id: str = None) -> 'Path | None':
     """Find the active transaction file, with suffix-mismatch fallback.
 
     Primary: Look for the exact file matching the current instance suffix.
@@ -1145,7 +1145,7 @@ def _find_transaction_file(empirica_dir: 'Path', suffix: str,
     return None
 
 
-def read_active_transaction_full(claude_session_id: str = None) -> Optional[dict]:
+def read_active_transaction_full(claude_session_id: str = None) -> dict | None:
     """Read the full active transaction data from the tracking file.
 
     Returns the complete transaction dict including:
@@ -1197,7 +1197,7 @@ def read_active_transaction_full(claude_session_id: str = None) -> Optional[dict
     return None
 
 
-def read_active_transaction(claude_session_id: str = None) -> Optional[str]:
+def read_active_transaction(claude_session_id: str = None) -> str | None:
     """Read the active transaction ID from the tracking file. Returns None if no active transaction.
 
     For full transaction data including session_id, use read_active_transaction_full().
@@ -1258,7 +1258,7 @@ def set_active_engagement(engagement_id: str, claude_session_id: str = None) -> 
         return False
 
 
-def get_active_engagement(claude_session_id: str = None) -> Optional[str]:
+def get_active_engagement(claude_session_id: str = None) -> str | None:
     """Read active_engagement from the current transaction file.
 
     Returns engagement ID or None if no engagement is focused.
@@ -1335,7 +1335,7 @@ def _validate_session_in_db(session_id: str, project_path: str = None) -> bool:
         return True  # Fail open — don't block if DB is unavailable
 
 
-def _find_session_for_project(project_path: str) -> Optional[str]:
+def _find_session_for_project(project_path: str) -> str | None:
     """Find the latest valid session_id for a project path.
 
     Fallback when the resolved session_id is stale (not in sessions table).
@@ -1417,7 +1417,7 @@ def _find_session_for_project(project_path: str) -> Optional[str]:
         return None
 
 
-def get_active_empirica_session_id(claude_session_id: str = None) -> Optional[str]:
+def get_active_empirica_session_id(claude_session_id: str = None) -> str | None:
     """Get the active Empirica session ID for CLI commands.
 
     CANONICAL function for session_id resolution. CLI commands should use this
@@ -1592,7 +1592,7 @@ def _hook_counters_path(project_path: str = None, suffix: str = None) -> 'Path':
     return Path.home() / '.empirica' / f'hook_counters{suffix}.json'
 
 
-def read_hook_counters(claude_session_id: str = None) -> Optional[dict]:
+def read_hook_counters(claude_session_id: str = None) -> dict | None:
     """Read the hook counters file. Returns None if it doesn't exist."""
     project_path = get_active_project_path(claude_session_id)
     path = _hook_counters_path(project_path)
@@ -2039,7 +2039,7 @@ def _is_uuid_format(value: str) -> bool:
     return bool(re.match(uuid_pattern, value.lower()))
 
 
-def resolve_project_identifier(identifier: str) -> Optional[dict]:
+def resolve_project_identifier(identifier: str) -> dict | None:
     """Resolve project identifier to canonical project info.
 
     CANONICAL function for project resolution. All CLI commands that accept
@@ -2115,7 +2115,7 @@ def resolve_project_identifier(identifier: str) -> Optional[dict]:
     return None
 
 
-def _get_project_id_from_local_db(project_path: 'Path') -> Optional[str]:
+def _get_project_id_from_local_db(project_path: 'Path') -> str | None:
     """Extract project_id from a project's local config or sessions.db.
 
     Priority: project.yaml (authoritative) > sessions.db (can be corrupted
@@ -2160,7 +2160,7 @@ def _get_project_id_from_local_db(project_path: 'Path') -> Optional[str]:
     return None
 
 
-def _resolve_via_workspace_db(identifier: str) -> Optional[dict]:
+def _resolve_via_workspace_db(identifier: str) -> dict | None:
     """Resolve project via workspace.db (global registry).
 
     Workspace.db stores all registered projects with:
@@ -2224,7 +2224,7 @@ def _resolve_via_workspace_db(identifier: str) -> Optional[dict]:
     return None
 
 
-def _resolve_via_local_empirica(identifier: str) -> Optional[dict]:
+def _resolve_via_local_empirica(identifier: str) -> dict | None:
     """Resolve project via local .empirica discovery.
 
     Fallback when workspace.db is not available or doesn't have the project.

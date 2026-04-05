@@ -62,8 +62,8 @@ class GroundedBelief:
     evidence_count: int
     last_observation: float
     last_observation_source: str
-    self_referential_mean: Optional[float]
-    divergence: Optional[float]
+    self_referential_mean: float | None
+    divergence: float | None
     last_updated: float
 
 
@@ -308,8 +308,8 @@ class GroundedCalibrationManager:
         session_id: str,
         assessment: GroundedAssessment,
         bundle: EvidenceBundle,
-        domain: Optional[str] = None,
-        goal_id: Optional[str] = None,
+        domain: str | None = None,
+        goal_id: str | None = None,
         phase: str = "combined",
     ) -> str:
         """Store a complete grounded verification record."""
@@ -421,11 +421,11 @@ class GroundedCalibrationManager:
     def export_grounded_calibration(
         self,
         ai_id: str,
-        git_root: Optional[str] = None,
-        phase_weights: Optional[dict] = None,
-        holistic_calibration_score: Optional[float] = None,
-        holistic_gaps: Optional[dict] = None,
-        insights: Optional[list] = None,
+        git_root: str | None = None,
+        phase_weights: dict | None = None,
+        holistic_calibration_score: float | None = None,
+        holistic_gaps: dict | None = None,
+        insights: list | None = None,
     ) -> bool:
         """
         Export grounded calibration to .breadcrumbs.yaml as a new section.
@@ -596,17 +596,17 @@ def _run_single_phase_verification(
     vectors: dict[str, float],
     db,
     phase: str,
-    project_id: Optional[str] = None,
-    domain: Optional[str] = None,
-    goal_id: Optional[str] = None,
-    check_timestamp: Optional[float] = None,
-    evidence_profile: Optional[str] = None,
-    work_context: Optional[str] = None,
-    work_type: Optional[str] = None,
-    preflight_timestamp: Optional[float] = None,
-    per_vector_weights: Optional[dict[str, float]] = None,
-    transaction_id: Optional[str] = None,
-) -> Optional[dict]:
+    project_id: str | None = None,
+    domain: str | None = None,
+    goal_id: str | None = None,
+    check_timestamp: float | None = None,
+    evidence_profile: str | None = None,
+    work_context: str | None = None,
+    work_type: str | None = None,
+    preflight_timestamp: float | None = None,
+    per_vector_weights: dict[str, float] | None = None,
+    transaction_id: str | None = None,
+) -> dict | None:
     """Run grounded verification for a single phase (noetic, praxic, or combined)."""
     collector = PostTestCollector(
         session_id=session_id,
@@ -669,8 +669,8 @@ def _run_single_phase_verification(
 
 
 def _compute_phase_weights(
-    phase_tool_counts: Optional[dict[str, int]],
-    phase_boundary: Optional[dict],
+    phase_tool_counts: dict[str, int] | None,
+    phase_boundary: dict | None,
     results: dict,
 ) -> dict:
     """Compute noetic/praxic weights from tool classification counts.
@@ -712,17 +712,17 @@ def run_grounded_verification(
     session_id: str,
     postflight_vectors: dict[str, float],
     db,
-    project_id: Optional[str] = None,
-    domain: Optional[str] = None,
-    goal_id: Optional[str] = None,
-    phase_boundary: Optional[dict] = None,
-    evidence_profile: Optional[str] = None,
-    phase_tool_counts: Optional[dict[str, int]] = None,
-    work_context: Optional[str] = None,
-    work_type: Optional[str] = None,
-    per_vector_weights: Optional[dict[str, dict[str, float]]] = None,
-    transaction_id: Optional[str] = None,
-) -> Optional[dict]:
+    project_id: str | None = None,
+    domain: str | None = None,
+    goal_id: str | None = None,
+    phase_boundary: dict | None = None,
+    evidence_profile: str | None = None,
+    phase_tool_counts: dict[str, int] | None = None,
+    work_context: str | None = None,
+    work_type: str | None = None,
+    per_vector_weights: dict[str, dict[str, float]] | None = None,
+    transaction_id: str | None = None,
+) -> dict | None:
     """
     Full grounded verification pipeline.
 

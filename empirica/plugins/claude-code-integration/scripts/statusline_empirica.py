@@ -54,7 +54,7 @@ def get_ai_id() -> str:
     return os.getenv('EMPIRICA_AI_ID', 'claude-code').strip()
 
 
-def get_open_counts(db: SessionDatabase, session_id: str, project_id: Optional[str] = None) -> dict:
+def get_open_counts(db: SessionDatabase, session_id: str, project_id: str | None = None) -> dict:
     """
     Get counts of open goals and unknowns for a specific project.
 
@@ -142,7 +142,7 @@ def get_open_counts(db: SessionDatabase, session_id: str, project_id: Optional[s
     }
 
 
-def get_active_goal(db: SessionDatabase, session_id: str) -> Optional[dict]:
+def get_active_goal(db: SessionDatabase, session_id: str) -> dict | None:
     """
     Get the active goal for a session (legacy, kept for 'full' mode).
 
@@ -235,7 +235,7 @@ def format_progress_bar(completion: float, width: int = 8) -> str:
     return f"{color}{bar}{Colors.RESET} {pct}%"
 
 
-def format_open_counts(open_counts: Optional[dict]) -> str:
+def format_open_counts(open_counts: dict | None) -> str:
     """
     Format open goals and unknowns as actionable counts.
 
@@ -533,7 +533,7 @@ def _read_statusline_extensions_data() -> list:
     return results
 
 
-def _resolve_claude_session_id(stdin_claude_session_id: Optional[str] = None):
+def _resolve_claude_session_id(stdin_claude_session_id: str | None = None):
     """
     Resolve the Claude session ID from available sources.
 
@@ -557,7 +557,7 @@ def _resolve_claude_session_id(stdin_claude_session_id: Optional[str] = None):
     return None
 
 
-def _resolve_project_path(stdin_claude_session_id=None) -> Optional[str]:
+def _resolve_project_path(stdin_claude_session_id=None) -> str | None:
     """Resolve project path via 6-tier priority chain. Returns path or None."""
     # Priority 0: instance_projects
     try:
@@ -620,7 +620,7 @@ def _resolve_project_path(stdin_claude_session_id=None) -> Optional[str]:
     return None
 
 
-def _read_session_file(path: Path) -> Optional[str]:
+def _read_session_file(path: Path) -> str | None:
     """Read session_id from a file (JSON or plain text format)."""
     try:
         content = path.read_text().strip()
@@ -634,7 +634,7 @@ def _read_session_file(path: Path) -> Optional[str]:
         return None
 
 
-def _lookup_session_by_id(cursor, session_id: str, require_active: bool = True) -> Optional[dict]:
+def _lookup_session_by_id(cursor, session_id: str, require_active: bool = True) -> dict | None:
     """Query sessions table by ID. Returns dict or None."""
     if not session_id:
         return None
@@ -652,7 +652,7 @@ def _lookup_session_by_id(cursor, session_id: str, require_active: bool = True) 
     return dict(row) if row else None
 
 
-def _search_session_files(cursor, start_dir: Path, filename: str) -> Optional[dict]:
+def _search_session_files(cursor, start_dir: Path, filename: str) -> dict | None:
     """Search upward from start_dir for a session file, query DB if found."""
     for parent in [start_dir] + list(start_dir.parents):
         candidate = parent / '.empirica' / filename
@@ -667,7 +667,7 @@ def _search_session_files(cursor, start_dir: Path, filename: str) -> Optional[di
     return None
 
 
-def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id: Optional[str] = None) -> Optional[dict]:
+def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id: str | None = None) -> dict | None:
     """
     Get the active session with strict pane isolation.
 
@@ -774,7 +774,7 @@ def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id:
     return None
 
 
-def get_latest_vectors(db: SessionDatabase, session_id: str, transaction_session_id: Optional[str] = None, transaction_id: Optional[str] = None) -> tuple:
+def get_latest_vectors(db: SessionDatabase, session_id: str, transaction_session_id: str | None = None, transaction_id: str | None = None) -> tuple:
     """
     Get latest vectors, phase, and gate decision from reflexes table.
 
@@ -975,14 +975,14 @@ def format_statusline(
     session: dict,
     phase: str,
     vectors: dict,
-    deltas: Optional[dict] = None,
+    deltas: dict | None = None,
     mode: str = 'default',
-    gate_decision: Optional[str] = None,
-    goal: Optional[dict] = None,
-    open_counts: Optional[dict] = None,
-    project_name: Optional[str] = None,
-    threshold_info: Optional[tuple] = None,
-    stdin_context: Optional[dict] = None,
+    gate_decision: str | None = None,
+    goal: dict | None = None,
+    open_counts: dict | None = None,
+    project_name: str | None = None,
+    threshold_info: tuple | None = None,
+    stdin_context: dict | None = None,
 ) -> str:
     """Format the statusline based on mode."""
 
@@ -1109,13 +1109,13 @@ def build_statusline_data(
     session: dict,
     phase: str,
     vectors: dict,
-    deltas: Optional[dict] = None,
-    gate_decision: Optional[str] = None,
-    goal: Optional[dict] = None,
-    open_counts: Optional[dict] = None,
-    project_name: Optional[str] = None,
-    project_path: Optional[str] = None,
-    ai_id: Optional[str] = None,
+    deltas: dict | None = None,
+    gate_decision: str | None = None,
+    goal: dict | None = None,
+    open_counts: dict | None = None,
+    project_name: str | None = None,
+    project_path: str | None = None,
+    ai_id: str | None = None,
 ) -> dict:
     """
     Build structured statusline data for JSON output.

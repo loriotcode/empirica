@@ -66,12 +66,12 @@ class DatabaseAdapter(ABC):
             raise ValueError(f"Unsupported database type: {db_type}")
 
     @abstractmethod
-    def execute(self, query: str, params: Optional[tuple] = None) -> "DatabaseAdapter":
+    def execute(self, query: str, params: tuple | None = None) -> "DatabaseAdapter":
         """Execute a query with optional parameters"""
         pass
 
     @abstractmethod
-    def fetchone(self) -> Optional[dict[str, Any]]:
+    def fetchone(self) -> dict[str, Any] | None:
         """Fetch one row as dictionary"""
         pass
 
@@ -148,7 +148,7 @@ class DatabaseAdapter(ABC):
 class SQLiteAdapter(DatabaseAdapter):
     """SQLite implementation of database adapter"""
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         """
         Initialize SQLite adapter
 
@@ -203,7 +203,7 @@ class SQLiteAdapter(DatabaseAdapter):
         """
         self._conn.execute("BEGIN IMMEDIATE")
 
-    def execute(self, query: str, params: Optional[tuple] = None) -> "SQLiteAdapter":
+    def execute(self, query: str, params: tuple | None = None) -> "SQLiteAdapter":
         """Execute a query with optional parameters"""
         self._cursor = self._conn.cursor()
         if params:
@@ -212,7 +212,7 @@ class SQLiteAdapter(DatabaseAdapter):
             self._cursor.execute(query)
         return self
 
-    def execute_with_retry(self, query: str, params: Optional[tuple] = None) -> "SQLiteAdapter":
+    def execute_with_retry(self, query: str, params: tuple | None = None) -> "SQLiteAdapter":
         """Execute a query with exponential backoff retry for transient errors.
 
         Uses RetryPolicy for OperationalError (database locked) and similar
@@ -226,7 +226,7 @@ class SQLiteAdapter(DatabaseAdapter):
         retry = RetryPolicy(max_retries=3, base_delay=0.1, max_delay=5.0)
         return retry.execute_with_retry(self.execute, query, params)
 
-    def fetchone(self) -> Optional[dict[str, Any]]:
+    def fetchone(self) -> dict[str, Any] | None:
         """Fetch one row as dictionary"""
         if self._cursor is None:
             return None
@@ -310,7 +310,7 @@ class PostgreSQLAdapter(DatabaseAdapter):
     def dialect(self) -> str:
         return "postgresql"
 
-    def execute(self, query: str, params: Optional[tuple] = None) -> "PostgreSQLAdapter":
+    def execute(self, query: str, params: tuple | None = None) -> "PostgreSQLAdapter":
         """
         Execute a query with optional parameters
 
@@ -328,7 +328,7 @@ class PostgreSQLAdapter(DatabaseAdapter):
             self._cursor.execute(pg_query)
         return self
 
-    def fetchone(self) -> Optional[dict[str, Any]]:
+    def fetchone(self) -> dict[str, Any] | None:
         """Fetch one row as dictionary"""
         if self._cursor is None:
             return None

@@ -127,7 +127,7 @@ class GateStatus:
     know: float = 0.0
     uncertainty: float = 1.0
     gate_passed: bool = False
-    transaction_id: Optional[str] = None
+    transaction_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -287,7 +287,7 @@ class SystemDashboard(EpistemicObserver):
     def __init__(
         self,
         session_id: str,
-        node_id: Optional[str] = None,
+        node_id: str | None = None,
         auto_subscribe: bool = True,
     ):
         self.session_id = session_id
@@ -328,8 +328,8 @@ class SystemDashboard(EpistemicObserver):
     @classmethod
     def get_instance(
         cls,
-        session_id: Optional[str] = None,
-        node_id: Optional[str] = None,
+        session_id: str | None = None,
+        node_id: str | None = None,
     ) -> 'SystemDashboard':
         if cls._instance is None:
             if session_id is None:
@@ -571,12 +571,12 @@ class SystemDashboard(EpistemicObserver):
 
 # --- Module-level accessors ---
 
-_global_dashboard: Optional[SystemDashboard] = None
+_global_dashboard: SystemDashboard | None = None
 
 
 def get_dashboard(
-    session_id: Optional[str] = None,
-    node_id: Optional[str] = None,
+    session_id: str | None = None,
+    node_id: str | None = None,
 ) -> SystemDashboard:
     """Get or create the global SystemDashboard instance."""
     global _global_dashboard

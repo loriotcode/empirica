@@ -37,9 +37,9 @@ class CoherenceValidator:
         self,
         preflight_vectors: dict[str, float],
         postflight_vectors: dict[str, float],
-        preflight_plan: Optional[dict[str, any]] = None,
-        findings: Optional[list[dict]] = None,
-        unknowns: Optional[list[dict]] = None
+        preflight_plan: dict[str, any] | None = None,
+        findings: list[dict] | None = None,
+        unknowns: list[dict] | None = None
     ) -> dict[str, any]:
         """
         Validate: can I hand off, or do I need to investigate more?
@@ -104,7 +104,7 @@ class CoherenceValidator:
             "message": self._format_message(coherent, recommendation, concerns)
         }
 
-    def _check_scope_match(self, preflight_plan: Optional[dict]) -> dict[str, any]:
+    def _check_scope_match(self, preflight_plan: dict | None) -> dict[str, any]:
         """
         Check: Did I do what I planned?
 

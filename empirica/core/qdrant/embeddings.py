@@ -28,7 +28,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # Cache for Ollama availability check
-_ollama_available: Optional[bool] = None
+_ollama_available: bool | None = None
 
 try:
     from openai import OpenAI  # type: ignore
@@ -182,8 +182,8 @@ class EmbeddingsProvider:
     Configuration priority: env vars > ~/.empirica/embeddings.conf > code defaults.
     """
     # Type declarations for conditional attributes
-    _jina_api_key: Optional[str] = None
-    _voyage_api_key: Optional[str] = None
+    _jina_api_key: str | None = None
+    _voyage_api_key: str | None = None
 
     def __init__(self) -> None:
         """Initialize embeddings provider based on environment configuration.
@@ -218,7 +218,7 @@ class EmbeddingsProvider:
             file_conf.get("model", DEFAULT_MODELS.get(self.provider, "qwen3-embedding"))
         )
         self._client = None
-        self._vector_size: Optional[int] = None
+        self._vector_size: int | None = None
 
         if self.provider == "openai":
             if OpenAI is None:
@@ -350,14 +350,14 @@ class EmbeddingsProvider:
                 logger.warning(f"Ollama embedding failed: {e} - falling back to local hash")
                 return self._embed_local_hash(text)
 
-    def batch_embed(self, texts: list[str], max_chars: int = 1200) -> list[Optional[list[float]]]:
+    def batch_embed(self, texts: list[str], max_chars: int = 1200) -> list[list[float] | None]:
         """Batch embed multiple texts. Returns list of vectors (None for failures)."""
         if self.provider == "ollama":
             return self._batch_embed_ollama(texts, max_chars)
         # Fallback: sequential for non-Ollama providers
         return [self.embed(t) for t in texts]
 
-    def _batch_embed_ollama(self, texts: list[str], max_chars: int = 1200) -> list[Optional[list[float]]]:
+    def _batch_embed_ollama(self, texts: list[str], max_chars: int = 1200) -> list[list[float] | None]:
         """Batch embed using Ollama /api/embed endpoint (accepts input list)."""
         import requests
 

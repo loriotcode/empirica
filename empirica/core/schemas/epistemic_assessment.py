@@ -73,7 +73,7 @@ class VectorAssessment:
     """
     score: float
     rationale: str
-    evidence: Optional[str] = None
+    evidence: str | None = None
     warrants_investigation: bool = False
     investigation_priority: int = 0
 
@@ -296,7 +296,7 @@ class EpistemicAssessmentSchema:
             investigation_count=self.investigation_count
         )
 
-    def calculate_tier_confidences(self, weights: Optional[dict[str, float]] = None) -> dict[str, float]:
+    def calculate_tier_confidences(self, weights: dict[str, float] | None = None) -> dict[str, float]:
         """
         Calculate tier-level confidence scores
 
@@ -350,7 +350,7 @@ class EpistemicAssessmentSchema:
             "overall_confidence": overall_confidence
         }
 
-    def determine_action(self, thresholds: Optional[dict[str, float]] = None) -> str:
+    def determine_action(self, thresholds: dict[str, float] | None = None) -> str:
         """
         Determine recommended action based on assessment
 

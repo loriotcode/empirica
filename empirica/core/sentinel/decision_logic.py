@@ -204,9 +204,9 @@ class DecisionLogic:
         self,
         task: str,
         max_personas: int = 3,
-        required_domains: Optional[list[str]] = None,
-        excluded_personas: Optional[list[str]] = None,
-        epistemic_requirements: Optional[dict[str, float]] = None
+        required_domains: list[str] | None = None,
+        excluded_personas: list[str] | None = None,
+        epistemic_requirements: dict[str, float] | None = None
     ) -> list[PersonaMatch]:
         """
         Select best personas for a task.
@@ -365,7 +365,7 @@ class DecisionLogic:
     def _meets_epistemic_requirements(
         self,
         persona: dict[str, Any],
-        requirements: Optional[dict[str, float]]
+        requirements: dict[str, float] | None
     ) -> bool:
         """Check if persona meets epistemic requirements"""
         if not requirements:

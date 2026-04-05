@@ -66,7 +66,7 @@ class FindingsDeprecationEngine:
         return max(0.0, min(1.0, decay))
 
     @staticmethod
-    def calculate_completion_factor(goal_completion: Optional[float]) -> float:
+    def calculate_completion_factor(goal_completion: float | None) -> float:
         """
         Calculate completion penalty factor.
         
@@ -90,9 +90,9 @@ class FindingsDeprecationEngine:
     @staticmethod
     def calculate_relevance_score(
         finding: dict,
-        current_task: Optional[str] = None,
+        current_task: str | None = None,
         execution_state_delta: float = 0.0,
-        goal_completion: Optional[float] = None
+        goal_completion: float | None = None
     ) -> float:
         """
         Calculate 0.0-1.0 relevance score for a finding.
@@ -150,7 +150,7 @@ class FindingsDeprecationEngine:
     def filter_by_depth(
         findings: list[dict],
         depth: str = "auto",
-        relevance_scores: Optional[list[float]] = None,
+        relevance_scores: list[float] | None = None,
         uncertainty: float = 0.5
     ) -> list[dict]:
         """
@@ -213,7 +213,7 @@ class FindingsDeprecationEngine:
     @staticmethod
     def get_findings_summary(
         findings: list[dict],
-        relevance_scores: Optional[list[float]] = None
+        relevance_scores: list[float] | None = None
     ) -> dict:
         """
         Generate summary statistics about findings relevance distribution.

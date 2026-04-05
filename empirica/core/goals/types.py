@@ -64,7 +64,7 @@ class SuccessCriterion:
     id: str
     description: str
     validation_method: str               # "completion", "quality_gate", "metric_threshold"
-    threshold: Optional[float] = None    # For metric-based criteria
+    threshold: float | None = None    # For metric-based criteria
     is_required: bool = True             # vs. optional/nice-to-have
     is_met: bool = False                 # Completion status
 
@@ -93,9 +93,9 @@ class Goal:
     dependencies: list[Dependency] = field(default_factory=list)
     constraints: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
-    estimated_complexity: Optional[float] = None
+    estimated_complexity: float | None = None
     created_timestamp: float = field(default_factory=time.time)
-    completed_timestamp: Optional[float] = None
+    completed_timestamp: float | None = None
     is_completed: bool = False
 
     @staticmethod

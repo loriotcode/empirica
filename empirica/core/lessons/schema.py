@@ -92,12 +92,12 @@ class LessonStep:
     order: int
     phase: LessonPhase
     action: str                          # Human-readable description
-    target: Optional[str] = None         # UI element, file, command target
-    code: Optional[str] = None           # Executable code (JS, bash, etc.)
+    target: str | None = None         # UI element, file, command target
+    code: str | None = None           # Executable code (JS, bash, etc.)
     critical: bool = False               # If True, must succeed
-    expected_outcome: Optional[str] = None
-    error_recovery: Optional[str] = None # What to do if step fails
-    timeout_ms: Optional[int] = None     # Max time for this step
+    expected_outcome: str | None = None
+    error_recovery: str | None = None # What to do if step fails
+    timeout_ms: int | None = None     # Max time for this step
 
     def to_dict(self) -> dict:
         """Convert step to dictionary representation."""
@@ -169,7 +169,7 @@ class Correction:
     corrected_action: str
     reason: str
     corrector_type: Literal['human', 'ai']
-    corrector_id: Optional[str] = None
+    corrector_id: str | None = None
     timestamp: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict:
@@ -226,7 +226,7 @@ class LessonValidation:
     avg_completion_time_ms: int = 0      # Average time to complete
     test_cases: list[str] = field(default_factory=list)
     success_criteria: str = ""
-    last_validated: Optional[float] = None
+    last_validated: float | None = None
 
     def to_dict(self) -> dict:
         """Convert validation to dictionary representation."""
@@ -313,13 +313,13 @@ class Lesson:
     suggested_price: float = 0.0
 
     # Metadata
-    created_by: Optional[str] = None     # AI or human ID
+    created_by: str | None = None     # AI or human ID
     created_timestamp: float = field(default_factory=time.time)
     updated_timestamp: float = field(default_factory=time.time)
 
     # Tags for search
     tags: list[str] = field(default_factory=list)
-    domain: Optional[str] = None         # e.g., 'browser-automation', 'git', 'api'
+    domain: str | None = None         # e.g., 'browser-automation', 'git', 'api'
 
     @staticmethod
     def generate_id(name: str, version: str) -> str:
@@ -414,7 +414,7 @@ class KnowledgeGraphNode:
     id: str
     node_type: Literal['lesson', 'skill', 'domain', 'tool', 'agent']
     name: str
-    epistemic_delta: Optional[EpistemicDelta] = None
+    epistemic_delta: EpistemicDelta | None = None
 
     def to_dict(self) -> dict:
         """Convert knowledge graph node to dictionary representation."""

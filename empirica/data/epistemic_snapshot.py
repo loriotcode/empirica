@@ -97,8 +97,8 @@ class EpistemicStateSnapshot:
     timestamp: str
 
     # Cascade context
-    cascade_phase: Optional[str] = None  # preflight, think, plan, investigate, check, act, postflight
-    cascade_id: Optional[str] = None
+    cascade_phase: str | None = None  # preflight, think, plan, investigate, check, act, postflight
+    cascade_id: str | None = None
 
     # 13 core universal vectors (work across ALL AIs)
     # Foundation: KNOW, DO, CONTEXT
@@ -109,18 +109,18 @@ class EpistemicStateSnapshot:
     vectors: dict[str, float] = field(default_factory=dict)
 
     # Delta from previous state (what changed)
-    delta: Optional[dict[str, float]] = None
-    previous_snapshot_id: Optional[str] = None
+    delta: dict[str, float] | None = None
+    previous_snapshot_id: str | None = None
 
     # Hybrid context summary (semantic + narrative)
-    context_summary: Optional[ContextSummary] = None
+    context_summary: ContextSummary | None = None
 
     # DB reference for full conversation history (if needed)
     db_session_ref: str = ""
 
     # Domain-specific vector extensions (EXTENSIBLE!)
     # Example: {"code_analysis": {"COMPLEXITY": 0.7, "SECURITY_RISK": 0.3}}
-    domain_vectors: Optional[dict[str, dict[str, float]]] = None
+    domain_vectors: dict[str, dict[str, float]] | None = None
 
     # Compression metadata
     original_context_tokens: int = 0
@@ -384,7 +384,7 @@ Use this to maintain context continuity without full conversation history.
 
         return False
 
-    def get_refresh_reason(self) -> Optional[str]:
+    def get_refresh_reason(self) -> str | None:
         """Get reason why refresh is recommended (if applicable)"""
         reliability = self.estimate_memory_reliability()
 
@@ -407,9 +407,9 @@ Use this to maintain context continuity without full conversation history.
 def create_snapshot(session_id: str,
                    ai_id: str,
                    vectors: dict[str, float],
-                   context_summary: Optional[ContextSummary] = None,
-                   cascade_phase: Optional[str] = None,
-                   domain_vectors: Optional[dict[str, dict[str, float]]] = None) -> EpistemicStateSnapshot:
+                   context_summary: ContextSummary | None = None,
+                   cascade_phase: str | None = None,
+                   domain_vectors: dict[str, dict[str, float]] | None = None) -> EpistemicStateSnapshot:
     """
     Convenience function to create a new epistemic snapshot
 

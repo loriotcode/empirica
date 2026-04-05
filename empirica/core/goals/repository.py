@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class GoalRepository:
     """Database operations for Goal persistence"""
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         """
         Initialize repository
         
@@ -83,7 +83,7 @@ class GoalRepository:
             logger.error(f"Error creating goal tables: {e}")
             raise
 
-    def save_goal(self, goal: Goal, session_id: Optional[str] = None, transaction_id: Optional[str] = None) -> bool:
+    def save_goal(self, goal: Goal, session_id: str | None = None, transaction_id: str | None = None) -> bool:
         """
         Save goal to database
 
@@ -170,7 +170,7 @@ class GoalRepository:
             self.db.conn.rollback()
             return False
 
-    def get_goal(self, goal_id: str) -> Optional[Goal]:
+    def get_goal(self, goal_id: str) -> Goal | None:
         """
         Retrieve goal by ID (supports short ID prefix matching)
 
@@ -275,8 +275,8 @@ class GoalRepository:
     def query_goals_by_transaction(
         self,
         transaction_id: str,
-        is_completed: Optional[bool] = None,
-        project_id: Optional[str] = None
+        is_completed: bool | None = None,
+        project_id: str | None = None
     ) -> list[Goal]:
         """
         Query goals filtered by transaction with optional secondary filters.
@@ -363,9 +363,9 @@ class GoalRepository:
 
     def query_goals(
         self,
-        session_id: Optional[str] = None,
-        is_completed: Optional[bool] = None,
-        scope: Optional[ScopeVector] = None
+        session_id: str | None = None,
+        is_completed: bool | None = None,
+        scope: ScopeVector | None = None
     ) -> list[Goal]:
         """
         Query goals with filters
@@ -462,7 +462,7 @@ class GoalRepository:
             self.db.conn.rollback()
             return 0
 
-    def get_stale_goals(self, session_id: Optional[str] = None, project_id: Optional[str] = None) -> list[dict[str, Any]]:
+    def get_stale_goals(self, session_id: str | None = None, project_id: str | None = None) -> list[dict[str, Any]]:
         """Get stale goals for a session or project
 
         Args:

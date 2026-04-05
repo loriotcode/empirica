@@ -72,12 +72,12 @@ class Entity:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     entity_type: str = "function"       # EntityType.value
     name: str = ""
-    file_path: Optional[str] = None
-    signature: Optional[str] = None     # e.g. "def foo(bar: str) -> int"
+    file_path: str | None = None
+    signature: str | None = None     # e.g. "def foo(bar: str) -> int"
     first_seen: float = field(default_factory=time.time)
-    last_seen: Optional[float] = None   # None = still exists
-    project_id: Optional[str] = None
-    session_id: Optional[str] = None    # Session that discovered it
+    last_seen: float | None = None   # None = still exists
+    project_id: str | None = None
+    session_id: str | None = None    # Session that discovered it
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
@@ -125,14 +125,14 @@ class Fact:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     fact_text: str = ""
     valid_at: float = field(default_factory=time.time)
-    invalid_at: Optional[float] = None  # None = still true
+    invalid_at: float | None = None  # None = still true
     status: str = "canonical"           # FactStatus.value
     entity_ids: list[str] = field(default_factory=list)
     evidence_type: str = "source_code"  # EvidenceType.value
     evidence_path: str = ""             # file:lines or session_id
     confidence: float = 1.0
-    project_id: Optional[str] = None
-    session_id: Optional[str] = None
+    project_id: str | None = None
+    session_id: str | None = None
 
     def __post_init__(self):
         if not 0.0 <= self.confidence <= 1.0:
@@ -181,7 +181,7 @@ class Relationship:
     first_seen: float = field(default_factory=time.time)
     last_seen: float = field(default_factory=time.time)
     evidence_count: int = 1
-    project_id: Optional[str] = None
+    project_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -221,14 +221,14 @@ class Constraint:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     constraint_type: str = "convention"  # ConstraintType.value
     rule_name: str = ""
-    file_pattern: Optional[str] = None   # Glob: "src/**/*.py"
+    file_pattern: str | None = None   # Glob: "src/**/*.py"
     description: str = ""
     violation_count: int = 0
-    last_violated: Optional[float] = None
+    last_violated: float | None = None
     examples: list[dict[str, str]] = field(default_factory=list)  # [{incorrect, correct}]
     severity: str = "warning"            # error, warning, info
-    project_id: Optional[str] = None
-    session_id: Optional[str] = None
+    project_id: str | None = None
+    session_id: str | None = None
     created_at: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict[str, Any]:

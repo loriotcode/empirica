@@ -32,7 +32,7 @@ class CheckpointManager:
     - Tags with phase, round, ai_id for Sentinel routing
     """
 
-    def __init__(self, workspace_root: Optional[str] = None):
+    def __init__(self, workspace_root: str | None = None):
         """
         Initialize checkpoint manager
         
@@ -108,9 +108,9 @@ class CheckpointManager:
         phase: str,
         vectors: dict[str, float],
         round_num: int = 1,
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
         no_git_flag: bool = False
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Automatically create checkpoint if conditions met
         
@@ -213,10 +213,10 @@ class CheckpointManager:
 
     def load_checkpoint(
         self,
-        session_id: Optional[str] = None,
-        ai_id: Optional[str] = None,
-        commit_hash: Optional[str] = None
-    ) -> Optional[dict[str, Any]]:
+        session_id: str | None = None,
+        ai_id: str | None = None,
+        commit_hash: str | None = None
+    ) -> dict[str, Any] | None:
         """
         Load checkpoint from git notes
         
@@ -243,7 +243,7 @@ class CheckpointManager:
             logger.warning(f"Failed to load checkpoint: {e}")
             return None
 
-    def _load_checkpoint_by_hash(self, commit_hash: str) -> Optional[dict[str, Any]]:
+    def _load_checkpoint_by_hash(self, commit_hash: str) -> dict[str, Any] | None:
         """Load checkpoint from specific commit"""
         result = subprocess.run(
             ['git', 'notes', '--ref=empirica/checkpoints', 'show', commit_hash],
@@ -259,8 +259,8 @@ class CheckpointManager:
 
     def load_recent_checkpoints(
         self,
-        session_id: Optional[str] = None,
-        ai_id: Optional[str] = None,
+        session_id: str | None = None,
+        ai_id: str | None = None,
         count: int = 5
     ) -> list[dict[str, Any]]:
         """
@@ -317,9 +317,9 @@ class CheckpointManager:
 
     def _find_latest_checkpoint(
         self,
-        session_id: Optional[str] = None,
-        ai_id: Optional[str] = None
-    ) -> Optional[dict[str, Any]]:
+        session_id: str | None = None,
+        ai_id: str | None = None
+    ) -> dict[str, Any] | None:
         """Find latest checkpoint matching filters"""
         # Get all checkpoints
         result = subprocess.run(
@@ -357,9 +357,9 @@ def auto_checkpoint(
     phase: str,
     vectors: dict[str, float],
     round_num: int = 1,
-    metadata: Optional[dict[str, Any]] = None,
+    metadata: dict[str, Any] | None = None,
     no_git_flag: bool = False
-) -> Optional[str]:
+) -> str | None:
     """
     Convenience function for automatic checkpoint creation
     

@@ -36,7 +36,7 @@ class ScoredFinding:
     domain_relevance: float  # How relevant to investigation domain (0.0-1.0)
     finding_hash: str = ""  # SHA256 hash for dedup tracking
     accepted: bool = False
-    reject_reason: Optional[str] = None
+    reject_reason: str | None = None
 
     def __post_init__(self):
         if not self.finding_hash:
@@ -161,7 +161,7 @@ class EpistemicRollupGate:
     def deduplicate(
         self,
         findings: list[ScoredFinding],
-        project_id: Optional[str] = None,
+        project_id: str | None = None,
     ) -> list[ScoredFinding]:
         """
         Deduplicate findings using hash and optionally Qdrant semantic similarity.
@@ -296,7 +296,7 @@ class EpistemicRollupGate:
         existing_findings: list[str],
         budget_remaining: int,
         domain_relevance: float = 1.0,
-        project_id: Optional[str] = None,
+        project_id: str | None = None,
     ) -> RollupResult:
         """
         Full pipeline: score -> deduplicate -> gate.
@@ -339,7 +339,7 @@ class EpistemicRollupGate:
 
 def log_rollup_decision(
     session_id: str,
-    budget_id: Optional[str],
+    budget_id: str | None,
     result: RollupResult,
 ) -> int:
     """

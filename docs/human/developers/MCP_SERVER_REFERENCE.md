@@ -207,7 +207,7 @@ All tools include `--output json` automatically.
 
 ---
 
-## Removed in 1.7.8
+## Removed in 1.7.5 (MCP server rewrite)
 
 The following were removed in the MCP server rewrite:
 

@@ -191,9 +191,9 @@ def compute_brier_decomposition(
 def compute_dynamic_thresholds(
     ai_id: str,
     db,
-    base_thresholds: Optional[dict] = None,
-    min_transactions: Optional[int] = None,
-    lookback: Optional[int] = None,
+    base_thresholds: dict | None = None,
+    min_transactions: int | None = None,
+    lookback: int | None = None,
 ) -> dict:
     """Compute phase-aware dynamic thresholds using Brier score reliability.
 
@@ -399,7 +399,7 @@ def get_brier_profile(
 def export_brier_to_breadcrumbs(
     ai_id: str,
     db,
-    git_root: Optional[str] = None,
+    git_root: str | None = None,
 ) -> bool:
     """Export Brier score profile to .breadcrumbs.yaml as a 'brier_calibration:' section.
 
