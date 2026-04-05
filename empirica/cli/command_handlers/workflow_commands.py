@@ -2608,6 +2608,20 @@ def handle_postflight_submit_command(args):
                 "sentinel": sentinel_decision.value if sentinel_decision else None,
             }
 
+            # MEMORY HOT-CACHE: Update CC MEMORY.md with ranked artifacts
+            # This runs at every POSTFLIGHT, not just session-end
+            try:
+                from empirica.core.memory_manager import update_hot_cache
+                _mem_updated = update_hot_cache(
+                    session_id,
+                    project_path=resolved_project_path,
+                    db_path=str(Path(resolved_project_path) / '.empirica' / 'sessions' / 'sessions.db') if resolved_project_path else None,
+                )
+                if _mem_updated:
+                    logger.debug("Updated MEMORY.md hot cache at POSTFLIGHT")
+            except Exception as e:
+                logger.debug(f"MEMORY.md hot cache update skipped: {e}")
+
             # RETROSPECTIVE: Artifact breadth and commit discipline feedback
             import subprocess
             try:
