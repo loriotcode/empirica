@@ -50,15 +50,15 @@ MAX_OUTPUT = 30000
 # =============================================================================
 # Tool Registry — single source of truth for tool→CLI mapping
 # =============================================================================
-# Each entry: (cli_command, {param_name: cli_flag}, [required_params], description)
-# Params with None as flag are positional or handled specially.
+# Each entry: {cli, params, required, desc, stdin_json?}
+# Params verified against CLI --help on 2026-04-05
 
 TOOL_REGISTRY: dict[str, dict] = {
     # --- Session lifecycle ---
     "session_create": {
         "cli": "session-create",
-        "params": {"ai_id": "--ai-id", "session_type": "--session-type", "project_path": "--project-path"},
-        "required": ["ai_id"],
+        "params": {"ai_id": "--ai-id", "project_id": "--project-id", "subject": "--subject"},
+        "required": [],
         "desc": "Create new Empirica session",
     },
     "project_bootstrap": {
@@ -69,14 +69,14 @@ TOOL_REGISTRY: dict[str, dict] = {
     },
     "session_snapshot": {
         "cli": "session-snapshot",
-        "params": {"session_id": "--session-id"},
-        "required": ["session_id"],
+        "params": {},
+        "required": [],
         "desc": "Create snapshot of current session state",
     },
     "resume_previous_session": {
         "cli": "sessions-resume",
-        "params": {"session_id": "--session-id"},
-        "required": ["session_id"],
+        "params": {"ai_id": "--ai-id", "count": "--count", "detail_level": "--detail-level"},
+        "required": [],
         "desc": "Resume a previous session",
     },
 
@@ -86,7 +86,7 @@ TOOL_REGISTRY: dict[str, dict] = {
         "params": {},
         "required": ["session_id", "vectors"],
         "desc": "Submit PREFLIGHT self-assessment (13 vectors 0.0-1.0)",
-        "stdin_json": True,  # Sends full arguments as JSON to stdin
+        "stdin_json": True,
     },
     "submit_check_assessment": {
         "cli": "check-submit",
@@ -158,9 +158,9 @@ TOOL_REGISTRY: dict[str, dict] = {
     },
     "source_add": {
         "cli": "source-add",
-        "params": {"title": "--title", "source_url": "--source-url", "source_type": "--source-type",
-                   "session_id": "--session-id"},
-        "required": ["title", "source_url", "source_type"],
+        "params": {"title": "--title", "url": "--url", "source_type": "--source-type",
+                   "description": "--description", "session_id": "--session-id"},
+        "required": ["title", "source_type"],
         "desc": "Add an epistemic source reference",
     },
 
@@ -173,9 +173,10 @@ TOOL_REGISTRY: dict[str, dict] = {
     },
     "goals_list": {
         "cli": "goals-list",
-        "params": {"session_id": "--session-id", "status": "--status"},
+        "params": {"session_id": "--session-id", "project_id": "--project-id",
+                   "completed": "--completed"},
         "required": [],
-        "desc": "List goals (optionally filter by status)",
+        "desc": "List goals (use --completed to show completed goals)",
     },
     "goals_complete": {
         "cli": "goals-complete",
@@ -204,9 +205,11 @@ TOOL_REGISTRY: dict[str, dict] = {
     },
     "goals_search": {
         "cli": "goals-search",
-        "params": {"query": "--query", "status": "--status"},
-        "required": ["query"],
-        "desc": "Search goals by text",
+        "params": {"project_id": "--project-id", "status": "--status",
+                   "type": "--type", "limit": "--limit"},
+        "required": [],
+        "desc": "Search goals (positional query text required)",
+        "positional": "query",  # First positional arg
     },
     "goals_ready": {
         "cli": "goals-ready",
@@ -218,9 +221,11 @@ TOOL_REGISTRY: dict[str, dict] = {
     # --- Unknowns ---
     "unknown_list": {
         "cli": "unknown-list",
-        "params": {"session_id": "--session-id", "status": "--status"},
+        "params": {"session_id": "--session-id", "project_id": "--project-id",
+                   "subject": "--subject", "limit": "--limit",
+                   "resolved": "--resolved", "all": "--all"},
         "required": [],
-        "desc": "List unknowns",
+        "desc": "List unknowns (open by default, use --resolved or --all)",
     },
     "unknown_resolve": {
         "cli": "unknown-resolve",
@@ -247,9 +252,10 @@ TOOL_REGISTRY: dict[str, dict] = {
     # --- Calibration and state ---
     "calibration_report": {
         "cli": "calibration-report",
-        "params": {"session_id": "--session-id", "grounded": "--grounded"},
+        "params": {"ai_id": "--ai-id", "weeks": "--weeks",
+                   "trajectory": "--trajectory"},
         "required": [],
-        "desc": "Get calibration report (self-referential and/or grounded)",
+        "desc": "Get calibration report with optional trajectory trend",
     },
     "assess_state": {
         "cli": "assess-state",
@@ -267,10 +273,10 @@ TOOL_REGISTRY: dict[str, dict] = {
     # --- Lessons ---
     "lesson_create": {
         "cli": "lesson-create",
-        "params": {"name": "--name", "description": "--description", "domain": "--domain",
-                   "content": "--content", "session_id": "--session-id"},
-        "required": ["name", "description"],
-        "desc": "Create a reusable lesson from experience",
+        "params": {"name": "--name"},
+        "required": ["name"],
+        "desc": "Create a reusable lesson (use --input or --json for full data)",
+        "stdin_json": True,  # lesson-create accepts JSON via stdin with -
     },
     "lesson_list": {
         "cli": "lesson-list",
@@ -311,15 +317,18 @@ TOOL_REGISTRY: dict[str, dict] = {
     # --- Investigation ---
     "investigate": {
         "cli": "investigate",
-        "params": {"question": "--question", "session_id": "--session-id", "depth": "--depth"},
-        "required": ["question"],
-        "desc": "Run structured investigation on a question",
+        "params": {"session_id": "--session-id", "type": "--type", "context": "--context"},
+        "required": [],
+        "desc": "Run structured investigation (positional query text)",
+        "positional": "query",
     },
 
     # --- Handoff ---
     "handoff_create": {
         "cli": "handoff-create",
-        "params": {"session_id": "--session-id", "format": "--format"},
+        "params": {"session_id": "--session-id", "task_summary": "--task-summary",
+                   "key_findings": "--key-findings", "remaining_unknowns": "--remaining-unknowns",
+                   "next_session_context": "--next-session-context", "planning_only": "--planning-only"},
         "required": [],
         "desc": "Create handoff report for session continuation",
     },
@@ -341,37 +350,38 @@ TOOL_REGISTRY: dict[str, dict] = {
     # --- Monitor ---
     "monitor": {
         "cli": "monitor",
-        "params": {"session_id": "--session-id"},
+        "params": {"turtle": "--turtle", "cost": "--cost", "health": "--health"},
         "required": [],
-        "desc": "Show real-time session monitoring dashboard",
+        "desc": "Show session monitoring (epistemic health, cost, adapter health)",
     },
 
     # --- Checkpoint ---
     "checkpoint_create": {
         "cli": "checkpoint-create",
-        "params": {"session_id": "--session-id", "message": "--message"},
+        "params": {"session_id": "--session-id", "phase": "--phase", "metadata": "--metadata"},
         "required": [],
         "desc": "Create a git checkpoint with epistemic metadata",
     },
     "checkpoint_load": {
         "cli": "checkpoint-load",
-        "params": {"checkpoint_id": "--checkpoint-id"},
-        "required": ["checkpoint_id"],
+        "params": {"session_id": "--session-id", "max_age": "--max-age", "phase": "--phase"},
+        "required": [],
         "desc": "Load a checkpoint",
     },
 
     # --- Docs ---
     "refdoc_add": {
         "cli": "refdoc-add",
-        "params": {"title": "--title", "source_url": "--source-url", "doc_type": "--doc-type"},
-        "required": ["title"],
+        "params": {"doc_path": "--doc-path", "doc_type": "--doc-type",
+                   "description": "--description", "project_id": "--project-id"},
+        "required": [],
         "desc": "Register a reference document",
     },
 
     # --- Misc ---
     "memory_compact": {
         "cli": "memory-compact",
-        "params": {"session_id": "--session-id"},
+        "params": {},
         "required": [],
         "desc": "Compact session memory (deduplicate, prune stale)",
     },
@@ -387,22 +397,31 @@ TOOL_REGISTRY: dict[str, dict] = {
 # Tool schemas — auto-generated from registry
 # =============================================================================
 
-# Param type hints for schema generation
-_NUMERIC_PARAMS = {"impact", "confidence", "estimated_complexity", "limit"}
-_BOOLEAN_PARAMS = {"grounded"}
+_NUMERIC_PARAMS = {"impact", "confidence", "estimated_complexity", "limit", "weeks", "count", "max_age"}
+_BOOLEAN_PARAMS = {"grounded", "trajectory", "completed", "resolved", "all", "planning_only",
+                   "turtle", "cost", "health"}
 _ENUM_PARAMS = {
     "reversibility": ["exploratory", "committal", "forced"],
     "scope": ["session", "project", "both"],
     "entity_type": ["project", "organization", "contact", "engagement"],
     "source_type": ["doc", "spec", "paper", "blog", "video", "code", "api", "other"],
-    "status": ["in_progress", "completed", "stale", "abandoned"],
+    "status": ["in_progress", "completed", "stale", "abandoned", "new", "resolved"],
     "severity": ["low", "medium", "high", "critical"],
+    "type": ["auto", "file", "directory", "concept", "comprehensive", "goal", "subtask"],
+    "detail_level": ["summary", "detailed", "full"],
+    "phase": ["PREFLIGHT", "CHECK", "ACT", "POSTFLIGHT"],
 }
 
 
 def _build_tool_schema(name: str, entry: dict) -> types.Tool:
     """Build MCP Tool schema from registry entry."""
     properties = {}
+
+    # Add positional arg as a string property
+    if entry.get("positional"):
+        pos_name = entry["positional"]
+        properties[pos_name] = {"type": "string", "description": f"{pos_name} (positional argument)"}
+
     for param in entry["params"]:
         if param in _NUMERIC_PARAMS:
             properties[param] = {"type": "number", "description": param.replace("_", " ").title()}
@@ -414,7 +433,7 @@ def _build_tool_schema(name: str, entry: dict) -> types.Tool:
             properties[param] = {"type": "string"}
 
     # For stdin_json tools, add vectors and reasoning
-    if entry.get("stdin_json"):
+    if entry.get("stdin_json") and name.startswith("submit_"):
         properties["session_id"] = {"type": "string", "description": "Session UUID"}
         properties["vectors"] = {"type": "object", "description": "13 epistemic vectors (0.0-1.0)"}
         properties["reasoning"] = {"type": "string", "description": "Assessment reasoning"}
@@ -448,7 +467,6 @@ async def list_tools() -> list[types.Tool]:
     """List all available tools."""
     tools = [_build_tool_schema(name, entry) for name, entry in TOOL_REGISTRY.items()]
 
-    # Add the one stateless tool (no CLI needed)
     tools.append(types.Tool(
         name="get_empirica_introduction",
         description="Get introduction to the Empirica epistemic framework",
@@ -461,18 +479,16 @@ async def list_tools() -> list[types.Tool]:
 async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     """Route tool calls to CLI."""
 
-    # Stateless handler
     if name == "get_empirica_introduction":
         return [types.TextContent(type="text", text=json.dumps({
             "framework": "Empirica",
-            "purpose": "Epistemic self-assessment and calibration for AI agents",
+            "purpose": "Measurement and calibration layer for AI — track what it knows, gate what it does",
             "workflow": "PREFLIGHT → CHECK → work → POSTFLIGHT",
             "vectors": 13,
             "docs": "https://github.com/Nubaeon/empirica",
             "commands": sorted(TOOL_REGISTRY.keys()),
         }, indent=2))]
 
-    # Registry lookup
     entry = TOOL_REGISTRY.get(name)
     if not entry:
         return [types.TextContent(type="text", text=json.dumps({
@@ -492,10 +508,16 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     stdin_data = None
 
     if entry.get("stdin_json"):
-        # CASCADE commands: send full JSON via stdin
+        # CASCADE commands + lesson-create: send full JSON via stdin
         cmd.append("-")
         stdin_data = json.dumps(arguments).encode("utf-8")
     else:
+        # Positional argument (e.g., goals-search query, investigate query)
+        if entry.get("positional"):
+            pos_val = arguments.pop(entry["positional"], None)
+            if pos_val:
+                cmd.append(str(pos_val))
+
         # Standard commands: map params to CLI flags
         for param, flag in entry["params"].items():
             value = arguments.get(param)
@@ -574,7 +596,6 @@ def run():
             os.environ["EMPIRICA_WORKSPACE_ROOT"] = str(workspace)
             logger.info(f"Workspace: {workspace}")
     elif not os.environ.get("EMPIRICA_WORKSPACE_ROOT"):
-        # Auto-detect from git root
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "--show-toplevel"],
