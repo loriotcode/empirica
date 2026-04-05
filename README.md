@@ -266,14 +266,14 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ## What's New in 1.7.8
 
-- **Intelligence search kind** — New `kind='intelligence'` search mode with collection-type boost weights for cross-domain knowledge discovery. Filters `code_api` from eidetic queries to reduce noise. Renamed from initial `kind='cross-domain'` for clarity
-- **Workflow Pattern Mining** — Detect repeated tool sequences across transactions via sequential pattern analysis. New `workflow-patterns` CLI command and MCP tool
-- **Workflow Suggestion Engine** — Epistemic-correlated pattern analysis surfaces workflow suggestions based on historical transaction data
-- **Sentinel noetic allow list** — Added `ToolSearch` (deferred tool discovery), intelligence layer MCP tools, and `git notes show`/`git notes list` as always-allowed noetic tools
-- **Sentinel closed-transaction noetic check** — Closed transactions now correctly allow noetic tools and safe Bash commands without requiring a new PREFLIGHT. Praxic tools with closed transactions get the correct error message
-- **PreCompact hook schema** — `hookSpecificOutput` is not supported by PreCompact events (only PreToolUse, UserPromptSubmit, PostToolUse). Switched to `systemMessage` for compact guidance output
-- **Docker `token-gen` removed from safe commands** — `docker token-gen` no longer classified as a safe noetic command in Sentinel
-- **POSTFLIGHT intelligence layer auth** — Session-end POSTFLIGHT push now includes `Authorization: Bearer` header when `CORTEX_API_KEY` is set
+- **5-tier memory management system** — CC `memory/*.md` managed as KV cache. POSTFLIGHT pipeline: hot-cache update → eidetic promotion → stale demotion → MEMORY.md eviction. Manual files never auto-managed
+- **Memory promotion** — High-confidence Qdrant eidetic facts (>=0.7 confidence, 3+ confirmations) auto-promoted to `promoted_*.md` at POSTFLIGHT
+- **Memory demotion** — Stale promoted files (>30 days) archived to `memory/_archive/` (reversible)
+- **MEMORY.md eviction** — Auto section trimmed at 180 lines. Lowest-ranked items evicted, stay in Qdrant
+- **Compact CLI help** — 267→60 lines. All 6 artifact types shown prominently
+- **`empirica help` command** — `empirica help` (all categories), `empirica help <category>` (drill-down)
+- **CC memory stats in memory-report** — File count, sizes, MEMORY.md lines, manual vs promoted
+- **`profile-prune --scope memory`** — Archive stale promoted memory files
 
 ### Previous Highlights (1.6.11–1.7.0)
 
