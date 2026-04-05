@@ -1624,6 +1624,7 @@ def handle_check_submit_command(args):
                 result["praxic_reminders"] = {
                     "commit": "Commit before POSTFLIGHT — uncommitted edits are invisible to grounded calibration (change/state/do will ground near-zero).",
                     "artifacts": "Log the full breadth: assumption-log (beliefs), decision-log (choices), deadend-log (failures), mistake-log (errors) — not just findings.",
+                    "completion": "Rate completion for THIS TRANSACTION only, not the overall plan. If the transaction's objective is met, completion = 1.0 regardless of remaining transactions.",
                 }
 
             # AUTO-POSTFLIGHT REMOVED (2026-03-02):
@@ -2711,6 +2712,27 @@ def handle_postflight_submit_command(args):
                     retrospective["commit_warning"] = (
                         "Uncommitted changes detected. Grounded calibration for change/state/do "
                         "will be based on committed work only — uncommitted edits are invisible."
+                    )
+
+                # Check if goals were completed in this transaction
+                goals_completed = 0
+                try:
+                    if tx_id:
+                        retro_cursor.execute(
+                            "SELECT COUNT(*) FROM project_goals WHERE is_completed = 1 AND completed_transaction_id = ?",
+                            (tx_id,))
+                    else:
+                        retro_cursor.execute(
+                            "SELECT COUNT(*) FROM project_goals WHERE is_completed = 1 AND session_id = ?",
+                            (session_id,))
+                    goals_completed = retro_cursor.fetchone()[0]
+                except Exception:
+                    pass
+
+                if goals_completed > 0:
+                    retrospective["completion_hint"] = (
+                        f"{goals_completed} goal(s) completed in this transaction — "
+                        "completion for this transaction should be near 1.0."
                     )
 
                 result["retrospective"] = retrospective
