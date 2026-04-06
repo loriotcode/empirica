@@ -378,6 +378,44 @@ TOOL_REGISTRY: dict[str, dict] = {
         "desc": "Register a reference document",
     },
 
+    # --- Dispatch Bus (cross-instance typed messaging) ---
+    "bus_register": {
+        "cli": "bus-register",
+        "params": {"instance_id": "--instance-id", "type": "--type",
+                   "capabilities": "--capabilities", "subscribes": "--subscribes"},
+        "required": ["instance_id", "type"],
+        "desc": "Register this Claude instance in the shared dispatch bus registry. capabilities and subscribes are comma-separated strings.",
+    },
+    "bus_dispatch": {
+        "cli": "bus-dispatch",
+        "params": {"from_instance": "--from", "to_instance": "--to", "action": "--action",
+                   "payload": "--payload", "priority": "--priority", "deadline": "--deadline",
+                   "required_capabilities": "--required-capabilities",
+                   "callback_channel": "--callback-channel", "ttl": "--ttl",
+                   "wait": "--wait", "wait_timeout": "--wait-timeout"},
+        "required": ["to_instance", "action"],
+        "desc": "Send a typed dispatch action to another instance. Use to_instance='*' with required_capabilities for capability routing. Payload is JSON string.",
+    },
+    "bus_instances": {
+        "cli": "bus-instances",
+        "params": {"capability": "--capability"},
+        "required": [],
+        "desc": "List all registered bus instances (optionally filter by capability)",
+    },
+    "bus_status": {
+        "cli": "bus-status",
+        "params": {"instance_id": "--instance-id"},
+        "required": ["instance_id"],
+        "desc": "Show an instance's registry state and inbox summary",
+    },
+    "bus_poll": {
+        "cli": "message-inbox",
+        "params": {"ai_id": "--ai-id", "channel": "--channel", "status": "--status",
+                   "limit": "--limit"},
+        "required": ["ai_id"],
+        "desc": "Poll for incoming messages on a channel (default channel: dispatch). Use bus_subscribe equivalent: pass channel='dispatch' for typed dispatches.",
+    },
+
     # --- Misc ---
     "memory_compact": {
         "cli": "memory-compact",
@@ -397,19 +435,21 @@ TOOL_REGISTRY: dict[str, dict] = {
 # Tool schemas — auto-generated from registry
 # =============================================================================
 
-_NUMERIC_PARAMS = {"impact", "confidence", "estimated_complexity", "limit", "weeks", "count", "max_age"}
+_NUMERIC_PARAMS = {"impact", "confidence", "estimated_complexity", "limit", "weeks", "count",
+                   "max_age", "deadline", "wait_timeout", "ttl"}
 _BOOLEAN_PARAMS = {"grounded", "trajectory", "completed", "resolved", "all", "planning_only",
-                   "turtle", "cost", "health"}
+                   "turtle", "cost", "health", "wait"}
 _ENUM_PARAMS = {
     "reversibility": ["exploratory", "committal", "forced"],
     "scope": ["session", "project", "both"],
     "entity_type": ["project", "organization", "contact", "engagement"],
     "source_type": ["doc", "spec", "paper", "blog", "video", "code", "api", "other"],
-    "status": ["in_progress", "completed", "stale", "abandoned", "new", "resolved"],
+    "status": ["in_progress", "completed", "stale", "abandoned", "new", "resolved", "unread", "read", "all"],
     "severity": ["low", "medium", "high", "critical"],
     "type": ["auto", "file", "directory", "concept", "comprehensive", "goal", "subtask"],
     "detail_level": ["summary", "detailed", "full"],
     "phase": ["PREFLIGHT", "CHECK", "ACT", "POSTFLIGHT"],
+    "priority": ["low", "normal", "high", "urgent"],
 }
 
 
