@@ -1524,6 +1524,19 @@ def handle_source_add_command(args):
 
         db.close()
 
+        # GIT NOTES: Store source for sync
+        git_stored = False
+        try:
+            from empirica.core.canonical.empirica_git.source_store import GitSourceStore
+            git_stored = GitSourceStore().store_source(
+                source_id=source_id, project_id=project_id, session_id=session_id,
+                title=title, source_type=source_type, source_url=source_url,
+                doc_path=doc_path, description=description, confidence=confidence,
+                direction=direction,
+            )
+        except Exception as e:
+            logger.debug(f"Source git notes failed (non-fatal): {e}")
+
         # QDRANT: Embed source for semantic search
         embedded = False
         if project_id and source_id:
@@ -1551,6 +1564,7 @@ def handle_source_add_command(args):
                 "transaction_id": transaction_id,
                 "direction": direction,
                 "title": title,
+                "git_stored": git_stored,
                 "embedded": embedded,
                 "message": f"Source added ({direction})"
             }, indent=2))
