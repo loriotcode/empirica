@@ -5,6 +5,15 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.11] - 2026-04-06
+
+### Fixed
+- **Python 3.14 + Windows compatibility** (#80) — Empirica was unusable on `uv tool install` (which now ships Python 3.14 by default) on Windows
+  - **argparse `%` collision**: Python 3.14 made argparse stricter about `%` in help strings (treats `%X` as printf format specifier). Escaped literal `80%` → `80%%` in `edit-with-confidence` parser. Added defensive `%` escape in `format_help_text()` for any future help strings with `%` in defaults or text.
+  - **Windows emoji crash**: cp1252 codec couldn't encode emoji in main parser description, crashing `--help` and any `parse_args()` error path on Windows. Removed emoji from `cli_core.py` description.
+  - Thanks to **@graemester** for the detailed bug report with traceback, root-cause analysis, and proposed fixes.
+- **`setup-claude-code --force` NameError** (#79) — Stale `claude_dir` reference inside `_configure_settings()` after the v1.7.10 extraction. `claude_dir` wasn't in the function's scope; `settings_file` was already passed as a parameter. Thanks to **@pschwinger** for the fix.
+
 ## [1.7.10] - 2026-04-06
 
 ### Added
