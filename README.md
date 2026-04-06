@@ -266,13 +266,14 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ## What's New in 1.7.10
 
-- **MCP TOOL_REGISTRY audit** — 23 param mismatches fixed across 16 tools. All 45 tools verified against CLI `--help`. Added positional argument support for investigate and goals-search
-- **MCP binary path drift** — `setup-claude-code` now prefers venv binary over stale pipx install. Always updates mcp.json command path when binary changes
-- **Transaction-scoped completion scoring** — CHECK proceed reminds "Rate completion for THIS TRANSACTION only." POSTFLIGHT detects goals completed in transaction and hints completion should be near 1.0
-- **Ruff callable|None runtime error** — UP045 auto-fix produced invalid `callable | None` union. Fixed by removing type annotation
-- **Ruff auto-fix** — 8343 → 1723 issues (-79%). UP045 optional annotations (1121), F541 empty f-strings (384)
-- **generate_suggestions refactored** — F/46 → B/8. Extracted 5 analysis functions + 3 shared helpers
-- **MCP server tools updated to 45** — Added `workflow_patterns` tool
+- **Full artifact storage parity** — All 7 artifact types (findings, unknowns, dead-ends, mistakes, assumptions, decisions, sources) now write to all 3 layers: SQLite + Git Notes + Qdrant
+- **GitSourceStore** — New git notes store for epistemic sources (refs/notes/empirica/sources/{id})
+- **Consolidated mistake_commands.py** into artifact_log_commands.py — all artifact logging in one file
+- **POSTFLIGHT handler** — F/224 → F/126 (-44%) via 3 extracted functions
+- **Bootstrap handler** — F/203 → F/58 (-71%) via file split to project_bootstrap_formatter.py
+- **Setup handler** — F/142 → F/83 (-42%) via extracted _configure_settings
+- **Ruff issues** — 8343 → 1723 (-79%) via auto-fix batches (UP045, F541)
+- **Instance_projects overwrite** — Sequential Claude sessions in same pane no longer overwrite active transactions
 
 ### Previous Highlights (1.6.11–1.7.0)
 
