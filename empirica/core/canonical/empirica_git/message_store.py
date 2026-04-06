@@ -10,6 +10,8 @@ Key Features:
 - Inbox filtering by recipient, channel, status
 - TTL-based message expiry
 - Thread support for conversations
+- Delta polling via get_inbox_since()
+- Pull-based subscription via subscribe()
 """
 
 import json
@@ -17,9 +19,10 @@ import logging
 import os
 import socket
 import subprocess
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -522,3 +525,127 @@ class GitMessageStore:
         except Exception as e:
             logger.warning(f"Failed to cleanup messages: {e}")
             return []
+
+    def get_inbox_since(
+        self,
+        ai_id: str,
+        since_timestamp: float,
+        channel: str | None = None,
+        machine: str | None = None,
+        include_expired: bool = False,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """
+        Get messages addressed to this agent that arrived after a given time.
+
+        Delta-polling primitive used by pull-based subscription. Filters by
+        message timestamp (creation time) rather than read status.
+
+        Args:
+            ai_id: Recipient agent identifier
+            since_timestamp: Unix timestamp — only return messages newer than this
+            channel: Restrict to a single channel (None = all channels)
+            machine: Match only messages targeting this machine (None = any)
+            include_expired: Whether to return TTL-expired messages
+            limit: Maximum number of messages to return
+
+        Returns:
+            List of message dicts, newest first
+        """
+        if not self._git_available:
+            return []
+
+        since_dt = datetime.fromtimestamp(since_timestamp, tz=timezone.utc)
+        since_iso = since_dt.isoformat()
+
+        # Reuse get_inbox with status='all' and filter by timestamp
+        all_msgs = self.get_inbox(
+            ai_id=ai_id,
+            machine=machine,
+            channel=channel,
+            status='all',
+            include_expired=include_expired,
+            limit=limit * 2,  # Over-fetch since we filter after
+        )
+
+        # Filter by creation timestamp
+        filtered = [
+            m for m in all_msgs
+            if m.get('timestamp', '') > since_iso
+        ]
+
+        return filtered[:limit]
+
+    def subscribe(
+        self,
+        ai_id: str,
+        channel: str | None = None,
+        callback: Callable[[dict[str, Any]], None] | None = None,
+        poll_interval: float = 2.0,
+        mark_read: bool = True,
+        stop_event: Any = None,
+        machine: str | None = None,
+    ) -> None:
+        """
+        Poll for new messages on a channel and invoke callback.
+
+        Blocks the caller — intended to run in a dedicated thread or subprocess.
+        Uses `get_inbox_since` to fetch deltas since the last poll timestamp.
+
+        Args:
+            ai_id: Recipient identifier
+            channel: Channel to poll (None = all channels)
+            callback: Function called for each new message
+            poll_interval: Seconds between polls
+            mark_read: Mark messages as read after processing
+            stop_event: Optional threading.Event-like object; subscription
+                        stops when stop_event.is_set() returns True
+            machine: Filter by recipient machine
+
+        Note:
+            This is a simple pull-based subscription. For production use
+            consider running in a thread and passing a stop_event to allow
+            clean shutdown.
+        """
+        if callback is None:
+            logger.warning("subscribe() called without callback — no-op")
+            return
+
+        last_poll = time.time()
+
+        def _should_stop() -> bool:
+            if stop_event is None:
+                return False
+            is_set = getattr(stop_event, 'is_set', None)
+            return bool(is_set() if callable(is_set) else False)
+
+        while not _should_stop():
+            try:
+                new_msgs = self.get_inbox_since(
+                    ai_id=ai_id,
+                    since_timestamp=last_poll,
+                    channel=channel,
+                    machine=machine,
+                )
+                for msg in new_msgs:
+                    try:
+                        callback(msg)
+                    except Exception as e:
+                        logger.warning(f"Subscription callback failed: {e}")
+                        continue
+                    if mark_read:
+                        self.mark_read(
+                            channel=msg.get('channel', ''),
+                            message_id=msg.get('message_id', ''),
+                            ai_id=ai_id,
+                            machine=machine,
+                        )
+                last_poll = time.time()
+            except Exception as e:
+                logger.warning(f"Subscription poll failed: {e}")
+
+            # Sleep in small increments so stop_event can interrupt quickly
+            elapsed = 0.0
+            while elapsed < poll_interval and not _should_stop():
+                time.sleep(min(0.5, poll_interval - elapsed))
+                elapsed += 0.5
