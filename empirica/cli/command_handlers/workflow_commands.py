@@ -1779,6 +1779,93 @@ def _extract_all_vectors(vectors):
 
     return extracted
 
+def _build_retrospective(session_id: str, transaction_id: str | None) -> dict:
+    """Build retrospective feedback: artifact breadth, commit discipline, completion hints.
+
+    Returns dict with artifact_counts, optional breadth_note, commit_warning, completion_hint.
+    Non-fatal — returns empty dict on any error.
+    """
+    import subprocess as _sp
+
+    try:
+        db = _get_db_for_session(session_id)
+        cursor = db.conn.cursor()
+
+        # Count artifact types logged in this transaction
+        artifact_counts = {}
+        for table, label in [
+            ("project_findings", "findings"), ("project_unknowns", "unknowns"),
+            ("project_dead_ends", "dead_ends"), ("mistakes_made", "mistakes"),
+        ]:
+            try:
+                if transaction_id:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE session_id = ? AND transaction_id = ?",
+                                   (session_id, transaction_id))
+                else:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE session_id = ?", (session_id,))
+                artifact_counts[label] = cursor.fetchone()[0]
+            except Exception:
+                artifact_counts[label] = 0
+
+        for table, label in [("assumptions", "assumptions"), ("decisions", "decisions")]:
+            try:
+                if transaction_id:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE session_id = ? AND transaction_id = ?",
+                                   (session_id, transaction_id))
+                else:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE session_id = ?", (session_id,))
+                artifact_counts[label] = cursor.fetchone()[0]
+            except Exception:
+                artifact_counts[label] = 0
+
+        # Build feedback
+        retro: dict = {"artifact_counts": artifact_counts}
+
+        types_used = [k for k, v in artifact_counts.items() if v > 0]
+        types_missing = [k for k, v in artifact_counts.items() if v == 0]
+
+        if len(types_used) <= 1 and sum(artifact_counts.values()) > 0:
+            retro["breadth_note"] = (
+                f"Only {', '.join(types_used) or 'no'} artifacts logged. "
+                f"Missing: {', '.join(types_missing)}. "
+                "Unlogged artifact types are ungrounded prediction domains — "
+                "were there assumptions, decisions, dead-ends, or mistakes worth capturing?"
+            )
+
+        # Check uncommitted git changes
+        try:
+            _gr = _sp.run(["git", "status", "--porcelain"], capture_output=True, text=True, timeout=5)
+            if _gr.returncode == 0 and _gr.stdout.strip():
+                retro["commit_warning"] = (
+                    "Uncommitted changes detected. Grounded calibration for change/state/do "
+                    "will be based on committed work only — uncommitted edits are invisible."
+                )
+        except Exception:
+            pass
+
+        # Check goals completed in this transaction
+        try:
+            if transaction_id:
+                cursor.execute("SELECT COUNT(*) FROM project_goals WHERE is_completed = 1 AND completed_transaction_id = ?",
+                               (transaction_id,))
+            else:
+                cursor.execute("SELECT COUNT(*) FROM project_goals WHERE is_completed = 1 AND session_id = ?", (session_id,))
+            goals_completed = cursor.fetchone()[0]
+            if goals_completed > 0:
+                retro["completion_hint"] = (
+                    f"{goals_completed} goal(s) completed in this transaction — "
+                    "completion for this transaction should be near 1.0."
+                )
+        except Exception:
+            pass
+
+        db.close()
+        return retro
+    except Exception as e:
+        logger.debug(f"Retrospective feedback failed (non-fatal): {e}")
+        return {}
+
+
 def handle_postflight_submit_command(args):
     """Handle postflight-submit command - AI-first with config file support"""
     try:
@@ -2640,105 +2727,10 @@ def handle_postflight_submit_command(args):
             except Exception as e:
                 logger.debug(f"MEMORY.md hot cache update skipped: {e}")
 
-            # RETROSPECTIVE: Artifact breadth and commit discipline feedback
-            import subprocess
-            try:
-                retro_db = _get_db_for_session(session_id)
-                retro_cursor = retro_db.conn.cursor()
-                tx_id = postflight_transaction_id
-
-                # Count artifact types logged in this transaction
-                artifact_counts = {}
-                for table, label in [
-                    ("project_findings", "findings"),
-                    ("project_unknowns", "unknowns"),
-                    ("project_dead_ends", "dead_ends"),
-                    ("mistakes_made", "mistakes"),
-                ]:
-                    try:
-                        if tx_id:
-                            retro_cursor.execute(
-                                f"SELECT COUNT(*) FROM {table} WHERE session_id = ? AND transaction_id = ?",
-                                (session_id, tx_id))
-                        else:
-                            retro_cursor.execute(
-                                f"SELECT COUNT(*) FROM {table} WHERE session_id = ?",
-                                (session_id,))
-                        artifact_counts[label] = retro_cursor.fetchone()[0]
-                    except Exception:
-                        artifact_counts[label] = 0
-
-                # Check assumptions and decisions separately (different table structure)
-                for table, label in [("assumptions", "assumptions"), ("decisions", "decisions")]:
-                    try:
-                        if tx_id:
-                            retro_cursor.execute(
-                                f"SELECT COUNT(*) FROM {table} WHERE session_id = ? AND transaction_id = ?",
-                                (session_id, tx_id))
-                        else:
-                            retro_cursor.execute(
-                                f"SELECT COUNT(*) FROM {table} WHERE session_id = ?",
-                                (session_id,))
-                        artifact_counts[label] = retro_cursor.fetchone()[0]
-                    except Exception:
-                        artifact_counts[label] = 0
-
-                # Check for uncommitted git changes
-                has_uncommitted = False
-                try:
-                    _git_result = subprocess.run(
-                        ["git", "status", "--porcelain"],
-                        capture_output=True, text=True, timeout=5)
-                    if _git_result.returncode == 0 and _git_result.stdout.strip():
-                        has_uncommitted = True
-                except Exception:
-                    pass
-
-                # Build feedback
-                retrospective = {"artifact_counts": artifact_counts}
-
-                types_used = [k for k, v in artifact_counts.items() if v > 0]
-                types_missing = [k for k, v in artifact_counts.items() if v == 0]
-
-                if len(types_used) <= 1 and sum(artifact_counts.values()) > 0:
-                    retrospective["breadth_note"] = (
-                        f"Only {', '.join(types_used) or 'no'} artifacts logged. "
-                        f"Missing: {', '.join(types_missing)}. "
-                        "Unlogged artifact types are ungrounded prediction domains — "
-                        "were there assumptions, decisions, dead-ends, or mistakes worth capturing?"
-                    )
-
-                if has_uncommitted:
-                    retrospective["commit_warning"] = (
-                        "Uncommitted changes detected. Grounded calibration for change/state/do "
-                        "will be based on committed work only — uncommitted edits are invisible."
-                    )
-
-                # Check if goals were completed in this transaction
-                goals_completed = 0
-                try:
-                    if tx_id:
-                        retro_cursor.execute(
-                            "SELECT COUNT(*) FROM project_goals WHERE is_completed = 1 AND completed_transaction_id = ?",
-                            (tx_id,))
-                    else:
-                        retro_cursor.execute(
-                            "SELECT COUNT(*) FROM project_goals WHERE is_completed = 1 AND session_id = ?",
-                            (session_id,))
-                    goals_completed = retro_cursor.fetchone()[0]
-                except Exception:
-                    pass
-
-                if goals_completed > 0:
-                    retrospective["completion_hint"] = (
-                        f"{goals_completed} goal(s) completed in this transaction — "
-                        "completion for this transaction should be near 1.0."
-                    )
-
+            # RETROSPECTIVE: Artifact breadth, commit discipline, completion hints
+            retrospective = _build_retrospective(session_id, postflight_transaction_id)
+            if retrospective:
                 result["retrospective"] = retrospective
-                retro_db.close()
-            except Exception as e:
-                logger.debug(f"Retrospective feedback failed (non-fatal): {e}")
 
             # ── Cortex sync push (transaction boundary) ──────────────
             # Push this transaction's artifacts to remote Cortex.
