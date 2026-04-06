@@ -111,7 +111,8 @@ from .mcp_commands import (
     handle_mcp_stop_command,
     handle_mcp_test_command,
 )
-from .mistake_commands import handle_mistake_log_command, handle_mistake_query_command
+# mistake commands consolidated into artifact_log_commands.py
+from .artifact_log_commands import handle_mistake_log_command, handle_mistake_query_command
 from .monitor_commands import (
     handle_assess_state_command,
     handle_calibration_dispute_command,
