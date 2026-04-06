@@ -488,6 +488,30 @@ def handle_preflight_submit_command(args):
 
             db.conn.commit()
 
+            # EPISTEMIC BUS: Wire persistent observers and publish PREFLIGHT event
+            # This enables cross-instance event subscription via SQLite + Qdrant.
+            try:
+                from empirica.core.bus_persistence import wire_persistent_observers
+                from empirica.core.epistemic_bus import (
+                    EpistemicEvent, EventTypes, get_global_bus,
+                )
+                wire_persistent_observers(session_id=session_id)
+                bus = get_global_bus()
+                bus.publish(EpistemicEvent(
+                    event_type=EventTypes.PREFLIGHT_COMPLETE,
+                    agent_id="claude-code",
+                    session_id=session_id,
+                    data={
+                        "transaction_id": transaction_id,
+                        "vectors": vectors,
+                        "task_context": task_context,
+                        "work_type": work_type,
+                        "work_context": work_context,
+                    },
+                ))
+            except Exception as e:
+                logger.debug(f"Bus publish (PREFLIGHT) failed (non-fatal): {e}")
+
             # BAYESIAN CALIBRATION: Load calibration adjustments based on historical performance
             # This informs the AI about its known biases from past sessions
             calibration_adjustments = {}
@@ -1346,6 +1370,29 @@ def handle_check_submit_command(args):
                     "transaction_id": check_transaction_id2
                 }
             )
+
+            # EPISTEMIC BUS: Publish CHECK_COMPLETE event
+            try:
+                from empirica.core.bus_persistence import wire_persistent_observers
+                from empirica.core.epistemic_bus import (
+                    EpistemicEvent, EventTypes, get_global_bus,
+                )
+                wire_persistent_observers(session_id=session_id)
+                bus = get_global_bus()
+                bus.publish(EpistemicEvent(
+                    event_type=EventTypes.CHECK_COMPLETE,
+                    agent_id="claude-code",
+                    session_id=session_id,
+                    data={
+                        "transaction_id": check_transaction_id2,
+                        "vectors": vectors,
+                        "decision": decision,
+                        "round": round_num,
+                        "confidence": confidence,
+                    },
+                ))
+            except Exception as e:
+                logger.debug(f"Bus publish (CHECK) failed (non-fatal): {e}")
 
             # NOTE: Bayesian belief updates during CHECK were REMOVED (2026-01-21)
             # Reason: CHECK-phase updates polluted calibration data by recording mid-session
@@ -2470,6 +2517,29 @@ def handle_postflight_submit_command(args):
                     "tool_trace": postflight_tool_trace if postflight_tool_trace else None,
                 }
             )
+
+            # EPISTEMIC BUS: Publish POSTFLIGHT_COMPLETE event
+            try:
+                from empirica.core.bus_persistence import wire_persistent_observers
+                from empirica.core.epistemic_bus import (
+                    EpistemicEvent, EventTypes, get_global_bus,
+                )
+                wire_persistent_observers(session_id=session_id)
+                bus = get_global_bus()
+                bus.publish(EpistemicEvent(
+                    event_type=EventTypes.POSTFLIGHT_COMPLETE,
+                    agent_id="claude-code",
+                    session_id=session_id,
+                    data={
+                        "transaction_id": postflight_transaction_id,
+                        "vectors": vectors,
+                        "deltas": deltas,
+                        "postflight_confidence": postflight_confidence,
+                        "internal_consistency": internal_consistency,
+                    },
+                ))
+            except Exception as e:
+                logger.debug(f"Bus publish (POSTFLIGHT) failed (non-fatal): {e}")
 
             # SENTINEL HOOK: Evaluate checkpoint for routing decisions
             sentinel_decision = _invoke_sentinel_hook("POSTFLIGHT", session_id, {
