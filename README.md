@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.7.10-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.10)
+[![Version](https://img.shields.io/badge/version-1.7.11-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.11)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -100,13 +100,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.7.10-alpine
+docker pull nubaeon/empirica:1.7.11-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.7.10
+docker pull nubaeon/empirica:1.7.11
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.7.10 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.7.11 /bin/bash
 ```
 </details>
 
@@ -266,7 +266,7 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.7.10
+## What's New in 1.7.11
 
 - **Full artifact storage parity** — All 7 artifact types (findings, unknowns, dead-ends, mistakes, assumptions, decisions, sources) now write to all 3 layers: SQLite + Git Notes + Qdrant
 - **GitSourceStore** — New git notes store for epistemic sources (refs/notes/empirica/sources/{id})
@@ -317,6 +317,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.7.10
+**Version:** 1.7.11
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*
