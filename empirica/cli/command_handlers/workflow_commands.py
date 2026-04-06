@@ -1779,6 +1779,79 @@ def _extract_all_vectors(vectors):
 
     return extracted
 
+_TYPE_TO_DOMAIN = {
+    "product": "software", "application": "software",
+    "feature": "software", "infrastructure": "operations",
+    "operations": "operations", "research": "research",
+    "documentation": "consulting",
+}
+
+
+def _run_grounded_verification(
+    session_id: str, vectors: dict, phase_tool_counts: dict,
+    work_context: str | None, work_type: str | None, transaction_id: str | None,
+) -> dict | None:
+    """Run grounded verification: phase-aware evidence collection + calibration.
+
+    Returns grounded_verification dict or None if unavailable. Non-fatal.
+    """
+    try:
+        import os
+
+        from empirica.core.post_test.collector import EvidenceProfile
+        from empirica.core.post_test.grounded_calibration import run_grounded_verification
+        from empirica.core.post_test.phase_boundary import detect_phase_boundary
+
+        db = _get_db_for_session(session_id)
+        session = db.get_session(session_id)
+        project_id = session.get('project_id') if session else None
+
+        evidence_profile = EvidenceProfile.resolve(project_path=os.getcwd())
+
+        # Detect CHECK phase boundary for noetic/praxic split
+        phase_boundary = None
+        try:
+            phase_boundary = detect_phase_boundary(session_id, db)
+            if phase_boundary and phase_boundary.get("has_check"):
+                logger.debug(f"Phase boundary: check_count={phase_boundary['check_count']}")
+        except Exception as e:
+            logger.debug(f"Phase boundary detection failed (non-fatal): {e}")
+
+        # Resolve domain + Tier 2 weights
+        project_type = session.get("project_type", "") if session else ""
+        domain = _TYPE_TO_DOMAIN.get(project_type, "default")
+
+        tier2_weights = None
+        try:
+            from pathlib import Path as _Path
+            proj_yaml = _Path.cwd() / ".empirica" / "project.yaml"
+            if proj_yaml.exists():
+                import yaml
+                with open(proj_yaml) as _f:
+                    tier2_weights = (yaml.safe_load(_f) or {}).get("calibration_weights")
+            if not tier2_weights:
+                from .project_init import _seed_calibration_weights
+                tier2_weights = _seed_calibration_weights(project_type or "software")
+        except Exception:
+            pass
+
+        result = run_grounded_verification(
+            session_id=session_id, postflight_vectors=vectors, db=db,
+            project_id=project_id, domain=domain, phase_boundary=phase_boundary,
+            evidence_profile=evidence_profile, phase_tool_counts=phase_tool_counts,
+            work_context=work_context, work_type=work_type,
+            per_vector_weights=tier2_weights, transaction_id=transaction_id,
+        )
+
+        if result:
+            logger.debug(f"Grounded verification: {result['evidence_count']} evidence items")
+        db.close()
+        return result
+    except Exception as e:
+        logger.debug(f"Grounded verification skipped (non-fatal): {e}")
+        return None
+
+
 def _build_retrospective(session_id: str, transaction_id: str | None) -> dict:
     """Build retrospective feedback: artifact breadth, commit discipline, completion hints.
 
@@ -2257,92 +2330,11 @@ def handle_postflight_submit_command(args):
             except Exception as e:
                 logger.debug(f"Bayesian belief update failed (non-fatal): {e}")
 
-            # GROUNDED VERIFICATION: Post-test evidence-based calibration (parallel track)
-            # Phase-aware: detects CHECK boundary, splits into noetic + praxic tracks
-            # Collects objective evidence → maps to vectors → Bayesian update → trajectory → export
-            grounded_verification = None
-            try:
-                import os
-
-                from empirica.core.post_test.collector import EvidenceProfile
-                from empirica.core.post_test.grounded_calibration import run_grounded_verification
-                from empirica.core.post_test.phase_boundary import detect_phase_boundary
-
-                db = _get_db_for_session(session_id)
-                session = db.get_session(session_id)
-                project_id = session.get('project_id') if session else None
-
-                # Resolve evidence profile from env/config/auto-detect
-                evidence_profile = EvidenceProfile.resolve(project_path=os.getcwd())
-
-                # Detect CHECK phase boundary for noetic/praxic split
-                phase_boundary = None
-                try:
-                    phase_boundary = detect_phase_boundary(session_id, db)
-                    if phase_boundary and phase_boundary.get("has_check"):
-                        logger.debug(
-                            f"Phase boundary detected: check_count={phase_boundary['check_count']}, "
-                            f"investigate_count={phase_boundary['investigate_count']}, "
-                            f"noetic_only={phase_boundary.get('noetic_only', False)}"
-                        )
-                except Exception as e:
-                    logger.debug(f"Phase boundary detection failed (non-fatal): {e}")
-
-                # Resolve domain from project_type for Tier 1 calibration weights
-                domain = None
-                project_type = ""
-                if session:
-                    project_type = session.get("project_type", "")
-                    _TYPE_TO_DOMAIN = {
-                        "product": "software", "application": "software",
-                        "feature": "software", "infrastructure": "operations",
-                        "operations": "operations", "research": "research",
-                        "documentation": "consulting",
-                    }
-                    domain = _TYPE_TO_DOMAIN.get(project_type, "default")
-
-                # Load Tier 2 per-vector calibration weights from project.yaml
-                tier2_weights = None
-                try:
-                    from pathlib import Path as _Path
-                    proj_yaml = _Path.cwd() / ".empirica" / "project.yaml"
-                    if proj_yaml.exists():
-                        import yaml
-                        with open(proj_yaml) as _f:
-                            proj_cfg = yaml.safe_load(_f) or {}
-                        tier2_weights = proj_cfg.get("calibration_weights")
-                    # Generate defaults if not seeded (pre-existing projects)
-                    if not tier2_weights:
-                        from .project_init import _seed_calibration_weights
-                        tier2_weights = _seed_calibration_weights(project_type or "software")
-                except Exception as e:
-                    logger.debug(f"Tier 2 weight loading failed (non-fatal): {e}")
-
-                grounded_verification = run_grounded_verification(
-                    session_id=session_id,
-                    postflight_vectors=vectors,
-                    db=db,
-                    project_id=project_id,
-                    domain=domain,
-                    phase_boundary=phase_boundary,
-                    evidence_profile=evidence_profile,
-                    phase_tool_counts=postflight_phase_tool_counts,
-                    work_context=postflight_work_context,
-                    work_type=postflight_work_type,
-                    per_vector_weights=tier2_weights,
-                    transaction_id=postflight_transaction_id,
-                )
-
-                if grounded_verification:
-                    phase_aware = grounded_verification.get('phase_aware', False)
-                    logger.debug(
-                        f"Grounded verification: {grounded_verification['evidence_count']} evidence items, "
-                        f"phase_aware={phase_aware}, "
-                        f"phases={list(grounded_verification.get('phases', {}).keys())}"
-                    )
-                db.close()
-            except Exception as e:
-                logger.debug(f"Grounded verification skipped (non-fatal): {e}")
+            # GROUNDED VERIFICATION: Post-test evidence-based calibration
+            grounded_verification = _run_grounded_verification(
+                session_id, vectors, postflight_phase_tool_counts,
+                postflight_work_context, postflight_work_type, postflight_transaction_id,
+            )
 
             # GROUNDED CALIBRATION EMBEDDING: Embed verification to Qdrant for semantic search
             grounded_embedded = False
