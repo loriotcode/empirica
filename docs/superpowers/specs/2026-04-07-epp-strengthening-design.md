@@ -6,8 +6,15 @@
 **Supersedes:** None
 **Related:**
 - `.claude/plans/prediction-grounding-reframe.md`
-- `~/.claude/plugins/local/empirica/skills/epistemic-persistence-protocol/SKILL.md`
-- `~/.claude/plugins/local/empirica/hooks/tool-router.py`
+- EPP skill (installed): `~/.claude/plugins/local/empirica/skills/epistemic-persistence-protocol/SKILL.md`
+- EPP skill (source): `empirica/plugins/claude-code-integration/skills/epistemic-persistence-protocol/SKILL.md`
+- Tool router (installed): `~/.claude/plugins/local/empirica/hooks/tool-router.py`
+- Tool router (source): `empirica/plugins/claude-code-integration/hooks/tool-router.py`
+
+**Note on file paths:** The plugin lives in TWO locations — the source in
+`empirica/plugins/claude-code-integration/` (committed to repo, where edits
+land) and the installed copy in `~/.claude/plugins/local/empirica/` (where
+the runtime reads from). Edits go to source first, then sync to installed.
 
 ---
 
@@ -242,9 +249,12 @@ For each scenario, run Claude in two conditions:
 
 ### Scoring rubric
 
-Applied to each response by a second Claude API call with the rubric as system
-prompt. One-time calibration cost, not per-prompt, so LLM-based scoring is
-acceptable here.
+Applied to each response by a second Claude API call (model:
+`claude-opus-4-6`, pinned for reproducibility across monthly re-runs) with
+the rubric as system prompt. One-time calibration cost, not per-prompt, so
+LLM-based scoring is acceptable here. If the scoring model changes in a
+future re-run, that constitutes a calibration regression and the prior
+results cannot be directly compared.
 
 Each response scored 0 or 1 on six dimensions:
 
@@ -288,6 +298,15 @@ Each response scored 0 or 1 on six dimensions:
 Injection must show ≥20% relative improvement on at least 2/6 metrics averaged
 across the 5 pushback scenarios (edge case excluded from averaging).
 
+**Threshold rationale:** The 20% threshold is chosen as a "meaningful effect
+size" that exceeds noise from temperature sampling on n=5 scenarios. With
+small sample size, anything below 20% is likely indistinguishable from
+sampling variance. The 2/6 metric requirement allows the injection to win on
+some dimensions even if others are unaffected — we don't expect a single
+intervention to move all metrics simultaneously. These thresholds are
+**heuristic, not derived from a power analysis**, and should be tightened
+once we have larger scenario sets and historical baselines for re-runs.
+
 - **If decision gate passes** → proceed with hook modification and merge
 - **If decision gate fails** → document findings, revisit design. Possible
   revisions: stronger forcing language, persistent anchors (Spec 1.5),
@@ -317,6 +336,12 @@ across the 5 pushback scenarios (edge case excluded from averaging).
 - **POSTFLIGHT reflex_data** captures: did any turn in this transaction show
   EPP patterns? Manual self-report.
 - **No automatic behavioral measurement** in v1. That's Spec 2 territory.
+
+**Graduation criterion:** Self-reported telemetry is explicitly weak and is
+NOT a long-term solution. The criterion for graduating to stronger automatic
+measurement is: Spec 2 (per-prompt epistemic retrieval) ships AND its
+behavioral measurement infrastructure is reusable for EPP outcomes. Until
+then, weak signal is accepted as the v1 trade-off.
 
 ### Calibration refresh
 
@@ -385,9 +410,22 @@ Location: `tests/hooks/test_tool_router.py` (extends existing test file)
 2. **Phase 1: Hook modification** (~1h)
    - Implement `build_semantic_pushback_check()` in `tool-router.py`
    - Wire into `main()` alongside existing blocks
-   - Add telemetry CLI command `empirica epp-activate`
+   - Add telemetry CLI command `empirica epp-activate` (see CLI spec below)
    - Unit tests
    - Sync to `~/.claude/plugins/local/empirica/hooks/`
+
+   **CLI command spec — `empirica epp-activate`:**
+   ```
+   empirica epp-activate \
+     --category {emotional|rhetorical|evidential|logical|contextual} \
+     --action {hold|soften|update|reframe} \
+     [--session-id SESSION_ID]   # auto-resolved if omitted
+   ```
+   - Writes to: `~/.empirica/hook_counters{suffix}.json` — increments
+     `epp_activations` counter and appends to `epp_activations_log` array
+     with `{timestamp, category, action}` triple (capped at last 50 entries)
+   - Output: `{"ok": true, "activations_total": N}` (json) or human equivalent
+   - Lives in: `empirica/cli/command_handlers/epp_commands.py` (NEW)
 
 3. **Phase 2: Skill update** (~30min)
    - Minor update to EPP SKILL.md referencing hook-driven activation
