@@ -1524,6 +1524,24 @@ def handle_source_add_command(args):
 
         db.close()
 
+        # QDRANT: Embed source for semantic search
+        embedded = False
+        if project_id and source_id:
+            try:
+                from empirica.core.qdrant.vector_store import embed_single_memory_item
+                text = f"SOURCE ({direction}): {title}"
+                if description:
+                    text += f" — {description}"
+                if source_url or doc_path:
+                    text += f" [{source_url or doc_path}]"
+                embedded = embed_single_memory_item(
+                    project_id=project_id, item_id=source_id, text=text,
+                    item_type='source', session_id=session_id,
+                    timestamp=time.strftime('%Y-%m-%dT%H:%M:%S'),
+                )
+            except Exception as e:
+                logger.debug(f"Source Qdrant embed failed (non-fatal): {e}")
+
         if output_format == 'json':
             print(json.dumps({
                 "ok": True,
@@ -1533,6 +1551,7 @@ def handle_source_add_command(args):
                 "transaction_id": transaction_id,
                 "direction": direction,
                 "title": title,
+                "embedded": embedded,
                 "message": f"Source added ({direction})"
             }, indent=2))
         else:
