@@ -1729,7 +1729,6 @@ def handle_mistake_log_command(args):
         via = getattr(args, 'via', None)
 
         if not session_id:
-            from empirica.utils.session_resolver import InstanceResolver as R
             session_id = R.session_id()
 
         if not session_id:
@@ -1746,7 +1745,6 @@ def handle_mistake_log_command(args):
 
         transaction_id = None
         try:
-            from empirica.utils.session_resolver import InstanceResolver as R
             transaction_id = R.transaction_id()
         except Exception:
             pass
