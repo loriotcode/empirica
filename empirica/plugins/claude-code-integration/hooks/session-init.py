@@ -293,6 +293,25 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
         except Exception:
             pass
 
+        # Check if another Claude session owns this pane with an open transaction
+        # Don't overwrite if they have active work — causes resolver warnings
+        if instance_file.exists() and claude_session_id:
+            try:
+                existing = json.load(open(instance_file))
+                existing_claude_id = existing.get('claude_session_id')
+                if existing_claude_id and existing_claude_id != claude_session_id:
+                    # Different Claude session — check for open transaction
+                    from project_resolver import _get_instance_suffix
+                    suffix = _get_instance_suffix()
+                    tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
+                    if tx_file.exists():
+                        tx_data = json.load(open(tx_file))
+                        if tx_data.get('status') == 'open' and tx_data.get('session_id') == existing.get('empirica_session_id'):
+                            print(f"Warning: Pane {instance_id} has open transaction from another session ({existing_claude_id[:8]}). Not overwriting.", file=sys.stderr)
+                            return True  # Don't overwrite, but don't fail
+            except Exception:
+                pass  # If check fails, proceed with overwrite
+
         instance_data = {
             'project_path': project_path,
             'tty_key': tty_key,
