@@ -52,6 +52,7 @@ from .edit_verification_parsers import add_edit_verification_parsers
 from .epistemics_parsers import add_epistemics_parsers
 from .investigation_parsers import add_investigation_parsers
 from .issue_capture_parsers import add_issue_capture_parsers
+from .bus_parsers import add_bus_parsers
 from .lesson_parsers import add_lesson_parsers
 from .mcp_parsers import add_mcp_parsers
 from .memory_parsers import add_memory_parsers
@@ -101,6 +102,7 @@ __all__ = [
     'add_concept_graph_parsers',
     'add_mcp_parsers',
     'add_message_parsers',
+    'add_bus_parsers',
     'add_memory_parsers',
     'add_profile_parsers',
     'add_serve_parsers',

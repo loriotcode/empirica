@@ -130,6 +130,13 @@ from .command_handlers.message_commands import (
     handle_message_send_command,
     handle_message_thread_command,
 )
+from empirica.cli.command_handlers.bus_commands import (
+    handle_bus_dispatch_command,
+    handle_bus_instances_command,
+    handle_bus_register_command,
+    handle_bus_status_command,
+    handle_bus_subscribe_command,
+)
 from .command_handlers.persona_commands import (
     handle_persona_find_command,
     handle_persona_list_command,
@@ -157,6 +164,7 @@ from .parsers import (
     add_action_parsers,
     add_agent_parsers,
     add_architecture_parsers,
+    add_bus_parsers,
     add_cascade_parsers,
     add_checkpoint_parsers,
     add_concept_graph_parsers,
@@ -249,6 +257,7 @@ def create_argument_parser():
     add_concept_graph_parsers(subparsers)
     add_mcp_parsers(subparsers)
     add_message_parsers(subparsers)
+    add_bus_parsers(subparsers)
 
     # Built-in help command (handled in main(), not via handler)
     subparsers.add_parser('help', help='Show all commands by category')
@@ -587,6 +596,13 @@ def main(args=None):
             'message-thread': handle_message_thread_command,
             'message-channels': handle_message_channels_command,
             'message-cleanup': handle_message_cleanup_command,
+
+            # Dispatch bus commands (typed cross-instance dispatch)
+            'bus-register': handle_bus_register_command,
+            'bus-dispatch': handle_bus_dispatch_command,
+            'bus-subscribe': handle_bus_subscribe_command,
+            'bus-instances': handle_bus_instances_command,
+            'bus-status': handle_bus_status_command,
 
             # Profile management commands
             'profile-sync': handle_profile_sync_command,
