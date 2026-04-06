@@ -123,6 +123,288 @@ def _hook_exists(hooks_list: list, pattern: str) -> bool:
     return False
 
 
+
+def _configure_settings(settings, settings_file, plugin_dir, python_cmd, force, output_format, plugin_key):
+    """Configure settings.json: enable plugin, register hooks, set statusline.
+
+    Extracted from handle_setup_claude_code_command to reduce handler complexity.
+    """
+    # ==================== CONFIGURE SETTINGS.JSON ====================
+    if output_format != 'json':
+        print("\n⚙️  Configuring settings.json...")
+
+    settings_file = claude_dir / "settings.json"
+    settings = _ensure_json_file(settings_file, {})
+
+    # Ensure enabledPlugins exists
+    if 'enabledPlugins' not in settings:
+        settings['enabledPlugins'] = {}
+
+    # Enable the plugin
+    plugin_key = f"{PLUGIN_NAME}@local"
+    settings['enabledPlugins'][plugin_key] = True
+    if output_format != 'json':
+        print("   ✓ Plugin enabled")
+
+    # --force: clear ONLY Empirica hooks, preserve other plugins' hooks
+    # Previously this did settings['hooks'] = {} which nuked ALL hooks
+    # including Railway, Superpowers, and custom hooks. Now filters by
+    # plugin path to only remove Empirica's entries.
+    if force:
+        plugin_path_patterns = [
+            f'plugins/local/{PLUGIN_NAME}/',      # Current name
+            'plugins/local/empirica-integration/', # Legacy name
+            'plugins/local/empirica/',             # Short name
+        ]
+        for event in list(settings.get('hooks', {}).keys()):
+            original_count = len(settings['hooks'][event])
+            settings['hooks'][event] = [
+                hook for hook in settings['hooks'][event]
+                if not any(
+                    pattern in str(hook)
+                    for pattern in plugin_path_patterns
+                )
+            ]
+            removed = original_count - len(settings['hooks'][event])
+            if removed > 0:
+                logger.debug(f"--force: removed {removed} Empirica hooks from {event}")
+            # Clean up empty event lists
+            if not settings['hooks'][event]:
+                del settings['hooks'][event]
+
+        settings.pop('statusLine', None)
+        if output_format != 'json':
+            print("   --force: cleared Empirica hooks and statusLine (other plugins preserved)")
+
+        # Also clean up legacy plugin name from enabledPlugins
+        legacy_key = "empirica-integration@local"
+        if legacy_key in settings.get('enabledPlugins', {}):
+            del settings['enabledPlugins'][legacy_key]
+            if output_format != 'json':
+                print("   --force: removed legacy empirica-integration@local from enabledPlugins")
+
+    # Configure StatusLine
+    # Claude Code pipes session JSON to statusline stdin — do NOT redirect stdin
+    if 'statusLine' not in settings:
+        statusline_script = plugin_dir / "scripts" / "statusline_empirica.py"
+        settings['statusLine'] = {
+            "type": "command",
+            "command": f"{python_cmd} {statusline_script}"
+        }
+        if output_format != 'json':
+            print("   ✓ StatusLine configured")
+    else:
+        if output_format != 'json':
+            print("   StatusLine already configured")
+
+    # Ensure hooks structure
+    if 'hooks' not in settings:
+        settings['hooks'] = {}
+
+    # Configure PreToolUse (Sentinel) hooks
+    if 'PreToolUse' not in settings['hooks']:
+        settings['hooks']['PreToolUse'] = []
+
+    sentinel_script = f"{python_cmd} {plugin_dir}/hooks/sentinel-gate.py"
+    if not _hook_exists(settings['hooks']['PreToolUse'], 'sentinel-gate'):
+        settings['hooks']['PreToolUse'].extend([
+            {
+                "matcher": "Edit|Write",
+                "hooks": [{"type": "command", "command": sentinel_script, "timeout": 10}]
+            },
+            {
+                "matcher": "Bash",
+                "hooks": [{"type": "command", "command": sentinel_script, "timeout": 10}]
+            }
+        ])
+        if output_format != 'json':
+            print("   ✓ PreToolUse (Sentinel) hooks configured")
+    else:
+        if output_format != 'json':
+            print("   PreToolUse hooks already configured")
+
+    # Configure PreCompact hook
+    if 'PreCompact' not in settings['hooks']:
+        settings['hooks']['PreCompact'] = []
+
+    precompact_script = f"{python_cmd} {plugin_dir}/hooks/pre-compact.py"
+    if not _hook_exists(settings['hooks']['PreCompact'], 'pre-compact.py'):
+        settings['hooks']['PreCompact'].append({
+            "matcher": "auto|manual",
+            "hooks": [{"type": "command", "command": precompact_script, "timeout": 30}]
+        })
+        if output_format != 'json':
+            print("   ✓ PreCompact hook configured")
+    else:
+        if output_format != 'json':
+            print("   PreCompact hook already configured")
+
+    # Configure SessionStart hooks
+    if 'SessionStart' not in settings['hooks']:
+        settings['hooks']['SessionStart'] = []
+
+    postcompact_script = f"{python_cmd} {plugin_dir}/hooks/post-compact.py"
+    sessioninit_script = f"{python_cmd} {plugin_dir}/hooks/session-init.py"
+    ewm_script = f"{python_cmd} {plugin_dir}/hooks/ewm-protocol-loader.py"
+
+    if not _hook_exists(settings['hooks']['SessionStart'], 'post-compact.py'):
+        settings['hooks']['SessionStart'].extend([
+            {
+                "matcher": "compact",
+                "hooks": [
+                    {"type": "command", "command": postcompact_script, "timeout": 30},
+                    {"type": "command", "command": ewm_script, "timeout": 10, "allowFailure": True}
+                ]
+            },
+            {
+                "matcher": "startup|resume",
+                "hooks": [
+                    {"type": "command", "command": sessioninit_script, "timeout": 30},
+                    {"type": "command", "command": ewm_script, "timeout": 10, "allowFailure": True}
+                ]
+            }
+        ])
+        if output_format != 'json':
+            print("   ✓ SessionStart hooks configured")
+    else:
+        if output_format != 'json':
+            print("   SessionStart hooks already configured")
+
+    # Configure SessionEnd hooks
+    if 'SessionEnd' not in settings['hooks']:
+        settings['hooks']['SessionEnd'] = []
+
+    postflight_script = f"{python_cmd} {plugin_dir}/hooks/session-end-postflight.py"
+    curate_script = f"{python_cmd} {plugin_dir}/hooks/curate-snapshots.py --output json"
+
+    if not _hook_exists(settings['hooks']['SessionEnd'], 'session-end-postflight.py'):
+        settings['hooks']['SessionEnd'].append({
+            "matcher": ".*",
+            "hooks": [
+                {"type": "command", "command": postflight_script, "timeout": 20},
+                {"type": "command", "command": curate_script, "timeout": 15, "allowFailure": True}
+            ]
+        })
+        if output_format != 'json':
+            print("   ✓ SessionEnd hooks configured")
+    else:
+        if output_format != 'json':
+            print("   SessionEnd hooks already configured")
+
+    # Configure SubagentStart hook
+    if 'SubagentStart' not in settings['hooks']:
+        settings['hooks']['SubagentStart'] = []
+
+    substart_script = f"{python_cmd} {plugin_dir}/hooks/subagent-start.py"
+    if not _hook_exists(settings['hooks']['SubagentStart'], 'subagent-start.py'):
+        settings['hooks']['SubagentStart'].append({
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": substart_script, "timeout": 10, "allowFailure": True}]
+        })
+        if output_format != 'json':
+            print("   ✓ SubagentStart hook configured")
+    else:
+        if output_format != 'json':
+            print("   SubagentStart hook already configured")
+
+    # Configure SubagentStop hook
+    if 'SubagentStop' not in settings['hooks']:
+        settings['hooks']['SubagentStop'] = []
+
+    substop_script = f"{python_cmd} {plugin_dir}/hooks/subagent-stop.py"
+    if not _hook_exists(settings['hooks']['SubagentStop'], 'subagent-stop.py'):
+        settings['hooks']['SubagentStop'].append({
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": substop_script, "timeout": 15, "allowFailure": True}]
+        })
+        if output_format != 'json':
+            print("   ✓ SubagentStop hook configured")
+    else:
+        if output_format != 'json':
+            print("   SubagentStop hook already configured")
+
+    # Configure UserPromptSubmit hook
+    if 'UserPromptSubmit' not in settings['hooks']:
+        settings['hooks']['UserPromptSubmit'] = []
+
+    router_script = f"{python_cmd} {plugin_dir}/hooks/tool-router.py"
+    if not _hook_exists(settings['hooks']['UserPromptSubmit'], 'tool-router.py'):
+        settings['hooks']['UserPromptSubmit'].append({
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": router_script, "timeout": 3, "allowFailure": True}]
+        })
+        if output_format != 'json':
+            print("   ✓ UserPromptSubmit hook configured")
+    else:
+        if output_format != 'json':
+            print("   UserPromptSubmit hook already configured")
+
+    # Context-shift tracker (classifies solicited vs unsolicited prompts)
+    cs_script = f"{python_cmd} {plugin_dir}/hooks/context-shift-tracker.py"
+    if not _hook_exists(settings['hooks']['UserPromptSubmit'], 'context-shift-tracker.py'):
+        settings['hooks']['UserPromptSubmit'].append({
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": cs_script, "timeout": 5, "allowFailure": True}]
+        })
+        if output_format != 'json':
+            print("   ✓ Context-shift tracker configured")
+
+    # Configure PostToolUse hook (entity extraction on Edit/Write)
+    if 'PostToolUse' not in settings['hooks']:
+        settings['hooks']['PostToolUse'] = []
+
+    entity_script = f"{python_cmd} {plugin_dir}/hooks/entity-extractor.py"
+    if not _hook_exists(settings['hooks']['PostToolUse'], 'entity-extractor.py'):
+        settings['hooks']['PostToolUse'].append({
+            "matcher": "Edit|Write",
+            "hooks": [{"type": "command", "command": entity_script, "timeout": 5, "allowFailure": True}]
+        })
+        if output_format != 'json':
+            print("   ✓ PostToolUse (entity extraction) hook configured")
+
+    # Configure TaskCompleted hook (goal-commit bridge)
+    if 'TaskCompleted' not in settings['hooks']:
+        settings['hooks']['TaskCompleted'] = []
+
+    task_script = f"{python_cmd} {plugin_dir}/hooks/task-completed.py"
+    if not _hook_exists(settings['hooks']['TaskCompleted'], 'task-completed.py'):
+        settings['hooks']['TaskCompleted'].append({
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": task_script, "timeout": 10, "allowFailure": True}]
+        })
+        if output_format != 'json':
+            print("   ✓ TaskCompleted hook configured")
+
+    # Configure PostToolUseFailure hook (tool failure tracking)
+    if 'PostToolUseFailure' not in settings['hooks']:
+        settings['hooks']['PostToolUseFailure'] = []
+
+    failure_script = f"{python_cmd} {plugin_dir}/hooks/tool-failure.py"
+    if not _hook_exists(settings['hooks']['PostToolUseFailure'], 'tool-failure.py'):
+        settings['hooks']['PostToolUseFailure'].append({
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": failure_script, "timeout": 5, "allowFailure": True}]
+        })
+        if output_format != 'json':
+            print("   ✓ PostToolUseFailure hook configured")
+
+    # Configure Stop hook (transaction enforcement)
+    if 'Stop' not in settings['hooks']:
+        settings['hooks']['Stop'] = []
+
+    stop_script = f"{python_cmd} {plugin_dir}/hooks/transaction-enforcer.py"
+    if not _hook_exists(settings['hooks']['Stop'], 'transaction-enforcer.py'):
+        settings['hooks']['Stop'].append({
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": stop_script, "timeout": 5, "allowFailure": True}]
+        })
+        if output_format != 'json':
+            print("   ✓ Stop (transaction enforcer) hook configured")
+
+    # Write settings.json
+    _write_json_file(settings_file, settings)
+
+
 def handle_setup_claude_code_command(args):
     """Handle setup-claude-code command"""
     try:
@@ -274,279 +556,11 @@ def handle_setup_claude_code_command(args):
                     print("   ⚠️  CLAUDE.md template not found in plugin")
 
         # ==================== CONFIGURE SETTINGS.JSON ====================
-        if output_format != 'json':
-            print("\n⚙️  Configuring settings.json...")
-
         settings_file = claude_dir / "settings.json"
         settings = _ensure_json_file(settings_file, {})
-
-        # Ensure enabledPlugins exists
-        if 'enabledPlugins' not in settings:
-            settings['enabledPlugins'] = {}
-
-        # Enable the plugin
         plugin_key = f"{PLUGIN_NAME}@local"
-        settings['enabledPlugins'][plugin_key] = True
-        if output_format != 'json':
-            print("   ✓ Plugin enabled")
+        _configure_settings(settings, settings_file, plugin_dir, python_cmd, force, output_format, plugin_key)
 
-        # --force: clear ONLY Empirica hooks, preserve other plugins' hooks
-        # Previously this did settings['hooks'] = {} which nuked ALL hooks
-        # including Railway, Superpowers, and custom hooks. Now filters by
-        # plugin path to only remove Empirica's entries.
-        if force:
-            plugin_path_patterns = [
-                f'plugins/local/{PLUGIN_NAME}/',      # Current name
-                'plugins/local/empirica-integration/', # Legacy name
-                'plugins/local/empirica/',             # Short name
-            ]
-            for event in list(settings.get('hooks', {}).keys()):
-                original_count = len(settings['hooks'][event])
-                settings['hooks'][event] = [
-                    hook for hook in settings['hooks'][event]
-                    if not any(
-                        pattern in str(hook)
-                        for pattern in plugin_path_patterns
-                    )
-                ]
-                removed = original_count - len(settings['hooks'][event])
-                if removed > 0:
-                    logger.debug(f"--force: removed {removed} Empirica hooks from {event}")
-                # Clean up empty event lists
-                if not settings['hooks'][event]:
-                    del settings['hooks'][event]
-
-            settings.pop('statusLine', None)
-            if output_format != 'json':
-                print("   --force: cleared Empirica hooks and statusLine (other plugins preserved)")
-
-            # Also clean up legacy plugin name from enabledPlugins
-            legacy_key = "empirica-integration@local"
-            if legacy_key in settings.get('enabledPlugins', {}):
-                del settings['enabledPlugins'][legacy_key]
-                if output_format != 'json':
-                    print("   --force: removed legacy empirica-integration@local from enabledPlugins")
-
-        # Configure StatusLine
-        # Claude Code pipes session JSON to statusline stdin — do NOT redirect stdin
-        if 'statusLine' not in settings:
-            statusline_script = plugin_dir / "scripts" / "statusline_empirica.py"
-            settings['statusLine'] = {
-                "type": "command",
-                "command": f"{python_cmd} {statusline_script}"
-            }
-            if output_format != 'json':
-                print("   ✓ StatusLine configured")
-        else:
-            if output_format != 'json':
-                print("   StatusLine already configured")
-
-        # Ensure hooks structure
-        if 'hooks' not in settings:
-            settings['hooks'] = {}
-
-        # Configure PreToolUse (Sentinel) hooks
-        if 'PreToolUse' not in settings['hooks']:
-            settings['hooks']['PreToolUse'] = []
-
-        sentinel_script = f"{python_cmd} {plugin_dir}/hooks/sentinel-gate.py"
-        if not _hook_exists(settings['hooks']['PreToolUse'], 'sentinel-gate'):
-            settings['hooks']['PreToolUse'].extend([
-                {
-                    "matcher": "Edit|Write",
-                    "hooks": [{"type": "command", "command": sentinel_script, "timeout": 10}]
-                },
-                {
-                    "matcher": "Bash",
-                    "hooks": [{"type": "command", "command": sentinel_script, "timeout": 10}]
-                }
-            ])
-            if output_format != 'json':
-                print("   ✓ PreToolUse (Sentinel) hooks configured")
-        else:
-            if output_format != 'json':
-                print("   PreToolUse hooks already configured")
-
-        # Configure PreCompact hook
-        if 'PreCompact' not in settings['hooks']:
-            settings['hooks']['PreCompact'] = []
-
-        precompact_script = f"{python_cmd} {plugin_dir}/hooks/pre-compact.py"
-        if not _hook_exists(settings['hooks']['PreCompact'], 'pre-compact.py'):
-            settings['hooks']['PreCompact'].append({
-                "matcher": "auto|manual",
-                "hooks": [{"type": "command", "command": precompact_script, "timeout": 30}]
-            })
-            if output_format != 'json':
-                print("   ✓ PreCompact hook configured")
-        else:
-            if output_format != 'json':
-                print("   PreCompact hook already configured")
-
-        # Configure SessionStart hooks
-        if 'SessionStart' not in settings['hooks']:
-            settings['hooks']['SessionStart'] = []
-
-        postcompact_script = f"{python_cmd} {plugin_dir}/hooks/post-compact.py"
-        sessioninit_script = f"{python_cmd} {plugin_dir}/hooks/session-init.py"
-        ewm_script = f"{python_cmd} {plugin_dir}/hooks/ewm-protocol-loader.py"
-
-        if not _hook_exists(settings['hooks']['SessionStart'], 'post-compact.py'):
-            settings['hooks']['SessionStart'].extend([
-                {
-                    "matcher": "compact",
-                    "hooks": [
-                        {"type": "command", "command": postcompact_script, "timeout": 30},
-                        {"type": "command", "command": ewm_script, "timeout": 10, "allowFailure": True}
-                    ]
-                },
-                {
-                    "matcher": "startup|resume",
-                    "hooks": [
-                        {"type": "command", "command": sessioninit_script, "timeout": 30},
-                        {"type": "command", "command": ewm_script, "timeout": 10, "allowFailure": True}
-                    ]
-                }
-            ])
-            if output_format != 'json':
-                print("   ✓ SessionStart hooks configured")
-        else:
-            if output_format != 'json':
-                print("   SessionStart hooks already configured")
-
-        # Configure SessionEnd hooks
-        if 'SessionEnd' not in settings['hooks']:
-            settings['hooks']['SessionEnd'] = []
-
-        postflight_script = f"{python_cmd} {plugin_dir}/hooks/session-end-postflight.py"
-        curate_script = f"{python_cmd} {plugin_dir}/hooks/curate-snapshots.py --output json"
-
-        if not _hook_exists(settings['hooks']['SessionEnd'], 'session-end-postflight.py'):
-            settings['hooks']['SessionEnd'].append({
-                "matcher": ".*",
-                "hooks": [
-                    {"type": "command", "command": postflight_script, "timeout": 20},
-                    {"type": "command", "command": curate_script, "timeout": 15, "allowFailure": True}
-                ]
-            })
-            if output_format != 'json':
-                print("   ✓ SessionEnd hooks configured")
-        else:
-            if output_format != 'json':
-                print("   SessionEnd hooks already configured")
-
-        # Configure SubagentStart hook
-        if 'SubagentStart' not in settings['hooks']:
-            settings['hooks']['SubagentStart'] = []
-
-        substart_script = f"{python_cmd} {plugin_dir}/hooks/subagent-start.py"
-        if not _hook_exists(settings['hooks']['SubagentStart'], 'subagent-start.py'):
-            settings['hooks']['SubagentStart'].append({
-                "matcher": ".*",
-                "hooks": [{"type": "command", "command": substart_script, "timeout": 10, "allowFailure": True}]
-            })
-            if output_format != 'json':
-                print("   ✓ SubagentStart hook configured")
-        else:
-            if output_format != 'json':
-                print("   SubagentStart hook already configured")
-
-        # Configure SubagentStop hook
-        if 'SubagentStop' not in settings['hooks']:
-            settings['hooks']['SubagentStop'] = []
-
-        substop_script = f"{python_cmd} {plugin_dir}/hooks/subagent-stop.py"
-        if not _hook_exists(settings['hooks']['SubagentStop'], 'subagent-stop.py'):
-            settings['hooks']['SubagentStop'].append({
-                "matcher": ".*",
-                "hooks": [{"type": "command", "command": substop_script, "timeout": 15, "allowFailure": True}]
-            })
-            if output_format != 'json':
-                print("   ✓ SubagentStop hook configured")
-        else:
-            if output_format != 'json':
-                print("   SubagentStop hook already configured")
-
-        # Configure UserPromptSubmit hook
-        if 'UserPromptSubmit' not in settings['hooks']:
-            settings['hooks']['UserPromptSubmit'] = []
-
-        router_script = f"{python_cmd} {plugin_dir}/hooks/tool-router.py"
-        if not _hook_exists(settings['hooks']['UserPromptSubmit'], 'tool-router.py'):
-            settings['hooks']['UserPromptSubmit'].append({
-                "matcher": ".*",
-                "hooks": [{"type": "command", "command": router_script, "timeout": 3, "allowFailure": True}]
-            })
-            if output_format != 'json':
-                print("   ✓ UserPromptSubmit hook configured")
-        else:
-            if output_format != 'json':
-                print("   UserPromptSubmit hook already configured")
-
-        # Context-shift tracker (classifies solicited vs unsolicited prompts)
-        cs_script = f"{python_cmd} {plugin_dir}/hooks/context-shift-tracker.py"
-        if not _hook_exists(settings['hooks']['UserPromptSubmit'], 'context-shift-tracker.py'):
-            settings['hooks']['UserPromptSubmit'].append({
-                "matcher": ".*",
-                "hooks": [{"type": "command", "command": cs_script, "timeout": 5, "allowFailure": True}]
-            })
-            if output_format != 'json':
-                print("   ✓ Context-shift tracker configured")
-
-        # Configure PostToolUse hook (entity extraction on Edit/Write)
-        if 'PostToolUse' not in settings['hooks']:
-            settings['hooks']['PostToolUse'] = []
-
-        entity_script = f"{python_cmd} {plugin_dir}/hooks/entity-extractor.py"
-        if not _hook_exists(settings['hooks']['PostToolUse'], 'entity-extractor.py'):
-            settings['hooks']['PostToolUse'].append({
-                "matcher": "Edit|Write",
-                "hooks": [{"type": "command", "command": entity_script, "timeout": 5, "allowFailure": True}]
-            })
-            if output_format != 'json':
-                print("   ✓ PostToolUse (entity extraction) hook configured")
-
-        # Configure TaskCompleted hook (goal-commit bridge)
-        if 'TaskCompleted' not in settings['hooks']:
-            settings['hooks']['TaskCompleted'] = []
-
-        task_script = f"{python_cmd} {plugin_dir}/hooks/task-completed.py"
-        if not _hook_exists(settings['hooks']['TaskCompleted'], 'task-completed.py'):
-            settings['hooks']['TaskCompleted'].append({
-                "matcher": ".*",
-                "hooks": [{"type": "command", "command": task_script, "timeout": 10, "allowFailure": True}]
-            })
-            if output_format != 'json':
-                print("   ✓ TaskCompleted hook configured")
-
-        # Configure PostToolUseFailure hook (tool failure tracking)
-        if 'PostToolUseFailure' not in settings['hooks']:
-            settings['hooks']['PostToolUseFailure'] = []
-
-        failure_script = f"{python_cmd} {plugin_dir}/hooks/tool-failure.py"
-        if not _hook_exists(settings['hooks']['PostToolUseFailure'], 'tool-failure.py'):
-            settings['hooks']['PostToolUseFailure'].append({
-                "matcher": ".*",
-                "hooks": [{"type": "command", "command": failure_script, "timeout": 5, "allowFailure": True}]
-            })
-            if output_format != 'json':
-                print("   ✓ PostToolUseFailure hook configured")
-
-        # Configure Stop hook (transaction enforcement)
-        if 'Stop' not in settings['hooks']:
-            settings['hooks']['Stop'] = []
-
-        stop_script = f"{python_cmd} {plugin_dir}/hooks/transaction-enforcer.py"
-        if not _hook_exists(settings['hooks']['Stop'], 'transaction-enforcer.py'):
-            settings['hooks']['Stop'].append({
-                "matcher": ".*",
-                "hooks": [{"type": "command", "command": stop_script, "timeout": 5, "allowFailure": True}]
-            })
-            if output_format != 'json':
-                print("   ✓ Stop (transaction enforcer) hook configured")
-
-        # Write settings.json
-        _write_json_file(settings_file, settings)
 
         # ==================== MARKETPLACE REGISTRATION ====================
         if output_format != 'json':
