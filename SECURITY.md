@@ -3,7 +3,7 @@
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability in Empirica, please report it
-responsibly by emailing **security@empirica.ai** (or contact the maintainer
+responsibly by emailing **security@empirica-ai.com** (or contact the maintainer
 via GitHub directly if email is unavailable).
 
 Please do not file public GitHub issues for security vulnerabilities.
@@ -33,11 +33,11 @@ affiliation with Empirica or Empirica AI, **it is unauthorized**. We have
 not issued, endorsed, or partnered with any such project.
 
 If you have been misled or financially harmed by an impersonating token,
-please contact us at security@empirica.ai with details — we maintain a
+please contact us at security@empirica-ai.com with details — we maintain a
 register of known impersonations and may be able to assist with reporting
 to the appropriate platform.
 
-To report brand/trademark misuse, contact: brand@empirica.ai
+To report brand/trademark misuse, contact: brand@empirica-ai.com
 
 ## Impersonation Reporting
 
@@ -49,4 +49,4 @@ media account, fake website, etc.), please share:
 - Date of discovery
 - Where you encountered it
 
-Send to **brand@empirica.ai**.
+Send to **brand@empirica-ai.com**.
