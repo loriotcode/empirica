@@ -33,11 +33,13 @@ def format_help_text(text, required=False, default=None):
         # Returns: "Maximum items (optional, default: 10)"
     """
     if required:
-        return f"{text} (required)"
+        result = f"{text} (required)"
     elif default is not None:
-        return f"{text} (optional, default: {default})"
+        result = f"{text} (optional, default: {default})"
     else:
-        return f"{text} (optional)"
+        result = f"{text} (optional)"
+    # Escape % for Python 3.14+ argparse, which interprets % as format specifier in help strings
+    return result.replace('%', '%%')
 
 from .action_parsers import add_action_parsers
 from .agent_parsers import add_agent_parsers

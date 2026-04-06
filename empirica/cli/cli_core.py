@@ -208,7 +208,7 @@ def create_argument_parser():
     parser = argparse.ArgumentParser(
         prog='empirica',
         usage='empirica [--version] [--verbose] <command> [args]',
-        description='🧠 Empirica — Measurement and calibration layer for AI',
+        description='Empirica - Measurement and calibration layer for AI',
         formatter_class=GroupedHelpFormatter,
         epilog="Examples:\n  empirica session-create --ai-id claude-code\n  empirica preflight-submit -     # JSON on stdin\n  empirica finding-log --finding \"Discovered X\" --impact 0.7\n  empirica goals-create --objective \"Implement Y\"\n  empirica project-bootstrap     # Load project context"
     )

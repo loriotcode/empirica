@@ -13,7 +13,7 @@ def add_edit_verification_parsers(subparsers):
     # edit-with-confidence command - metacognitive edit guard
     edit_confidence_parser = subparsers.add_parser(
         'edit-with-confidence',
-        help='Edit file with metacognitive confidence assessment (prevents 80% of edit failures)'
+        help='Edit file with metacognitive confidence assessment (prevents 80%% of edit failures)'
     )
     edit_confidence_parser.add_argument(
         '--file-path',
