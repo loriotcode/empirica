@@ -5,6 +5,23 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.10] - 2026-04-06
+
+### Added
+- **Full artifact storage parity** — All 7 artifact types (findings, unknowns, dead-ends, mistakes, assumptions, decisions, sources) now write to all 3 layers: SQLite + Git Notes + Qdrant
+- **GitSourceStore** — New git notes store for epistemic sources (refs/notes/empirica/sources/{id})
+
+### Changed
+- **Consolidated mistake_commands.py** into artifact_log_commands.py — all artifact logging in one file
+- **POSTFLIGHT handler** — F/224 → F/126 (-44%) via 3 extracted functions
+- **Bootstrap handler** — F/203 → F/58 (-71%) via file split to project_bootstrap_formatter.py
+- **Setup handler** — F/142 → F/83 (-42%) via extracted _configure_settings
+- **Ruff issues** — 8343 → 1723 (-79%) via auto-fix batches (UP045, F541)
+
+### Fixed
+- **Instance_projects overwrite** — Sequential Claude sessions in same pane no longer overwrite active transactions
+- **Transaction-scoped completion** — CHECK reminds to rate per-transaction, POSTFLIGHT hints on goal completion
+
 ## [1.7.9] - 2026-04-06
 
 ### Fixed

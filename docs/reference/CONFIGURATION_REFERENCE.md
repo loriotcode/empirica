@@ -660,7 +660,7 @@ has_key = loader.has_credential("MINIMAX_API_KEY")
 - `EMPIRICA_INVESTIGATION_PROFILE`: Force investigation profile
 - `EMPIRICA_PROFILE_MODE`: Override profile mode
 - `EMPIRICA_PERSONALITY`: Set AI personality/persona (`researcher`, `implementer`, `reviewer`, etc.)
-- `EMPIRICA_EPISTEMIC_MODE`: **Deprecated in 1.7.9.** Epistemic middleware was removed from MCP server (Sentinel handles gating via hooks). This env var has no effect.
+- `EMPIRICA_EPISTEMIC_MODE`: **Deprecated in 1.7.10.** Epistemic middleware was removed from MCP server (Sentinel handles gating via hooks). This env var has no effect.
 
 ### Cortex Integration
 

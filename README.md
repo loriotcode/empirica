@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.7.9-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.9)
+[![Version](https://img.shields.io/badge/version-1.7.10-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.10)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -98,13 +98,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.7.9-alpine
+docker pull nubaeon/empirica:1.7.10-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.7.9
+docker pull nubaeon/empirica:1.7.10
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.7.9 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.7.10 /bin/bash
 ```
 </details>
 
@@ -264,7 +264,7 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.7.9
+## What's New in 1.7.10
 
 - **MCP TOOL_REGISTRY audit** — 23 param mismatches fixed across 16 tools. All 45 tools verified against CLI `--help`. Added positional argument support for investigate and goals-search
 - **MCP binary path drift** — `setup-claude-code` now prefers venv binary over stale pipx install. Always updates mcp.json command path when binary changes
@@ -314,6 +314,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.7.9
+**Version:** 1.7.10
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*

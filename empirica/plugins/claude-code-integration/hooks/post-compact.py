@@ -293,7 +293,7 @@ def main():
             instance_id=instance_id
         )
 
-        # Restore hook counters file (separate from transaction since v1.7.9)
+        # Restore hook counters file (separate from transaction since v1.7.10)
         if hook_counters:
             try:
                 suffix = _get_instance_suffix()

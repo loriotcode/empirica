@@ -305,7 +305,7 @@ Sentinel controls the CHECK gate:
 - **PreToolCall hooks**: `sentinel-gate.py` blocks Edit/Write/Bash without valid CHECK
 - **SessionStart hooks**: `session-init.py` auto-creates session + bootstrap for new conversations
 - **SessionEnd hooks**: `session-end-postflight.py` auto-captures POSTFLIGHT
-- **MCP**: `EMPIRICA_EPISTEMIC_MODE` — **Removed in 1.7.9.** MCP epistemic middleware was replaced by Sentinel hooks
+- **MCP**: `EMPIRICA_EPISTEMIC_MODE` — **Removed in 1.7.10.** MCP epistemic middleware was replaced by Sentinel hooks
 
 ---
 
