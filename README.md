@@ -268,14 +268,10 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ## What's New in 1.7.11
 
-- **Full artifact storage parity** — All 7 artifact types (findings, unknowns, dead-ends, mistakes, assumptions, decisions, sources) now write to all 3 layers: SQLite + Git Notes + Qdrant
-- **GitSourceStore** — New git notes store for epistemic sources (refs/notes/empirica/sources/{id})
-- **Consolidated mistake_commands.py** into artifact_log_commands.py — all artifact logging in one file
-- **POSTFLIGHT handler** — F/224 → F/126 (-44%) via 3 extracted functions
-- **Bootstrap handler** — F/203 → F/58 (-71%) via file split to project_bootstrap_formatter.py
-- **Setup handler** — F/142 → F/83 (-42%) via extracted _configure_settings
-- **Ruff issues** — 8343 → 1723 (-79%) via auto-fix batches (UP045, F541)
-- **Instance_projects overwrite** — Sequential Claude sessions in same pane no longer overwrite active transactions
+- **Python 3.14 + Windows compatibility** (#80) — Empirica was unusable on `uv tool install` (which now ships Python 3.14 by default) on Windows
+- **argparse `%` collision**: Python 3.14 made argparse stricter about `%` in help strings (treats `%X` as printf format specifier). Escaped literal `80%` → `80%%` in `edit-with-confidence` parser. Added defensive `%` escape in `format_help_text()` for any future help strings with `%` in defaults or text.
+- **Windows emoji crash**: cp1252 codec couldn't encode emoji in main parser description, crashing `--help` and any `parse_args()` error path on Windows. Removed emoji from `cli_core.py` description.
+- **`setup-claude-code --force` NameError** (#79) — Stale `claude_dir` reference inside `_configure_settings()` after the v1.7.10 extraction. `claude_dir` wasn't in the function's scope; `settings_file` was already passed as a parameter. Thanks to **@pschwinger** for the fix.
 
 ### Previous Highlights (1.6.11–1.7.0)
 
