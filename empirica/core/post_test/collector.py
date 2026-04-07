@@ -458,6 +458,18 @@ class PostTestCollector:
 
         if unknowns_surfaced > 0:
             # Normalize: 1-2 = 0.3, 5+ = 1.0
+            #
+            # Semantic: surfacing unknowns is a KNOW signal (honesty about the
+            # boundary of your knowledge), not directly an uncertainty signal.
+            # A transaction that surfaced 5 unknowns demonstrates high knowledge
+            # honesty — it doesn't tell us whether the AI is "uncertain" overall.
+            #
+            # Fixed 2026-04-07: prior version assigned this score to BOTH know
+            # and uncertainty, which double-counted the same evidence with
+            # different (conflicting) semantics. Unknowns_surfaced now grounds
+            # know only. Uncertainty is grounded by dead_end_ratio (artifacts
+            # source) and investigation_rounds (sentinel source) which both
+            # measure actual doubt rather than disclosure honesty.
             honesty_score = min(1.0, unknowns_surfaced / 5.0)
             items.append(EvidenceItem(
                 source="noetic",
@@ -465,7 +477,7 @@ class PostTestCollector:
                 value=honesty_score,
                 raw_value={"count": unknowns_surfaced},
                 quality=EvidenceQuality.SEMI_OBJECTIVE,
-                supports_vectors=["uncertainty", "know"],
+                supports_vectors=["know"],
                 metadata={"phase": "noetic"},
             ))
 
@@ -1386,14 +1398,23 @@ class PostTestCollector:
                     supports_vectors=["context"],
                 ))
 
-            # Investigation rounds needed (more rounds = higher actual uncertainty)
+            # Investigation rounds needed → uncertainty observation.
+            #
+            # Semantic: uncertainty = amount of doubt (0.0 = certain, 1.0 = max uncertain).
+            # More check rounds needed before proceed = more doubt = higher uncertainty.
+            #
+            # Fixed 2026-04-07: prior version produced a CONFIDENCE value
+            # (1 round = 1.0, 5+ rounds = 0.0) but assigned it to the uncertainty
+            # vector — so a confident 1-round proceed was read as MAX uncertainty.
+            # This inverted signal drove the ~1.0 grounded uncertainty observation
+            # seen consistently in session 659f0619.
             if total_checks > 1:
-                # Normalize: 1 round = 1.0 (confident), 5+ rounds = 0.0 (high uncertainty)
-                rounds_score = max(0.0, 1.0 - (total_checks - 1) / 4.0)
+                # Normalize: 1 round = 0.0 (certain), 3 rounds = 0.5, 5+ = 1.0 (uncertain)
+                rounds_uncertainty = min(1.0, (total_checks - 1) / 4.0)
                 items.append(EvidenceItem(
                     source="sentinel",
-                    metric_name="investigation_efficiency",
-                    value=rounds_score,
+                    metric_name="investigation_rounds_uncertainty",
+                    value=rounds_uncertainty,
                     raw_value={"check_rounds": total_checks},
                     quality=EvidenceQuality.INFERRED,
                     supports_vectors=["uncertainty"],
