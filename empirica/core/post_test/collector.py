@@ -841,22 +841,14 @@ class PostTestCollector:
                 supports_vectors=["signal", "know"],
             ))
 
-        # Dead-end ratio → uncertainty proxy (inverted, scope-weighted)
-        # More dead-ends relative to findings = higher actual uncertainty
-        if total_exploration > 0:
-            dead_end_ratio = dead_ends_count / total_exploration
-            uncertainty_evidence = dead_end_ratio
-            items.append(EvidenceItem(
-                source="artifacts",
-                metric_name="dead_end_ratio",
-                value=uncertainty_evidence,
-                raw_value={
-                    "dead_ends_weighted": round(dead_ends_count, 2),
-                    "total_weighted": round(total_exploration, 2),
-                },
-                quality=EvidenceQuality.SEMI_OBJECTIVE,
-                supports_vectors=["uncertainty"],
-            ))
+        # Dead-end ratio — removed as direct uncertainty source (2026-04-07).
+        # Uncertainty is now a META-derived quantity computed in mapper.py
+        # from the grounded coverage and gap magnitudes of the OTHER 12
+        # vectors. First-order doubt proxies like dead_end_ratio measured
+        # something real (exploration productivity) but the mapping to
+        # "how confident is the AI in its self-assessment overall" was
+        # ad-hoc. Dead-end ratio still contributes to signal/know via
+        # productive_exploration_ratio above.
 
         # Mistake density → inverse signal (uses raw findings for denominator)
         raw_findings = (scoped_findings + unscoped_findings) if has_goals else findings_count
@@ -961,43 +953,26 @@ class PostTestCollector:
         organizing artifacts) get proper `do` grounding instead of 0.0.
         """
         items = []
-        db = self._get_db()
-        cursor = db.conn.cursor()
 
-        # Get session start time as the fallback scope
-        cursor.execute(
-            "SELECT start_time FROM sessions WHERE session_id = ?",
-            (self.session_id,),
-        )
-        row = cursor.fetchone()
-        if not row:
+        # Transaction-scoping requirement (2026-04-07, second pass):
+        #
+        # Session-scoping is meaningless for metric calculation. Sessions exist
+        # only for Claude Code continuity across compactions and for attaching
+        # instance state to the right transaction — they are NOT a valid unit
+        # for measuring "what work got done". Metrics must always be scoped by
+        # transaction (via preflight_timestamp), with the broader project as
+        # the only other meaningful boundary.
+        #
+        # Without preflight_timestamp we cannot honestly bound "since when",
+        # so we emit no evidence items rather than falling back to session
+        # scope (which would produce the session-wide totals that caused the
+        # ~0.51 constant-offset completion bias in session 659f0619).
+        if self.preflight_timestamp is None:
             return items
 
-        # Handle both unix timestamp and ISO format
-        raw_start = str(row[0])
-        try:
-            session_start = float(raw_start)
-        except ValueError:
-            from datetime import datetime as _dt
-            try:
-                session_start = _dt.fromisoformat(raw_start).timestamp()
-            except Exception:
-                return items
-
-        # Transaction-scoping fix (2026-04-07):
-        #
-        # Before this fix, triage metrics were always session-scoped: every
-        # POSTFLIGHT in a long session counted ALL goals completed since
-        # session start, producing a ~0.51 completion observation regardless
-        # of per-transaction work. This masked genuine per-transaction
-        # completion and polluted calibration_trajectory with a constant offset.
-        #
-        # Fix: use preflight_timestamp as the scope boundary when available,
-        # with formulas calibrated for per-transaction counts (1-3 goals).
-        # Fall back to session_start + session-scale formulas when
-        # preflight_timestamp is absent (triage-session work, legacy callers).
-        scope_start = self.preflight_timestamp or session_start
-        is_tx_scoped = self.preflight_timestamp is not None
+        scope_start = self.preflight_timestamp
+        db = self._get_db()
+        cursor = db.conn.cursor()
 
         # Goals completed since scope_start (transaction or session)
         cursor.execute("""
@@ -1018,18 +993,13 @@ class PostTestCollector:
         """, (scope_start + 1, scope_start))
         total_goals_in_scope = max(cursor.fetchone()[0], goals_completed)
 
-        scope_label = "transaction" if is_tx_scoped else "session"
+        scope_label = "transaction"
 
         if goals_completed > 0:
-            # Goal completion → do (completing goals = doing work)
-            # Per-transaction expectation: 1-3 goals. Session triage: 5-15.
-            if is_tx_scoped:
-                # Transaction scale: 1 goal = strong signal, 2+ = near-max.
-                # Maps 1→0.7, 2→0.9, 3+→1.0
-                do_score = min(1.0, 0.5 + goals_completed * 0.2)
-            else:
-                # Session-scale (legacy): 1=0.4, 3=0.7, 5+=1.0
-                do_score = min(1.0, 0.4 + (goals_completed - 1) * 0.15)
+            # Goal completion → do (completing goals = doing work).
+            # Transaction-scoped expectation: 1-3 goals per transaction is normal.
+            # Maps 1→0.7, 2→0.9, 3+→1.0
+            do_score = min(1.0, 0.5 + goals_completed * 0.2)
             items.append(EvidenceItem(
                 source="triage",
                 metric_name="goals_completed",
@@ -1071,15 +1041,10 @@ class PostTestCollector:
         unknowns_resolved = cursor.fetchone()[0]
 
         if unknowns_resolved > 0:
-            # Resolving unknowns IS doing work — epistemic action
-            # Per-transaction expectation: 1-3 resolutions. Session triage: 5-30.
-            if is_tx_scoped:
-                # Transaction scale: 1 resolution = strong signal.
-                # Maps 1→0.7, 2→0.9, 3+→1.0
-                resolve_do_score = min(1.0, 0.5 + unknowns_resolved * 0.2)
-            else:
-                # Session-scale (legacy): 5=0.17, 15=0.5, 30+=1.0
-                resolve_do_score = min(1.0, unknowns_resolved / 30.0)
+            # Resolving unknowns IS doing work — epistemic action.
+            # Transaction-scoped: 1 resolution = strong signal.
+            # Maps 1→0.7, 2→0.9, 3+→1.0
+            resolve_do_score = min(1.0, 0.5 + unknowns_resolved * 0.2)
             items.append(EvidenceItem(
                 source="triage",
                 metric_name="unknowns_resolved",
@@ -1094,11 +1059,9 @@ class PostTestCollector:
             ))
 
             # High resolution count signals change happened.
-            # Transaction scope: 2+ resolutions is substantial. Session: 5+.
-            change_threshold = 2 if is_tx_scoped else 5
-            change_divisor = 4.0 if is_tx_scoped else 20.0
-            if unknowns_resolved >= change_threshold:
-                change_score = min(1.0, unknowns_resolved / change_divisor)
+            # Transaction-scoped: 2+ resolutions is substantial.
+            if unknowns_resolved >= 2:
+                change_score = min(1.0, unknowns_resolved / 4.0)
                 items.append(EvidenceItem(
                     source="triage",
                     metric_name="triage_change",
@@ -1398,27 +1361,13 @@ class PostTestCollector:
                     supports_vectors=["context"],
                 ))
 
-            # Investigation rounds needed → uncertainty observation.
-            #
-            # Semantic: uncertainty = amount of doubt (0.0 = certain, 1.0 = max uncertain).
-            # More check rounds needed before proceed = more doubt = higher uncertainty.
-            #
-            # Fixed 2026-04-07: prior version produced a CONFIDENCE value
-            # (1 round = 1.0, 5+ rounds = 0.0) but assigned it to the uncertainty
-            # vector — so a confident 1-round proceed was read as MAX uncertainty.
-            # This inverted signal drove the ~1.0 grounded uncertainty observation
-            # seen consistently in session 659f0619.
-            if total_checks > 1:
-                # Normalize: 1 round = 0.0 (certain), 3 rounds = 0.5, 5+ = 1.0 (uncertain)
-                rounds_uncertainty = min(1.0, (total_checks - 1) / 4.0)
-                items.append(EvidenceItem(
-                    source="sentinel",
-                    metric_name="investigation_rounds_uncertainty",
-                    value=rounds_uncertainty,
-                    raw_value={"check_rounds": total_checks},
-                    quality=EvidenceQuality.INFERRED,
-                    supports_vectors=["uncertainty"],
-                ))
+            # Investigation rounds — removed as direct uncertainty source (2026-04-07).
+            # Uncertainty is now a META-derived quantity computed in
+            # mapper.py from the coverage and gap magnitudes of the OTHER
+            # 12 vectors. Number of check rounds is tangentially related
+            # but the mapping to "overall confidence in self-assessment"
+            # was ad-hoc. Check-round count is still observable via
+            # check_proceed_ratio above for context scoring.
 
         return items
 

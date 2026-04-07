@@ -43,6 +43,12 @@ QUALITY_WEIGHTS = {
 # provide grounding for coherence and density, leaving only engagement.
 UNGROUNDABLE_VECTORS = {"engagement"}
 
+# Vectors computed as META-derivations from OTHER vectors rather than from
+# direct evidence sources. These are not measured from collector artifacts;
+# they are computed AFTER the other vectors are grounded, using the other
+# vectors' coverage and gap magnitudes as input.
+META_VECTORS = {"uncertainty"}
+
 # Evidence source relevance by work_type.
 #
 # Keys are the actual source IDs emitted by PostTestCollector EvidenceItems:
@@ -225,6 +231,76 @@ def _load_domain_weights(domain: str = "default") -> dict[str, Any]:
         return defaults
 
 
+def _compute_meta_uncertainty(
+    grounded: "dict[str, GroundedVectorEstimate]",
+    calibration_gaps: dict[str, float],
+    grounded_coverage: float,
+) -> float | None:
+    """Compute the grounded uncertainty observation as a META quantity.
+
+    Uncertainty = "how confident is the AI in the other 12 vectors it just
+    reported?" — derived from the coverage (how much we could verify) and
+    gap magnitudes (how wrong the verified parts were) of the OTHER vectors.
+
+    This aligns with the statusline's confidence formula, which treats
+    confidence as a derived display quantity computed from know/context/
+    completion/(1-uncertainty). The vector layer follows the same pattern:
+    uncertainty is computed from the other grounded vectors, not measured
+    directly from domain-specific artifact counts.
+
+    Semantic:
+        0.0 = fully certain (self-assessment is well-calibrated, coverage high)
+        1.0 = maximally uncertain (either low coverage or large gaps)
+        0.5 = neutral default when there's no signal to judge against
+
+    Formula:
+        coverage_u = 1.0 - grounded_coverage
+            High coverage = we could verify a lot = low uncertainty contribution
+            Low coverage = we couldn't verify much = high uncertainty contribution
+        gap_u = clamp(mean(|gap|) * 2.0, 0, 1)
+            Scaled so a mean gap of 0.5 = max uncertainty contribution.
+            Uses absolute gaps to treat over- and under-estimation equally.
+        uncertainty = 0.4 * coverage_u + 0.6 * gap_u
+            Gaps weighted more heavily than coverage — actually being wrong
+            is a stronger uncertainty signal than having less evidence.
+
+    Args:
+        grounded: Dict of grounded vector estimates (excluding UNGROUNDABLE_VECTORS
+                 and META_VECTORS).
+        calibration_gaps: Self - grounded gaps for the grounded vectors.
+        grounded_coverage: Fraction of self-assessed vectors that had evidence.
+
+    Returns:
+        Float in [0.0, 1.0], or None if there's nothing to compute from
+        (no grounded vectors → insufficient evidence for meta-uncertainty).
+    """
+    # Use gaps from OTHER vectors (exclude meta vectors to avoid circularity)
+    other_gaps = [
+        abs(g) for v, g in calibration_gaps.items()
+        if v not in META_VECTORS and v not in UNGROUNDABLE_VECTORS
+    ]
+
+    # If we have neither coverage signal nor gap signal, return insufficient.
+    if not other_gaps and grounded_coverage == 0:
+        return None
+
+    # Coverage term: missing evidence → uncertainty
+    coverage_uncertainty = max(0.0, 1.0 - grounded_coverage)
+
+    # Gap term: wrong predictions → uncertainty.
+    # Scale so mean gap of 0.5 = max uncertainty contribution.
+    if other_gaps:
+        mean_gap = sum(other_gaps) / len(other_gaps)
+        gap_uncertainty = min(1.0, mean_gap * 2.0)
+    else:
+        # Coverage exists but no gap data — use coverage alone
+        gap_uncertainty = 0.0
+
+    # Weighted combination: gaps matter more than coverage absence
+    meta = 0.4 * coverage_uncertainty + 0.6 * gap_uncertainty
+    return round(max(0.0, min(1.0, meta)), 4)
+
+
 def _compute_weighted_calibration(
     calibration_gaps: dict[str, float],
     domain: str = "default",
@@ -372,6 +448,29 @@ class EvidenceMapper:
             calibration_gaps[vector_name] = round(
                 self_val - estimate.estimated_value, 4
             )
+
+        # Meta-uncertainty computation: uncertainty is derived from the
+        # OTHER 12 vectors' coverage and gap magnitudes, not from direct
+        # measurement of first-order doubt proxies. See statusline's
+        # confidence formula — this keeps the vector layer aligned with
+        # how the UI already presents calibration state.
+        #
+        # Only computed when self_assessed has uncertainty (so we can
+        # compare) AND there are other grounded vectors to judge against.
+        if "uncertainty" in self_assessed_vectors and "uncertainty" not in grounded:
+            meta_u = _compute_meta_uncertainty(
+                grounded, calibration_gaps, bundle.coverage
+            )
+            if meta_u is not None:
+                grounded["uncertainty"] = GroundedVectorEstimate(
+                    vector_name="uncertainty",
+                    estimated_value=meta_u,
+                    confidence=0.8,  # meta-derived, moderate confidence
+                    evidence_count=len(calibration_gaps),  # gaps from other vectors
+                    primary_source="meta",
+                )
+                self_u = self_assessed_vectors["uncertainty"]
+                calibration_gaps["uncertainty"] = round(self_u - meta_u, 4)
 
         # Overall calibration score — domain-weighted (Tier 1 + optional Tier 2)
         overall_score = _compute_weighted_calibration(

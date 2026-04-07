@@ -198,24 +198,29 @@ class TestTriageTransactionScoping:
         assert goals_item is not None
         assert goals_item.value == 1.0
 
-    def test_session_scope_fallback_when_no_preflight_timestamp(self):
-        """When preflight_timestamp is None, behavior falls back to
-        session-scoped with the legacy formula (1 goal = 0.4)."""
+    def test_no_preflight_timestamp_emits_no_items(self):
+        """When preflight_timestamp is None, the triage collector emits NO
+        items. Session-scoping is meaningless — without a transaction
+        window, there's no honest way to attribute work to "now". Prior
+        behavior fell back to session-scope which produced the ~0.51
+        completion bias across long sessions. New behavior: honest absence.
+        """
         conn = _setup_db()
         now = time.time()
         session_start = now - 3600
         _insert_session(conn, "sess-test", session_start)
-        # Goal completed after session start, no transaction scope
         _insert_goal(conn, "g1", "sess-test", "completed", session_start + 100, now - 30)
 
         collector = _make_collector(conn, "sess-test", preflight_timestamp=None)
         items = collector._collect_triage_metrics()
 
-        goals_item = next((i for i in items if i.metric_name == "goals_completed"), None)
-        assert goals_item is not None
-        # Session scale: 0.4 + 0*0.15 = 0.4
-        assert goals_item.value == pytest.approx(0.4, abs=0.01)
-        assert goals_item.raw_value["scope"] == "session"
+        # No items should be emitted — the collector refuses to measure
+        # without a transaction scope.
+        assert items == [], (
+            f"Expected no items when preflight_timestamp=None, got: "
+            f"{[i.metric_name for i in items]}. Session-scoping was "
+            f"removed 2026-04-07 because it's not a meaningful metric unit."
+        )
 
 
 class TestTriageUnknownResolution:
