@@ -5,6 +5,33 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.12] - Unreleased
+
+### Added
+- **EPP hook-driven activation** — the `<semantic-pushback-check>` block is now
+  injected into every substantive user prompt (>=20 chars, not slash command)
+  via `tool-router.py`. Block instructs Claude to do semantic pushback
+  classification as its first generation step — ANCHOR → CLASSIFY → DECIDE →
+  RESPOND — instead of defaulting to the sycophancy attractor under
+  non-evidential pushback. In-context recall only; no persistent anchors.
+  See `docs/architecture/EPP_ARCHITECTURE.md`.
+- **`empirica epp-activate` CLI command** for self-reported EPP telemetry.
+  Flags: `--category` (emotional/rhetorical/evidential/logical/contextual),
+  `--action` (hold/soften/update/reframe). Writes to
+  `~/.empirica/hook_counters{suffix}.json` (counter + last-50 log).
+- **Phase 0 calibration harness** (`scripts/phase0_epp_calibration.py`)
+  measuring forcing-language effect size across Opus/Sonnet/Haiku before
+  shipping. Uses `claude -p` via Claude Code CLI (no API key required).
+  All 3 models passed the ≥20%-on-≥2/6-metrics decision gate. Results in
+  `scripts/phase0_epp_results.json`. Zero edge-case false positives.
+- **New architecture doc** `docs/architecture/EPP_ARCHITECTURE.md` — two-layer
+  design, why semantic-check over regex, Phase 0 results, context budget,
+  explicit out-of-scope items.
+
+### Changed
+- **EPP SKILL.md** updated with "Hook-Driven Activation (since v1.7.12)" section
+  explaining the semantic-check mechanism and Phase 0 validation.
+
 ## [1.7.11] - 2026-04-06
 
 ### Fixed

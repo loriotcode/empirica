@@ -25,6 +25,38 @@ contains new evidence or is purely emotional/rhetorical.
 EPP makes position-holding **proportional to epistemic confidence** and
 position-updating **proportional to new evidence**.
 
+## Hook-Driven Activation (since v1.7.12)
+
+EPP is **automatically activated** by the UserPromptSubmit hook
+(`tool-router.py`), which injects a `<semantic-pushback-check>` block into
+the prompt context on every substantive user message (>=20 chars). The block
+instructs Claude to do the pushback classification as its first generation
+step — using the full conversation context already in the KV cache rather
+than any external pattern matching.
+
+**Why semantic self-check instead of regex detection:** Regex matches surface
+form; pushback is a speech act defined by intent and context. The LLM handles
+paraphrase, irony, implicit challenge, and scope shifts natively — regex
+cannot. The hook respects the LLM/software distinction.
+
+**Phase 0 calibration (2026-04-07)** verified the injection changes response
+behavior on pushback scenarios across Opus, Sonnet, and Haiku — all three
+models passed the decision gate with measurable improvements in classification,
+basis-citation, audit-trail, and no-sycophancy metrics. See
+`docs/architecture/EPP_ARCHITECTURE.md` and
+`scripts/phase0_epp_results.json` for details.
+
+**In-context recall is the primary mechanism.** There are no persistent
+position anchors. When the hook activates the check, Claude recalls the
+prior substantive claim from the conversation history already in its context,
+then runs ANCHOR → CLASSIFY → DECIDE → RESPOND inline. This keeps the
+mechanism simple and leverages what LLMs are already good at.
+
+**Self-reported telemetry** via `empirica epp-activate --category X --action Y`
+when you run the protocol inline — writes to `hook_counters.json` for
+trending. See `docs/superpowers/specs/2026-04-07-epp-strengthening-design.md`
+for the full spec.
+
 ## How It Works
 
 When you (Claude) have expressed a substantive position and the user pushes back,
