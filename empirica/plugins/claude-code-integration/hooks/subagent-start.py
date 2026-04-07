@@ -55,15 +55,21 @@ def get_parent_session_id():
 
 
 def create_child_session(parent_session_id: str, agent_name: str) -> dict:
-    """Create a linked child session in Empirica."""
+    """Create a linked child session in Empirica.
+
+    Writes to the dedicated `subagent_sessions` table (migration 034) so
+    subagent rows don't pollute the main `sessions` table or its
+    "recent sessions" diagnostics. Lineage to the parent is preserved
+    via parent_session_id; rollup at SubagentStop logs findings to the
+    parent session in the main `sessions` table.
+    """
     try:
         from empirica.data.session_database import SessionDatabase
 
         db = SessionDatabase()
-        child_session_id = db.create_session(
-            ai_id=agent_name,
-            components_loaded=0,
-            parent_session_id=parent_session_id
+        child_session_id = db.create_subagent_session(
+            agent_name=agent_name,
+            parent_session_id=parent_session_id,
         )
         db.close()
 

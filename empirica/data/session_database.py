@@ -295,6 +295,61 @@ class SessionDatabase:
         self._validate_session_id(session_id)
         return self.sessions.end_session(session_id, avg_confidence, drift_detected, notes)
 
+    # ------------------------------------------------------------------
+    # Subagent session facade (migration 034 — kept separate from main
+    # `sessions` table). See SessionRepository for full docs.
+    # ------------------------------------------------------------------
+
+    def create_subagent_session(
+        self,
+        agent_name: str,
+        parent_session_id: str,
+        project_id: str | None = None,
+        instance_id: str | None = None,
+    ) -> str:
+        """Create a child session for a Task tool spawn (delegates to repo)."""
+        return self.sessions.create_subagent_session(
+            agent_name=agent_name,
+            parent_session_id=parent_session_id,
+            project_id=project_id,
+            instance_id=instance_id,
+        )
+
+    def end_subagent_session(
+        self,
+        session_id: str,
+        rollup_summary: str | None = None,
+    ):
+        """Mark a subagent session as completed (delegates to repo)."""
+        return self.sessions.end_subagent_session(session_id, rollup_summary)
+
+    def get_subagent_session(self, session_id: str) -> dict | None:
+        """Get a subagent session row by ID (delegates to repo)."""
+        return self.sessions.get_subagent_session(session_id)
+
+    def list_subagents_for_parent(
+        self,
+        parent_session_id: str,
+        status: str | None = None,
+    ) -> list[dict]:
+        """List subagent children for a parent (delegates to repo)."""
+        return self.sessions.list_subagents_for_parent(parent_session_id, status)
+
+    def ensure_session_exists(
+        self,
+        session_id: str,
+        ai_id: str = "claude-code",
+        project_id: str | None = None,
+        instance_id: str | None = None,
+    ) -> bool:
+        """Auto-heal: insert minimal session row if missing (delegates to repo)."""
+        return self.sessions.ensure_session_exists(
+            session_id=session_id,
+            ai_id=ai_id,
+            project_id=project_id,
+            instance_id=instance_id,
+        )
+
     def create_cascade(self, session_id: str, task: str, context: dict[str, Any],
                       goal_id: str | None = None, goal: dict[str, Any] | None = None) -> str:
         """Create cascade record (delegates to CascadeRepository)"""

@@ -1097,6 +1097,90 @@ def migration_032_calibration_disputes(cursor: sqlite3.Cursor):
     logger.info("✅ Migration 032 complete: calibration_disputes table created")
 
 
+def migration_034_subagent_sessions(cursor: sqlite3.Cursor):
+    """
+    Move subagent child sessions out of the main `sessions` table into a
+    dedicated `subagent_sessions` table.
+
+    Background: SubagentStart hook used to call SessionDatabase.create_session
+    for every Task spawn (Explore, general-purpose, superpowers:* etc.),
+    polluting the main sessions table. Subagent rows are newer than parents,
+    so post-compact and other "recent sessions" diagnostics surfaced only
+    subagent children — masking missing parents and adding visual clutter
+    to dashboards and queries that don't filter on parent_session_id.
+
+    This migration:
+      1. Creates the subagent_sessions table (no-op if SCHEMAS already
+         created it on a fresh DB).
+      2. Copies all sessions rows where parent_session_id IS NOT NULL into
+         subagent_sessions.
+      3. Deletes those rows from the main sessions table.
+
+    Safe: only rows that were children of a Task spawn are touched. The
+    parent's row (parent_session_id IS NULL) stays in `sessions`.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Step 1: ensure subagent_sessions table exists (idempotent — fresh
+    # installs already created it via SCHEMAS).
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS subagent_sessions (
+            session_id TEXT PRIMARY KEY,
+            agent_name TEXT NOT NULL,
+            parent_session_id TEXT NOT NULL,
+            project_id TEXT,
+            instance_id TEXT,
+            start_time TIMESTAMP NOT NULL,
+            end_time TIMESTAMP,
+            status TEXT NOT NULL DEFAULT 'active',
+            rollup_summary TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Step 2: count rows to migrate (for the log message + safety check)
+    cursor.execute("""
+        SELECT COUNT(*) FROM sessions WHERE parent_session_id IS NOT NULL
+    """)
+    to_migrate = cursor.fetchone()[0]
+
+    if to_migrate == 0:
+        logger.info("✅ Migration 034 complete: no subagent rows to move")
+        return
+
+    # Step 3: copy subagent children into the new table.
+    # ai_id is repurposed as agent_name. Status defaults to 'completed'
+    # because legacy rows we're migrating already had end_time set or are
+    # orphaned (no live subagent will be using them).
+    cursor.execute("""
+        INSERT OR IGNORE INTO subagent_sessions (
+            session_id, agent_name, parent_session_id,
+            project_id, instance_id, start_time, end_time,
+            status, created_at
+        )
+        SELECT
+            session_id, ai_id, parent_session_id,
+            project_id, instance_id, start_time, end_time,
+            CASE WHEN end_time IS NOT NULL THEN 'completed' ELSE 'orphaned' END,
+            created_at
+        FROM sessions
+        WHERE parent_session_id IS NOT NULL
+    """)
+    migrated = cursor.rowcount
+
+    # Step 4: delete the migrated rows from the main sessions table.
+    cursor.execute("""
+        DELETE FROM sessions WHERE parent_session_id IS NOT NULL
+    """)
+    deleted = cursor.rowcount
+
+    logger.info(
+        f"✅ Migration 034 complete: moved {migrated}/{to_migrate} subagent "
+        f"sessions to subagent_sessions table, deleted {deleted} from sessions"
+    )
+
+
 def migration_033_codebase_model(cursor: sqlite3.Cursor):
     """
     Add codebase model tables for temporal entity tracking.
@@ -1174,4 +1258,5 @@ ALL_MIGRATIONS: list[tuple[str, str, Callable]] = [
     ("031_phase_aware_calibration", "Add phase column to grounded verification tables for noetic/praxic calibration split", migration_031_phase_aware_calibration),
     ("032_calibration_disputes", "Add calibration_disputes table for AI pushback on measurement artifacts", migration_032_calibration_disputes),
     ("033_codebase_model", "Add codebase model tables for temporal entity tracking (world-model-mcp absorption)", migration_033_codebase_model),
+    ("034_subagent_sessions", "Move subagent child sessions out of main sessions table to dedicated subagent_sessions table", migration_034_subagent_sessions),
 ]

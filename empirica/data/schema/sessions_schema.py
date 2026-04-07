@@ -29,6 +29,27 @@ SCHEMAS = [
                 )
     """,
 
+    # Schema for subagent_sessions — child sessions spawned by Task tool
+    # invocations. Kept separate from the main `sessions` table so subagent
+    # rows don't pollute "recent sessions" diagnostics, dashboards, and
+    # parent-session lookups. Lineage to the parent is preserved via
+    # parent_session_id, and subagent-stop.py rolls up findings to the
+    # parent session in the main sessions table.
+    """
+    CREATE TABLE IF NOT EXISTS subagent_sessions (
+                    session_id TEXT PRIMARY KEY,
+                    agent_name TEXT NOT NULL,
+                    parent_session_id TEXT NOT NULL,
+                    project_id TEXT,
+                    instance_id TEXT,
+                    start_time TIMESTAMP NOT NULL,
+                    end_time TIMESTAMP,
+                    status TEXT NOT NULL DEFAULT 'active',
+                    rollup_summary TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+    """,
+
     # Schema 2
     """
     CREATE TABLE IF NOT EXISTS cascades (

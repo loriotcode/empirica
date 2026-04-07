@@ -508,12 +508,14 @@ def main():
         logged = rollup_to_parent(parent_session_id, agent_name, extracted,
                                   subagent_data=subagent_data)
 
-    # Always close the child session in DB, regardless of extracted findings
+    # Always close the child session in DB, regardless of extracted findings.
+    # Subagent rows live in the dedicated subagent_sessions table (migration 034)
+    # so we use end_subagent_session, not end_session.
     if child_session_id:
         try:
             from empirica.data.session_database import SessionDatabase
             db = SessionDatabase()
-            db.end_session(child_session_id)
+            db.end_subagent_session(child_session_id)
             db.close()
         except Exception:
             pass

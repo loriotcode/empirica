@@ -240,6 +240,178 @@ class SessionRepository(BaseRepository):
             session_id
         ))
 
+    # ------------------------------------------------------------------
+    # Subagent session operations (migration 034 — isolated from main
+    # `sessions` table to prevent pollution of recent-sessions diagnostics
+    # and lookups). Subagent rows live in `subagent_sessions` and link
+    # back to their parent via parent_session_id.
+    # ------------------------------------------------------------------
+
+    def create_subagent_session(
+        self,
+        agent_name: str,
+        parent_session_id: str,
+        project_id: str | None = None,
+        instance_id: str | None = None,
+    ) -> str:
+        """Create a child session for a Task tool spawn.
+
+        Writes to the dedicated `subagent_sessions` table, NOT the main
+        `sessions` table. The parent stays in `sessions`; the child lives
+        here with a foreign-key-style link via parent_session_id.
+
+        Args:
+            agent_name: Subagent identifier (e.g. "Explore", "general-purpose",
+                "superpowers:code-reviewer")
+            parent_session_id: UUID of the spawning parent session (must
+                already exist in the main `sessions` table or this row
+                becomes orphaned, but we don't enforce FK to allow for
+                cross-project resume scenarios)
+            project_id: Optional project UUID
+            instance_id: Optional instance identifier; auto-detected if None
+
+        Returns:
+            session_id: UUID string for the child session
+        """
+        if instance_id is None:
+            from empirica.utils.session_resolver import InstanceResolver as R
+            instance_id = R.instance_id()
+
+        session_id = str(uuid.uuid4())
+        self._execute("""
+            INSERT INTO subagent_sessions (
+                session_id, agent_name, parent_session_id,
+                project_id, instance_id, start_time, status
+            ) VALUES (?, ?, ?, ?, ?, ?, 'active')
+        """, (
+            session_id, agent_name, parent_session_id,
+            project_id, instance_id, datetime.now(timezone.utc).isoformat(),
+        ))
+        return session_id
+
+    def end_subagent_session(
+        self,
+        session_id: str,
+        rollup_summary: str | None = None,
+    ):
+        """Mark a subagent session as completed.
+
+        Args:
+            session_id: Subagent session UUID
+            rollup_summary: Optional JSON-serialized summary of what the
+                subagent discovered (rollup happens in subagent-stop hook)
+        """
+        self._execute("""
+            UPDATE subagent_sessions
+            SET end_time = ?,
+                status = 'completed',
+                rollup_summary = ?
+            WHERE session_id = ?
+        """, (
+            datetime.now(timezone.utc).isoformat(),
+            rollup_summary,
+            session_id,
+        ))
+
+    def get_subagent_session(self, session_id: str) -> dict | None:
+        """Get a subagent session row by ID."""
+        cursor = self._execute(
+            "SELECT * FROM subagent_sessions WHERE session_id = ?",
+            (session_id,)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def list_subagents_for_parent(
+        self,
+        parent_session_id: str,
+        status: str | None = None,
+    ) -> list[dict]:
+        """List all subagent children for a parent session.
+
+        Args:
+            parent_session_id: Parent session UUID
+            status: Optional filter — 'active', 'completed', 'orphaned'
+
+        Returns:
+            List of subagent session dicts, newest first
+        """
+        if status:
+            cursor = self._execute("""
+                SELECT * FROM subagent_sessions
+                WHERE parent_session_id = ? AND status = ?
+                ORDER BY start_time DESC
+            """, (parent_session_id, status))
+        else:
+            cursor = self._execute("""
+                SELECT * FROM subagent_sessions
+                WHERE parent_session_id = ?
+                ORDER BY start_time DESC
+            """, (parent_session_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+    def ensure_session_exists(
+        self,
+        session_id: str,
+        ai_id: str = "claude-code",
+        project_id: str | None = None,
+        instance_id: str | None = None,
+    ) -> bool:
+        """Auto-heal: insert a minimal session row if missing.
+
+        Used by post-compact recovery when a transaction's session_id
+        survives compact but the session record was never created in the
+        current project's local DB (cross-project session reuse pattern).
+        Inserts with start_time=now and ai_id=claude-code so the rest of
+        the system can resolve the session normally.
+
+        Args:
+            session_id: Pre-existing session UUID to insert
+            ai_id: AI identifier for the row (defaults to claude-code)
+            project_id: Optional project UUID
+            instance_id: Optional instance ID; auto-detected if None
+
+        Returns:
+            True if a new row was inserted, False if it already existed.
+        """
+        # Quick check first to avoid uniqueness errors
+        cursor = self._execute(
+            "SELECT 1 FROM sessions WHERE session_id = ?", (session_id,)
+        )
+        if cursor.fetchone():
+            return False
+
+        if instance_id is None:
+            try:
+                from empirica.utils.session_resolver import InstanceResolver as R
+                instance_id = R.instance_id()
+            except Exception:
+                instance_id = None
+
+        self._execute("""
+            INSERT INTO sessions (
+                session_id, ai_id, start_time, components_loaded,
+                bootstrap_level, instance_id, project_id, session_notes
+            ) VALUES (?, ?, ?, 0, 1, ?, ?, 'auto-healed by post-compact')
+        """, (
+            session_id, ai_id, datetime.now(timezone.utc).isoformat(),
+            instance_id, project_id,
+        ))
+
+        # Also register globally so cross-project resolution still works
+        try:
+            _register_session_globally(
+                session_id=session_id,
+                ai_id=ai_id,
+                project_id=project_id,
+                instance_id=instance_id,
+                parent_session_id=None,
+            )
+        except Exception:
+            pass
+
+        return True
+
     def get_latest_session(
         self,
         ai_id: str | None = None,

@@ -85,6 +85,8 @@ def column_exists(cursor: sqlite3.Cursor, table: str, column: str) -> bool:
         # Post-test grounded calibration tables
         'grounded_beliefs', 'verification_evidence', 'grounded_verifications',
         'calibration_trajectory',
+        # Subagent isolation (migration 034)
+        'subagent_sessions',
     }
 
     if table not in VALID_TABLES:
@@ -122,6 +124,8 @@ def add_column_if_missing(cursor: sqlite3.Cursor, table: str, column: str, colum
         # Post-test grounded calibration tables
         'grounded_beliefs', 'verification_evidence', 'grounded_verifications',
         'calibration_trajectory',
+        # Subagent isolation (migration 034)
+        'subagent_sessions',
     }
     VALID_COLUMN_TYPES = {
         'TEXT', 'INTEGER', 'REAL', 'BLOB', 'NULL',

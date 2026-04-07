@@ -277,6 +277,41 @@ def main():
         # BUG FIX: Use transaction's session_id, not _get_empirica_session()'s which might
         # return a DIFFERENT session. This was causing statusline to query wrong session.
         tx_session_id = active_transaction.get('session_id') or empirica_session
+
+        # AUTO-HEAL (migration 034 era): if the transaction's session_id was
+        # propagated from a different project's DB (cross-project resume),
+        # the row may not exist in the current project-local sessions table.
+        # Subsequent CLI commands will fail validation. Insert a minimal row
+        # so the transaction can continue cleanly. Failure is non-fatal —
+        # we still write the active_work files below.
+        try:
+            from empirica.data.session_database import SessionDatabase
+            from empirica.utils.session_resolver import _validate_session_in_db
+
+            if not _validate_session_in_db(tx_session_id, project_path=str(project_root)):
+                db = SessionDatabase()
+                project_id = (
+                    dynamic_context.get('session_context', {}).get('project_id')
+                )
+                healed = db.ensure_session_exists(
+                    session_id=tx_session_id,
+                    ai_id=ai_id,
+                    project_id=project_id,
+                    instance_id=instance_id,
+                )
+                db.close()
+                if healed:
+                    print(
+                        f"post-compact: auto-healed missing session "
+                        f"{tx_session_id[:8]} in project DB",
+                        file=sys.stderr,
+                    )
+        except Exception as e:
+            print(
+                f"post-compact: auto-heal skipped ({type(e).__name__}: {e})",
+                file=sys.stderr,
+            )
+
         _write_active_work_for_new_conversation(
             claude_session_id=claude_session_id,
             project_path=str(project_root),
