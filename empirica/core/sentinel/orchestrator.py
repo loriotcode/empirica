@@ -942,23 +942,23 @@ class Sentinel:
         flags = flags or {}
 
         if not self.domain_profile:
-            # No profile, use default logic
+            # No profile, use default logic.
+            # Gate uses META UNCERTAINTY ONLY (2026-04-07).
             uncertainty = vectors.get("uncertainty", 0.5)
-            know = vectors.get("know", 0.5)
 
-            if know >= 0.7 and uncertainty <= 0.35:
+            if uncertainty <= 0.35:
                 return {
                     "decision": "proceed",
                     "triggered_gates": [],
                     "actions": [],
-                    "rationale": "Meets default readiness gate"
+                    "rationale": "Meta uncertainty within readiness threshold"
                 }
             else:
                 return {
                     "decision": "investigate",
                     "triggered_gates": [],
                     "actions": [],
-                    "rationale": f"Below readiness gate: know={know}, uncertainty={uncertainty}"
+                    "rationale": f"Meta uncertainty above threshold: {uncertainty:.2f} > 0.35"
                 }
 
         # Build context for gate evaluation

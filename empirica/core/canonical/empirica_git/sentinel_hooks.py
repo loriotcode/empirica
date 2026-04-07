@@ -572,19 +572,22 @@ def default_epistemic_evaluator(checkpoint_data: dict[str, Any]) -> SentinelDeci
     if engagement < 0.5:
         return SentinelDecision.ESCALATE
 
+    # Gate uses META UNCERTAINTY ONLY (2026-04-07).
+    # Uncertainty is the unified confidence summary; gating on it alone
+    # means the AI's overall epistemic state determines readiness, not
+    # an arbitrary compound of vectors that's gameable via inflation.
+    # The min_know parameter is retained in the API for back-compat but
+    # is not evaluated as a gating condition.
+
     # Investigate if too uncertain
     if uncertainty > 0.7:
         return SentinelDecision.INVESTIGATE
 
-    # Investigate if low knowledge with doubt
-    if know < 0.5 and uncertainty > 0.5:
-        return SentinelDecision.INVESTIGATE
-
-    # Check readiness gate (RAW vectors, dynamic or configured thresholds)
-    if know >= min_know and uncertainty <= max_uncertainty:
+    # Check readiness gate (RAW uncertainty vector, dynamic threshold)
+    if uncertainty <= max_uncertainty:
         return SentinelDecision.PROCEED
 
-    # Readiness gate failed — investigate to improve vectors
+    # Readiness gate failed — investigate to lower uncertainty
     return SentinelDecision.INVESTIGATE
 
 

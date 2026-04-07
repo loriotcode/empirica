@@ -1287,31 +1287,47 @@ def handle_check_submit_command(args):
                     diminishing_returns["reason"] = f"know stagnant ({recent_know_deltas}), uncertainty not decreasing ({recent_uncertainty_deltas})"
 
                     # Recommend proceed if baseline is reasonable (know >= 0.60, uncertainty <= 0.45)
-                    # Relaxed thresholds because investigation has plateaued
-                    if know >= 0.60 and uncertainty <= 0.45:
+                    # Relaxed uncertainty threshold because investigation has plateaued.
+                    # Per the meta-uncertainty design (2026-04-07): the gate is
+                    # uncertainty-only — uncertainty IS the meta confidence summary.
+                    if uncertainty <= 0.45:
                         diminishing_returns["recommend_proceed"] = True
-                        diminishing_returns["reason"] += " - baseline adequate, investigation plateaued"
+                        diminishing_returns["reason"] += " - uncertainty acceptable, investigation plateaued"
                     else:
-                        diminishing_returns["reason"] += " - baseline insufficient for proceed override"
+                        diminishing_returns["reason"] += " - uncertainty too high for proceed override"
 
-        # Compute decision with diminishing returns factored in
-        # NOTE: Use RAW vectors, not bias-corrected. Biases are INFORMATIONAL for the AI
-        # to self-correct, not for the system to pre-correct. True calibration happens
-        # at POST-TEST when we compare claimed outcomes vs objective evidence.
-        # Thresholds are dynamic (earned autonomy) when calibration history is available.
+        # Compute decision with diminishing returns factored in.
+        #
+        # Gate semantic (2026-04-07): The CHECK gate uses META UNCERTAINTY ONLY.
+        # Uncertainty is the unified confidence summary — it subsumes the AI's
+        # epistemic state across all 12 other vectors. Adding 'know' as a second
+        # condition makes the gate gameable (inflate know to bypass) and
+        # contradicts the meta-uncertainty design intent: uncertainty IS the
+        # meta confidence, not an independent measurement.
+        #
+        # Gaming resistance: an AI that inflates other vectors but reports low
+        # uncertainty will pass the gate, but the POSTFLIGHT meta-uncertainty
+        # derivation (mapper.py:_compute_meta_uncertainty) compares the
+        # self-reported uncertainty to a value computed from gap magnitudes
+        # of the OTHER grounded vectors. Inflation produces large gaps which
+        # produce high meta-uncertainty which produces a large divergence
+        # which surfaces in calibration_trajectory and overestimate_tendency.
+        # Honest measurement is recovered post-hoc.
+        #
+        # NOTE: Use RAW vectors, not bias-corrected. Biases are INFORMATIONAL.
         computed_decision = None
-        if know >= ready_know_threshold and uncertainty <= ready_uncertainty_threshold:
+        if uncertainty <= ready_uncertainty_threshold:
             computed_decision = "proceed"
         elif diminishing_returns["recommend_proceed"]:
-            # Override: investigation plateaued with adequate baseline
+            # Override: investigation plateaued with acceptable uncertainty
             computed_decision = "proceed"
             logger.info(f"CHECK decision override: proceed due to diminishing returns ({diminishing_returns['reason']})")
-        elif round_num >= 5 and know >= 0.60 and uncertainty <= 0.40:
-            # Hard cap: 5+ rounds with reasonable vectors → proceed
+        elif round_num >= 5 and uncertainty <= 0.40:
+            # Hard cap: 5+ rounds with acceptable uncertainty → proceed
             # Prevents cold-start death spiral where threshold inflation blocks
             # CHECK indefinitely despite honest, adequate investigation
             computed_decision = "proceed"
-            logger.info(f"CHECK decision override: proceed due to max investigate rounds (round={round_num}, know={know:.2f}, uncertainty={uncertainty:.2f})")
+            logger.info(f"CHECK decision override: proceed due to max investigate rounds (round={round_num}, uncertainty={uncertainty:.2f})")
         else:
             computed_decision = "investigate"
 
@@ -1326,7 +1342,7 @@ def handle_check_submit_command(args):
             if autopilot_mode and decision and decision != computed_decision:
                 logger.info(f"AUTOPILOT override: {decision} → {computed_decision} (autopilot enforcement)")
             decision = computed_decision
-            logger.info(f"CHECK auto-computed decision: {decision} (know={know:.2f}, uncertainty={uncertainty:.2f}, biases shown but not applied to gate)")
+            logger.info(f"CHECK auto-computed decision: {decision} (uncertainty={uncertainty:.2f} vs threshold={ready_uncertainty_threshold:.2f}, gate uses META uncertainty only)")
 
         # Use GitEnhancedReflexLogger for proper 3-layer storage (SQLite + Git Notes + JSON)
         try:

@@ -1801,7 +1801,7 @@ def handle_calibration_report_command(args):
         know_data = trajectory.get('know', {})
         uncertainty_data = trajectory.get('uncertainty', {})
         result["readiness_gate"] = {
-            "threshold": "know >= 0.70 AND uncertainty <= 0.35",
+            "threshold": "uncertainty <= 0.35 (meta uncertainty gate)",
             "know_correction": know_data.get('correction', 0),
             "uncertainty_correction": uncertainty_data.get('correction', 0),
             "note": "Apply corrections: ADD to self-assessment"
@@ -1845,7 +1845,7 @@ def handle_calibration_report_command(args):
 
             print()
             print("**Apply corrections:** ADD the correction to your self-assessment.")
-            print("**Readiness gate:** know >= 0.70 AND uncertainty <= 0.35")
+            print("**Readiness gate:** uncertainty <= 0.35 (meta uncertainty)")
         else:
             # Human-readable output
             print("=" * 70)
@@ -1887,7 +1887,7 @@ def handle_calibration_report_command(args):
             print("-" * 70)
             print()
             print("📋 READINESS GATE:")
-            print("   know >= 0.70 AND uncertainty <= 0.35 (after bias correction)")
+            print("   uncertainty <= 0.35 (meta uncertainty, after bias correction)")
             print("   Apply: ADD corrections to your self-assessment")
             print()
 

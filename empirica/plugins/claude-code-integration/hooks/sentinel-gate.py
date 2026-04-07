@@ -1466,8 +1466,13 @@ def _confidence_gate_remote(claude_session_id: str = None) -> str:
         know = float(know) if know else 0.0
         uncertainty = float(uncertainty) if uncertainty else 1.0
 
-        if know >= thresholds['know_min'] and uncertainty <= thresholds['uncertainty_max']:
-            return f"know={know:.2f}>={thresholds['know_min']}, unc={uncertainty:.2f}<={thresholds['uncertainty_max']}, from {phase}"
+        # Gate uses META UNCERTAINTY ONLY (2026-04-07).
+        # Uncertainty is the unified confidence summary across all 12 other
+        # vectors. The 'know' threshold is no longer evaluated as a gating
+        # condition — it remains in the thresholds dict for back-compat with
+        # consumers that read it for display.
+        if uncertainty <= thresholds['uncertainty_max']:
+            return f"unc={uncertainty:.2f}<={thresholds['uncertainty_max']}, from {phase}"
         return ''
 
     except Exception:

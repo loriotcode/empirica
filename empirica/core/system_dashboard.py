@@ -526,7 +526,8 @@ class SystemDashboard(EpistemicObserver):
                 except Exception:
                     pass
 
-            gate_passed = know >= 0.70 and uncertainty <= 0.35
+            # Gate uses META UNCERTAINTY ONLY (2026-04-07).
+            gate_passed = uncertainty <= 0.35
             db.close()
 
             return GateStatus(
