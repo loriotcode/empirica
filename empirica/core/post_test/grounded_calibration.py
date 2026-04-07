@@ -657,6 +657,14 @@ def _run_single_phase_verification(
         'grounded_coverage': round(assessment.grounded_coverage, 2),
         'calibration_score': assessment.overall_calibration_score,
         'gaps': assessment.calibration_gaps,
+        # Vectors the instrument couldn't sample for this work_type.
+        # Their self-assessment stands; no fabricated grounded value, no
+        # false drift in calibration_trajectory. Surfaced here so the AI
+        # can see WHICH vectors were skipped and why — supporting honest
+        # collaboration between the AI and the measurement layer.
+        'insufficient_evidence_vectors': getattr(
+            assessment, 'insufficient_evidence_vectors', []
+        ) or [],
         'updates': {
             v: {
                 'observation': u['observation'],

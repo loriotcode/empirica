@@ -83,9 +83,18 @@ class TrajectoryTracker:
         timestamp = datetime.now().timestamp()
         recorded = 0
 
+        # Vectors that were instrument-blind for this work_type — skip
+        # entirely so we don't pollute trajectory with absent-signal points
+        # that downstream drift analysis could mistake for real overconfidence.
+        # The AI's self-assessment stands as the best available estimate
+        # without any false grounded value to subtract from.
+        insufficient = set(getattr(assessment, "insufficient_evidence_vectors", []) or [])
+
         for vector_name, self_val in assessment.self_assessed.items():
             if vector_name in UNGROUNDABLE_VECTORS:
                 continue
+            if vector_name in insufficient:
+                continue  # Honest absence — no row written.
 
             grounded_est = assessment.grounded.get(vector_name)
             grounded_val = grounded_est.estimated_value if grounded_est else None

@@ -43,51 +43,109 @@ QUALITY_WEIGHTS = {
 # provide grounding for coherence and density, leaving only engagement.
 UNGROUNDABLE_VECTORS = {"engagement"}
 
-# Evidence source relevance by work type.
-# Keys = work_type, values = dict of evidence_source → relevance multiplier.
-# Missing sources default to 1.0 (neutral). Values < 1.0 down-weight irrelevant evidence.
-# Values > 1.0 up-weight primary evidence for that work type.
+# Evidence source relevance by work_type.
+#
+# Keys are the actual source IDs emitted by PostTestCollector EvidenceItems:
+#   noetic, goals, artifacts, issues, triage, codebase_model, non_git_files,
+#   sentinel, pytest, git, code_quality
+#
+# Semantics:
+#   missing source key   → defaults to 1.0 (full weight, neutral)
+#   value == 0.0         → EXCLUDED. The source is instrument-blind for this
+#                          work_type and is filtered out of the evidence pool
+#                          entirely. Vectors that ONLY had evidence from
+#                          excluded sources will be marked insufficient_evidence
+#                          and will fall back to the AI's self-assessment
+#                          (no fabricated grounded value, no false drift).
+#   0.0 < value < 1.0    → down-weight (still contributes but reduced)
+#   value > 1.0          → up-weight (primary evidence for this work_type)
+#
+# Design principle: when the instrument can't sample the work, report honest
+# absence (None) rather than computing a misleading score from absent signal.
+# See: docs/architecture/PHASE_AWARE_CALIBRATION.md and the metric-sycophancy
+# discussion (2026-04-07).
+#
+# History: This dict previously used keys like "git_metrics", "test_results",
+# "goal_completion", "artifact_counts" which DID NOT MATCH the source IDs
+# emitted by collector.py — making the entire work_type scaling a silent no-op.
+# Fixed 2026-04-07 along with adding the 0.0 = excluded semantic.
 WORK_TYPE_RELEVANCE: dict[str, dict[str, float]] = {
-    "code": {},  # default weights — code is the baseline
+    # code: baseline — all sources at default 1.0 weight
+    "code": {},
+
+    # infra: infrastructure changes (yaml, dockerfile, k8s manifests)
+    # Code quality and pytest aren't great signals; goal completion is.
     "infra": {
-        "git_metrics": 0.3, "test_results": 0.3, "code_quality": 0.3,
-        "goal_completion": 1.2, "artifact_counts": 1.0,
+        "code_quality": 0.3, "pytest": 0.3, "codebase_model": 0.3,
+        "goals": 1.3, "git": 1.0, "artifacts": 1.1,
     },
+
+    # research: experimental investigation, exploring possibilities
+    # The deliverable is artifacts (findings, unknowns), not code.
     "research": {
-        "git_metrics": 0.2, "test_results": 0.2, "code_quality": 0.2,
-        "artifact_counts": 1.5, "goal_completion": 1.0,
+        "git": 0.0, "code_quality": 0.0, "codebase_model": 0.0,
+        "pytest": 0.0, "non_git_files": 0.0,
+        "artifacts": 1.5, "goals": 1.0, "noetic": 1.5,
     },
+
+    # release: publish pipeline (twine, docker, gh release, homebrew tap)
+    # Git only sees mechanical version sweep commit. Code unchanged. Codebase
+    # unchanged. The actual work is invisible to in-repo sensors.
     "release": {
-        "git_metrics": 0.5, "code_quality": 0.3,
-        "goal_completion": 1.3, "test_results": 1.2,
+        "git": 0.0, "code_quality": 0.0, "codebase_model": 0.0,
+        "non_git_files": 0.0,
+        "goals": 1.5, "triage": 1.3, "pytest": 1.2, "artifacts": 1.0,
     },
+
+    # debug: finding + fixing bugs
+    # Tests are the strongest signal (regression caught/passed).
     "debug": {
-        "git_metrics": 0.4, "test_results": 1.4,
-        "artifact_counts": 1.3, "code_quality": 0.5,
+        "pytest": 1.4, "triage": 1.3, "artifacts": 1.3,
+        "code_quality": 0.5, "git": 1.0,
     },
+
+    # config: configuration changes (settings.json, .env, yaml)
+    # Code quality + pytest are usually irrelevant; goal completion matters.
     "config": {
-        "git_metrics": 0.4, "test_results": 0.5, "code_quality": 0.4,
-        "goal_completion": 1.2,
+        "code_quality": 0.0, "pytest": 0.3, "codebase_model": 0.0,
+        "goals": 1.2, "git": 1.0, "artifacts": 1.1,
     },
+
+    # docs: documentation work (markdown, doc-only changes)
+    # Markdown isn't ruff-checked; pytest doesn't apply; codebase model unchanged.
     "docs": {
-        "test_results": 0.2, "code_quality": 0.3,
-        "git_metrics": 0.8, "goal_completion": 1.2,
+        "code_quality": 0.0, "pytest": 0.0, "codebase_model": 0.0,
+        "git": 1.0, "non_git_files": 1.2, "goals": 1.2, "artifacts": 1.0,
     },
+
+    # data: data work (CSVs, datasets, schemas)
     "data": {
-        "git_metrics": 0.4, "code_quality": 0.3,
-        "test_results": 0.8, "goal_completion": 1.2,
+        "code_quality": 0.0, "pytest": 0.5, "codebase_model": 0.0,
+        "non_git_files": 1.3, "goals": 1.2, "artifacts": 1.0,
     },
+
+    # comms: writing messages, sending communications, outreach
+    # No code touched, no tests, no codebase change.
     "comms": {
-        "git_metrics": 0.1, "test_results": 0.1, "code_quality": 0.1,
-        "goal_completion": 1.5, "artifact_counts": 1.0,
+        "git": 0.0, "code_quality": 0.0, "pytest": 0.0,
+        "codebase_model": 0.0, "non_git_files": 0.0,
+        "goals": 1.5, "artifacts": 1.0,
     },
+
+    # design: design docs, architecture proposals, mockups
+    # Mostly markdown + diagrams, not code.
     "design": {
-        "git_metrics": 0.2, "test_results": 0.2, "code_quality": 0.2,
-        "artifact_counts": 1.4, "goal_completion": 1.2,
+        "code_quality": 0.0, "pytest": 0.0, "codebase_model": 0.0,
+        "git": 1.0, "non_git_files": 1.2, "artifacts": 1.4, "goals": 1.2,
     },
+
+    # audit: read-only investigation (code review, security audit, doc audit)
+    # Audits don't write code, don't change quality metrics, don't restructure.
+    # The deliverable is artifacts (findings, decisions, recommendations).
     "audit": {
-        "git_metrics": 0.1, "test_results": 0.3,
-        "artifact_counts": 1.5, "goal_completion": 1.2, "code_quality": 0.5,
+        "git": 0.0, "code_quality": 0.0, "codebase_model": 0.0,
+        "non_git_files": 0.0,
+        "artifacts": 1.5, "noetic": 1.3, "goals": 1.2, "triage": 1.0,
     },
 }
 
@@ -105,7 +163,16 @@ class GroundedVectorEstimate:
 
 @dataclass
 class GroundedAssessment:
-    """Complete grounded assessment alongside self-assessment."""
+    """Complete grounded assessment alongside self-assessment.
+
+    insufficient_evidence_vectors lists vector names that had ALL their
+    evidence sources excluded for the current work_type — meaning the
+    instrument is fundamentally blind to this kind of work for these vectors.
+    These vectors are NOT in `grounded`, NOT in `calibration_gaps`, and
+    should NOT be written to calibration_trajectory or used to update
+    overestimate_tendency advisories. The AI's self-assessed value stands
+    as the best available estimate, with no false drift.
+    """
     session_id: str
     self_assessed: dict[str, float]
     grounded: dict[str, GroundedVectorEstimate]
@@ -113,6 +180,11 @@ class GroundedAssessment:
     grounded_coverage: float
     overall_calibration_score: float
     phase: str = "combined"  # "noetic", "praxic", or "combined"
+    insufficient_evidence_vectors: list[str] = None  # type: ignore[assignment]
+
+    def __post_init__(self):
+        if self.insufficient_evidence_vectors is None:
+            self.insufficient_evidence_vectors = []
 
 
 def _load_domain_weights(domain: str = "default") -> dict[str, Any]:
@@ -219,21 +291,50 @@ class EvidenceMapper:
         per_vector_weights: dict[str, float] | None = None,
         work_type: str | None = None,
     ) -> GroundedAssessment:
-        """Map evidence to grounded vector estimates and compare to self-assessment."""
+        """Map evidence to grounded vector estimates and compare to self-assessment.
+
+        Work-type-aware:
+          - Sources with relevance == 0.0 are EXCLUDED for this work_type
+            (instrument-blind: cannot sample the kind of work being done).
+          - Sources with relevance > 0.0 contribute with that multiplier.
+          - Vectors that ONLY had evidence from excluded sources are marked
+            insufficient_evidence — no grounded value is computed, no gap
+            is recorded, no false drift is written to the trajectory.
+            The AI's self-assessment stands as the best available estimate.
+        """
         # Work-type relevance profile (scales evidence weights by source relevance)
         relevance = WORK_TYPE_RELEVANCE.get(work_type, {}) if work_type else {}
 
-        # Group evidence by supported vector
+        # Track which vectors have excluded-only evidence (instrument-blind for this work_type).
+        # Vectors here saw evidence from at least one source, but every source was excluded.
+        vectors_seen_in_excluded: set[str] = set()
+        # Vectors here saw evidence from at least one INCLUDED source.
+        vectors_with_included: set[str] = set()
+
+        # Group evidence by supported vector, applying exclusion semantic
         vector_evidence: dict[str, list[tuple[EvidenceItem, float]]] = {}
         for item in bundle.items:
             quality_weight = QUALITY_WEIGHTS.get(item.quality, 0.5)
-            # Apply work-type relevance scaling to evidence source
+            # Apply work-type relevance scaling to evidence source.
+            # 0.0 = explicitly excluded (instrument-blind for this work_type).
+            # Missing source defaults to 1.0 (neutral).
             source_relevance = relevance.get(item.source, 1.0)
+            if source_relevance <= 0.0:
+                # Source is instrument-blind for this work_type. Skip it
+                # entirely so it doesn't pull grounded estimates toward
+                # absent-signal values. Record which vectors it would have
+                # contributed to so we can detect "all-excluded" vectors.
+                for vector in item.supports_vectors:
+                    if vector not in UNGROUNDABLE_VECTORS:
+                        vectors_seen_in_excluded.add(vector)
+                continue
+
             weight = quality_weight * source_relevance
             for vector in item.supports_vectors:
                 if vector not in vector_evidence:
                     vector_evidence[vector] = []
                 vector_evidence[vector].append((item, weight))
+                vectors_with_included.add(vector)
 
         # Compute grounded estimates via weighted average
         grounded = {}
@@ -258,8 +359,13 @@ class EvidenceMapper:
                 primary_source=primary_source,
             )
 
+        # Compute insufficient_evidence_vectors: vectors that had evidence
+        # ONLY from excluded sources (no included evidence remained after filter).
+        insufficient = sorted(vectors_seen_in_excluded - vectors_with_included)
+
         # Compute calibration gaps (self - grounded)
-        # Positive = AI overestimates, Negative = AI underestimates
+        # Positive = AI overestimates, Negative = AI underestimates.
+        # Insufficient-evidence vectors are NOT included — no fabricated drift.
         calibration_gaps = {}
         for vector_name, estimate in grounded.items():
             self_val = self_assessed_vectors.get(vector_name, 0.5)
@@ -280,4 +386,5 @@ class EvidenceMapper:
             grounded_coverage=bundle.coverage,
             overall_calibration_score=round(overall_score, 4),
             phase=phase,
+            insufficient_evidence_vectors=insufficient,
         )
