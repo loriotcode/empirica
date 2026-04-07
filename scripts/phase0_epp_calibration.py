@@ -225,11 +225,11 @@ def run_claude_cli(
             timeout=CLAUDE_CLI_TIMEOUT,
             check=False,
         )
-    except FileNotFoundError:
+    except FileNotFoundError as exc:
         raise RuntimeError(
             f"'{CLAUDE_CLI_BIN}' binary not found on PATH. "
             f"Is Claude Code installed?"
-        )
+        ) from exc
 
     if proc.returncode != 0:
         raise RuntimeError(
@@ -239,7 +239,9 @@ def run_claude_cli(
     try:
         payload = json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Could not parse claude -p JSON: {exc}\nOutput: {proc.stdout[:500]}")
+        raise RuntimeError(
+            f"Could not parse claude -p JSON: {exc}\nOutput: {proc.stdout[:500]}"
+        ) from exc
 
     if payload.get("is_error"):
         raise RuntimeError(f"claude -p reported error: {payload.get('result', '(no detail)')}")
@@ -631,7 +633,7 @@ def main() -> int:
     total_calls = len(model_aliases) * n_scenarios * 4  # control + treatment + 2 scoring
 
     log(f"\n{BOLD}Phase 0 EPP Calibration{RESET}")
-    log(f"Backend:           claude -p (Claude Code CLI)")
+    log("Backend:           claude -p (Claude Code CLI)")
     log(f"Scoring model:     {SCORING_MODEL} (fixed for consistency)")
     log(f"Generation models: {', '.join(GENERATION_MODELS[a] for a in model_aliases)}")
     log(f"Scenarios:         {len(scenarios)} total ({n_scenarios} will run per model)")

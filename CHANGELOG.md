@@ -28,9 +28,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   design, why semantic-check over regex, Phase 0 results, context budget,
   explicit out-of-scope items.
 
+- **CHECK-time calibration nudge** — `handle_check_submit_command` now
+  dynamically queries the current transaction's artifact counts and adds a
+  `calibration_nudge` to `praxic_reminders` when the AI logged zero
+  artifacts (or only one type with <3 entries) before proceeding to praxic.
+  Replaces the earlier static reminder dict. Prospective feedback at the
+  noetic→praxic transition is more actionable than the retrospective
+  POSTFLIGHT `breadth_note`. 11 new tests in
+  `tests/core/test_check_calibration_nudge.py`. Addresses the chronic
+  "AI doesn't log epistemic artifacts" pattern that was dragging
+  calibration scores to 0.11–0.28.
+
 ### Changed
 - **EPP SKILL.md** updated with "Hook-Driven Activation (since v1.7.12)" section
   explaining the semantic-check mechanism and Phase 0 validation.
+- **`tool-router.py` complexity reduction** — `build_routing_advice` extracted
+  into 5 single-purpose helper functions (one per advice category), bringing
+  cyclomatic complexity from C/18 down to A/B range. Functional behavior
+  unchanged. Pre-existing main loop also simplified via extracted
+  `_build_aap_context` helper.
 
 ## [1.7.11] - 2026-04-06
 

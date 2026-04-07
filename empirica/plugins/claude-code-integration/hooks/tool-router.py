@@ -252,8 +252,7 @@ def get_active_session_vectors():
         _lib_path = Path(__file__).parent.parent / 'lib'
         if str(_lib_path) not in sys.path:
             sys.path.insert(0, str(_lib_path))
-        from project_resolver import _get_instance_suffix, get_instance_id
-        instance_id = get_instance_id()
+        from project_resolver import _get_instance_suffix
         suffix = _get_instance_suffix()
 
         session_id = None
@@ -364,92 +363,148 @@ def is_blindspot_relevant(task_lower, mode, vectors):
     if vectors and vectors.get("uncertainty", 0) > 0.5 and mode in ("investigate", "clarify"):
         return True
     # Starting new work (low completion, low context)
-    if vectors and vectors.get("completion", 0) < 0.15 and vectors.get("context", 0) < 0.5:
-        return True
-    return False
+    return bool(
+        vectors
+        and vectors.get("completion", 0) < 0.15
+        and vectors.get("context", 0) < 0.5
+    )
 
 
-def build_routing_advice(task, vectors, session_id):
-    """Build routing advice from task + vectors."""
-    task_lower = task.lower()
-    advice_parts = []
+# ============================================================================
+# Routing advice — single-purpose helpers
+# ============================================================================
+# Each helper returns a list[str] of advice lines (or empty list if not
+# applicable). build_routing_advice() orchestrates by calling each and
+# concatenating non-empty results. Refactored from the prior monolithic
+# function (CC=18) to keep each branch independently testable and below
+# complexity threshold.
 
-    # Determine current mode
-    mode = determine_mode(vectors)
+def _agent_match_advice(agent_matches: list) -> list[str]:
+    """Advice lines recommending the top-matched domain agent(s)."""
+    if not agent_matches:
+        return []
+    top = agent_matches[0]
+    lines = [
+        f"For this task, consider using the `{top['name']}` agent "
+        f"({top['description']})."
+    ]
+    if len(agent_matches) > 1:
+        others = ", ".join(f"`{m['name']}`" for m in agent_matches[1:3])
+        lines.append(f"Also relevant: {others}.")
+    return lines
 
-    # Match domain agents
-    agent_matches = match_agents(task_lower)
 
-    # Only emit advice if there's something useful to say
-    has_advice = False
+def _investigation_routing_advice(task_lower: str, has_agent_match: bool) -> list[str]:
+    """Suggest Empirica investigation tooling for exploration tasks without a domain match."""
+    if not is_investigation_task(task_lower) or has_agent_match:
+        return []
+    return [
+        "This looks like an investigation task. "
+        "Use `mcp__empirica__investigate` for systematic investigation "
+        "with epistemic tracking, or spawn a domain-specific agent "
+        "(empirica:architecture, security, performance, ux) "
+        "for focused analysis."
+    ]
 
-    # Agent recommendations (most impactful)
-    if agent_matches:
-        has_advice = True
-        top = agent_matches[0]
-        advice_parts.append(
-            f"For this task, consider using the `{top['name']}` agent "
-            f"({top['description']})."
-        )
-        if len(agent_matches) > 1:
-            others = ", ".join(f"`{m['name']}`" for m in agent_matches[1:3])
-            advice_parts.append(f"Also relevant: {others}.")
 
-    # Investigation routing — suggest Empirica agents over built-in Explore
-    if is_investigation_task(task_lower) and not agent_matches:
-        has_advice = True
-        advice_parts.append(
-            "This looks like an investigation task. "
-            "Use `mcp__empirica__investigate` for systematic investigation "
-            "with epistemic tracking, or spawn a domain-specific agent "
-            "(empirica:architecture, security, performance, ux) "
-            "for focused analysis."
-        )
+def _blindspot_advice(task_lower: str, mode: str, vectors) -> list[str]:
+    """Suggest blindspot scanning when negative-space analysis is valuable."""
+    if not is_blindspot_relevant(task_lower, mode, vectors):
+        return []
+    return [
+        "Consider running `mcp__empirica__blindspot_scan` to detect "
+        "knowledge gaps from negative space analysis before proceeding."
+    ]
 
-    # Blindspot scanning — surface unknown unknowns
-    if is_blindspot_relevant(task_lower, mode, vectors):
-        has_advice = True
-        advice_parts.append(
-            "Consider running `mcp__empirica__blindspot_scan` to detect "
-            "knowledge gaps from negative space analysis before proceeding."
-        )
 
-    # Mode-based tool suggestions
-    if mode == "load_context" and vectors:
-        has_advice = True
-        advice_parts.append(
+def _mode_based_advice(
+    mode: str,
+    vectors,
+    task_lower: str,
+    has_agent_match: bool,
+) -> list[str]:
+    """Mode-conditioned tool suggestions based on the current epistemic state."""
+    if not vectors:
+        return []
+    if mode == "load_context":
+        return [
             "Context is low — run `mcp__empirica__project_bootstrap` "
             "to load project context before proceeding."
-        )
-    elif mode == "investigate" and vectors:
-        has_advice = True
-        if not agent_matches:
-            advice_parts.append(
-                "Uncertainty is high — use `mcp__empirica__investigate` "
-                "or spawn a domain agent for systematic investigation."
-            )
-    elif mode == "cautious_implementation" and vectors:
-        # In cautious mode, remind about dead-end logging
-        if any(kw in task_lower for kw in ["try", "attempt", "approach", "workaround", "fix"]):
-            has_advice = True
-            advice_parts.append(
-                "If this approach doesn't work, log it with "
-                "`mcp__empirica__deadend_log` to prevent re-exploration."
-            )
+        ]
+    if mode == "investigate" and not has_agent_match:
+        return [
+            "Uncertainty is high — use `mcp__empirica__investigate` "
+            "or spawn a domain agent for systematic investigation."
+        ]
+    if mode == "cautious_implementation" and any(
+        kw in task_lower for kw in ["try", "attempt", "approach", "workaround", "fix"]
+    ):
+        return [
+            "If this approach doesn't work, log it with "
+            "`mcp__empirica__deadend_log` to prevent re-exploration."
+        ]
+    return []
 
-    # Epistemic workflow hints
-    if is_epistemic_task(task_lower):
-        has_advice = True
-        advice_parts.append(
-            "This involves epistemic workflow. "
-            "Use the Empirica MCP tools (preflight/check/postflight) "
-            "or invoke the `epistemic-transaction` skill for planning guidance."
-        )
 
-    if not has_advice:
+def _epistemic_workflow_advice(task_lower: str) -> list[str]:
+    """Hint at the Empirica epistemic workflow for transaction-related tasks."""
+    if not is_epistemic_task(task_lower):
+        return []
+    return [
+        "This involves epistemic workflow. "
+        "Use the Empirica MCP tools (preflight/check/postflight) "
+        "or invoke the `epistemic-transaction` skill for planning guidance."
+    ]
+
+
+def build_routing_advice(task, vectors, _session_id=None):
+    """Build routing advice from task + vectors.
+
+    Orchestrates 5 single-purpose advice helpers and concatenates their
+    non-empty outputs. Returns None if no helper produced any advice.
+    `_session_id` is accepted for backward compatibility but unused —
+    none of the advice helpers depend on it.
+    """
+    task_lower = task.lower()
+    mode = determine_mode(vectors)
+    agent_matches = match_agents(task_lower)
+    has_agent_match = bool(agent_matches)
+
+    advice_parts: list[str] = []
+    advice_parts.extend(_agent_match_advice(agent_matches))
+    advice_parts.extend(_investigation_routing_advice(task_lower, has_agent_match))
+    advice_parts.extend(_blindspot_advice(task_lower, mode, vectors))
+    advice_parts.extend(_mode_based_advice(mode, vectors, task_lower, has_agent_match))
+    advice_parts.extend(_epistemic_workflow_advice(task_lower))
+
+    if not advice_parts:
         return None
-
     return "\n".join(advice_parts)
+
+
+def _build_aap_context(prompt: str) -> str:
+    """Build the <aap-hedge-detected> block for AAP-enabled hedging prompts.
+
+    Returns empty string if AAP disabled, prompt too short, or no hedges
+    detected. Extracted from main() to keep main below complexity threshold.
+    """
+    aap_config = load_aap_config()
+    if not aap_config.get("enabled") or not prompt or len(prompt) <= 15:
+        return ""
+    hedges = detect_hedges(prompt)
+    if not hedges:
+        return ""
+    hedge_lines = [
+        f"  - [{h['category']}] {h['deobfuscation']}"
+        for h in hedges[:3]  # Max 3 to avoid overwhelming
+    ]
+    return (
+        "<aap-hedge-detected>\n"
+        "User language contains hedging patterns. Per AAP protocol:\n"
+        + "\n".join(hedge_lines) + "\n"
+        "Surface the actual epistemic content. Don't mirror the hedging.\n"
+        "</aap-hedge-detected>"
+    )
 
 
 def main():
@@ -473,22 +528,7 @@ def main():
     advice = build_routing_advice(prompt, vectors, session_id)
 
     # AAP hedge detection
-    aap_context = ""
-    aap_config = load_aap_config()
-    if aap_config.get("enabled") and prompt and len(prompt) > 15:
-        hedges = detect_hedges(prompt)
-        if hedges:
-            # Build deobfuscation guidance for Claude
-            hedge_lines = []
-            for h in hedges[:3]:  # Max 3 to avoid overwhelming
-                hedge_lines.append(f"  - [{h['category']}] {h['deobfuscation']}")
-            aap_context = (
-                "<aap-hedge-detected>\n"
-                "User language contains hedging patterns. Per AAP protocol:\n"
-                + "\n".join(hedge_lines) + "\n"
-                "Surface the actual epistemic content. Don't mirror the hedging.\n"
-                "</aap-hedge-detected>"
-            )
+    aap_context = _build_aap_context(prompt)
 
     # EPP semantic pushback check — always-on for substantive prompts.
     # Injected LAST in context_parts to exploit attention recency bias.
@@ -505,14 +545,11 @@ def main():
         # Placed LAST — highest attention weight in the injected context window
         context_parts.append(semantic_check)
 
-    if context_parts:
-        output = {
-            "continue": True,
-            "context": "\n".join(context_parts)
-        }
-    else:
-        output = {"continue": True}
-
+    output = (
+        {"continue": True, "context": "\n".join(context_parts)}
+        if context_parts
+        else {"continue": True}
+    )
     print(json.dumps(output))
 
 

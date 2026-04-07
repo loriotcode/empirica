@@ -19,6 +19,7 @@ See: docs/superpowers/specs/2026-04-07-epp-strengthening-design.md
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -71,10 +72,8 @@ def _write_counters_atomic(path: Path, data: dict[str, Any]) -> None:
         os.rename(tmp, str(path))
     except BaseException:
         # Clean up temp file on any failure
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 
