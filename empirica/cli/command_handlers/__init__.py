@@ -51,6 +51,9 @@ from .doc_commands import (
 from .ecosystem_commands import (
     handle_ecosystem_check_command,
 )
+from .epp_commands import (
+    handle_epp_activate_command,
+)
 from .epistemics_commands import (
     handle_epistemics_list_command,
     handle_epistemics_search_command,
@@ -308,6 +311,7 @@ __all__ = [
     'handle_refdoc_add_command',
     'handle_source_add_command',
     'handle_source_list_command',
+    'handle_epp_activate_command',
     'handle_training_export_command',
     'handle_project_search_command',
     'handle_project_embed_command',

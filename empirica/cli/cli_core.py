@@ -471,6 +471,7 @@ def main(args=None):
             'refdoc-add': handle_refdoc_add_command,
             'source-add': handle_source_add_command,
             'source-list': handle_source_list_command,
+            'epp-activate': handle_epp_activate_command,
 
             # Training data export
             'training-export': handle_training_export_command,

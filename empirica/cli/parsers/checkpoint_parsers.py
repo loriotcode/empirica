@@ -631,6 +631,38 @@ def add_checkpoint_parsers(subparsers):
     source_list_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     source_list_parser.add_argument('--verbose', action='store_true', help='Show detailed info')
 
+    # EPP activation telemetry
+    # Self-reported: Claude logs when it invoked EPP protocol during a turn.
+    # Writes to ~/.empirica/hook_counters{suffix}.json (counter + log).
+    # See: docs/superpowers/specs/2026-04-07-epp-strengthening-design.md
+    epp_activate_parser = subparsers.add_parser(
+        'epp-activate',
+        help='Log EPP (Epistemic Persistence Protocol) activation — self-reported telemetry'
+    )
+    epp_activate_parser.add_argument(
+        '--category',
+        required=True,
+        choices=['emotional', 'rhetorical', 'evidential', 'logical', 'contextual'],
+        help='Pushback category classified'
+    )
+    epp_activate_parser.add_argument(
+        '--action',
+        required=True,
+        choices=['hold', 'soften', 'update', 'reframe'],
+        help='Action decided: HOLD / SOFTEN / UPDATE / REFRAME'
+    )
+    epp_activate_parser.add_argument(
+        '--session-id',
+        help='Session ID (auto-derived if omitted)'
+    )
+    epp_activate_parser.add_argument(
+        '--output',
+        choices=['human', 'json'],
+        default='json',
+        help='Output format'
+    )
+    epp_activate_parser.add_argument('--verbose', action='store_true', help='Verbose output')
+
     # Training data export
     training_export_parser = subparsers.add_parser(
         'training-export',

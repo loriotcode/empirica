@@ -113,6 +113,67 @@ HEDGE_PATTERNS = {
     },
 }
 
+# ============================================================================
+# EPP Semantic Pushback Check — always-on forcing block for substantive prompts
+# ============================================================================
+# See: docs/superpowers/specs/2026-04-07-epp-strengthening-design.md
+# Phase 0 experiment (2026-04-07) validated effect size across Opus/Sonnet/Haiku:
+# all 3 models passed the decision gate (>=20% improvement on >=2/6 metrics).
+# Block is injected LAST in additionalContext to exploit attention recency bias.
+
+SEMANTIC_PUSHBACK_CHECK_BLOCK = """<semantic-pushback-check>
+Before generating your response:
+
+1. Did your prior turn contain a substantive claim — assertion, recommendation,
+   analysis, position?
+
+2. Does the user's current message push back on that claim in ANY form:
+   direct contradiction, evidential challenge, soft doubt, scope shift,
+   rhetorical reframe, paraphrase-level disagreement, implicit challenge,
+   request for justification?
+
+3. If YES to both → you are in an EPP situation. Before responding:
+   ANCHOR (recall claim + confidence + basis)
+   → CLASSIFY (EMOTIONAL / RHETORICAL / EVIDENTIAL / LOGICAL / CONTEXTUAL)
+   → DECIDE (HOLD / SOFTEN / UPDATE / REFRAME)
+   → RESPOND with audit trail — never silently shift, never apologise for
+   holding ground when pushback is non-evidential.
+
+4. If NO to either → proceed normally. This check must be semantic, not
+   keyword-based. You are the classifier.
+</semantic-pushback-check>"""
+
+# Minimum prompt length to inject the semantic-check block.
+# Filters out trivial inputs like "ok", "yes", "continue" where EPP is
+# irrelevant. Matches the same threshold used by epistemic routing.
+SEMANTIC_CHECK_MIN_LENGTH = 20
+
+
+def build_semantic_pushback_check(prompt: str) -> str | None:
+    """Return the semantic-check block for substantive prompts, None otherwise.
+
+    The block is returned for any user message that is long enough to
+    plausibly contain pushback on a prior substantive claim, and does NOT
+    start with a slash command (which has its own handling).
+
+    The actual pushback detection happens in Claude's generation step —
+    the block instructs Claude to do a semantic self-check as its first
+    generation step. This respects the LLM/software distinction: regex
+    matching on speech acts is brittle, but LLMs handle paraphrase,
+    irony, and implicit challenge natively.
+    """
+    if len(prompt) < SEMANTIC_CHECK_MIN_LENGTH:
+        return None
+    if prompt.startswith("/"):
+        return None
+    return SEMANTIC_PUSHBACK_CHECK_BLOCK
+
+
+# ============================================================================
+# End EPP block
+# ============================================================================
+
+
 # Patterns that indicate genuine epistemic humility (NOT hedging)
 # These should NOT trigger AAP
 GENUINE_HUMILITY_PATTERNS = [
@@ -429,12 +490,20 @@ def main():
                 "</aap-hedge-detected>"
             )
 
+    # EPP semantic pushback check — always-on for substantive prompts.
+    # Injected LAST in context_parts to exploit attention recency bias.
+    # Phase 0 (2026-04-07) verified effect across Opus/Sonnet/Haiku.
+    semantic_check = build_semantic_pushback_check(prompt)
+
     # Combine contexts
     context_parts = []
     if advice:
         context_parts.append(f"<epistemic-routing>\n{advice}\n</epistemic-routing>")
     if aap_context:
         context_parts.append(aap_context)
+    if semantic_check:
+        # Placed LAST — highest attention weight in the injected context window
+        context_parts.append(semantic_check)
 
     if context_parts:
         output = {
