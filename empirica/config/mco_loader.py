@@ -152,22 +152,27 @@ class MCOLoader:
             domain: Domain name (software, consulting, research, operations, default)
 
         Returns:
-            Dict of category → weight (foundation, comprehension, execution, engagement)
+            Dict of category → weight (foundation, comprehension, execution, meta)
         """
-        defaults = {"foundation": 0.35, "comprehension": 0.25, "execution": 0.25, "engagement": 0.15}
+        defaults = {"foundation": 0.35, "comprehension": 0.25, "execution": 0.25, "meta": 0.15}
         domain_weights = self.confidence_weights.get("domain_category_weights", {})
         return domain_weights.get(domain, domain_weights.get("default", defaults))
 
     def get_vector_category_map(self) -> dict[str, str]:
-        """Get vector-to-category mapping from confidence_weights.yaml."""
+        """Get vector-to-category mapping from confidence_weights.yaml.
+
+        Categories: foundation, comprehension, execution, meta. The meta
+        category (renamed from 'engagement' on 2026-04-07) contains the
+        relational vectors engagement and uncertainty.
+        """
         defaults = {
             "know": "foundation", "do": "foundation", "context": "foundation",
             "clarity": "comprehension", "coherence": "comprehension",
             "signal": "comprehension", "density": "comprehension",
             "state": "execution", "change": "execution",
             "completion": "execution", "impact": "execution",
-            "engagement": "engagement",
-            "uncertainty": "engagement",
+            "engagement": "meta",
+            "uncertainty": "meta",
         }
         return self.confidence_weights.get("vector_category_map", defaults)
 

@@ -50,12 +50,12 @@ execution_confidence_weights:
   impact: 0.25                  # Consequence understanding (25% importance)
   # Total: 1.0 (equal weights for execution vectors)
 
-# Overall confidence = weighted combination of all tiers + engagement
+# Overall confidence = weighted combination of all tiers + meta
 overall_confidence_weights:
   foundation: 0.35              # Foundation: 35% weight (most important)
   comprehension: 0.25           # Comprehension: 25% weight
-  execution: 0.25               # Execution: 25% weight  
-  engagement: 0.15              # Engagement: 15% weight (prerequisite)
+  execution: 0.25               # Execution: 25% weight
+  meta: 0.15                    # Meta: 15% weight (engagement + uncertainty)
   # Total: 1.0
 
 # Meta-state vector phase indicators
@@ -156,36 +156,39 @@ model_weight_adjustments:
 #   foundation:     know, do, context
 #   comprehension:  clarity, coherence, signal, density
 #   execution:      state, change, completion, impact
-#   engagement:     engagement (standalone)
+#   meta:           engagement, uncertainty (relational vectors — not domain-specific)
 
 domain_category_weights:
   software:
     foundation: 0.30       # know, do, context — important but execution-heavy domain
     comprehension: 0.20    # clarity, coherence, signal, density
     execution: 0.35        # state, change, completion, impact — shipping code matters most
-    engagement: 0.15
+    meta: 0.15             # engagement + uncertainty
   consulting:
     foundation: 0.40       # understanding the client matters most
     comprehension: 0.25    # clarity of problem statement
     execution: 0.20        # less code to ship
-    engagement: 0.15
+    meta: 0.15
   research:
     foundation: 0.35
     comprehension: 0.30    # rigor of understanding
     execution: 0.15        # open-ended, completion less defined
-    engagement: 0.20       # engagement = intellectual curiosity
+    meta: 0.20             # higher meta weight — intellectual curiosity matters more
   operations:
     foundation: 0.25
     comprehension: 0.20
     execution: 0.40        # operations = execution-heavy
-    engagement: 0.15
+    meta: 0.15
   default:
     foundation: 0.35
     comprehension: 0.25
     execution: 0.25
-    engagement: 0.15
+    meta: 0.15
 
-# Vector-to-category mapping (used by mapper to assign vectors to categories)
+# Vector-to-category mapping (used by mapper to assign vectors to categories).
+# Renamed engagement → meta on 2026-04-07 to match David's design recap:
+# the 4th category contains relational/meta vectors (engagement + uncertainty),
+# not just engagement.
 vector_category_map:
   know: foundation
   do: foundation
@@ -198,8 +201,8 @@ vector_category_map:
   change: execution
   completion: execution
   impact: execution
-  engagement: engagement
-  uncertainty: engagement    # meta vectors grouped together
+  engagement: meta
+  uncertainty: meta
 
 # =============================================================================
 # WEIGHT VALIDATION RULES

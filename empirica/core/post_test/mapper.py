@@ -204,15 +204,19 @@ def _load_domain_weights(domain: str = "default") -> dict[str, Any]:
     """
     config_path = Path(__file__).parent.parent.parent / "config" / "mco" / "confidence_weights.yaml"
     defaults = {
-        "category_weights": {"foundation": 0.35, "comprehension": 0.25, "execution": 0.25, "engagement": 0.15},
+        # Categories: foundation, comprehension, execution, meta.
+        # Renamed from "engagement" → "meta" on 2026-04-07 — the 4th
+        # category contains both engagement AND uncertainty (relational
+        # vectors), so "meta" is the truth-aligned name.
+        "category_weights": {"foundation": 0.35, "comprehension": 0.25, "execution": 0.25, "meta": 0.15},
         "vector_category_map": {
             "know": "foundation", "do": "foundation", "context": "foundation",
             "clarity": "comprehension", "coherence": "comprehension",
             "signal": "comprehension", "density": "comprehension",
             "state": "execution", "change": "execution",
             "completion": "execution", "impact": "execution",
-            "engagement": "engagement",
-            "uncertainty": "engagement",
+            "engagement": "meta",
+            "uncertainty": "meta",
         },
     }
     if not config_path.exists():
