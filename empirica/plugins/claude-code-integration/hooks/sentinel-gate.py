@@ -83,6 +83,8 @@ SAFE_BASH_PREFIXES = (
     'cat ', 'head ', 'tail ', 'less ', 'more ',
     'ls', 'ls ', 'dir ', 'tree ', 'file ', 'stat ', 'wc ',
     'find ', 'locate ', 'which ', 'type ', 'whereis ',
+    # File comparison (read-only)
+    'diff ', 'diff -', 'cmp ', 'comm ',
     # Text/data search/processing (read-only)
     'grep ', 'rg ', 'ag ', 'ack ', 'sed -n', 'awk ',
     'jq ', 'jq.',  # JSON processing (read-only)
