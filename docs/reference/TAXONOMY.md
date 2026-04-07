@@ -314,7 +314,7 @@ Maps epistemic vectors + task intent → behavioral mode + specific tools/agents
 
 **Architecture:**
 ```
-VectorRouter (removed in 1.7.11):  vectors → mode (investigate, implement, clarify, ...)
+VectorRouter (removed in 1.7.12):  vectors → mode (investigate, implement, clarify, ...)
 ToolRouter:    vectors + task → mode + tools (agents, skills, MCP tools)
 ```
 
