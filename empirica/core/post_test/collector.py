@@ -952,7 +952,7 @@ class PostTestCollector:
         db = self._get_db()
         cursor = db.conn.cursor()
 
-        # Get session start time for timeframe filtering
+        # Get session start time as the fallback scope
         cursor.execute(
             "SELECT start_time FROM sessions WHERE session_id = ?",
             (self.session_id,),
@@ -972,27 +972,52 @@ class PostTestCollector:
             except Exception:
                 return items
 
-        # Goals completed during this session (by completed_timestamp, not session_id)
+        # Transaction-scoping fix (2026-04-07):
+        #
+        # Before this fix, triage metrics were always session-scoped: every
+        # POSTFLIGHT in a long session counted ALL goals completed since
+        # session start, producing a ~0.51 completion observation regardless
+        # of per-transaction work. This masked genuine per-transaction
+        # completion and polluted calibration_trajectory with a constant offset.
+        #
+        # Fix: use preflight_timestamp as the scope boundary when available,
+        # with formulas calibrated for per-transaction counts (1-3 goals).
+        # Fall back to session_start + session-scale formulas when
+        # preflight_timestamp is absent (triage-session work, legacy callers).
+        scope_start = self.preflight_timestamp or session_start
+        is_tx_scoped = self.preflight_timestamp is not None
+
+        # Goals completed since scope_start (transaction or session)
         cursor.execute("""
             SELECT COUNT(*) FROM goals
             WHERE status = 'completed'
               AND completed_timestamp >= ?
               AND completed_timestamp IS NOT NULL
-        """, (session_start,))
+        """, (scope_start,))
         goals_completed = cursor.fetchone()[0]
 
-        # Total active goals at session start (for ratio)
+        # Total goals relevant to scope (for ratio):
+        #   - Transaction-scoped: goals active at preflight OR created within tx
+        #   - Session-scoped: goals active at session start
         cursor.execute("""
             SELECT COUNT(*) FROM goals
             WHERE created_timestamp <= ?
               AND (status != 'completed' OR completed_timestamp >= ?)
-        """, (session_start + 1, session_start))
+        """, (scope_start + 1, scope_start))
         total_goals_in_scope = max(cursor.fetchone()[0], goals_completed)
+
+        scope_label = "transaction" if is_tx_scoped else "session"
 
         if goals_completed > 0:
             # Goal completion → do (completing goals = doing work)
-            # Normalize: 1 = 0.4, 3 = 0.7, 5+ = 1.0
-            do_score = min(1.0, 0.4 + (goals_completed - 1) * 0.15)
+            # Per-transaction expectation: 1-3 goals. Session triage: 5-15.
+            if is_tx_scoped:
+                # Transaction scale: 1 goal = strong signal, 2+ = near-max.
+                # Maps 1→0.7, 2→0.9, 3+→1.0
+                do_score = min(1.0, 0.5 + goals_completed * 0.2)
+            else:
+                # Session-scale (legacy): 1=0.4, 3=0.7, 5+=1.0
+                do_score = min(1.0, 0.4 + (goals_completed - 1) * 0.15)
             items.append(EvidenceItem(
                 source="triage",
                 metric_name="goals_completed",
@@ -1000,6 +1025,7 @@ class PostTestCollector:
                 raw_value={
                     "completed": goals_completed,
                     "in_scope": total_goals_in_scope,
+                    "scope": scope_label,
                 },
                 quality=EvidenceQuality.SEMI_OBJECTIVE,
                 supports_vectors=["do", "completion"],
@@ -1016,43 +1042,59 @@ class PostTestCollector:
                     raw_value={
                         "completed": goals_completed,
                         "in_scope": total_goals_in_scope,
+                        "scope": scope_label,
                     },
                     quality=EvidenceQuality.SEMI_OBJECTIVE,
                     supports_vectors=["completion", "change"],
                     metadata={"work_type": "triage"},
                 ))
 
-        # Unknowns resolved during this session (by resolved_timestamp)
+        # Unknowns resolved since scope_start
         cursor.execute("""
             SELECT COUNT(*) FROM project_unknowns
             WHERE is_resolved = 1
               AND resolved_timestamp >= ?
               AND resolved_timestamp IS NOT NULL
-        """, (session_start,))
+        """, (scope_start,))
         unknowns_resolved = cursor.fetchone()[0]
 
         if unknowns_resolved > 0:
             # Resolving unknowns IS doing work — epistemic action
-            # Normalize: 5 = 0.3, 15 = 0.6, 30+ = 1.0
-            resolve_do_score = min(1.0, unknowns_resolved / 30.0)
+            # Per-transaction expectation: 1-3 resolutions. Session triage: 5-30.
+            if is_tx_scoped:
+                # Transaction scale: 1 resolution = strong signal.
+                # Maps 1→0.7, 2→0.9, 3+→1.0
+                resolve_do_score = min(1.0, 0.5 + unknowns_resolved * 0.2)
+            else:
+                # Session-scale (legacy): 5=0.17, 15=0.5, 30+=1.0
+                resolve_do_score = min(1.0, unknowns_resolved / 30.0)
             items.append(EvidenceItem(
                 source="triage",
                 metric_name="unknowns_resolved",
                 value=resolve_do_score,
-                raw_value={"resolved": unknowns_resolved},
+                raw_value={
+                    "resolved": unknowns_resolved,
+                    "scope": scope_label,
+                },
                 quality=EvidenceQuality.SEMI_OBJECTIVE,
                 supports_vectors=["do", "know"],
                 metadata={"work_type": "triage"},
             ))
 
-            # High resolution count also signals change happened
-            if unknowns_resolved >= 5:
-                change_score = min(1.0, unknowns_resolved / 20.0)
+            # High resolution count signals change happened.
+            # Transaction scope: 2+ resolutions is substantial. Session: 5+.
+            change_threshold = 2 if is_tx_scoped else 5
+            change_divisor = 4.0 if is_tx_scoped else 20.0
+            if unknowns_resolved >= change_threshold:
+                change_score = min(1.0, unknowns_resolved / change_divisor)
                 items.append(EvidenceItem(
                     source="triage",
                     metric_name="triage_change",
                     value=change_score,
-                    raw_value={"unknowns_resolved": unknowns_resolved},
+                    raw_value={
+                        "unknowns_resolved": unknowns_resolved,
+                        "scope": scope_label,
+                    },
                     quality=EvidenceQuality.SEMI_OBJECTIVE,
                     supports_vectors=["change"],
                     metadata={"work_type": "triage"},
