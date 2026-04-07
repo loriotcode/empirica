@@ -1668,11 +1668,49 @@ def handle_check_submit_command(args):
 
             # PROCEED ADVISORY: Remind about commit cadence and artifact breadth
             if decision == "proceed":
-                result["praxic_reminders"] = {
+                reminders = {
                     "commit": "Commit before POSTFLIGHT — uncommitted edits are invisible to grounded calibration (change/state/do will ground near-zero).",
                     "artifacts": "Log the full breadth: assumption-log (beliefs), decision-log (choices), deadend-log (failures), mistake-log (errors) — not just findings.",
                     "completion": "Rate completion for THIS TRANSACTION only, not the overall plan. If the transaction's objective is met, completion = 1.0 regardless of remaining transactions.",
                 }
+
+                # DYNAMIC CALIBRATION NUDGE: If the current transaction has zero
+                # artifacts logged, surface a specific warning with scoring language.
+                # This is the proactive artifact-breadth enforcement that the chronic
+                # "zero artifacts logged" problem has needed. Design: retrospective
+                # POSTFLIGHT breadth_note is too late (learning after the fact);
+                # prospective CHECK-time nudge lets the AI course-correct mid-transaction.
+                try:
+                    # Use check_transaction_id2 (the CHECK's transaction, which is
+                    # the CURRENT open transaction from PREFLIGHT)
+                    current_tx = check_transaction_id2
+                    if current_tx:
+                        retro = _build_retrospective(session_id, current_tx)
+                        counts = retro.get("artifact_counts", {})
+                        total_artifacts = sum(counts.values())
+
+                        if total_artifacts == 0:
+                            reminders["calibration_nudge"] = (
+                                "⚠ Current transaction has 0 epistemic artifacts logged. "
+                                "Your grounded calibration score depends on artifact breadth — "
+                                "zero artifacts means grounded verification has nothing to check "
+                                "your self-assessment against, which inflates perceived competence "
+                                "and leaves calibration gaps uncorrected. Log at least one finding "
+                                "before POSTFLIGHT: empirica finding-log --finding \"...\" --impact 0.5"
+                            )
+                        elif total_artifacts < 3 and len([k for k, v in counts.items() if v > 0]) == 1:
+                            types_used = [k for k, v in counts.items() if v > 0]
+                            reminders["calibration_nudge"] = (
+                                f"⚠ Only {total_artifacts} {types_used[0]} logged in this transaction. "
+                                "Breadth matters: assumptions, decisions, and dead-ends each ground "
+                                "different aspects of calibration. Consider what you're assuming "
+                                "(assumption-log), what you've chosen (decision-log), and what "
+                                "didn't work (deadend-log)."
+                            )
+                except Exception as e:
+                    logger.debug(f"Calibration nudge computation failed (non-fatal): {e}")
+
+                result["praxic_reminders"] = reminders
 
             # AUTO-POSTFLIGHT REMOVED (2026-03-02):
             # Previously CHECK auto-triggered POSTFLIGHT when completion >= 0.7 AND impact >= 0.5.
