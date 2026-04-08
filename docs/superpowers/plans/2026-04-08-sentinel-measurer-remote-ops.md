@@ -1357,9 +1357,11 @@ git commit -m "feat(calibration): short-circuit remote-ops in _run_single_phase_
 
 ---
 
-## Phase 6: Integration Glue
+## Phase 6: Integration Glue — DROPPED via T0 Discovery
 
-### Task 12: Trajectory tracker skips non-grounded transactions
+> **2026-04-08 update:** T0 discovery (`docs/superpowers/plans/2026-04-08-discovery-notes.md`) verified that `store_verification` and `record_trajectory_point` each have exactly ONE call site, both AFTER the early-return point in `_run_single_phase_verification`. The Task 10 threshold gate and Task 11 remote-ops short-circuit naturally prevent non-grounded transactions from reaching ANY storage table. Tasks 12, 13, and 14 below are therefore no-ops and have been DROPPED. The architectural property is verified by `test_empty_bundle_returns_insufficient_status` (Task 10 Step 5) and the integration test (Task 16). Skip directly to **Phase 7: Documentation Surface** below.
+
+### ~~Task 12: Trajectory tracker skips non-grounded transactions~~ — DROPPED
 
 **Files:**
 - Modify: `empirica/core/post_test/trajectory_tracker.py` (find `record_trajectory_point`)
@@ -1457,7 +1459,7 @@ git commit -m "feat(trajectory): skip writes for non-grounded calibrations"
 
 ---
 
-### Task 13: `previous_transaction_feedback` aggregation excludes non-grounded
+### ~~Task 13: `previous_transaction_feedback` aggregation excludes non-grounded~~ — DROPPED
 
 **Files:**
 - Modify: file identified in Task 0 Step 1 (likely `workflow_commands.py` or `trajectory_tracker.py`)
@@ -1541,7 +1543,7 @@ git commit -m "feat(feedback): exclude non-grounded transactions from previous_t
 
 ---
 
-### Task 14: Sentinel gate handles new calibration_status values
+### ~~Task 14: Sentinel gate handles new calibration_status values~~ — DROPPED
 
 **Files:**
 - Modify: `empirica/plugins/claude-code-integration/hooks/sentinel-gate.py` (line numbers from Task 0 Step 2)
