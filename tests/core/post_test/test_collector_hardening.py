@@ -172,3 +172,94 @@ def test_insufficient_profile_skips_profile_collectors(monkeypatch):
     assert "_collect_code_quality_metrics" not in invoked, (
         "code_quality collector should not run for INSUFFICIENT profile"
     )
+
+
+# ---------------------------------------------------------------------------
+# collect_all() error capture and empty/failed distinction (Task 9)
+# ---------------------------------------------------------------------------
+
+
+def test_collect_all_captures_source_errors_with_type_and_message(monkeypatch):
+    """When a collector raises, source_errors should capture the exception
+    type and message keyed by source name."""
+    collector = PostTestCollector(session_id="test", phase="praxic")
+    monkeypatch.setattr(collector, "_resolve_profile", lambda: EvidenceProfile.INSUFFICIENT)
+    monkeypatch.setattr(collector, "_get_db", lambda: None)
+
+    def boom():
+        raise RuntimeError("simulated source failure")
+
+    monkeypatch.setattr(collector, "_collect_artifact_metrics", boom)
+    # Stub the other universal collectors as no-ops
+    for method in [
+        "_collect_goal_metrics", "_collect_issue_metrics",
+        "_collect_triage_metrics", "_collect_codebase_model_metrics",
+        "_collect_non_git_file_metrics",
+    ]:
+        monkeypatch.setattr(collector, method, lambda: [])
+
+    bundle = collector.collect_all()
+
+    assert "artifacts" in bundle.sources_failed
+    assert "artifacts" in bundle.source_errors
+    err = bundle.source_errors["artifacts"]
+    assert "RuntimeError" in err
+    assert "simulated source failure" in err
+    # Failed source should NOT be in sources_available or sources_empty
+    assert "artifacts" not in bundle.sources_available
+    assert "artifacts" not in bundle.sources_empty
+
+
+def test_collect_all_distinguishes_empty_from_failed(monkeypatch):
+    """A collector returning [] goes to sources_empty; a collector raising
+    goes to sources_failed. They are mutually exclusive."""
+    collector = PostTestCollector(session_id="test", phase="praxic")
+    monkeypatch.setattr(collector, "_resolve_profile", lambda: EvidenceProfile.INSUFFICIENT)
+    monkeypatch.setattr(collector, "_get_db", lambda: None)
+
+    # artifacts: returns empty
+    monkeypatch.setattr(collector, "_collect_artifact_metrics", lambda: [])
+    # other universal collectors as no-ops
+    for method in [
+        "_collect_goal_metrics", "_collect_issue_metrics",
+        "_collect_triage_metrics", "_collect_codebase_model_metrics",
+        "_collect_non_git_file_metrics",
+    ]:
+        monkeypatch.setattr(collector, method, lambda: [])
+
+    bundle = collector.collect_all()
+
+    # Returned [] → sources_empty
+    assert "artifacts" in bundle.sources_empty
+    # NOT in sources_failed
+    assert "artifacts" not in bundle.sources_failed
+    # NOT in sources_available (didn't contribute items)
+    assert "artifacts" not in bundle.sources_available
+
+
+def test_collect_all_source_errors_truncates_long_messages(monkeypatch):
+    """Long exception messages should be truncated in source_errors so
+    POSTFLIGHT JSON output doesn't blow up on a 10KB stack trace string."""
+    collector = PostTestCollector(session_id="test", phase="praxic")
+    monkeypatch.setattr(collector, "_resolve_profile", lambda: EvidenceProfile.INSUFFICIENT)
+    monkeypatch.setattr(collector, "_get_db", lambda: None)
+
+    long_message = "x" * 1000  # 1000-char message
+
+    def boom():
+        raise ValueError(long_message)
+
+    monkeypatch.setattr(collector, "_collect_artifact_metrics", boom)
+    for method in [
+        "_collect_goal_metrics", "_collect_issue_metrics",
+        "_collect_triage_metrics", "_collect_codebase_model_metrics",
+        "_collect_non_git_file_metrics",
+    ]:
+        monkeypatch.setattr(collector, method, lambda: [])
+
+    bundle = collector.collect_all()
+
+    err = bundle.source_errors["artifacts"]
+    # Should be truncated to a reasonable length (200 chars + type prefix)
+    assert len(err) < 300, f"source_errors entry too long: {len(err)} chars"
+    assert err.startswith("ValueError:")

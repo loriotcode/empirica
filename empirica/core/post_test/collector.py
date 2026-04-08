@@ -453,9 +453,20 @@ class PostTestCollector:
                 if items:
                     bundle.items.extend(items)
                     bundle.sources_available.append(source_name)
+                else:
+                    # Ran cleanly but found nothing to grade. This is
+                    # different from crashing — track it separately so
+                    # genuine failures can be debugged.
+                    bundle.sources_empty.append(source_name)
             except Exception as e:
                 logger.debug(f"Evidence source {source_name} failed: {e}")
                 bundle.sources_failed.append(source_name)
+                # Capture exception type + truncated message so POSTFLIGHT
+                # output can surface the actual cause. Without this,
+                # sources_failed is opaque ("it failed but why?").
+                err_type = type(e).__name__
+                err_msg = str(e)[:200]
+                bundle.source_errors[source_name] = f"{err_type}: {err_msg}"
 
         grounded_vectors = set()
         for item in bundle.items:
