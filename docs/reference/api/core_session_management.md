@@ -44,16 +44,21 @@ db = SessionDatabase(db_path="./custom/sessions.db")
 
 ## Session Management Methods
 
-### `create_session(self, ai_id: str, bootstrap_level: int = 0, components_loaded: int = 0, user_id: Optional[str] = None, subject: Optional[str] = None) -> str`
+### `create_session(self, ai_id: str, components_loaded: int = 0, user_id: Optional[str] = None, subject: Optional[str] = None, bootstrap_level: int = 1, parent_session_id: Optional[str] = None, project_id: Optional[str] = None) -> str`
 
 Create a new AI session.
 
 **Parameters:**
 - `ai_id: str` - AI identifier for the session
-- `bootstrap_level: int` - Bootstrap level (0-4 or minimal/standard/complete), default 0
 - `components_loaded: int` - Number of components loaded, default 0
 - `user_id: Optional[str]` - Optional user identifier
 - `subject: Optional[str]` - Optional subject/workstream identifier for filtering
+- `bootstrap_level: int` - Bootstrap configuration level (1-3), default 1
+- `parent_session_id: Optional[str]` - **(since v1.7.12)** Optional parent session UUID
+  for parent-only session linkage. Note: Task-tool subagents do NOT use this method
+  — they go through `create_subagent_session` (see Subagent Sessions section below).
+- `project_id: Optional[str]` - Optional project UUID for global registry tracking
+  (writes a row to `workspace.db.global_sessions` for cross-project visibility)
 
 **Returns:** `str` - Session ID (UUID string)
 
@@ -125,6 +130,128 @@ Generate comprehensive session summary for resume/handoff.
 **Example:**
 ```python
 summary = db.get_session_summary(session_id="abc-123", detail_level="detailed")
+```
+
+---
+
+## Subagent Sessions (v1.7.12+)
+
+**Background:** Task-tool subagents (Explore, general-purpose,
+superpowers:code-reviewer, etc.) used to create rows directly in the main
+`sessions` table via `create_session(parent_session_id=...)`. Subagent
+children were always newer than their parents, so any "recent sessions"
+diagnostic surfaced only subagent rows — masking the actual parent and
+making post-compact failures hard to diagnose.
+
+**Migration 034** (v1.7.12) introduces a dedicated `subagent_sessions`
+table. Subagent rows live there with the same `parent_session_id` link
+for lineage tracking, but no longer touch the main `sessions` table.
+Rollup at `SubagentStop` still logs findings to the parent session in
+the main table.
+
+**Schema (`subagent_sessions`):**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `session_id` | TEXT PRIMARY KEY | Subagent UUID |
+| `agent_name` | TEXT NOT NULL | e.g. "Explore", "superpowers:code-reviewer" |
+| `parent_session_id` | TEXT NOT NULL | Foreign-key style link to `sessions.session_id` (no enforced FK) |
+| `project_id` | TEXT | Optional project UUID |
+| `instance_id` | TEXT | Auto-detected from environment if not provided |
+| `start_time` | TIMESTAMP NOT NULL | UTC ISO format |
+| `end_time` | TIMESTAMP | Set on `end_subagent_session` |
+| `status` | TEXT NOT NULL | `'active'`, `'completed'`, or `'orphaned'` |
+| `rollup_summary` | TEXT | Optional JSON-serialized rollup results |
+| `created_at` | TIMESTAMP | Defaults to CURRENT_TIMESTAMP |
+
+### `create_subagent_session(self, agent_name: str, parent_session_id: str, project_id: Optional[str] = None, instance_id: Optional[str] = None) -> str`
+
+Create a child session for a Task-tool spawn. Writes to `subagent_sessions`,
+NOT to the main `sessions` table.
+
+**Parameters:**
+- `agent_name: str` - Subagent identifier (e.g. `"Explore"`,
+  `"general-purpose"`, `"superpowers:code-reviewer"`)
+- `parent_session_id: str` - UUID of the spawning parent session
+- `project_id: Optional[str]` - Optional project UUID
+- `instance_id: Optional[str]` - Optional instance ID; auto-detected if None
+
+**Returns:** `str` - Child session UUID
+
+**Example:**
+```python
+child_id = db.create_subagent_session(
+    agent_name="Explore",
+    parent_session_id=parent_id,
+)
+```
+
+### `end_subagent_session(self, session_id: str, rollup_summary: Optional[str] = None)`
+
+Mark a subagent session as completed.
+
+**Parameters:**
+- `session_id: str` - Subagent session UUID
+- `rollup_summary: Optional[str]` - Optional JSON-serialized summary
+  of what the subagent discovered
+
+**Example:**
+```python
+db.end_subagent_session(child_id, rollup_summary='{"findings": 3}')
+```
+
+### `get_subagent_session(self, session_id: str) -> Optional[Dict]`
+
+Get a subagent session row by ID.
+
+**Parameters:**
+- `session_id: str` - Subagent session UUID
+
+**Returns:** `Optional[Dict]` - Subagent session dict or None if not found
+
+### `list_subagents_for_parent(self, parent_session_id: str, status: Optional[str] = None) -> List[Dict]`
+
+List all subagent children for a parent session.
+
+**Parameters:**
+- `parent_session_id: str` - Parent session UUID
+- `status: Optional[str]` - Optional filter — `'active'`, `'completed'`,
+  or `'orphaned'`
+
+**Returns:** `List[Dict]` - Subagent session dicts, newest first
+
+**Example:**
+```python
+# All children
+children = db.list_subagents_for_parent(parent_id)
+
+# Only active children
+active = db.list_subagents_for_parent(parent_id, status="active")
+```
+
+### `ensure_session_exists(self, session_id: str, ai_id: str = "claude-code", project_id: Optional[str] = None, instance_id: Optional[str] = None) -> bool`
+
+**Auto-heal:** insert a minimal session row if missing. Used by
+post-compact recovery when a transaction's `session_id` survives compact
+but the session record was never created in the current project's local
+DB (cross-project session reuse pattern, KNOWN_ISSUES 11.24).
+
+The new row is marked `session_notes='auto-healed by post-compact'` and
+also registered in `workspace.db.global_sessions` for cross-project
+visibility.
+
+**Parameters:**
+- `session_id: str` - Pre-existing session UUID to insert
+- `ai_id: str` - AI identifier for the row, defaults to `"claude-code"`
+- `project_id: Optional[str]` - Optional project UUID
+- `instance_id: Optional[str]` - Optional instance ID; auto-detected if None
+
+**Returns:** `bool` - True if a new row was inserted, False if it already existed
+
+**Example:**
+```python
+# Idempotent: returns False on the second call
+healed = db.ensure_session_exists(session_id="cd738ee9-...")
 ```
 
 ---

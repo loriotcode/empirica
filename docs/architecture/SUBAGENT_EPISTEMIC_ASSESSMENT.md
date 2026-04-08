@@ -1,8 +1,8 @@
 # Subagent Epistemic Assessment
 
 **Status:** Core Architecture
-**Version:** 0.1.0
-**Date:** 2026-03-16
+**Version:** 0.2.0
+**Date:** 2026-03-16 (updated 2026-04-08)
 
 ---
 
@@ -15,6 +15,63 @@ no scope tracking, and no way to measure reliability over time.
 This spec adds an epistemic lens to Claude Code's native subagent
 system via the existing hook infrastructure. Two modes: **passive**
 (observe and calibrate) and **active** (imprint and constrain).
+
+---
+
+## Storage Architecture (v1.7.12+)
+
+Subagent sessions live in a **dedicated `subagent_sessions` table**,
+isolated from the main `sessions` table. This separation was added in
+migration 034 (KNOWN_ISSUES 11.24) to fix two related problems:
+
+1. **Diagnostic pollution.** Pre-v1.7.12, every Task spawn created a
+   row in the main `sessions` table. Subagent children were always
+   newer than their parents, so any "recent sessions" diagnostic
+   surfaced only subagent rows — masking the actual parent in
+   post-compact failures and statusline lookups.
+
+2. **Recent-sessions queries returning unhelpful results.** Code that
+   listed sessions for dashboards or "what was I working on" features
+   had to filter `WHERE parent_session_id IS NULL` to skip subagents.
+   Many call sites forgot, leading to subtle bugs.
+
+**Architecture:**
+
+```
+sessions table                    subagent_sessions table
+─────────────                    ──────────────────────
+parent (claude-code) ◄──────┐    child (Explore)
+                            │    child (general-purpose)
+                            └────child (superpowers:code-reviewer)
+                                 (linked via parent_session_id)
+```
+
+The parent session lives in `sessions`. Each Task spawn creates a row
+in `subagent_sessions` with `parent_session_id` pointing back. Lineage
+is preserved without polluting the main table.
+
+**API surface** (in `SessionDatabase`):
+
+| Method | Purpose |
+|--------|---------|
+| `create_subagent_session(agent_name, parent_session_id, ...)` | Called by `subagent-start` hook |
+| `end_subagent_session(session_id, rollup_summary)` | Called by `subagent-stop` hook |
+| `get_subagent_session(session_id)` | Single subagent lookup |
+| `list_subagents_for_parent(parent_session_id, status=None)` | Enumerate children when you actually want them |
+
+Rollup at `subagent-stop` still logs findings to the **parent** session
+in the main `sessions` table — the child's purpose is lifecycle
+tracking and lineage, not artifact storage.
+
+**Note on Claude Code session_id sharing:** All subagents inherit the
+parent's Claude Code process-level `session_id` (kernel limitation —
+they're spawned in-process). The Empirica `child_session_id` we create
+is a separate UUID used for our own lineage tracking and budget
+allocation. Hooks that gate on Claude Code's session_id therefore
+cannot distinguish parent from child traffic; gating must happen at
+the agent_name layer instead.
+
+See [`docs/reference/api/core_session_management.md`](../reference/api/core_session_management.md#subagent-sessions-v1712) for full method signatures and the `subagent_sessions` schema.
 
 ---
 

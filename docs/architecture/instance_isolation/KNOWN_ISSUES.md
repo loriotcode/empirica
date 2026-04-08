@@ -388,6 +388,76 @@ Sentinel hook does NOT use CWD cross-check (CWD unreliable in hooks per 11.10).
 
 **Commit:** `7aade9e4`, `937bf15f`
 
+### 11.24 Subagent Pollution + Post-Compact Auto-Heal Gap (2026-04-08)
+
+**Symptom (in empirica-cortex after `/compact`):**
+```
+_validate_session_in_db: session cd738ee9... NOT FOUND in project-local DB:
+  /home/yogapad/empirical-ai/empirica-cortex/.empirica/sessions/sessions.db
+  Recent sessions in DB: [('8a7693e2', 'superpowers:code-reviewer'),
+                          ('0592a9c3', 'Explore'),
+                          ('ee07936a', 'general-purpose'), ...]
+get_active_empirica_session_id: stale session in transaction: cd738ee9...
+```
+Statusline failed and PREFLIGHT couldn't find the parent session.
+
+**Two intertwined root causes:**
+
+1. **Subagents creating rows in main `sessions` table.** `SubagentStart` hook
+   called `SessionDatabase.create_session()` for every Task spawn (Explore,
+   general-purpose, superpowers:* etc), polluting the main table with rows
+   that always had `parent_session_id` set. Subagent children were always
+   newer than their parents, so the "Recent sessions in DB" diagnostic
+   surfaced only subagent rows — masking the actual parent and making the
+   error message misleading.
+
+2. **`post-compact.py` `CONTINUE_TRANSACTION` branch never validated the
+   session_id it propagated forward.** This is the unfinished half of
+   **11.19**. That fix added `_validate_session_in_db` and wired it into
+   the `CHECK_GATE` branch, but the open-transaction branch reads
+   `tx_session_id = active_transaction.get('session_id') or empirica_session`
+   and writes it to `active_work` / `active_transaction` without ever
+   checking it exists in the current project's DB. When the parent was
+   originally created in a different project (cross-project `--resume`),
+   the cortex DB never got the row and every subsequent CLI command
+   failed validation.
+
+**Fix:**
+
+- **Subagent isolation:** Migration 034 creates a dedicated
+  `subagent_sessions` table. `SessionDatabase.create_subagent_session()`,
+  `end_subagent_session()`, `get_subagent_session()`, and
+  `list_subagents_for_parent()` write to and read from it. Subagent rows
+  no longer touch the main `sessions` table; lineage is preserved via
+  `parent_session_id`. The migration moves existing legacy subagent rows
+  out automatically (status `completed` if they had `end_time`,
+  `orphaned` otherwise). `SubagentStart` and `SubagentStop` hooks updated.
+
+- **Post-compact auto-heal:** New
+  `SessionDatabase.ensure_session_exists()` does an idempotent insert of
+  a minimal session row preserving the caller-provided `session_id`,
+  marked `session_notes='auto-healed by post-compact'`, also registered
+  in `workspace.db` for cross-project visibility. `post-compact.py`'s
+  `CONTINUE_TRANSACTION` branch now calls `_validate_session_in_db` on
+  `tx_session_id` and heals before propagating forward. Heal failure is
+  non-fatal and logged to stderr.
+
+**Lessons learned:** When adding a validator to a hook with multiple
+routing paths, audit ALL paths, not just the one that triggered the
+original report. 11.19's fix added the right tool but wired it into one
+branch; the bug returned six weeks later via the unwired branch with
+the same symptoms. Defensive checklist for future validation work:
+
+1. List every code path that writes the value being validated.
+2. For each path, decide: validate-and-heal, validate-and-fail, or skip.
+3. Document the decision (even "skip" — make it explicit).
+4. Add a regression test that exercises EVERY path.
+
+**Tests:** 13 new in `tests/test_subagent_sessions.py` covering schema,
+migration, all repository methods, and `ensure_session_exists` idempotency.
+
+**Commit:** `9dd4f39a2`
+
 ---
 
 ## By Design (Not Bugs)

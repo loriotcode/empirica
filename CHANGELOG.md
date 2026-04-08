@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.7.12] - Unreleased
 
+### Fixed
+- **Subagent rows polluting main `sessions` table** — `SubagentStart` hook was
+  calling `SessionDatabase.create_session()` for every Task spawn (Explore,
+  general-purpose, superpowers:* etc), creating rows in the main `sessions`
+  table with `parent_session_id` set. Subagent children were always newer
+  than their parents, so post-compact diagnostics, statusline lookups, and
+  any "recent sessions" query surfaced only subagent rows — masking the
+  actual parent session.
+
+  **Fix:** New dedicated `subagent_sessions` table (migration 034) plus
+  `SessionDatabase.create_subagent_session()`, `end_subagent_session()`,
+  `get_subagent_session()`, `list_subagents_for_parent()`. Lineage to the
+  parent is preserved via `parent_session_id`; rollup at SubagentStop still
+  logs findings to the parent session in the main `sessions` table. The
+  migration moves legacy subagent rows out automatically (status `completed`
+  if `end_time` was set, `orphaned` otherwise). `SubagentStart` and
+  `SubagentStop` hooks updated to use the new methods.
+
+- **Cross-project session reuse leaving parent unrecoverable after compact**
+  (KNOWN_ISSUES 11.24, completes the partial fix from 11.19) — `post-compact.py`'s
+  `CONTINUE_TRANSACTION` branch propagated `tx_session_id` from the pre-compact
+  transaction snapshot forward into `active_work` / `active_transaction` files
+  without verifying the session existed in the current project's local
+  `sessions.db`. When the parent session was originally created in a different
+  project's DB (cross-project `--resume` pattern), all subsequent CLI commands
+  failed `_validate_session_in_db` with "session NOT FOUND".
+
+  **Fix:** New `SessionDatabase.ensure_session_exists()` performs an
+  idempotent insert of a minimal session row (marked
+  `session_notes='auto-healed by post-compact'`, registered in `workspace.db`
+  for cross-project visibility). `post-compact.py` now calls
+  `_validate_session_in_db` on `tx_session_id` and auto-heals before
+  propagating it forward; failure of the heal itself is non-fatal and
+  logged to stderr. Issue 11.19's "ghost session detection" added the
+  validator but only wired it into the `CHECK_GATE` branch — this completes
+  the wiring across all post-compact routing paths.
+
+- **Test coverage:** `tests/test_subagent_sessions.py` — 13 new tests
+  covering schema, migration 034 (move + orphan-status detection +
+  idempotency), all 5 new repository methods, and `ensure_session_exists`
+  idempotency + caller-provided session_id preservation.
+
 ### Added
 - **EPP hook-driven activation** — the `<semantic-pushback-check>` block is now
   injected into every substantive user prompt (>=20 chars, not slash command)
