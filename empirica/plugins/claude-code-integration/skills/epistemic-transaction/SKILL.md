@@ -311,7 +311,7 @@ EOF
 ```
 
 **Context fields (optional, improve grounded calibration):**
-- `work_type`: `code|infra|research|release|debug|config|docs|data|comms|design|audit` — scales evidence weights by source relevance (e.g., infra work won't be penalized for low git metrics)
+- `work_type`: `code|infra|research|release|debug|config|docs|data|comms|design|audit|remote-ops` — scales evidence weights by source relevance. Use `remote-ops` for work the local Sentinel doesn't observe (SSH, customer machines, remote config); the POSTFLIGHT will return `calibration_status=ungrounded_remote_ops` and self-assessment will stand unchallenged.
 - `work_context`: `greenfield|iteration|investigation|refactor` — adjusts normalization baselines for project maturity
 
 **PREFLIGHT declares scope.** If scope creeps during work, that's a signal to

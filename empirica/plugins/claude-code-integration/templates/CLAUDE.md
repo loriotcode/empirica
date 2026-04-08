@@ -165,7 +165,7 @@ PREFLIGHT accepts two optional context fields that improve grounded calibration:
 Values: `greenfield` | `iteration` | `investigation` | `refactor`
 
 **`work_type`** — Nature of the task. Scales evidence weights by source relevance.
-Values: `code` | `infra` | `research` | `release` | `debug` | `config` | `docs` | `data` | `comms` | `design` | `audit`
+Values: `code` | `infra` | `research` | `release` | `debug` | `config` | `docs` | `data` | `comms` | `design` | `audit` | `remote-ops`
 
 | Work Type | Primary Evidence (upweighted) | Low-Relevance Evidence (downweighted) |
 |-----------|-------------------------------|---------------------------------------|
@@ -177,6 +177,9 @@ Values: `code` | `infra` | `research` | `release` | `debug` | `config` | `docs` 
 | comms | goal completion | everything code-related |
 | design | artifact counts, goal completion | git, tests, code quality |
 | audit | artifact counts, goal completion | git (should be zero changes) |
+| **remote-ops** | — (self-assessment stands) | **everything** — local Sentinel has no signal |
+
+**When to use `remote-ops`:** the work happens on a machine the local Sentinel doesn't observe — SSH sessions, customer machines, remote config, deploys without local commits, on-site assistance. Every evidence source is zeroed; the AI's self-assessment stands unchallenged. The POSTFLIGHT calibration_status will be `ungrounded_remote_ops` and no divergence is computed. **Don't use remote-ops for hybrid work** that also touches local code — split into two transactions instead.
 
 Both fields are optional and backward-compatible. Set them in PREFLIGHT JSON:
 ```json

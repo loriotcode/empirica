@@ -142,6 +142,19 @@ Between transactions
 └── Clean stale artifacts → Prevents noise accumulation
 ```
 
+**Routing rule — declare `work_type=remote-ops` when:**
+- Your work happens on a machine the local Sentinel doesn't observe (SSH
+  sessions, customer/partner machines, remote config edits, deploys without
+  local commits)
+- You're doing on-site assistance or onboarding for an external contact
+- Local git won't see the changes you're about to make
+
+The POSTFLIGHT will return `calibration_status=ungrounded_remote_ops` and
+self-assessment stands unchallenged — no divergence is computed against the
+local measurer because the local measurer has nothing to see. **Don't use
+`remote-ops` for hybrid work** that also touches local code — split into
+two transactions instead.
+
 ### VII. WHEN DO I MANAGE CONTEXT?
 
 ```
