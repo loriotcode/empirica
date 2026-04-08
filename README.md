@@ -268,13 +268,14 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ## What's New in 1.7.13
 
-- **EPP hook-driven activation** — the `<semantic-pushback-check>` block is now
-- **`empirica epp-activate` CLI command** for self-reported EPP telemetry.
-- **Phase 0 calibration harness** (`scripts/phase0_epp_calibration.py`)
-- **New architecture doc** `docs/architecture/EPP_ARCHITECTURE.md` — two-layer
-- **CHECK-time calibration nudge** — `handle_check_submit_command` now
-- **EPP SKILL.md** updated with "Hook-Driven Activation (since v1.7.13)" section
-- **`tool-router.py` complexity reduction** — `build_routing_advice` extracted
+- **Subagent rows polluting main `sessions` table** — `SubagentStart` hook was
+- **Cross-project session reuse leaving parent unrecoverable after compact**
+- **Test coverage:** `tests/test_subagent_sessions.py` — 13 new tests
+- **Grounded calibration honesty — `insufficient_evidence` and `remote-ops`** —
+- **CWD overrides bypassing open transactions at compact boundary**
+- **Auto-memory loaded from wrong project across CWD mismatch**
+- **`project-switch` auto-heal** (KNOWN_ISSUES 11.25, completes the
+- **`empirica diagnose` command** — new CLI command that walks the
 
 ### Previous Highlights (1.6.11–1.7.0)
 
