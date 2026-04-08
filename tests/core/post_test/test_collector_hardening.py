@@ -45,3 +45,130 @@ def test_evidence_bundle_source_errors_accepts_dict_entries():
     bundle = EvidenceBundle(session_id="test")
     bundle.source_errors["foo"] = "RuntimeError: simulated"
     assert bundle.source_errors == {"foo": "RuntimeError: simulated"}
+
+
+# ---------------------------------------------------------------------------
+# EvidenceProfile.INSUFFICIENT (Task 6)
+# ---------------------------------------------------------------------------
+
+
+def test_evidence_profile_has_insufficient_value():
+    """EvidenceProfile should expose INSUFFICIENT alongside CODE/PROSE/etc."""
+    assert hasattr(EvidenceProfile, "INSUFFICIENT")
+    assert EvidenceProfile.INSUFFICIENT == "insufficient"
+    assert EvidenceProfile.INSUFFICIENT in EvidenceProfile.VALID
+
+
+# ---------------------------------------------------------------------------
+# _resolve_profile() returns INSUFFICIENT for empty changed files (Task 7)
+# ---------------------------------------------------------------------------
+
+
+def _force_auto_profile(collector, monkeypatch):
+    """Force EvidenceProfile.resolve() into the AUTO branch by stubbing
+    _resolve_project_root to None — otherwise the project.yaml's
+    `evidence_profile: code` short-circuits the resolution before AUTO.
+    """
+    monkeypatch.setattr(collector, "_resolve_project_root", lambda: None)
+    monkeypatch.delenv("EMPIRICA_EVIDENCE_PROFILE", raising=False)
+
+
+def test_resolve_profile_returns_insufficient_when_no_changed_files(monkeypatch):
+    """When AUTO and no changed files, profile should be INSUFFICIENT not PROSE.
+
+    This is the structural backstop for out-of-repo work and remote-ops without
+    explicit declaration — instead of silently falling back to prose grading,
+    the measurer correctly reports insufficient grounding.
+    """
+    collector = PostTestCollector(session_id="test", phase="praxic")
+    _force_auto_profile(collector, monkeypatch)
+    monkeypatch.setattr(collector, "_get_session_changed_files", lambda: [])
+
+    profile = collector._resolve_profile()
+    assert profile == EvidenceProfile.INSUFFICIENT
+
+
+def test_resolve_profile_still_returns_prose_when_only_markdown_changed(monkeypatch):
+    """Markdown/text files (not .py, not web) should still produce PROSE.
+
+    Regression check — the INSUFFICIENT fallback only kicks in for empty
+    changed-files, not for any change that isn't code or web.
+    """
+    collector = PostTestCollector(session_id="test", phase="praxic")
+    _force_auto_profile(collector, monkeypatch)
+    monkeypatch.setattr(
+        collector, "_get_session_changed_files",
+        lambda: ["README.md", "notes.txt"],
+    )
+    profile = collector._resolve_profile()
+    assert profile == EvidenceProfile.PROSE
+
+
+def test_resolve_profile_returns_code_for_python_files(monkeypatch):
+    """Python files trigger CODE profile (existing behavior, regression check)."""
+    collector = PostTestCollector(session_id="test", phase="praxic")
+    _force_auto_profile(collector, monkeypatch)
+    monkeypatch.setattr(
+        collector, "_get_session_changed_files",
+        lambda: ["empirica/foo.py"],
+    )
+    profile = collector._resolve_profile()
+    assert profile == EvidenceProfile.CODE
+
+
+# ---------------------------------------------------------------------------
+# collect_all() skips profile collectors when profile is INSUFFICIENT (Task 8)
+# ---------------------------------------------------------------------------
+
+
+def test_insufficient_profile_skips_profile_collectors(monkeypatch):
+    """When profile=INSUFFICIENT, no profile-specific collectors run.
+
+    Universal collectors still run (they grade session state, not file changes).
+    Profile-specific collectors (pytest, git, code_quality, prose, web) DO NOT
+    run, because there's no signal for them to grade.
+    """
+    collector = PostTestCollector(session_id="test", phase="praxic")
+    monkeypatch.setattr(collector, "_resolve_profile", lambda: EvidenceProfile.INSUFFICIENT)
+    monkeypatch.setattr(collector, "_get_db", lambda: None)
+
+    invoked: list[str] = []
+
+    def make_stub(name: str):
+        def _stub(*args, **kwargs):
+            invoked.append(name)
+            return []
+        return _stub
+
+    universal_methods = [
+        "_collect_artifact_metrics",
+        "_collect_goal_metrics",
+        "_collect_issue_metrics",
+        "_collect_triage_metrics",
+        "_collect_codebase_model_metrics",
+        "_collect_non_git_file_metrics",
+    ]
+    profile_methods = [
+        "_collect_test_results",
+        "_collect_git_metrics",
+        "_collect_code_quality_metrics",
+    ]
+    for m in universal_methods + profile_methods:
+        monkeypatch.setattr(collector, m, make_stub(m))
+
+    collector.collect_all()
+
+    # Universal collectors run
+    assert "_collect_artifact_metrics" in invoked
+    assert "_collect_goal_metrics" in invoked
+
+    # Profile-specific collectors do NOT run
+    assert "_collect_test_results" not in invoked, (
+        "pytest collector should not run for INSUFFICIENT profile"
+    )
+    assert "_collect_git_metrics" not in invoked, (
+        "git collector should not run for INSUFFICIENT profile"
+    )
+    assert "_collect_code_quality_metrics" not in invoked, (
+        "code_quality collector should not run for INSUFFICIENT profile"
+    )

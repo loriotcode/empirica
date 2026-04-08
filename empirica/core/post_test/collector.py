@@ -97,7 +97,11 @@ class EvidenceProfile:
     - "prose": textstat, proselint, vale, document metrics, source quality
     - "web": build verification, HTML validation, link integrity, terminology, assets
     - "hybrid": all evidence sources (code + prose + web when detected)
-    - "auto": detect from project content (falls back to "code")
+    - "insufficient": no measurable signal — only universal collectors run.
+      Used when there are no changed files at all (out-of-repo work, remote-ops
+      without explicit declaration). The AI's self-assessment is the authority
+      because no profile-specific source has anything meaningful to grade.
+    - "auto": detect from project content (falls back to "insufficient" if no signal)
 
     Set via:
     - project.yaml: evidence_profile: web
@@ -108,9 +112,10 @@ class EvidenceProfile:
     PROSE = "prose"
     WEB = "web"
     HYBRID = "hybrid"
+    INSUFFICIENT = "insufficient"
     AUTO = "auto"
 
-    VALID = {CODE, PROSE, WEB, HYBRID, AUTO}
+    VALID = {CODE, PROSE, WEB, HYBRID, INSUFFICIENT, AUTO}
 
     @staticmethod
     def resolve(explicit: str | None = None,
@@ -227,8 +232,17 @@ class PostTestCollector:
                 return EvidenceProfile.WEB
             elif has_code:
                 return EvidenceProfile.CODE
-            else:
+            elif changed:
+                # Non-empty but neither code nor web → markdown, configs, data
                 return EvidenceProfile.PROSE
+            else:
+                # Empty changed files → measurer has no file signal at all.
+                # Out-of-repo work, remote-ops without explicit declaration, or
+                # nothing-yet. Halt profile-specific collection; rely only on
+                # universal collectors (artifacts, goals, etc.) and let the
+                # downstream coverage threshold gate decide whether calibration
+                # is meaningful at all.
+                return EvidenceProfile.INSUFFICIENT
         return profile
 
     def _resolve_project_root(self) -> str | None:
@@ -396,13 +410,16 @@ class PostTestCollector:
             universal.append(("codebase_model", self._collect_codebase_model_metrics))
             universal.append(("non_git_files", self._collect_non_git_file_metrics))
 
-        # Profile-specific collectors — only run during praxic/combined phases.
-        # These measure OUTPUT quality (code quality, test results, build verification,
-        # document metrics) which is meaningless during pure noetic investigation.
-        # Noetic grounding relies on epistemic process evidence (artifacts, thoroughness,
-        # sentinel decisions) from the universal collectors above.
+        # Profile-specific collectors — only run during praxic/combined phases
+        # AND when the profile actually has signal to grade. These measure
+        # OUTPUT quality (code quality, test results, build verification,
+        # document metrics) which is meaningless during:
+        #   - pure noetic investigation (no praxic output yet)
+        #   - INSUFFICIENT profile (no changed files at all — out-of-repo work)
+        # Noetic grounding relies on epistemic process evidence (artifacts,
+        # thoroughness, sentinel decisions) from the universal collectors above.
         # This applies across ALL domains — not just software engineering.
-        if self.phase == "noetic":
+        if self.phase == "noetic" or profile == EvidenceProfile.INSUFFICIENT:
             profile_collectors = []
         elif profile == EvidenceProfile.CODE:
             profile_collectors = [
