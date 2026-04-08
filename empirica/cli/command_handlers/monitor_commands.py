@@ -23,14 +23,29 @@ logger = logging.getLogger(__name__)
 
 
 class UsageMonitor:
-    """
-    Track and display adapter usage statistics.
-    
-    Monitors:
-    - Request counts per adapter
-    - Total costs
-    - Average latency
-    - Success/failure rates
+    """Track and display adapter usage statistics for CLI monitoring commands.
+
+    Persists usage stats to disk (default `~/.empirica/usage_stats.json`)
+    and exposes a small API for incrementing counters and querying
+    aggregated metrics. Used by the `empirica usage-stats` and related
+    monitoring CLI commands.
+
+    Tracks per adapter:
+        * Request counts (total and by call type)
+        * Total cost in USD
+        * Average latency in milliseconds
+        * Success / failure rates and recent error log
+
+    Attributes:
+        stats_file (Path): Filesystem path where the JSON stats blob is
+            persisted. Created on demand if it doesn't exist.
+        stats (dict): In-memory copy of the persisted stats, loaded on
+            __init__ and rewritten by record_request / save_stats.
+
+    Example:
+        >>> mon = UsageMonitor()
+        >>> mon.record_request("anthropic", success=True, latency_ms=420)
+        >>> summary = mon.get_summary()
     """
 
     def __init__(self, stats_file: Path = None):

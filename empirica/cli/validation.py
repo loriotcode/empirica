@@ -24,7 +24,24 @@ T = TypeVar('T', bound=BaseModel)
 # =============================================================================
 
 class VectorValues(BaseModel):
-    """Epistemic vector values (0.0-1.0 scale)."""
+    """Epistemic vector values for AI self-assessment (0.0-1.0 scale).
+
+    Captures the 13-vector epistemic state used throughout Empirica's
+    measurement workflow (PREFLIGHT, CHECK, POSTFLIGHT). Only `know` and
+    `uncertainty` are required; all other vectors are optional and
+    default to None.
+
+    The vectors are grouped semantically:
+
+    * **Knowledge axis** — `know`, `uncertainty`, `signal`, `density`
+    * **Context axis** — `context`, `clarity`, `coherence`, `state`
+    * **Action axis** — `change`, `completion`, `do`
+    * **Engagement axis** — `engagement`, `impact`
+
+    See `docs/reference/api/core_session_management.md` and the EWM
+    protocol docs for the full vector semantics. Used by `PreflightInput`,
+    `CheckInput`, and `PostflightInput`.
+    """
     know: float = Field(ge=0.0, le=1.0, description="Knowledge level")
     uncertainty: float = Field(ge=0.0, le=1.0, description="Uncertainty level")
     context: float | None = Field(default=None, ge=0.0, le=1.0, description="Context understanding")
@@ -41,7 +58,36 @@ class VectorValues(BaseModel):
 
 
 class PreflightInput(BaseModel):
-    """Input model for preflight-submit command."""
+    """Pydantic input schema for the `preflight-submit` CLI command.
+
+    PREFLIGHT opens an epistemic measurement transaction. The AI declares
+    its baseline epistemic state across the 13 vectors, plus optional
+    work_context and work_type metadata that adjust grounded calibration
+    normalization.
+
+    Fields:
+        session_id: UUID of the active Empirica session (required, 1-100 chars)
+        vectors: Dict of vector_name -> float (0.0-1.0). Must include at
+            least 'know' and 'uncertainty'. See `VectorValues` for the
+            full set of valid keys.
+        reasoning: Free-text explanation for the assessment (optional,
+            max 5000 chars). Captured for retrospective grounding.
+        task_context: Brief task description used for pattern retrieval
+            from prior transactions (optional, max 2000 chars).
+        work_context: Project maturity context — one of `greenfield`,
+            `iteration`, `investigation`, `refactor`. Adjusts calibration
+            normalization baselines.
+        work_type: Domain context — one of `code`, `infra`, `research`,
+            `release`, `debug`, `config`, `docs`, `data`, `comms`,
+            `design`, `audit`. Determines which evidence sources are
+            relevant for grounded calibration.
+
+    Raises:
+        ValueError: via field validators when session_id is empty,
+            vectors dict is empty, an unknown vector key is used, a
+            value is outside 0.0-1.0, or required vectors (know,
+            uncertainty) are missing.
+    """
     session_id: str = Field(min_length=1, max_length=100, description="Session identifier")
     vectors: dict[str, float] = Field(description="Epistemic vector values")
     reasoning: str | None = Field(default="", max_length=5000, description="Reasoning for assessment")
@@ -120,7 +166,29 @@ class CheckInput(BaseModel):
 
 
 class PostflightInput(BaseModel):
-    """Input model for postflight-submit command."""
+    """Pydantic input schema for the `postflight-submit` CLI command.
+
+    POSTFLIGHT closes an epistemic measurement transaction. The AI
+    declares its updated epistemic state after doing the work; the
+    system computes deltas, runs grounded verification, and produces
+    a calibration score.
+
+    Fields:
+        session_id: UUID of the active Empirica session (required, 1-100 chars)
+        vectors: Dict of vector_name -> float (0.0-1.0). Required (the
+            POSTFLIGHT-PREFLIGHT delta is the primary measurement
+            signal). See `VectorValues` for valid keys.
+        reasoning: Free-text retrospective explaining what was learned
+            and how vectors changed (optional, max 5000 chars).
+        learnings: Distilled key learnings from the transaction
+            (optional, max 5000 chars).
+        goal_id: Optional goal UUID this transaction was working on,
+            for goal-progress linkage.
+
+    Raises:
+        ValueError: via field validators when session_id is empty,
+            vectors dict is empty, or any value is outside 0.0-1.0.
+    """
     session_id: str = Field(min_length=1, max_length=100, description="Session identifier")
     vectors: dict[str, float] = Field(description="Final epistemic vector values")
     reasoning: str | None = Field(default="", max_length=5000, description="Reasoning for assessment")
@@ -154,7 +222,24 @@ class PostflightInput(BaseModel):
 # =============================================================================
 
 class FindingInput(BaseModel):
-    """Input model for finding-log command."""
+    """Pydantic input schema for the `finding-log` CLI command.
+
+    Findings record concrete discoveries made during noetic or praxic
+    work — observations, root causes, behavioral patterns, dependencies
+    learned, etc. They are first-class epistemic artifacts and feed
+    into the calibration loop and pattern retrieval.
+
+    Fields:
+        session_id: UUID of the active Empirica session (1-100 chars)
+        finding: The discovery text (1-5000 chars). Should be specific
+            and actionable — "Auth middleware uses JWT in cookie, not
+            Bearer header" rather than "Auth is complicated".
+        impact: How significant this finding is (0.0-1.0, default 0.5).
+            Higher impact findings get prioritized in retrieval.
+        domain: Optional domain tag for filtering (e.g. "auth", "db",
+            "frontend"). Max 100 chars.
+        goal_id: Optional goal UUID this finding contributes to.
+    """
     session_id: str = Field(min_length=1, max_length=100)
     finding: str = Field(min_length=1, max_length=5000)
     impact: float = Field(ge=0.0, le=1.0, default=0.5)
@@ -163,7 +248,23 @@ class FindingInput(BaseModel):
 
 
 class UnknownInput(BaseModel):
-    """Input model for unknown-log command."""
+    """Pydantic input schema for the `unknown-log` CLI command.
+
+    Unknowns record open questions that need investigation. Logging an
+    unknown is the noetic-phase complement to logging a finding —
+    findings are what you DO know, unknowns are what you don't.
+    Unknowns can later be resolved (which generates a finding) or
+    determined to be out-of-scope.
+
+    Fields:
+        session_id: UUID of the active Empirica session (1-100 chars)
+        unknown: The open question text (1-5000 chars). Phrase as a
+            question or "I don't know X" statement.
+        impact: How important resolving this unknown is (0.0-1.0,
+            default 0.5). Higher impact unknowns are surfaced more
+            prominently.
+        goal_id: Optional goal UUID this unknown blocks.
+    """
     session_id: str = Field(min_length=1, max_length=100)
     unknown: str = Field(min_length=1, max_length=5000)
     impact: float = Field(ge=0.0, le=1.0, default=0.5)

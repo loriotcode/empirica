@@ -37,7 +37,21 @@ from .command_handlers.utility_commands import (
 
 
 class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
-    """Custom formatter that groups subcommands by category"""
+    """Argparse formatter that groups Empirica's subcommands by category.
+
+    Empirica has 180+ CLI commands across 26 categories. The default
+    argparse subcommand listing renders all of them in a flat,
+    impossible-to-scan list. This formatter overrides _format_action
+    to render only a curated "Core Commands" view (~25 high-traffic
+    commands grouped under Workflow / Epistemic Artifacts / Goals /
+    Context / Monitoring), with a footer pointing users to
+    `empirica help <category>` for the full enumeration.
+
+    Inherits RawDescriptionHelpFormatter so the multi-line program
+    description survives without word-wrap mangling. Used as the
+    `formatter_class` of the top-level argparse parser in
+    `cli_core.py:create_parser`.
+    """
 
     def _format_action(self, action):
         """Format action with grouped subcommands by category."""

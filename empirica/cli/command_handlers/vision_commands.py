@@ -50,7 +50,28 @@ class BasicImageAssessment:
 
 
 class VisionAnalyzer:
-    """Simple vision analyzer for core Empirica"""
+    """Lightweight image analyzer used by the vision CLI commands.
+
+    Provides metadata-only assessment of image files (no ML models, no
+    LLM calls — just PIL/Pillow inspection) suitable for the
+    `empirica vision-assess` command and pitch-deck slide auditing.
+
+    Capabilities:
+        * Read image dimensions, aspect ratio, file size
+        * Detect common presentation aspect ratios (4:3, 16:9, 16:10)
+        * Generate `BasicImageAssessment` records for downstream tools
+        * Surface size warnings (oversized files, suspicious dimensions)
+
+    Requires PIL/Pillow at construction time — raises ImportError if
+    not installed (`pip install pillow`).
+
+    Example:
+        >>> from pathlib import Path
+        >>> va = VisionAnalyzer()
+        >>> result = va.analyze_image(Path("slide_01.png"), slide_number=1)
+        >>> result.is_presentation_size
+        True
+    """
 
     def __init__(self):
         """Initialize vision analyzer, requiring PIL/Pillow installation."""
