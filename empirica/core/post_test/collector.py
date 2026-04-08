@@ -60,12 +60,25 @@ class EvidenceItem:
 
 @dataclass
 class EvidenceBundle:
-    """Complete evidence collection for a session."""
+    """Complete evidence collection for a session.
+
+    Three source-state lists distinguish between collector outcomes:
+    - sources_available: ran successfully and returned 1+ items (real measurement)
+    - sources_empty: ran successfully but returned 0 items (no signal to grade)
+    - sources_failed: raised an exception (real failure, see source_errors)
+
+    source_errors maps source name → "ExceptionType: truncated message" for
+    every failed collector. Captured at DEBUG log level by default; surfaced
+    in POSTFLIGHT response when sources_failed is non-empty so failures
+    can be debugged from the output alone.
+    """
     session_id: str
     items: list[EvidenceItem] = field(default_factory=list)
     collection_timestamp: float = 0.0
     sources_available: list[str] = field(default_factory=list)
     sources_failed: list[str] = field(default_factory=list)
+    sources_empty: list[str] = field(default_factory=list)
+    source_errors: dict[str, str] = field(default_factory=dict)
     coverage: float = 0.0
 
 
