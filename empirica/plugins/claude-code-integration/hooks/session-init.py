@@ -523,11 +523,28 @@ def main():
     # project. On startup, the user explicitly opened Claude Code in a specific
     # directory — that intent should win. On resume/compact/clear, the instance
     # file IS authoritative (same session, CWD may have been reset by Claude Code).
+    #
+    # GUARD: Even on startup, an OPEN TRANSACTION on the resolved project is
+    # authoritative — transactions span compaction boundaries and a new fresh
+    # session may inherit one. Bypassing the guard would orphan the transaction
+    # and create a duplicate session in the wrong project (KNOWN_ISSUES 11.26).
     if event_type == 'startup' and project_root:
-        cwd_root = _find_git_root() or Path.cwd()
-        if cwd_root.resolve() != Path(project_root).resolve():
-            if has_valid_db(cwd_root) or not has_valid_db(Path(project_root)):
-                project_root = cwd_root
+        from project_resolver import _get_instance_suffix
+        suffix = _get_instance_suffix()
+        tx_file = Path(project_root) / '.empirica' / f'active_transaction{suffix}.json'
+        has_open_tx = False
+        try:
+            if tx_file.exists():
+                with open(tx_file) as f:
+                    has_open_tx = json.load(f).get('status') == 'open'
+        except Exception:
+            pass
+
+        if not has_open_tx:
+            cwd_root = _find_git_root() or Path.cwd()
+            if cwd_root.resolve() != Path(project_root).resolve():
+                if has_valid_db(cwd_root) or not has_valid_db(Path(project_root)):
+                    project_root = cwd_root
 
     os.chdir(project_root)
 

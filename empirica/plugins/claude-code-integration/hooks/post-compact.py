@@ -210,6 +210,20 @@ def main():
     # Now safe to import empirica (after cwd is set correctly)
     sys.path.insert(0, str(Path.home() / 'empirical-ai' / 'empirica'))
 
+    # Memory swap: when harness CWD doesn't match the resolved project (e.g.
+    # user is working on project A but their terminal is cd'd into project B),
+    # the auto-memory loader on the next session start would load B's memory.
+    # Swap A's memory contents into B's slot so the next conversation reads
+    # the right memory. Restored on session-end-postflight or by pre-compact
+    # if the next compact targets a different project. (KNOWN_ISSUES 11.28)
+    try:
+        from empirica.utils.memory_swap import maybe_swap_for_active_transaction
+        swap_result = maybe_swap_for_active_transaction(claude_session_id=claude_session_id)
+        if swap_result.get("action") == "swapped":
+            print(f"💾 {swap_result.get('message', '')}", file=sys.stderr)
+    except Exception as e:
+        print(f"⚠️  memory swap failed (non-fatal): {e}", file=sys.stderr)
+
     # Find active Empirica session (using active_work file first, then DB fallback)
     empirica_session = _get_empirica_session(claude_session_id=claude_session_id)
     if not empirica_session:

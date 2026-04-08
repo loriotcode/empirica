@@ -519,6 +519,257 @@ CLI command that writes session_id into shared state. Updated checklist:
 
 ---
 
+### 11.26 STARTUP OVERRIDE Bypassing Open Transactions (2026-04-08)
+
+**Symptom:** After compact rotation, harness CWD doesn't match the active
+transaction's project, but everything (auto-memory, gitStatus, CLI commands)
+still resolves to the CWD project. The open transaction on the original
+project gets orphaned and a new duplicate session is created in the wrong
+project's DB.
+
+**Discovery context:** David noticed mid-conversation: "wait, why are we in
+outreach now, is the post compact not respecting that we had switched to
+another project?" — the transaction was open on `empirica` core but the new
+post-compact conversation landed in `empirica-outreach` CWD with outreach's
+auto-memory loaded.
+
+**Root cause:** `session-init.py:521-530` had a STARTUP OVERRIDE block added
+in commit `d76a482a4` ("fix: Prefer CWD over stale instance files on startup
+(#72)"). The intent was correct — on a fresh `event_type=startup`, the user
+explicitly opened Claude Code in a directory and that intent should win over
+stale instance files from a previous session. But the override didn't check
+whether the resolved project_root had an OPEN transaction:
+
+```python
+if event_type == 'startup' and project_root:
+    cwd_root = _find_git_root() or Path.cwd()
+    if cwd_root.resolve() != Path(project_root).resolve():
+        if has_valid_db(cwd_root) or not has_valid_db(Path(project_root)):
+            project_root = cwd_root  # ← stomps the resolved project
+```
+
+When compact rotation triggered a SessionStart with `event_type=startup` and
+the harness CWD pointed at a different project than the open transaction,
+this block silently re-routed `project_root` to CWD. session-init then
+`os.chdir`'d to the wrong project, set `EMPIRICA_CWD_RELIABLE=true`, and
+ran `session-create` in the wrong DB. The original transaction was orphaned.
+
+**Reproduction (verified):**
+```python
+# context: open transaction on /home/user/empirica, CWD=/home/user/empirica-outreach
+import os
+os.environ['EMPIRICA_CWD_RELIABLE'] = 'true'
+from empirica.config.path_resolver import get_session_db_path
+get_session_db_path()
+# Before fix: returns /home/user/empirica-outreach/.empirica/sessions/sessions.db (WRONG)
+# After fix:  returns /home/user/empirica/.empirica/sessions/sessions.db (correct)
+```
+
+**Fix:** Added an open-transaction guard that bails out of the override if
+the resolved project has a `status=open` transaction file. Open transactions
+are authoritative across compaction boundaries — CWD never wins.
+
+```python
+if event_type == 'startup' and project_root:
+    suffix = _get_instance_suffix()
+    tx_file = Path(project_root) / '.empirica' / f'active_transaction{suffix}.json'
+    has_open_tx = False
+    try:
+        if tx_file.exists():
+            with open(tx_file) as f:
+                has_open_tx = json.load(f).get('status') == 'open'
+    except Exception:
+        pass
+
+    if not has_open_tx:
+        # original CWD-prefer logic still fires (handles #72 case)
+        cwd_root = _find_git_root() or Path.cwd()
+        ...
+```
+
+**Audit also covered:** `pre-compact.py`, `post-compact.py`,
+`sentinel-gate.py`, `session-end-postflight.py` — confirmed clean. They
+already use strict resolution (`find_project_root` without
+`allow_cwd_fallback`) or use `_find_session_via_active_work` first.
+
+**Test coverage:** `tests/test_open_transaction_guard.py` —
+`TestSessionInitStartupOverrideGuard` reproduces the override condition in
+isolation and asserts the guard holds (open tx → no override) plus the
+regression check (no tx → override still fires).
+
+**Lessons learned:** Any priority chain has CWD at the bottom, but
+"prefer CWD" overrides bolted on top of the chain need to check for open
+transactions explicitly. Active transactions are stronger than CWD because
+they survive across CWD resets, terminal restarts, and compact rotations.
+
+**Commit:** (committed with 11.27 + 11.28 below)
+
+---
+
+### 11.27 EMPIRICA_CWD_RELIABLE Cross-Check Bypassing Open Transactions (2026-04-08)
+
+**Symptom:** Same as 11.26 — CLI commands route to the wrong project's DB
+across CWD/transaction mismatch — but at the second amplification site.
+Once 11.26 mis-routed session-init, every subsequent CLI command followed
+suit because session-init had set `EMPIRICA_CWD_RELIABLE=true` in the env
+inherited by child processes.
+
+**Root cause:** `path_resolver.get_session_db_path()` lines 255-263 had a
+gated CWD cross-check designed to prevent stale-context bleed (added in
+commit `7aade9e4d`):
+
+```python
+cwd_reliable = os.getenv('EMPIRICA_CWD_RELIABLE', '').lower() == 'true'
+context_is_local = True
+if cwd_reliable and git_root and str(git_root) != context_project_path:
+    local_db = Path(str(git_root)) / '.empirica' / 'sessions' / 'sessions.db'
+    if local_db.exists():
+        context_is_local = False  # prefer CWD over context
+```
+
+Same blind spot as 11.26: when the unified context resolver returned
+`project_path = empirica` (correctly, via active_work / open transaction)
+but `git_root = empirica-outreach` and CWD was reliable, the cross-check
+fired and re-routed to outreach's DB. The intent ("detect cross-project
+bleed from stale context, prefer git root") was correct for cases where
+context was actually stale — but bypassed open transactions.
+
+**Fix:** Same open-transaction guard. Read
+`active_transaction{suffix}.json` from `context_project_path` and bail
+out of the cross-check if `status=open`:
+
+```python
+if cwd_reliable and git_root and str(git_root) != context_project_path:
+    suffix = R.instance_suffix()
+    tx_file = Path(context_project_path) / '.empirica' / f'active_transaction{suffix}.json'
+    has_open_tx = False
+    try:
+        if tx_file.exists():
+            with open(tx_file) as f:
+                has_open_tx = json.load(f).get('status') == 'open'
+    except Exception:
+        pass
+
+    if not has_open_tx:
+        # original cross-check still fires (handles 11.23 case)
+        local_db = Path(str(git_root)) / '.empirica' / 'sessions' / 'sessions.db'
+        ...
+```
+
+This is a fix-pair with 11.26 — fixing only one would leave the other as
+the amplification site. Both were rooted in the same logical mistake of
+adding "prefer CWD" overrides without checking open transactions.
+
+**Test coverage:** `tests/test_open_transaction_guard.py` —
+`TestPathResolverGuard` reproduces the bug condition empirically (writes
+two projects, one with open tx, asserts the resolver stays on the
+transaction project even with `EMPIRICA_CWD_RELIABLE=true`).
+
+**Commit:** (committed with 11.26 + 11.28 below)
+
+---
+
+### 11.28 Auto-Memory Loaded From Wrong Project Across CWD Mismatch (2026-04-08)
+
+**Symptom:** Even after 11.26 + 11.27 fix the internal Empirica resolver,
+Claude Code's auto-memory loader still loads the wrong project's
+`MEMORY.md` because it's wired to the harness CWD at session start. The
+user works on project A but their terminal is in project B, and every
+conversation starts with B's memory — including the breadcrumb cache,
+project context, recent findings, etc.
+
+**Why the resolver alone wasn't enough:** The unified context resolver
+gives 100% correctness for Empirica internals (CLI, hooks, sentinel,
+statusline) but Claude Code's auto-memory loader is OUT of Empirica's
+control. It maps `Path.cwd() → ~/.claude/projects/-{cwd}/memory/MEMORY.md`
+at conversation start, before any hook fires. We can't change the parent
+shell's CWD from a hook subprocess. We CAN, however, change what's at the
+file path the loader reads.
+
+**Constraint analysis (David's "make CWD trust us" idea, grounded):**
+
+| Mechanism | What it changes | Reach | Cost |
+|-----------|-----------------|-------|------|
+| Resolver (existing) | Internal Empirica code | All hooks, CLI, sentinel | Already paid |
+| Memory swap (new) | Auto-memory dir contents | Claude Code auto-memory | 1-2 file copies per boundary |
+| `.empirica` symlink swap | DB path resolution from CWD | One additional surface | Symlink fragility, conflicts with real CWD project state |
+| Bind mount | Everything CWD-derived | Universal | Sudo, OS-specific, dangerous if left mounted |
+| Shell wrapper for project-switch | Real CWD change | Universal | UX regression, breaks for non-wrapped shells |
+
+Memory swap is the only one that meaningfully extends reach beyond the
+resolver without taking on fragile failure modes. Resolver + memory swap
+together cover everything actionable; cosmetic gaps (gitStatus shown to
+Claude, "Primary working directory" line in system prompt) are
+unreachable from any layer.
+
+**Fix:** New `empirica.utils.memory_swap` module with three primary functions:
+
+* `swap_memory(harness_cwd_project, active_tx_project, ...)` — backs up
+  the harness-CWD project's `~/.claude/projects/-{cwd}/memory/`
+  contents to a `.memory-swap-backup/` subdir, copies the active project's
+  memory contents into the harness slot, writes a manifest file
+  (`.memory-swap-manifest.json`) recording the swap.
+* `restore_memory(harness_cwd_project)` — reverses the swap. Removes
+  swapped-in files, restores originals from backup, deletes manifest
+  and backup dir.
+* `maybe_swap_for_active_transaction(claude_session_id)` — convenience
+  entry point for hooks. Reads InstanceResolver context, compares
+  against current CWD's git root, swaps if mismatched.
+
+The swap is:
+* **Idempotent** — calling twice with the same source is a no-op
+* **Replacement-safe** — swapping with a different source restores the
+  previous swap first to avoid layering
+* **Round-trip safe** — swap + restore is byte-identical to the original
+* **Manifest-tracked** — manifest records source project, timestamps,
+  session_id, transaction_id, list of backed-up files, list of
+  swapped-in files
+
+**Wired into:**
+* `post-compact.py` — swap on entry when context mismatch detected
+* `session-end-postflight.py` — restore in `_cleanup_session_files`
+* `handle_project_switch_command` — swap on project-switch (CLI)
+
+**Test coverage:** 17 tests in `tests/test_memory_swap.py`:
+* Path computation (Claude memory dir encoding)
+* Swap copies source to target
+* Swap backs up originals
+* Swap writes manifest
+* Swap is no-op when paths equal
+* Swap is no-op when source missing
+* Swap is idempotent
+* Swap replaces existing swap (doesn't layer)
+* Restore returns originals
+* Restore removes swapped-in files
+* Restore clears manifest + backup dir
+* Restore is no-op when no swap
+* Round-trip preserves content
+* Round-trip handles nested directories
+* `maybe_swap_for_active_transaction` swaps when context has project
+* `maybe_swap_for_active_transaction` is no-op when no active project
+
+**Defense in depth:** Memory swap is a complementary layer to the
+resolver, not a replacement. The resolver is the correctness backbone
+for internal code; memory swap closes the visibility gap to Claude Code.
+If memory swap fails for any reason, internal code still works correctly
+because the resolver is independent. If the resolver had a bug, memory
+swap alone wouldn't be sufficient because internal code paths would
+still mis-route.
+
+**Future work (1.7.14 follow-up):** The plugin lib `project_resolver.py`
+contains dead-code duplicates of `get_active_project_path` and
+`get_active_session_id` that import from empirica core first and only
+fall back to inline duplicates when import fails (which never happens
+in production). The only logic that legitimately exists only in the
+plugin lib is `find_project_root()` — and it could move into
+`InstanceResolver` as well. Collapsing 3 resolver implementations to 1
+would prevent future drift between hook-side and CLI-side logic.
+Tracked separately.
+
+**Commit:** (committed with 11.26 + 11.27 above)
+
+---
+
 ## By Design (Not Bugs)
 
 ### Orphaned Transaction After Terminal Restart

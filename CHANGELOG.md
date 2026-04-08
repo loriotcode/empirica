@@ -87,6 +87,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   * Documentation: `remote-ops` work_type surfaced in the EWM system
     prompt and epistemic-transaction skill so AIs know when to use it.
 
+- **CWD overrides bypassing open transactions at compact boundary**
+  (KNOWN_ISSUES 11.26 + 11.27) — when a user worked across CWD/project
+  mismatch (e.g. terminal cd'd into project A but the open transaction
+  lives in project B), post-compact rotation triggered the
+  `event_type='startup'` SessionStart and two CWD-prefer overrides
+  silently re-routed everything to the wrong project's DB:
+
+  * **session-init.py STARTUP OVERRIDE** preferred CWD (`Path.cwd()` /
+    `_find_git_root()`) over the resolved project root whenever the CWD
+    had a valid `.empirica/sessions/sessions.db`. The original intent
+    (from #72: "prefer CWD over stale instance files on startup") was
+    correct, but the override didn't check whether the resolved project
+    had an open transaction — orphaning live transactions and creating
+    duplicate sessions in the wrong DB.
+  * **path_resolver.get_session_db_path() cross-check** had the same
+    blind spot. When `EMPIRICA_CWD_RELIABLE=true` (set by session-init
+    after its `os.chdir`), the gated cross-check preferred CWD's git
+    root over the unified context's project_path, again without an
+    open-transaction check. This amplified the session-init bug — once
+    session-init re-routed to CWD, every subsequent CLI command followed
+    suit because EMPIRICA_CWD_RELIABLE was sticky.
+
+  **Fix:** Both override sites now read the resolved project's
+  `active_transaction{suffix}.json` and bail out of the override if
+  `status=open`. Open transactions are authoritative across compaction
+  boundaries — CWD never wins over a live transaction. Other readers
+  (`pre-compact.py`, `post-compact.py`, `sentinel-gate.py`,
+  `session-end-postflight.py`) audited and confirmed clean — they
+  already use strict resolution without CWD-prefer logic.
+
+  Test coverage: `tests/test_open_transaction_guard.py` reproduces both
+  failure modes and asserts the guards hold (CWD reliable + open tx →
+  resolver stays on transaction project) plus the regression check (no
+  open tx → existing CWD cross-check still fires correctly).
+
+- **Auto-memory loaded from wrong project across CWD mismatch**
+  (KNOWN_ISSUES 11.28) — Claude Code's auto-memory loader is wired to
+  the harness CWD at session start, so when a user worked on project A
+  but their terminal was in project B, every conversation loaded B's
+  `~/.claude/projects/-{B}/memory/MEMORY.md` even though the open
+  transaction (and all the actual work) lived in A. The unified context
+  resolver fixed this for internal Empirica code paths in 1.7.11+, but
+  Claude Code's auto-memory loader is outside Empirica's control.
+
+  **Fix:** New `empirica.utils.memory_swap` module with `swap_memory()`
+  / `restore_memory()` / `maybe_swap_for_active_transaction()`. When
+  the harness CWD project doesn't match the active transaction's
+  project, post-compact backs up the harness-CWD memory dir contents
+  to a sibling backup subdir and copies the active project's memory
+  contents into the harness slot. Restored on session-end-postflight
+  (or replaced cleanly on the next compact/project-switch). The swap
+  is idempotent, manifest-tracked, and round-trip safe — restore is
+  byte-identical to the original. Wired into `post-compact.py`,
+  `session-end-postflight.py`, and `handle_project_switch_command`.
+
+  Test coverage: 17 tests in `tests/test_memory_swap.py` covering
+  swap, restore, idempotency, replacement, round-trip preservation,
+  nested directories, and the hook entry point. Memory swap is
+  defense-in-depth with the resolver — both layers contribute to
+  cross-CWD project work behaving correctly.
+
 - **`project-switch` auto-heal** (KNOWN_ISSUES 11.25, completes the
   validation-gap audit started in 11.24) — `handle_project_switch_command`
   mirrored the current session into the target project DB only when

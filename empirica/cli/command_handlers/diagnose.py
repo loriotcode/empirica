@@ -429,7 +429,7 @@ def check_project_initialized() -> CheckResult:
             if project_yaml.exists() or config_yaml.exists():
                 detail = f"Found at {candidate}"
                 if current != cwd:
-                    detail += f" (ancestor of cwd)"
+                    detail += " (ancestor of cwd)"
                 return CheckResult(
                     name="Empirica project initialized",
                     status=PASS,

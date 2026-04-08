@@ -18,25 +18,24 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from empirica.cli.command_handlers.diagnose import (
-    PASS,
     FAIL,
-    WARN,
+    PASS,
     SKIP,
+    WARN,
     CheckResult,
-    check_python_version,
-    check_empirica_cli_on_path,
+    check_active_session,
     check_claude_dir,
-    check_plugin_files,
-    check_settings_json,
-    check_statusline_configured,
+    check_empirica_cli_on_path,
     check_hooks_registered,
     check_marketplace_registered,
+    check_plugin_files,
     check_project_initialized,
-    check_active_session,
+    check_python_version,
+    check_settings_json,
+    check_statusline_configured,
     format_human,
     format_json,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

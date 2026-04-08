@@ -1107,6 +1107,24 @@ def handle_project_switch_command(args):
 
             _update_active_work(str(project_path), folder_name, empirica_session_id=attached_session_id, claude_session_id=cli_claude_session_id)
 
+        # 5b. Memory swap: switch the auto-memory directory to track the new
+        # active project. When the harness CWD doesn't match project_path
+        # (e.g. user is cd'd in repo A but switched the empirica project to
+        # repo B), Claude Code's auto-memory loader still reads A's memory.
+        # Swap B's memory contents into A's slot. (KNOWN_ISSUES 11.28)
+        try:
+            from empirica.utils.memory_swap import swap_memory
+            cwd = Path.cwd().resolve()
+            swap_result = swap_memory(
+                harness_cwd_project=cwd,
+                active_tx_project=Path(project_path),
+                claude_session_id=cli_claude_session_id,
+            )
+            if swap_result.get("action") == "swapped" and output_format == 'human':
+                print(f"💾 {swap_result.get('message', '')}")
+        except Exception as e:
+            logger.debug(f"project-switch memory swap failed (non-fatal): {e}")
+
         # 6. Query LIVE counts from per-project sessions.db (before output format branch)
         _sw_findings, _sw_unknowns, _sw_goals = 0, 0, 0
         if project_path:

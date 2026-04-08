@@ -257,10 +257,32 @@ def get_session_db_path() -> Path:
         if cwd_reliable and git_root and str(git_root) != context_project_path:
             # Context points to a DIFFERENT project than CWD — stale bleed.
             # Check if git_root has its own .empirica (i.e., it's a registered project)
-            local_db = Path(str(git_root)) / '.empirica' / 'sessions' / 'sessions.db'
-            if local_db.exists():
-                logger.debug(f"📍 Cross-project bleed detected: context={context_project_path}, git_root={git_root}. Preferring git root.")
-                context_is_local = False
+            #
+            # GUARD: Skip the cross-check if context_project_path has an OPEN
+            # transaction. Open transactions span compaction boundaries and are
+            # authoritative over CWD even when CWD is "reliable" — bypassing
+            # the guard would orphan the transaction and create wrong-DB writes
+            # against the CWD project (KNOWN_ISSUES 11.27).
+            try:
+                from empirica.utils.session_resolver import InstanceResolver as R
+                suffix = R.instance_suffix()
+            except Exception:
+                suffix = ""
+            tx_file = Path(context_project_path) / '.empirica' / f'active_transaction{suffix}.json'
+            has_open_tx = False
+            try:
+                if tx_file.exists():
+                    import json as _json
+                    with open(tx_file) as _f:
+                        has_open_tx = _json.load(_f).get('status') == 'open'
+            except Exception:
+                pass
+
+            if not has_open_tx:
+                local_db = Path(str(git_root)) / '.empirica' / 'sessions' / 'sessions.db'
+                if local_db.exists():
+                    logger.debug(f"📍 Cross-project bleed detected: context={context_project_path}, git_root={git_root}. Preferring git root.")
+                    context_is_local = False
 
         if context_is_local:
             db_path = Path(context_project_path) / '.empirica' / 'sessions' / 'sessions.db'

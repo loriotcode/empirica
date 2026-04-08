@@ -186,6 +186,19 @@ def _cleanup_session_files(claude_session_id: str | None):
     if not claude_session_id:
         return
 
+    # Restore any active memory swap before cleaning up state. The swap was
+    # established by post-compact when the harness CWD didn't match the
+    # active transaction project; restoring it on session end returns the
+    # CWD project's memory dir to its original contents. (KNOWN_ISSUES 11.28)
+    try:
+        from empirica.utils.memory_swap import read_manifest, restore_memory
+        cwd = Path.cwd().resolve()
+        manifest = read_manifest(cwd)
+        if manifest:
+            restore_memory(cwd)
+    except Exception:
+        pass
+
     # Clean up active_work file
     try:
         active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
