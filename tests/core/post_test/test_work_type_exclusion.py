@@ -80,8 +80,13 @@ def _bundle(items: list[EvidenceItem]) -> EvidenceBundle:
 # ---------------------------------------------------------------------------
 
 ACTUAL_SOURCE_IDS = {
+    # Universal collectors (collector.py)
     "noetic", "goals", "artifacts", "issues", "triage", "codebase_model",
     "non_git_files", "sentinel", "pytest", "git", "code_quality",
+    # Prose profile collectors (prose_collector.py)
+    "prose_quality", "document_metrics", "source_quality", "action_verification",
+    # Web profile collector (web_collector.py)
+    "web",
 }
 
 
