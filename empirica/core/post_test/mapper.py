@@ -153,6 +153,40 @@ WORK_TYPE_RELEVANCE: dict[str, dict[str, float]] = {
         "non_git_files": 0.0,
         "artifacts": 1.5, "noetic": 1.3, "goals": 1.2, "triage": 1.0,
     },
+
+    # remote-ops: work done on a machine the local Sentinel doesn't observe
+    # (SSH sessions, customer machines, remote config, deploys without local
+    # commits, on-site assistance). No source can ground vectors for this
+    # work — every collector is set to 0.0 relevance, which routes every
+    # vector that had any evidence to insufficient_evidence_vectors.
+    # The AI's self-assessment stands unchallenged.
+    #
+    # FUTURE: a RemoteVerifier agent on target machines posting EvidenceItem
+    # back via the dispatch bus will populate the artifacts source with real
+    # data, at which point this relevance can be reintroduced.
+    #
+    # Note: every known collector source is listed explicitly so nothing
+    # defaults to the 1.0 multiplier. Adding a new collector source means
+    # adding it here too — the test_remote_ops_covers_all_known_collector_sources
+    # regression test will catch the omission.
+    "remote-ops": {
+        "artifacts": 0.0,
+        "noetic": 0.0,
+        "sentinel": 0.0,
+        "goals": 0.0,
+        "issues": 0.0,
+        "triage": 0.0,
+        "codebase_model": 0.0,
+        "non_git_files": 0.0,
+        "git": 0.0,
+        "code_quality": 0.0,
+        "pytest": 0.0,
+        "source_quality": 0.0,
+        "prose_quality": 0.0,
+        "document_metrics": 0.0,
+        "action_verification": 0.0,
+        "web": 0.0,
+    },
 }
 
 

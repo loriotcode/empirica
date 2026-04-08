@@ -428,3 +428,42 @@ def test_grounded_assessment_calibration_status_explicit():
             calibration_status=status,
         )
         assert assessment.calibration_status == status
+
+
+# ---------------------------------------------------------------------------
+# 2026-04-08 — remote-ops work_type relevance entry (Task 4)
+# ---------------------------------------------------------------------------
+
+
+def test_remote_ops_relevance_entry_exists():
+    """remote-ops should be present in WORK_TYPE_RELEVANCE."""
+    assert "remote-ops" in WORK_TYPE_RELEVANCE
+
+
+def test_remote_ops_relevance_zeros_all_known_sources():
+    """Every relevance value for remote-ops must be 0.0 — it is the
+    'on/off switch' for ungroundable work."""
+    weights = WORK_TYPE_RELEVANCE["remote-ops"]
+    for source, weight in weights.items():
+        assert weight == 0.0, (
+            f"remote-ops {source} should be 0.0, got {weight} — "
+            f"remote-ops is the on/off switch and must zero every source"
+        )
+
+
+def test_remote_ops_covers_all_known_collector_sources():
+    """The remote-ops entry should cover every source that any collector
+    might emit, so nothing slips through with the default 1.0 multiplier."""
+    weights = WORK_TYPE_RELEVANCE["remote-ops"]
+    expected_sources = {
+        "artifacts", "noetic", "sentinel", "goals", "issues", "triage",
+        "codebase_model", "non_git_files", "git", "code_quality",
+        "pytest", "source_quality", "prose_quality", "document_metrics",
+        "action_verification", "web",
+    }
+    missing = expected_sources - set(weights.keys())
+    assert not missing, (
+        f"remote-ops is missing relevance entries for: {missing}. "
+        f"Without them, those sources would default to 1.0 multiplier and "
+        f"contribute evidence — defeating the on/off switch."
+    )
