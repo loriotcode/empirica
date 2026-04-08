@@ -49,6 +49,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   idempotency), all 5 new repository methods, and `ensure_session_exists`
   idempotency + caller-provided session_id preservation.
 
+- **Grounded calibration honesty — `insufficient_evidence` and `remote-ops`** —
+  the grounded verification layer was producing calibration scores even
+  when the evidence bundle was empty or sparse, inviting metric-sycophancy
+  (phantom scores from no data, or low scores from work the local Sentinel
+  couldn't observe at all, like SSH / customer-machine operations). Three
+  related fixes:
+
+  * **`calibration_status` field** on `GroundedAssessment` with three
+    outcomes: `grounded` (normal, sufficient evidence), `insufficient_evidence`
+    (empty bundle OR `grounded_coverage < 0.3`), and `ungrounded_remote_ops`
+    (work_type=remote-ops short-circuits collection entirely). Replaces the
+    silent `return None` path that used to hide empty bundles.
+  * **`remote-ops` work_type** added to `PreflightInput` regex. When an AI
+    declares `work_type=remote-ops` in PREFLIGHT, the verifier skips
+    PostTestCollector entirely and the self-assessment stands unchallenged.
+    This is the honest path for work the local Sentinel has no signal for
+    (SSH, customer machines, remote config). Backed by end-to-end tests
+    through `run_grounded_verification`.
+  * **`sources_empty` and `source_errors`** on `EvidenceBundle` — the
+    collector now distinguishes between sources that returned zero items
+    (valid empty) versus sources that errored (schema drift, SQL failures).
+    Previously both were lumped into `sources_failed` and the error
+    messages were swallowed. The new visibility immediately surfaced three
+    pre-existing silent schema bugs in the `prose_quality`,
+    `document_metrics`, and `action_verification` collectors (all
+    `OperationalError: no such column`) — tracked for 1.7.14 follow-up.
+  * **Coverage threshold gate (0.3)** in `_run_single_phase_verification`
+    halts gap computation when `grounded_coverage < threshold`, returning
+    `insufficient_evidence` instead of emitting phantom scores from sparse
+    data. This is the load-bearing change — calibration becomes honest
+    about when it doesn't know rather than manufacturing a number.
+  * **`filter non-grounded phases from holistic score computation`** —
+    when one phase (noetic or praxic) is `insufficient_evidence`, the
+    holistic score is now computed only from the phase that does have
+    signal, rather than averaging with `None`.
+  * Documentation: `remote-ops` work_type surfaced in the EWM system
+    prompt and epistemic-transaction skill so AIs know when to use it.
+
 - **`project-switch` auto-heal** (KNOWN_ISSUES 11.25, completes the
   validation-gap audit started in 11.24) — `handle_project_switch_command`
   mirrored the current session into the target project DB only when
