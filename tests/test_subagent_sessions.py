@@ -257,7 +257,7 @@ class TestEnsureSessionExists:
         row = cursor.fetchone()
         assert row is not None
         assert row["ai_id"] == "claude-code"
-        assert row["session_notes"] == "auto-healed by post-compact"
+        assert row["session_notes"] == "auto-healed (cross-project session reuse)"
 
     def test_idempotent_when_exists(self, session_db):
         session_id = session_db.create_session(ai_id="claude-code")

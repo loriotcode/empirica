@@ -167,6 +167,7 @@ from .session_commands import (
     handle_sessions_show_command,
     handle_transaction_adopt_command,
 )
+from .diagnose import handle_diagnose_command
 from .session_create import handle_session_create_command
 from .setup_claude_code import handle_setup_claude_code_command
 from .skill_commands import (
@@ -207,6 +208,7 @@ __all__ = [
     # Onboarding commands
     'handle_onboard_command',
     'handle_setup_claude_code_command',
+    'handle_diagnose_command',
 
     # Action commands (INVESTIGATE and ACT phase tracking)
     'handle_investigate_log_command',

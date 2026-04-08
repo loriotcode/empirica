@@ -63,3 +63,38 @@ Run this after 'brew install empirica' or 'pip install empirica'.
         action='store_true',
         help='Show detailed output'
     )
+
+    # Diagnose command - check Empirica + Claude Code integration health
+    diagnose_parser = subparsers.add_parser(
+        'diagnose',
+        help='Check Empirica + Claude Code integration health (run this when statusline isn\'t showing)',
+        description="""
+Walks through the Empirica + Claude Code integration step-by-step and
+reports PASS / FAIL / WARN with an actionable hint per check. Designed
+for the recurring "I installed it but the statusline isn't showing"
+class of question.
+
+Checks:
+  - Python version
+  - empirica CLI on PATH
+  - Claude Code config dir (~/.claude/ or $CLAUDE_CONFIG_DIR)
+  - Plugin files installed in ~/.claude/plugins/local/empirica/
+  - settings.json present and valid JSON
+  - statusLine block configured
+  - Hooks registered (PreToolUse, PreCompact, PostCompact, SessionStart)
+  - Local marketplace registered
+  - Statusline script runnable + produces output
+  - Active session in current project
+
+Exit codes:
+  0  - all checks passed
+  1  - one or more FAIL checks
+  2  - one or more WARN checks (no FAIL)
+        """
+    )
+    diagnose_parser.add_argument(
+        '--output',
+        choices=['human', 'json'],
+        default='human',
+        help='Output format (default: human)'
+    )

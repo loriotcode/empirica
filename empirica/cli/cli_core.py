@@ -330,7 +330,7 @@ def main(args=None):
             'mcp': ['mcp-start', 'mcp-stop', 'mcp-status', 'mcp-test', 'mcp-list-tools', 'mcp-call'],
             'memory': ['memory-prime', 'memory-scope', 'memory-value', 'pattern-check', 'session-rollup', 'memory-report'],
             'vision': ['vision'],
-            'setup': ['onboard', 'setup-claude-code', 'serve'],
+            'setup': ['onboard', 'setup-claude-code', 'diagnose', 'serve'],
         }
         # Check if user requested a specific category
         cat_arg = getattr(parsed_args, '_help_category', None)
@@ -583,6 +583,7 @@ def main(args=None):
             # Onboarding commands
             'onboard': handle_onboard_command,
             'setup-claude-code': handle_setup_claude_code_command,
+            'diagnose': handle_diagnose_command,
 
             # Trajectory commands (experimental epistemic prediction)
             'trajectory-show': handle_trajectory_show_command,

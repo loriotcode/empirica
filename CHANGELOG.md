@@ -74,6 +74,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path.
 
 ### Added
+- **`empirica diagnose` command** — new CLI command that walks the
+  Empirica + Claude Code integration step-by-step and reports
+  PASS / FAIL / WARN with an actionable hint per check. Designed for
+  the recurring "I installed it but the statusline isn't showing"
+  class of question (see issue #81).
+
+  Checks:
+  * Python version (>= 3.10)
+  * `empirica` CLI on PATH
+  * Claude Code config dir (`~/.claude/` or `$CLAUDE_CONFIG_DIR`)
+  * Plugin files installed in `~/.claude/plugins/local/empirica/`
+  * `settings.json` present and valid JSON
+  * `statusLine` block configured and pointing at the Empirica script
+  * All 6 critical hooks registered (sentinel-gate, pre-compact,
+    post-compact, session-init, subagent-start, subagent-stop)
+  * Local marketplace registered
+  * Statusline script runnable + produces non-empty output
+  * Active session in current project DB
+
+  Output modes: `--output human` (colored, with fix hints) and
+  `--output json` (machine-readable, suitable for issue reports).
+
+  Exit codes: `0` if all pass, `1` on any FAIL, `2` on WARN-only.
+
+  Tests: 26 in `tests/test_diagnose.py` covering each check in
+  isolation against fake `~/.claude/` fixtures, plus output
+  formatting (human + JSON round-trip).
+
 - **EPP hook-driven activation** — the `<semantic-pushback-check>` block is now
   injected into every substantive user prompt (>=20 chars, not slash command)
   via `tool-router.py`. Block instructs Claude to do semantic pushback

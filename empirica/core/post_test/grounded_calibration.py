@@ -53,6 +53,58 @@ from .mapper import (
 logger = logging.getLogger(__name__)
 
 
+# Below this grounded coverage, calibration is statistically meaningless —
+# halt gap computation rather than emit phantom scores from sparse data.
+# The AI's self-assessment stands. Promotable to project.yaml later (deferred
+# work item — see docs/superpowers/specs/2026-04-08-sentinel-measurer-remote-ops-design.md).
+INSUFFICIENT_EVIDENCE_THRESHOLD = 0.3
+
+
+def _build_insufficient_evidence_response(
+    phase: str,
+    vectors: dict,
+    bundle: Optional[EvidenceBundle],
+    grounded_coverage: float,
+    reason: str,
+    status: str = "insufficient_evidence",
+    note: str = (
+        "Insufficient grounded evidence to compute calibration. "
+        "Self-assessment stands."
+    ),
+) -> dict:
+    """Build the calibration response for insufficient-evidence cases.
+
+    Used by:
+    1. The remote-ops short-circuit (status='ungrounded_remote_ops')
+    2. The empty-bundle early return (collector returned no items)
+    3. The threshold gate (coverage < INSUFFICIENT_EVIDENCE_THRESHOLD)
+
+    All three produce the same response shape so callers see one consistent
+    'self-assessment stands' format. None of them write to grounded_verifications
+    or calibration_trajectory because this function returns BEFORE the storage
+    operations in _run_single_phase_verification.
+    """
+    return {
+        'verification_id': None,
+        'phase': phase,
+        'evidence_count': len(bundle.items) if bundle else 0,
+        'sources': bundle.sources_available if bundle else [],
+        'sources_failed': bundle.sources_failed if bundle else [],
+        'sources_empty': getattr(bundle, 'sources_empty', []) if bundle else [],
+        'source_errors': getattr(bundle, 'source_errors', {}) if bundle else {},
+        'grounded_coverage': round(grounded_coverage, 2),
+        'calibration_score': None,
+        'holistic_calibration_score': None,
+        'calibration_status': status,
+        'reason': reason,
+        'gaps': {},
+        'updates': {},
+        'insufficient_evidence_vectors': sorted(vectors.keys()),
+        'self_assessed': dict(vectors),
+        'note': note,
+    }
+
+
 @dataclass
 class GroundedBelief:
     """A Bayesian belief grounded in objective evidence."""
@@ -608,6 +660,25 @@ def _run_single_phase_verification(
     transaction_id: str | None = None,
 ) -> dict | None:
     """Run grounded verification for a single phase (noetic, praxic, or combined)."""
+
+    # Remote-ops short-circuit: by declaration, the local Sentinel has no
+    # signal for this work. Skip collection entirely, return self-assessment.
+    # Future: a RemoteVerifier on target machines posting EvidenceItem[]
+    # back via the dispatch bus will populate this path with real data.
+    if work_type == "remote-ops":
+        return _build_insufficient_evidence_response(
+            phase=phase,
+            vectors=vectors,
+            bundle=None,
+            grounded_coverage=0.0,
+            reason=(
+                "work_type=remote-ops: local Sentinel has no signal "
+                "for this work by declaration"
+            ),
+            status="ungrounded_remote_ops",
+            note="Remote work by declaration. Self-assessment stands.",
+        )
+
     collector = PostTestCollector(
         session_id=session_id,
         project_id=project_id,
@@ -621,9 +692,18 @@ def _run_single_phase_verification(
     )
     bundle = collector.collect_all()
 
+    # Empty bundle is no longer a silent None return — surface it as
+    # insufficient_evidence so the AI knows what happened. Reaches the same
+    # response builder as the threshold gate below.
     if not bundle.items:
-        logger.debug(f"No {phase} evidence collected, skipping")
-        return None
+        logger.debug(f"No {phase} evidence collected, returning insufficient_evidence")
+        return _build_insufficient_evidence_response(
+            phase=phase,
+            vectors=vectors,
+            bundle=bundle,
+            grounded_coverage=0.0,
+            reason="no evidence items collected (out-of-repo work or empty session)",
+        )
 
     mapper = EvidenceMapper()
     assessment = mapper.map_evidence(
@@ -631,6 +711,23 @@ def _run_single_phase_verification(
         per_vector_weights=per_vector_weights,
         work_type=work_type,
     )
+
+    # Coverage threshold gate. If grounded_coverage is below the threshold,
+    # the bundle had items but they didn't ground enough vectors to produce
+    # statistically meaningful calibration. Halt and surface as insufficient.
+    # Storage operations below are skipped — the trajectory and verifications
+    # tables only contain grounded data.
+    if assessment.grounded_coverage < INSUFFICIENT_EVIDENCE_THRESHOLD:
+        return _build_insufficient_evidence_response(
+            phase=phase,
+            vectors=vectors,
+            bundle=bundle,
+            grounded_coverage=assessment.grounded_coverage,
+            reason=(
+                f"grounded_coverage {assessment.grounded_coverage:.2f} < "
+                f"threshold {INSUFFICIENT_EVIDENCE_THRESHOLD}"
+            ),
+        )
 
     manager = GroundedCalibrationManager(db)
     updates = manager.update_grounded_beliefs(session_id, assessment, phase=phase)
@@ -654,8 +751,11 @@ def _run_single_phase_verification(
         'evidence_count': len(bundle.items),
         'sources': bundle.sources_available,
         'sources_failed': bundle.sources_failed,
+        'sources_empty': getattr(bundle, 'sources_empty', []),
+        'source_errors': getattr(bundle, 'source_errors', {}),
         'grounded_coverage': round(assessment.grounded_coverage, 2),
         'calibration_score': assessment.overall_calibration_score,
+        'calibration_status': 'grounded',
         'gaps': assessment.calibration_gaps,
         # Vectors the instrument couldn't sample for this work_type.
         # Their self-assessment stands; no fabricated grounded value, no
