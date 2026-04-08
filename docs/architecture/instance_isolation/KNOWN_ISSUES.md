@@ -458,6 +458,65 @@ migration, all repository methods, and `ensure_session_exists` idempotency.
 
 **Commit:** `9dd4f39a2`
 
+### 11.25 project-switch Auto-Heal Gap (2026-04-08)
+
+**Symptom:** After `empirica project-switch <other_project>`, every CLI
+command in the new project surfaces the validation diagnostic from
+11.24:
+
+```
+_validate_session_in_db: session 26a05872... NOT FOUND in project-local DB
+get_active_empirica_session_id: stale session in transaction: 26a05872...
+```
+
+The `active_work_<claude_session_id>.json` file points at a session
+that doesn't exist in the new project's `sessions.db`. Discovered while
+working on the 11.24 fix — caught my own session in flight.
+
+**Root cause:** `handle_project_switch_command` (`project_commands.py:944-989`)
+mirrors the parent session into the target project DB, but only if a
+prior lookup against `global_sessions` returns a row matching the current
+`instance_id` and `status='active'`. When that lookup misses (instance
+ID mismatch from a tmux restart, status drift, or just a stale workspace
+DB), `attached_session` stays `None`, the mirror block at line 948 is
+skipped, and the active_work file is written with `empirica_session_id=None`
+or stays pointing at the prior project's session_id.
+
+This is the same bug class as 11.24 (validation gap on a code path
+that propagates session_id forward) but in `project-switch` instead
+of `post-compact`. The lessons-learned checklist from 11.24 explicitly
+called out the failure mode: validators wired into one code path but
+not all of them.
+
+**Fix:** After the existing mirror logic, if `attached_session_id` is
+still None, the project-switch handler now reads the existing
+`active_work_<claude_session_id>.json` file and recovers its
+`empirica_session_id` field as a fallback. Whatever session_id it ends
+up with, it then calls `SessionDatabase.ensure_session_exists()` on the
+target project's DB to guarantee the session row exists before
+`_update_active_work` propagates the pointer forward. Idempotent — no-op
+if the row already exists.
+
+When the heal fires, the user sees:
+```
+🔄 Recovered session 26a05872 from active_work file
+🩹 Auto-healed session 26a05872 into target project DB
+```
+
+**Lessons learned (revised from 11.24):** Audit ALL paths that propagate
+a session_id, not just hooks. The original 11.24 checklist mentioned
+"hooks with multiple routing paths" but the same logic applies to any
+CLI command that writes session_id into shared state. Updated checklist:
+
+1. List every code path (hook, CLI handler, daemon) that writes a
+   session_id into `active_work`, `instance_projects`, transaction
+   files, or any other shared state.
+2. For each path, decide: validate-and-heal, validate-and-fail, or
+   skip. Document the decision.
+3. Add a regression test that exercises EVERY path.
+
+**Commit:** (committed with project-switch fix below)
+
 ---
 
 ## By Design (Not Bugs)

@@ -392,7 +392,7 @@ class SessionRepository(BaseRepository):
             INSERT INTO sessions (
                 session_id, ai_id, start_time, components_loaded,
                 bootstrap_level, instance_id, project_id, session_notes
-            ) VALUES (?, ?, ?, 0, 1, ?, ?, 'auto-healed by post-compact')
+            ) VALUES (?, ?, ?, 0, 1, ?, ?, 'auto-healed (cross-project session reuse)')
         """, (
             session_id, ai_id, datetime.now(timezone.utc).isoformat(),
             instance_id, project_id,

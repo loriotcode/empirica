@@ -49,6 +49,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   idempotency), all 5 new repository methods, and `ensure_session_exists`
   idempotency + caller-provided session_id preservation.
 
+- **`project-switch` auto-heal** (KNOWN_ISSUES 11.25, completes the
+  validation-gap audit started in 11.24) — `handle_project_switch_command`
+  mirrored the current session into the target project DB only when
+  `global_sessions` returned a row matching the current instance_id +
+  active status. When that lookup missed (tmux restart, instance ID
+  drift, status drift), the mirror was skipped and the active_work
+  file ended up pointing at a session that didn't exist in the target
+  project's DB. Subsequent CLI commands then surfaced the same
+  "_validate_session_in_db: session NOT FOUND" diagnostic as 11.24.
+
+  **Fix:** Project-switch now reads the existing
+  `active_work_<claude_session_id>.json` as a fallback session source
+  when the global_sessions mirror misses, then calls
+  `ensure_session_exists()` on the target project's DB before
+  propagating the session_id forward to active_work. Heal-row note
+  changed from "auto-healed by post-compact" to "auto-healed
+  (cross-project session reuse)" since both project-switch and
+  post-compact share the same heal path.
+
+  Same lessons-learned checklist applies: when adding a validator,
+  audit ALL paths that propagate the validated value. The 11.24 fix
+  caught the post-compact path; this fix catches the project-switch
+  path.
+
 ### Added
 - **EPP hook-driven activation** — the `<semantic-pushback-check>` block is now
   injected into every substantive user prompt (>=20 chars, not slash command)

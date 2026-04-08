@@ -1051,6 +1051,60 @@ def handle_project_switch_command(args):
         # Include empirica_session_id so Sentinel and MCP tools can attach to the correct session
         if project_path:
             attached_session_id = attached_session['session_id'] if attached_session else None
+
+            # AUTO-HEAL (same pattern as post-compact 11.24): if the global_sessions
+            # mirror failed (instance_id mismatch, status filter, etc.) we end up with
+            # attached_session_id=None, but the existing active_work file may still
+            # know about a session_id from a prior conversation. Recover it and
+            # ensure it exists in the target project's local DB so Sentinel,
+            # statusline, and CLI lookups don't fail with "session NOT FOUND".
+            if not attached_session_id and cli_claude_session_id:
+                try:
+                    aw_file = (
+                        Path.home() / '.empirica' /
+                        f'active_work_{cli_claude_session_id}.json'
+                    )
+                    if aw_file.exists():
+                        with open(aw_file) as f:
+                            existing_aw = json.load(f)
+                        attached_session_id = existing_aw.get('empirica_session_id')
+                        if attached_session_id and output_format == 'human':
+                            print(
+                                "🔄 Recovered session "
+                                f"{attached_session_id[:8]} from active_work file"
+                            )
+                except Exception as e:
+                    logger.debug(
+                        f"Active_work session_id recovery failed (non-fatal): {e}"
+                    )
+
+            # If we have a session_id, make sure it exists in the target project's
+            # local sessions.db. ensure_session_exists is idempotent: no-op if the
+            # row already exists, inserts a minimal heal-row if missing.
+            if attached_session_id and project_path:
+                try:
+                    target_db_path = (
+                        Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
+                    )
+                    if target_db_path.exists():
+                        from empirica.data.session_database import SessionDatabase
+                        target_db = SessionDatabase(db_path=target_db_path)
+                        healed = target_db.ensure_session_exists(
+                            session_id=attached_session_id,
+                            ai_id='claude-code',
+                            project_id=project_id,
+                        )
+                        target_db.close()
+                        if healed and output_format == 'human':
+                            print(
+                                "🩹 Auto-healed session "
+                                f"{attached_session_id[:8]} into target project DB"
+                            )
+                except Exception as e:
+                    logger.debug(
+                        f"project-switch auto-heal failed (non-fatal): {e}"
+                    )
+
             _update_active_work(str(project_path), folder_name, empirica_session_id=attached_session_id, claude_session_id=cli_claude_session_id)
 
         # 6. Query LIVE counts from per-project sessions.db (before output format branch)
