@@ -146,3 +146,51 @@ def test_empty_bundle_returns_insufficient_status(monkeypatch):
     assert result["calibration_status"] == "insufficient_evidence"
     assert result["grounded_coverage"] == 0.0
     assert result["self_assessed"]["know"] == 0.7
+
+
+# ---------------------------------------------------------------------------
+# Wrapper-level None propagation regression (T5.5 bugfix)
+# ---------------------------------------------------------------------------
+
+
+def test_wrapper_handles_non_grounded_phase_without_typeerror(monkeypatch):
+    """When a phase returns calibration_status != 'grounded' with
+    calibration_score=None, the wrapper's holistic computation must NOT
+    crash with TypeError: unsupported operand type(s) for *: 'float' and 'NoneType'.
+
+    Regression for the bug discovered during T5 smoke test: adding
+    calibration_score=None to the insufficient_evidence response broke
+    run_grounded_verification_pipeline's holistic score computation
+    which used results['noetic'].get('calibration_score', 0) — default
+    0 only applies when the key is MISSING, not when the value IS None.
+    """
+    from empirica.core.post_test.grounded_calibration import (
+        run_grounded_verification,
+    )
+
+    # Return a bundle with 1 vector of evidence → coverage 1/13 ≈ 0.077, below threshold
+    # So _run_single_phase_verification will return insufficient_evidence with
+    # calibration_score=None, and the wrapper must handle that gracefully.
+    thin_bundle = _make_bundle_with_n_vectors(1)
+    monkeypatch.setattr(PostTestCollector, "collect_all", lambda self: thin_bundle)
+
+    # No phase_boundary → combined mode. The wrapper still computes a
+    # holistic score, and with our fix, it should gracefully produce
+    # holistic_calibration_score=None when no phase is grounded.
+    result = run_grounded_verification(
+        session_id="wrapper-regression-test",
+        postflight_vectors={"know": 0.7, "uncertainty": 0.3},
+        db=None,
+        phase_boundary=None,  # → combined mode
+        phase_tool_counts=None,
+        work_type="code",
+    )
+
+    # The wrapper should not crash. Result may be None (if the pipeline
+    # short-circuits on error) or a dict with holistic_calibration_score=None.
+    # Either is acceptable — the key property is that no TypeError was raised.
+    if result is not None:
+        assert result.get("holistic_calibration_score") is None, (
+            "holistic_calibration_score should be None when the only phase "
+            "ran with insufficient evidence"
+        )

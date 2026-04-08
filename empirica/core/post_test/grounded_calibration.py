@@ -946,26 +946,36 @@ def run_grounded_verification(
         holistic_calibration_score = None
         holistic_gaps = {}
 
-        if len(results) >= 2 and 'noetic' in results and 'praxic' in results:
+        # Filter to only grounded phases before computing holistic — non-grounded
+        # phases (insufficient_evidence, ungrounded_remote_ops) have calibration_score=None
+        # and gaps={} by design, so they would crash nw*None and drag holistic to 0.
+        grounded_results = {
+            phase: r for phase, r in results.items()
+            if r.get('calibration_status', 'grounded') == 'grounded'
+        }
+
+        if len(grounded_results) >= 2 and 'noetic' in grounded_results and 'praxic' in grounded_results:
             nw = phase_weights['noetic']
             pw = phase_weights['praxic']
-            n_score = results['noetic'].get('calibration_score', 0)
-            p_score = results['praxic'].get('calibration_score', 0)
+            n_score = grounded_results['noetic'].get('calibration_score') or 0
+            p_score = grounded_results['praxic'].get('calibration_score') or 0
             holistic_calibration_score = round(nw * n_score + pw * p_score, 4)
 
             # Weighted gaps per vector (strip phase prefix for holistic view)
-            noetic_gaps = results['noetic'].get('gaps', {})
-            praxic_gaps = results['praxic'].get('gaps', {})
+            noetic_gaps = grounded_results['noetic'].get('gaps', {}) or {}
+            praxic_gaps = grounded_results['praxic'].get('gaps', {}) or {}
             all_vectors = set(noetic_gaps.keys()) | set(praxic_gaps.keys())
             for v in all_vectors:
                 n_gap = noetic_gaps.get(v, 0)
                 p_gap = praxic_gaps.get(v, 0)
                 holistic_gaps[v] = round(nw * n_gap + pw * p_gap, 4)
-        elif len(results) == 1:
-            # Single phase or combined — holistic = that phase's score
-            only_result = next(iter(results.values()))
-            holistic_calibration_score = only_result.get('calibration_score', 0)
-            holistic_gaps = only_result.get('gaps', {})
+        elif len(grounded_results) == 1:
+            # Single grounded phase (the other may be non-grounded or missing)
+            only_result = next(iter(grounded_results.values()))
+            holistic_calibration_score = only_result.get('calibration_score') or 0
+            holistic_gaps = only_result.get('gaps', {}) or {}
+        # else: zero grounded phases → holistic_calibration_score stays None
+        # and holistic_gaps stays empty. The AI's self-assessment stands.
 
         # Calibration insights: analyze recent verifications for systemic patterns
         calibration_insights = []
