@@ -7,26 +7,61 @@
 
 ## Quick Install
 
-### 1. Install via pip
+### 1. Install the package
 ```bash
 pip install empirica
 ```
 
-### 2. Verify installation
+### 2. Verify the CLI works
 ```bash
 empirica --help
 ```
 
 You should see the list of available commands.
 
-### 3. Create your first session
+### 3. Initialize a project in your repo
+```bash
+cd your-project           # must be a git repo or an existing directory
+empirica project-init     # creates .empirica/ with config.yaml + project.yaml
+```
+
+This step creates the **project-local sessions database** that Empirica writes
+to. Without it, every subsequent CLI command will fail with
+`Cannot determine sessions.db path`.
+
+### 4. (Claude Code users) Wire up the plugin integration
+
+If you're using the Claude Code CLI (including with non-Anthropic models
+via Ollama Cloud, etc.), run this once to install the Empirica plugin and
+configure the statusline + hooks:
+
+```bash
+empirica setup-claude-code
+```
+
+This copies the plugin files into `~/.claude/plugins/local/empirica/`, adds
+the `statusLine` block to `~/.claude/settings.json`, and registers the
+Sentinel + compact + session-lifecycle hooks. The next time you launch
+`claude` inside an Empirica project, the statusline will show up automatically
+and `SessionStart` will create a session for you.
+
+### 5. (Standalone users) Create your first session manually
 ```bash
 empirica session-create --ai-id myai
 
 # Output shows session_id and auto-detected project
 ```
 
-**That's it!** You're ready to use Empirica.
+Skip this if you're using Claude Code — the session-init hook from step 4
+creates one automatically on `SessionStart`.
+
+### 6. Verify it's working
+```bash
+empirica diagnose   # walks the full integration health — PASS/FAIL per check
+```
+
+If any check FAILs, the command prints an actionable hint pointing at the
+next step. Especially useful if the statusline isn't showing up in Claude Code.
 
 ---
 

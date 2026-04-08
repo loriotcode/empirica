@@ -91,6 +91,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     post-compact, session-init, subagent-start, subagent-stop)
   * Local marketplace registered
   * Statusline script runnable + produces non-empty output
+  * **Empirica project initialized** (`.empirica/` present in cwd or ancestor) —
+    this was the missing step for subu1979 in #81; surfaced as a dedicated
+    check with a clear actionable hint pointing at `empirica project-init`
   * Active session in current project DB
 
   Output modes: `--output human` (colored, with fix hints) and
@@ -134,6 +137,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   calibration scores to 0.11–0.28.
 
 ### Changed
+- **Onboarding docs** now put `empirica project-init` and
+  `empirica setup-claude-code` front-and-center as required steps before
+  launching Claude Code. Closes the UX gap from issue #81 where a user
+  with a working GLM-5.1 + Ollama Cloud stack hit "Cannot determine
+  sessions.db path" because they'd skipped `project-init`. Updated:
+  `docs/human/end-users/01_START_HERE.md`,
+  `docs/human/end-users/02_INSTALLATION.md`, and a deprecation note at
+  the top of the legacy plugin `INSTALL.md`.
+
 - **EPP SKILL.md** updated with "Hook-Driven Activation (since v1.7.12)" section
   explaining the semantic-check mechanism and Phase 0 validation.
 - **`tool-router.py` complexity reduction** — `build_routing_advice` extracted

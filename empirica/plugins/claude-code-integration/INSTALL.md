@@ -1,5 +1,24 @@
 # Empirica Integration Plugin - Installation Guide
 
+> **Note (since v1.7.13):** The plugin is now bundled with the Empirica Python
+> package and wired up via `empirica setup-claude-code`. The rest of this file
+> describes the old standalone-plugin flow, kept for historical context only.
+>
+> **Current install path:**
+> ```bash
+> pip install empirica
+> cd your-project              # any git repo
+> empirica project-init        # creates .empirica/
+> empirica setup-claude-code   # installs plugin, wires up statusline + hooks
+> empirica diagnose            # verify everything is green
+> ```
+>
+> See [`docs/human/end-users/02_INSTALLATION.md`](../../../docs/human/end-users/02_INSTALLATION.md) for the supported install guide.
+
+---
+
+## Legacy: Manual Install (deprecated)
+
 ## Quick Install
 
 ### Via Claude Code Plugin System (Recommended)

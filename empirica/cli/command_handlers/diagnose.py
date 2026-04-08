@@ -408,6 +408,50 @@ def check_statusline_runnable(claude_dir: Path) -> CheckResult:
     )
 
 
+def check_project_initialized() -> CheckResult:
+    """Verify the current directory (or an ancestor) has been initialized
+    as an Empirica project via `empirica project-init`.
+
+    This is the most common failure mode for new users: they install
+    Empirica, launch Claude Code, and see no statusline because their
+    working directory has no `.empirica/` — which means no project DB,
+    no session, no statusline content.
+    """
+    cwd = Path.cwd()
+
+    # Walk up the directory tree looking for .empirica/
+    current = cwd
+    while current != current.parent:
+        candidate = current / ".empirica"
+        if candidate.is_dir():
+            project_yaml = candidate / "project.yaml"
+            config_yaml = candidate / "config.yaml"
+            if project_yaml.exists() or config_yaml.exists():
+                detail = f"Found at {candidate}"
+                if current != cwd:
+                    detail += f" (ancestor of cwd)"
+                return CheckResult(
+                    name="Empirica project initialized",
+                    status=PASS,
+                    detail=detail,
+                    data={"project_root": str(current)},
+                )
+        current = current.parent
+
+    return CheckResult(
+        name="Empirica project initialized",
+        status=FAIL,
+        detail=f"No .empirica/ found in {cwd} or any ancestor",
+        hint=(
+            "Run `empirica project-init` in this repository (or any ancestor "
+            "directory) to create the project. Without this, every Empirica "
+            "CLI command fails with 'Cannot determine sessions.db path', and "
+            "the Claude Code statusline shows `[no project]`."
+        ),
+        data={"cwd": str(cwd)},
+    )
+
+
 def check_active_session() -> CheckResult:
     """Verify there's an active Empirica session in the current project."""
     cwd = Path.cwd()
@@ -415,12 +459,8 @@ def check_active_session() -> CheckResult:
     if not db_path.exists():
         return CheckResult(
             name="Active session in current project",
-            status=WARN,
-            detail=f"No project DB at {db_path} — current directory isn't an Empirica project",
-            hint=(
-                "cd into a project that has been bootstrapped (`empirica project-bootstrap`), "
-                "or run `empirica session-create --ai-id claude-code` from one"
-            ),
+            status=SKIP,
+            detail="Skipped — project not initialized (see previous check)",
             data={"db_path": str(db_path), "exists": False},
         )
 
@@ -538,6 +578,7 @@ def run_all_checks() -> list[CheckResult]:
 
     # Functional checks
     results.append(check_statusline_runnable(claude_dir_path))
+    results.append(check_project_initialized())
     results.append(check_active_session())
 
     return results

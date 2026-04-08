@@ -22,16 +22,33 @@ Empirica is a **functional self-awareness framework** for AI agents. It measures
 
 ### Step 1: Install (2 minutes)
 ```bash
-# Clone repository
+# Option A — PyPI (recommended)
+pip install empirica
+
+# Option B — from source
 git clone https://github.com/Nubaeon/empirica.git
 cd empirica
-
-# Install
 pip install -e .
 
 # Verify
 empirica --version
 ```
+
+**Then initialize a project and wire up your Claude Code integration (if you use Claude Code):**
+
+```bash
+cd your-project               # any git repo
+empirica project-init         # creates .empirica/ — required for every command to work
+empirica setup-claude-code    # Claude Code users only: installs plugin + statusline + hooks
+
+# Sanity check — if anything's off, this tells you what
+empirica diagnose
+```
+
+`project-init` is the step most new users miss. Without it, commands fail with
+`Cannot determine sessions.db path`. Without `setup-claude-code`, the Empirica
+statusline and Sentinel hooks won't show up inside Claude Code. The `diagnose`
+command walks both checks and points you at the exact missing step.
 
 ### Step 2: Interactive Onboarding - AI Teaches Itself & Users (5-15 minutes)
 

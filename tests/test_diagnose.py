@@ -31,6 +31,7 @@ from empirica.cli.command_handlers.diagnose import (
     check_statusline_configured,
     check_hooks_registered,
     check_marketplace_registered,
+    check_project_initialized,
     check_active_session,
     format_human,
     format_json,
@@ -271,12 +272,50 @@ class TestMarketplaceRegistered:
 # ---------------------------------------------------------------------------
 
 
+class TestProjectInitialized:
+    def test_no_empirica_dir_fails(self, tmp_path, monkeypatch):
+        """Bare tmp dir with no .empirica/ anywhere up the tree."""
+        monkeypatch.chdir(tmp_path)
+        result = check_project_initialized()
+        assert result.status == FAIL
+        assert "project-init" in result.hint
+        assert "no project" in result.hint.lower() or "No .empirica" in result.detail
+
+    def test_empirica_dir_in_cwd_passes(self, tmp_path, monkeypatch):
+        (tmp_path / ".empirica").mkdir()
+        (tmp_path / ".empirica" / "project.yaml").write_text("name: test")
+        monkeypatch.chdir(tmp_path)
+        result = check_project_initialized()
+        assert result.status == PASS
+        assert str(tmp_path) in result.data["project_root"]
+
+    def test_empirica_dir_in_ancestor_passes(self, tmp_path, monkeypatch):
+        """cwd is a subdirectory, .empirica is in a parent — still valid."""
+        (tmp_path / ".empirica").mkdir()
+        (tmp_path / ".empirica" / "config.yaml").write_text("")
+        subdir = tmp_path / "src" / "module"
+        subdir.mkdir(parents=True)
+        monkeypatch.chdir(subdir)
+        result = check_project_initialized()
+        assert result.status == PASS
+        assert "ancestor" in result.detail
+
+    def test_empirica_dir_without_project_yaml_fails(self, tmp_path, monkeypatch):
+        """.empirica/ exists but without project.yaml or config.yaml — not a real init."""
+        (tmp_path / ".empirica").mkdir()
+        monkeypatch.chdir(tmp_path)
+        result = check_project_initialized()
+        assert result.status == FAIL
+
+
 class TestActiveSession:
-    def test_no_project_db_warns(self, tmp_path, monkeypatch):
+    def test_no_project_db_skips(self, tmp_path, monkeypatch):
+        """Without .empirica/, this check should SKIP (the preceding
+        project-initialized check already flagged it)."""
         monkeypatch.chdir(tmp_path)
         result = check_active_session()
-        assert result.status == WARN
-        assert "isn't an Empirica project" in result.detail
+        assert result.status == SKIP
+        assert "project not initialized" in result.detail.lower()
 
     def test_active_session_passes(self, tmp_path, monkeypatch):
         # Create a fake project DB with one active session
