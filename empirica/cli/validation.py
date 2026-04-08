@@ -79,8 +79,11 @@ class PreflightInput(BaseModel):
             normalization baselines.
         work_type: Domain context — one of `code`, `infra`, `research`,
             `release`, `debug`, `config`, `docs`, `data`, `comms`,
-            `design`, `audit`. Determines which evidence sources are
-            relevant for grounded calibration.
+            `design`, `audit`, `remote-ops`. Determines which evidence
+            sources are relevant for grounded calibration. `remote-ops`
+            means the local Sentinel has no signal for this work
+            (SSH/customer machines/remote config) and self-assessment
+            stands unchallenged.
 
     Raises:
         ValueError: via field validators when session_id is empty,
@@ -98,8 +101,13 @@ class PreflightInput(BaseModel):
     )
     work_type: str | None = Field(
         default=None,
-        description="Type of work being done — determines which evidence sources are relevant for grounded calibration",
-        pattern="^(code|infra|research|release|debug|config|docs|data|comms|design|audit)$",
+        description=(
+            "Type of work being done — determines which evidence sources are "
+            "relevant for grounded calibration. Use 'remote-ops' for work on "
+            "machines the local Sentinel doesn't observe (SSH, customer "
+            "machines, remote config) — self-assessment stands."
+        ),
+        pattern="^(code|infra|research|release|debug|config|docs|data|comms|design|audit|remote-ops)$",
     )
 
     @field_validator('session_id')
