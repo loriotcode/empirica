@@ -392,3 +392,39 @@ class TestSessionDriftRegression:
         assert "change" in assessment.insufficient_evidence_vectors, (
             "change should be insufficient (only sourced from excluded git)"
         )
+
+
+# ---------------------------------------------------------------------------
+# 2026-04-08 — calibration_status field on GroundedAssessment
+# (Sentinel measurer remote-ops design, Task 2)
+# ---------------------------------------------------------------------------
+
+
+def test_grounded_assessment_has_calibration_status_field():
+    """GroundedAssessment dataclass should expose calibration_status with
+    a default of 'grounded' for the normal calibration path."""
+    assessment = GroundedAssessment(
+        session_id="test-session",
+        self_assessed={"know": 0.7},
+        grounded={},
+        calibration_gaps={},
+        grounded_coverage=0.0,
+        overall_calibration_score=0.0,
+    )
+    assert hasattr(assessment, "calibration_status")
+    assert assessment.calibration_status == "grounded"
+
+
+def test_grounded_assessment_calibration_status_explicit():
+    """calibration_status can be set explicitly to non-grounded values."""
+    for status in ("grounded", "insufficient_evidence", "ungrounded_remote_ops"):
+        assessment = GroundedAssessment(
+            session_id="test-session",
+            self_assessed={"know": 0.7},
+            grounded={},
+            calibration_gaps={},
+            grounded_coverage=0.0,
+            overall_calibration_score=0.0,
+            calibration_status=status,
+        )
+        assert assessment.calibration_status == status

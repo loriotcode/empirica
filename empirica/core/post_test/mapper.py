@@ -178,6 +178,19 @@ class GroundedAssessment:
     should NOT be written to calibration_trajectory or used to update
     overestimate_tendency advisories. The AI's self-assessed value stands
     as the best available estimate, with no false drift.
+
+    calibration_status indicates whether the assessment produced meaningful
+    grounded data:
+    - "grounded": normal calibration with sufficient evidence (default)
+    - "insufficient_evidence": grounded_coverage below the configured threshold
+      — calibration was halted rather than emit phantom scores
+    - "ungrounded_remote_ops": work_type=remote-ops, no local sources by
+      design — the AI declared this work outside the measurer's reach
+
+    Only "grounded" status writes to learning_trajectory or feeds
+    previous_transaction_feedback. Non-grounded statuses are
+    observation-skipping events (the response still displays self-assessed
+    vectors normally, but no drift is recorded).
     """
     session_id: str
     self_assessed: dict[str, float]
@@ -187,6 +200,7 @@ class GroundedAssessment:
     overall_calibration_score: float
     phase: str = "combined"  # "noetic", "praxic", or "combined"
     insufficient_evidence_vectors: list[str] = None  # type: ignore[assignment]
+    calibration_status: str = "grounded"  # "grounded" | "insufficient_evidence" | "ungrounded_remote_ops"
 
     def __post_init__(self):
         if self.insufficient_evidence_vectors is None:
