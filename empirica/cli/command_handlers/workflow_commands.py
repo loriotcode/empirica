@@ -293,6 +293,8 @@ def handle_preflight_submit_command(args):
             task_context = validated.task_context or ''
             work_context = getattr(validated, 'work_context', None)
             work_type = getattr(validated, 'work_type', None)
+            domain = getattr(validated, 'domain', None)
+            criticality = getattr(validated, 'criticality', None)
         else:
             session_id = args.session_id
             vectors = parse_json_safely(args.vectors) if isinstance(args.vectors, str) else args.vectors
@@ -391,8 +393,8 @@ def handle_preflight_submit_command(args):
                         project_path=resolved_project_path
                     )
 
-                    # Inject work_context, work_type, and cascade profile into transaction file
-                    if work_context or work_type:
+                    # Inject work_context, work_type, domain, criticality, and cascade profile into transaction file
+                    if work_context or work_type or domain or criticality:
                         try:
                             suffix = R.instance_suffix()
                             tx_file = Path(resolved_project_path) / '.empirica' / f'active_transaction{suffix}.json'
@@ -403,6 +405,10 @@ def handle_preflight_submit_command(args):
                                     tx_d['work_context'] = work_context
                                 if work_type:
                                     tx_d['work_type'] = work_type
+                                if domain:
+                                    tx_d['domain'] = domain
+                                if criticality:
+                                    tx_d['criticality'] = criticality
                                 # Auto-select cascade profile from work parameters
                                 from empirica.config.threshold_loader import ThresholdLoader
                                 selected_profile = ThresholdLoader.select_profile_for_work(

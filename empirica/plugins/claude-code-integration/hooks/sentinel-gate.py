@@ -222,6 +222,52 @@ def _get_dynamic_thresholds(db) -> tuple:
         pass
     return (KNOW_THRESHOLD, UNCERTAINTY_THRESHOLD)
 
+
+def _get_domain_scaled_thresholds(
+    base_unc: float,
+    domain: str | None,
+    criticality: str | None,
+    project_path: str | None = None,
+) -> float:
+    """Scale uncertainty threshold based on domain criticality (B1 Wave 2).
+
+    Higher criticality = stricter threshold (lower uncertainty required).
+    Uses coverage_min from the domain checklist as the scaling signal.
+
+    Returns the adjusted uncertainty threshold.
+    """
+    if not domain and not criticality:
+        return base_unc
+
+    try:
+        from empirica.config.domain_registry import DomainKey, DomainRegistry
+        from pathlib import Path
+        reg = DomainRegistry(
+            project_path=Path(project_path) if project_path else None,
+        )
+        key = DomainKey(
+            work_type=domain or "code",
+            domain=domain or "default",
+            criticality=criticality or "medium",
+        )
+        checklist = reg.resolve(key)
+
+        if not checklist.has_checks:
+            # Empty checklist (e.g., remote-ops) — no scaling
+            return base_unc
+
+        # Scale: coverage_min maps to uncertainty threshold
+        # Higher coverage_min = higher rigor = lower uncertainty threshold
+        # coverage_min 0.3 (low) → uncertainty 0.35 (lenient)
+        # coverage_min 0.7 (high) → uncertainty 0.20 (strict)
+        # coverage_min 0.85 (critical) → uncertainty 0.15 (very strict)
+        coverage_min = checklist.thresholds.get("coverage_min", 0.3)
+        scaled = max(0.10, base_unc * (1.0 - coverage_min * 0.6))
+        return round(scaled, 2)
+
+    except Exception:
+        return base_unc
+
 # Transition commands - allowed after POSTFLIGHT to enable new cycle
 # These are the commands needed to properly switch projects or start new sessions
 TRANSITION_COMMANDS = (
@@ -2056,8 +2102,10 @@ def main():
                 if not _tx_closed:
                     current_transaction_id = tx_data.get('transaction_id')
                     tx_session_id = tx_candidate_session
-                    # Extract work_type for work-type-aware command expansion
+                    # Extract work_type, domain, criticality for domain-aware gating
                     _current_work_type = tx_data.get('work_type')
+                    _current_domain = tx_data.get('domain')
+                    _current_criticality = tx_data.get('criticality')
                 else:
                     # CLOSED TRANSACTION SHORT-CIRCUIT: Don't fall through to
                     # stale session fallback which produces confusing errors
@@ -2183,10 +2231,20 @@ def main():
 
     # AUTO-PROCEED: If PREFLIGHT passes readiness gate, skip CHECK requirement
     # Uses Brier-based dynamic thresholds when available (miscalibration raises the bar)
+    # B1: Domain-aware scaling — higher criticality = stricter uncertainty threshold
     _dyn_know, _dyn_unc = _get_dynamic_thresholds(db)
-    if raw_know >= _dyn_know and raw_unc <= _dyn_unc:
+    _domain_unc = _get_domain_scaled_thresholds(
+        _dyn_unc,
+        locals().get('_current_domain'),
+        locals().get('_current_criticality'),
+        project_path=str(Path(tx_file).parent.parent) if tx_file else None,
+    )
+    if raw_know >= _dyn_know and raw_unc <= _domain_unc:
         db.close()
-        respond("allow", f"PREFLIGHT confidence sufficient - proceeding (threshold: K>={_dyn_know:.0%} U<={_dyn_unc:.0%}){env_annotation}")
+        _domain_info = ""
+        if locals().get('_current_domain') or locals().get('_current_criticality'):
+            _domain_info = f" [{locals().get('_current_domain', 'default')}/{locals().get('_current_criticality', 'medium')}]"
+        respond("allow", f"PREFLIGHT confidence sufficient - proceeding (threshold: U<={_domain_unc:.0%}{_domain_info}){env_annotation}")
         sys.exit(0)
 
     # VALIDATE CHECK: lookup, sequence, rushed assessment, decision parse

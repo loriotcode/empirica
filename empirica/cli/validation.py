@@ -109,6 +109,16 @@ class PreflightInput(BaseModel):
         ),
         pattern="^(code|infra|research|release|debug|config|docs|data|comms|design|audit|remote-ops)$",
     )
+    domain: str | None = Field(
+        default=None,
+        description="Domain classification for compliance check selection (e.g., cybersec, payments, default)",
+        pattern="^[a-z][a-z0-9_-]*$",
+    )
+    criticality: str | None = Field(
+        default=None,
+        description="Criticality level — determines required check rigor",
+        pattern="^(low|medium|high|critical)$",
+    )
 
     @field_validator('session_id')
     @classmethod
