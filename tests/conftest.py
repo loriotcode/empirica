@@ -20,33 +20,57 @@ import os
 # Instance Isolation: Prevent tests from corrupting live Empirica state
 # =============================================================================
 #
-# Tests that invoke CASCADE commands (preflight/check/postflight) through the
-# CLI handler read/write active_transaction files via get_instance_id(). Without
-# isolation, they share TMUX_PANE with the live session and close real transactions.
+# Root cause (2026-04-09, KNOWN_ISSUES 11.17 + handoff):
+# Tests inherit TMUX_PANE from the test runner. Subprocess-spawned `empirica`
+# commands resolve get_instance_id() → same tmux pane → write test session IDs
+# into ~/.empirica/instance_projects/{pane}.json, overwriting the LIVE session.
+# This breaks ALL Claude instances on that pane.
 #
-# Fix: Back up and restore all active_transaction files around the test session.
-# This is more surgical than changing EMPIRICA_INSTANCE_ID (which would break
-# project resolution since there'd be no matching instance_projects file).
+# Fix: Set EMPIRICA_INSTANCE_ID (priority 1 in get_instance_id(), overrides
+# TMUX_PANE at priority 2) to a test-specific value. Also strip all terminal
+# identity vars and set EMPIRICA_HEADLESS=true. Tests that need DB access
+# should use EMPIRICA_SESSION_DB (priority 0 in get_session_db_path()) per
+# the pattern in test_ai_agent_workflow.py (11.17 fix).
 
 @pytest.fixture(autouse=True, scope="session")
-def protect_live_transactions():
-    """Back up active transaction files before tests, restore after.
+def isolate_empirica_instance():
+    """Prevent tests from polluting live Empirica instance state.
 
-    Tests may call postflight-submit which closes the active_transaction file.
-    We snapshot all transaction files before the test session and restore them
-    after, so the live Empirica state is never corrupted by test runs.
+    Sets EMPIRICA_INSTANCE_ID to a test-specific value (priority 1 in
+    get_instance_id), overriding TMUX_PANE. Strips all terminal identity
+    vars as belt-and-suspenders. Also backs up and restores active_transaction
+    files for extra safety.
+
+    See: docs/architecture/instance_isolation/KNOWN_ISSUES.md #11.17
+    See: .empirica/handoffs/transaction-pollution-fix.md
     """
     import glob
 
-    # Find all active_transaction files (in project .empirica dirs and ~/.empirica)
-    backup = {}  # path -> contents
+    test_instance_id = f"test-{os.getpid()}"
+
+    # Save and strip terminal identity vars
+    saved_env = {}
+    identity_vars = (
+        "TMUX_PANE", "WINDOWID", "TERM_SESSION_ID",
+        "EMPIRICA_INSTANCE_ID", "EMPIRICA_HEADLESS",
+    )
+    for var in identity_vars:
+        saved_env[var] = os.environ.get(var)
+
+    # Set test-specific instance identity (priority 1 in get_instance_id)
+    os.environ["EMPIRICA_INSTANCE_ID"] = test_instance_id
+    os.environ["EMPIRICA_HEADLESS"] = "true"
+
+    # Strip terminal vars so subprocesses don't inherit them
+    for var in ("TMUX_PANE", "WINDOWID", "TERM_SESSION_ID"):
+        os.environ.pop(var, None)
+
+    # Belt-and-suspenders: back up active_transaction files
+    backup = {}
     patterns = [
         str(Path.home() / '.empirica' / 'active_transaction*.json'),
+        str(Path.cwd() / '.empirica' / 'active_transaction*.json'),
     ]
-    # Also check CWD project
-    cwd_pattern = str(Path.cwd() / '.empirica' / 'active_transaction*.json')
-    patterns.append(cwd_pattern)
-
     for pattern in patterns:
         for filepath in glob.glob(pattern):
             try:
@@ -57,7 +81,14 @@ def protect_live_transactions():
 
     yield
 
-    # Restore all backed-up transaction files
+    # Restore environment
+    for var in identity_vars:
+        if saved_env[var] is not None:
+            os.environ[var] = saved_env[var]
+        else:
+            os.environ.pop(var, None)
+
+    # Restore backed-up transaction files
     for filepath, contents in backup.items():
         try:
             with open(filepath, 'w') as f:

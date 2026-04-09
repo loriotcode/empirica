@@ -204,10 +204,10 @@ def main():
     # NO CWD FALLBACK - fails explicitly to prevent wrong context pollution
     project_root = find_project_root(claude_session_id=claude_session_id)
     if project_root is None:
-        print(json.dumps({
-            "stopReason": "Could not resolve project root for pre-compact snapshot"
-        }), file=sys.stdout)
-        sys.exit(1)
+        # Graceful degradation: skip pre-compact snapshot rather than blocking
+        # compact. No CWD fallback — see KNOWN_ISSUES 11.10.
+        print(json.dumps({}), file=sys.stdout)
+        sys.exit(0)
     os.chdir(project_root)
 
     # =========================================================================
