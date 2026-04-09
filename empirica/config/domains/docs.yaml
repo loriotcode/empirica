@@ -1,0 +1,40 @@
+domain: docs
+version: "1"
+description: "Documentation work — READMEs, guides, API docs, changelogs"
+
+applies_to_work_types:
+  - docs
+
+criticalities:
+  low:
+    description: "Internal notes, drafts"
+    required_checks: []
+    thresholds: {}
+    max_iterations: 1
+
+  medium:
+    description: "User-facing docs, README, guides"
+    required_checks:
+      - lint
+    thresholds:
+      coverage_min: 0.3
+      check_pass_ratio: 1.0
+    max_iterations: 3
+
+  high:
+    description: "API reference docs, compliance documentation"
+    required_checks:
+      - lint
+    thresholds:
+      coverage_min: 0.5
+      check_pass_ratio: 1.0
+    max_iterations: 5
+
+  critical:
+    description: "Regulated documentation (audit trails, legal)"
+    required_checks:
+      - lint
+    thresholds:
+      coverage_min: 0.7
+      check_pass_ratio: 1.0
+    max_iterations: 5

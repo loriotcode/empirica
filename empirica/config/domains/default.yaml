@@ -1,0 +1,45 @@
+domain: default
+version: "1"
+description: "Baseline domain for general-purpose work. Applied when no specific domain is declared."
+
+applies_to_work_types: []  # empty = applies to all
+
+criticalities:
+  low:
+    description: "Hobby projects, prototypes, internal tools"
+    required_checks:
+      - tests
+    thresholds:
+      coverage_min: 0.3
+      check_pass_ratio: 1.0
+    max_iterations: 3
+
+  medium:
+    description: "Production code, internal services"
+    required_checks:
+      - tests
+      - lint
+    thresholds:
+      coverage_min: 0.3
+      check_pass_ratio: 1.0
+    max_iterations: 5
+
+  high:
+    description: "Public-facing services, authenticated user data"
+    required_checks:
+      - tests
+      - lint
+    thresholds:
+      coverage_min: 0.5
+      check_pass_ratio: 1.0
+    max_iterations: 5
+
+  critical:
+    description: "Regulated, financial, medical, PII-handling"
+    required_checks:
+      - tests
+      - lint
+    thresholds:
+      coverage_min: 0.7
+      check_pass_ratio: 1.0
+    max_iterations: 8

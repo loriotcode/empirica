@@ -19,6 +19,12 @@ import time
 
 from .cli_utils import handle_cli_error
 from .command_handlers import *
+from .command_handlers.domain_commands import (
+    handle_domain_list_command,
+    handle_domain_resolve_command,
+    handle_domain_show_command,
+    handle_domain_validate_command,
+)
 from .command_handlers.edit_verification_command import handle_edit_with_confidence_command
 from .command_handlers.issue_capture_commands import (
     handle_issue_export_command,
@@ -183,6 +189,7 @@ from .parsers import (
     add_checkpoint_parsers,
     add_concept_graph_parsers,
     add_config_parsers,
+    add_domain_parsers,
     add_edit_verification_parsers,
     add_epistemics_parsers,
     add_investigation_parsers,
@@ -251,6 +258,7 @@ def create_argument_parser():
     add_skill_parsers(subparsers)
     add_utility_parsers(subparsers)
     add_config_parsers(subparsers)
+    add_domain_parsers(subparsers)
     add_monitor_parsers(subparsers)
     add_action_parsers(subparsers)
     add_checkpoint_parsers(subparsers)
@@ -330,6 +338,7 @@ def main(args=None):
             'mcp': ['mcp-start', 'mcp-stop', 'mcp-status', 'mcp-test', 'mcp-list-tools', 'mcp-call'],
             'memory': ['memory-prime', 'memory-scope', 'memory-value', 'pattern-check', 'session-rollup', 'memory-report'],
             'vision': ['vision'],
+            'domains': ['domain-list', 'domain-show', 'domain-resolve', 'domain-validate'],
             'setup': ['onboard', 'setup-claude-code', 'diagnose', 'serve'],
         }
         # Check if user requested a specific category
@@ -417,6 +426,12 @@ def main(args=None):
 
             # Config commands
             'config': handle_config_command,
+
+            # Domain registry commands (A1 — Sentinel reframe)
+            'domain-list': handle_domain_list_command,
+            'domain-show': handle_domain_show_command,
+            'domain-resolve': handle_domain_resolve_command,
+            'domain-validate': handle_domain_validate_command,
 
             # Monitor commands
             'monitor': handle_monitor_command,

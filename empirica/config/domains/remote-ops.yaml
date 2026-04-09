@@ -1,0 +1,28 @@
+domain: remote-ops
+version: "1"
+description: "Remote operations — SSH, API calls, infra management. No local deterministic checks apply. The AI's self-assessment stands."
+
+applies_to_work_types:
+  - remote-ops
+
+criticalities:
+  low:
+    description: "Self-assessment stands — no deterministic checks"
+    required_checks: []
+    thresholds: {}
+    max_iterations: 1
+  medium:
+    description: "Self-assessment stands — no deterministic checks"
+    required_checks: []
+    thresholds: {}
+    max_iterations: 1
+  high:
+    description: "Self-assessment stands — no deterministic checks"
+    required_checks: []
+    thresholds: {}
+    max_iterations: 1
+  critical:
+    description: "Self-assessment stands — no deterministic checks"
+    required_checks: []
+    thresholds: {}
+    max_iterations: 1
