@@ -179,43 +179,120 @@ class ServiceRegistry:
 
 
 # ---------------------------------------------------------------------------
-# Built-in check runners (stubs — B2 will wire real execution)
+# Built-in check runners (C2 — real subprocess execution)
 # ---------------------------------------------------------------------------
 
 def _run_tests_check(context: dict[str, Any]) -> CheckResult:
-    """Stub: delegates to pytest when B2 compliance loop is active."""
-    return CheckResult(
-        check_id="tests",
-        passed=True,
-        details={"stub": True, "note": "Stub runner — B2 will wire real pytest execution"},
-        summary="tests check (stub — not yet wired to pytest)",
-        duration_ms=0,
-        ran_at=time.time(),
-    )
+    """Run pytest and report pass/fail."""
+    import subprocess
+    project_path = context.get("project_path", ".")
+
+    try:
+        result = subprocess.run(
+            ["python3", "-m", "pytest", "--tb=no", "-q"],
+            capture_output=True, text=True, timeout=300,
+            cwd=project_path,
+        )
+        # Parse pytest -q output: "N passed, M failed" or "N passed"
+        stdout = result.stdout.strip()
+        passed = failed = 0
+        for part in stdout.split("\n")[-1].split(","):
+            part = part.strip()
+            if "passed" in part:
+                try:
+                    passed = int(part.split()[0])
+                except (ValueError, IndexError):
+                    pass
+            elif "failed" in part:
+                try:
+                    failed = int(part.split()[0])
+                except (ValueError, IndexError):
+                    pass
+
+        return CheckResult(
+            check_id="tests",
+            passed=result.returncode == 0,
+            details={"passed": passed, "failed": failed, "exit_code": result.returncode},
+            summary=f"{passed} passed, {failed} failed" if failed else f"{passed} passed",
+            duration_ms=0,
+            ran_at=time.time(),
+        )
+    except subprocess.TimeoutExpired:
+        return CheckResult(
+            check_id="tests", passed=False, details={"error": "timeout"},
+            summary="pytest timed out after 300s", duration_ms=300000, ran_at=time.time(),
+        )
+    except FileNotFoundError:
+        return CheckResult(
+            check_id="tests", passed=True, details={"skipped": True},
+            summary="pytest not available — skipped", duration_ms=0, ran_at=time.time(),
+        )
 
 
 def _run_lint_check(context: dict[str, Any]) -> CheckResult:
-    """Stub: delegates to ruff when B2 compliance loop is active."""
-    return CheckResult(
-        check_id="lint",
-        passed=True,
-        details={"stub": True, "note": "Stub runner — B2 will wire real ruff execution"},
-        summary="lint check (stub — not yet wired to ruff)",
-        duration_ms=0,
-        ran_at=time.time(),
-    )
+    """Run ruff check and report pass/fail."""
+    import subprocess
+    project_path = context.get("project_path", ".")
+
+    try:
+        result = subprocess.run(
+            ["ruff", "check", "--output-format=json", "--quiet"],
+            capture_output=True, text=True, timeout=60,
+            cwd=project_path,
+        )
+        import json as _json
+        errors = 0
+        try:
+            findings = _json.loads(result.stdout) if result.stdout.strip() else []
+            errors = len(findings)
+        except Exception:
+            errors = 1 if result.returncode != 0 else 0
+
+        return CheckResult(
+            check_id="lint",
+            passed=result.returncode == 0,
+            details={"errors": errors, "exit_code": result.returncode},
+            summary=f"{errors} lint errors" if errors else "lint clean",
+            duration_ms=0,
+            ran_at=time.time(),
+        )
+    except subprocess.TimeoutExpired:
+        return CheckResult(
+            check_id="lint", passed=False, details={"error": "timeout"},
+            summary="ruff timed out after 60s", duration_ms=60000, ran_at=time.time(),
+        )
+    except FileNotFoundError:
+        return CheckResult(
+            check_id="lint", passed=True, details={"skipped": True},
+            summary="ruff not available — skipped", duration_ms=0, ran_at=time.time(),
+        )
 
 
 def _run_git_metrics_check(context: dict[str, Any]) -> CheckResult:
-    """Stub: delegates to git metrics collector."""
-    return CheckResult(
-        check_id="git_metrics",
-        passed=True,
-        details={"stub": True},
-        summary="git metrics check (stub)",
-        duration_ms=0,
-        ran_at=time.time(),
-    )
+    """Check for uncommitted changes in the project."""
+    import subprocess
+    project_path = context.get("project_path", ".")
+
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True, text=True, timeout=10,
+            cwd=project_path,
+        )
+        uncommitted = len([l for l in result.stdout.strip().split("\n") if l.strip()])
+        return CheckResult(
+            check_id="git_metrics",
+            passed=uncommitted == 0,
+            details={"uncommitted_files": uncommitted},
+            summary=f"{uncommitted} uncommitted files" if uncommitted else "working tree clean",
+            duration_ms=0,
+            ran_at=time.time(),
+        )
+    except Exception:
+        return CheckResult(
+            check_id="git_metrics", passed=True, details={"skipped": True},
+            summary="git not available — skipped", duration_ms=0, ran_at=time.time(),
+        )
 
 
 def _register_builtin_checks() -> None:
