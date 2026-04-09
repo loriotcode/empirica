@@ -1,9 +1,9 @@
-# Phase-Aware Calibration: Noetic vs Praxic Grounding
+# Phase-Aware Evidence Collection for Calibration
 
-**Status:** IMPLEMENTED (Phases 1-2.8 complete + phase-weighted holistic score + calibration insights loop + actionable feedback)
+**Status:** IMPLEMENTED (Phases 1-3 complete, domain-aware thresholds in v1.8.0)
 **Author:** David + Claude Code
-**Date:** 2026-02-10 (updated 2026-03-09)
-**Depends on:** Grounded Calibration (v1.5.0), Sentinel Architecture, CHECK Gate
+**Date:** 2026-02-10 (updated 2026-04-09)
+**Depends on:** Grounded Calibration (v1.5.0), Sentinel Architecture, CHECK Gate, Domain Registry (v1.8.0)
 
 ---
 
@@ -108,9 +108,13 @@ PREFLIGHT -> CHECK(investigate) -> CHECK(investigate) -> CHECK(proceed) -> POSTF
 
 ## Dynamic Thresholds from Calibration History
 
-The sentinel currently uses static thresholds from `workflow-protocol.yaml`.
-Phase-aware calibration enables **earned autonomy** — thresholds that adapt based
-on demonstrated calibration accuracy.
+The Sentinel uses Brier-based dynamic thresholds that adapt based on
+demonstrated calibration accuracy. In v1.8.0, domain criticality further scales
+the uncertainty threshold via the Domain Registry (`DomainRegistry.resolve()`).
+
+**Key principle (v1.8.0):** Deterministic services produce **observed vectors** —
+information. The AI synthesizes the **grounded state** from that information with
+explicit rationale. The services inform; they do not score. The AI gives the score.
 
 ### Mechanism
 
@@ -261,18 +265,24 @@ Requires >= 3 grounded observations per vector before suggesting ranges (avoids
 premature suggestions from sparse data). Range narrows as evidence accumulates —
 this is correct Bayesian behavior, not a bug.
 
-### Phase 3: Dynamic Thresholds -- PENDING
+### Phase 3: Dynamic Thresholds -- COMPLETE (v1.8.0)
 
-- Add `calibration_trajectory` per-phase tracking
-- Sentinel reads phase-specific calibration history
-- Threshold computation at PREFLIGHT (for CHECK gate) and CHECK (for action gate)
+- `calibration_trajectory` per-phase tracking with `state_type` column
+- Brier-based dynamic thresholds (`compute_dynamic_thresholds()` in `dynamic_thresholds.py`)
+- Domain-aware threshold scaling via `DomainRegistry` at CHECK gate
+- Higher criticality = stricter uncertainty threshold
 - Safety floors hardcoded, not adjustable by calibration
+- **Check-outcome Brier (B4):** AI predicts P(check passes), Brier measures
+  prediction vs actual. Falsifiable, ground-truth calibration alongside vector Brier.
 
-### Phase 4: Domain-Scoped Autonomy -- PENDING
+### Phase 4: Domain-Scoped Autonomy -- PARTIALLY COMPLETE (v1.8.0)
 
-- Tag calibration records with domain (from finding subjects)
-- Per-domain threshold computation
-- Dashboard: `empirica calibration-report --by-domain --by-phase`
+- Domain registry with `(work_type, domain, criticality)` tuples → checklists
+- Service registry with self-declaring deterministic checks
+- Compliance loop runs domain checklist at POSTFLIGHT
+- Per-domain threshold computation via `_get_domain_scaled_thresholds()`
+- Dashboard: `empirica calibration-report --by-domain --by-phase` (existing)
+- CLI: `empirica domain-list`, `domain-show`, `domain-resolve`, `domain-validate`
 
 ---
 

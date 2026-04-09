@@ -1,7 +1,7 @@
 # Epistemic Transaction Workflow API Reference
 
-**Version:** 1.6.6
-**Purpose:** Epistemic measurement phases for AI self-assessment and grounded calibration
+**Version:** 1.8.0
+**Purpose:** Epistemic measurement phases for AI self-assessment, domain compliance, and grounded calibration
 
 ---
 
@@ -10,10 +10,11 @@
 The epistemic transaction workflow defines the epistemic measurement phases that track AI knowledge state across work cycles:
 
 ```
-PREFLIGHT ──► CHECK ──► POSTFLIGHT ──► POST-TEST
-    │           │            │              │
- Baseline    Sentinel     Learning      Grounded
- Assessment    Gate        Delta       Verification
+PREFLIGHT ──► CHECK ──► POSTFLIGHT ──► POST-TEST ──► COMPLIANCE
+    │           │            │              │              │
+ Baseline    Sentinel     Learning      Evidence       Domain
+ Assessment    Gate        Delta       Collection     Checklist
+                                      (observed)      (B2 loop)
 ```
 
 **Key concept:** The PREFLIGHT → POSTFLIGHT cycle is a **measurement window** (epistemic transaction), not a goal boundary. Between measurements, epistemic state is wave-like (continuous). PREFLIGHT/POSTFLIGHT collapse it to particles (discrete vectors).
@@ -114,14 +115,12 @@ empirica preflight-submit \
   "checkpoint_id": "git-sha",
   "message": "PREFLIGHT assessment submitted",
   "vectors_submitted": 5,
-  "learning_prior": {
-    "adjustments": {"know": -0.03, "uncertainty": 0.04},
-    "total_evidence": 3946,
-    "summary": {
-      "overestimates": ["know"],
-      "underestimates": ["completion"],
-      "well_calibrated": ["uncertainty", "context"]
-    }
+  "previous_transaction_feedback": {
+    "calibration_score": 0.18,
+    "grounded_coverage": 0.69,
+    "overestimate_tendency": ["do", "state"],
+    "underestimate_tendency": ["density", "uncertainty"],
+    "note": "Directional feedback — drift patterns from deterministic proxies, not ground truth"
   },
   "sentinel": {
     "enabled": true,
@@ -303,21 +302,54 @@ EOF
 
 ## Grounded Calibration (POST-TEST)
 
-POSTFLIGHT automatically triggers grounded calibration, which compares self-assessed vectors against objective evidence.
+POSTFLIGHT automatically triggers evidence collection from deterministic services.
+These services produce **observed vectors** — information that the AI uses to
+reason to a **grounded state** with explicit rationale. The services inform;
+they do not score. The AI gives the score.
 
-**Evidence Sources:**
-| Source | Quality | Vectors Grounded |
-|--------|---------|-----------------|
+**Three-vector model (v1.8.0):**
+| Vector Set | Source | Purpose |
+|------------|--------|---------|
+| `self_assessed` | AI's PREFLIGHT/POSTFLIGHT vectors | The AI's predictions |
+| `observed` | Deterministic services (below) | Pure information — what each service saw |
+| `grounded` | AI's reasoned synthesis with rationale | The authoritative epistemic state |
+
+**Evidence Sources — populate observed vectors:**
+| Source | Signal Type | Vectors Informed |
+|--------|-------------|-----------------|
 | pytest results | OBJECTIVE | know, do, clarity |
 | Git metrics | OBJECTIVE | do, change, state |
-| Code quality (ruff, radon, pyright) | SEMI_OBJECTIVE | clarity, coherence, density, signal, know, do |
+| Code quality (ruff, radon, pyright) | OBJECTIVE | clarity, coherence, density, signal, know, do |
 | Goal/subtask completion | SEMI_OBJECTIVE | completion, do, know |
 | Artifact ratios | SEMI_OBJECTIVE | know, uncertainty, signal |
 | Issue resolution | SEMI_OBJECTIVE | impact, signal |
 | Sentinel decisions | SEMI_OBJECTIVE | context, uncertainty |
 | Codebase model (entities, facts, constraints) | SEMI_OBJECTIVE | know, context, signal, density, coherence |
+| Triage metrics (transaction-scoped) | SEMI_OBJECTIVE | do, completion, change |
+| Non-git file changes | SEMI_OBJECTIVE | state, change, do |
+
+**Meta vectors:** uncertainty is computed from the OTHER 12 vectors' coverage and
+gap magnitudes (not from direct evidence sources).
 
 **Ungroundable vectors:** engagement (no objective signal)
+
+## Domain Compliance Loop (v1.8.0)
+
+When `domain` and `criticality` are set in PREFLIGHT, POSTFLIGHT runs the
+domain checklist via the compliance loop:
+
+1. `DomainRegistry.resolve(work_type, domain, criticality)` → `Checklist`
+2. `ServiceRegistry.run(check_id, context)` for each required check
+3. Results stored in `compliance_checks` table
+4. Status: `complete` (all pass) | `iteration_needed` (failures) | `max_iterations_exceeded`
+
+**Check-outcome Brier scoring (B4):** If the AI predicted `P(check passes)` in
+PREFLIGHT via `predicted_check_outcomes`, the compliance response includes a
+`check_brier` block measuring prediction accuracy. This is falsifiable ground
+truth — test passing/failing IS the outcome. The AI's prediction accuracy is
+the calibration signal.
+
+**CLI commands:** `domain-list`, `domain-show`, `domain-resolve`, `domain-validate`
 
 ---
 
