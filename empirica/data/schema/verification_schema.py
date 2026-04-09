@@ -72,6 +72,13 @@ SCHEMAS = [
         domain TEXT,
         goal_id TEXT,
 
+        -- A3 Wave 1 additions (Sentinel reframe three-vector storage)
+        observed_vectors TEXT,
+        grounded_rationale TEXT,
+        criticality TEXT,
+        compliance_status TEXT,
+        parent_transaction_id TEXT,
+
         created_at REAL DEFAULT (strftime('%s', 'now')),
 
         FOREIGN KEY (session_id) REFERENCES sessions(session_id)
@@ -94,8 +101,38 @@ SCHEMAS = [
         goal_id TEXT,
         timestamp REAL NOT NULL,
 
+        -- A3 Wave 1: state_type for three-vector filtering
+        state_type TEXT DEFAULT 'grounded',
+
         FOREIGN KEY (session_id) REFERENCES sessions(session_id)
     )
+    """,
+
+    # Compliance check results — per-check pass/fail with Brier prediction fields (A3 Wave 1)
+    """
+    CREATE TABLE IF NOT EXISTS compliance_checks (
+        check_record_id TEXT PRIMARY KEY,
+        transaction_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        check_id TEXT NOT NULL,
+        tool TEXT NOT NULL,
+        passed INTEGER NOT NULL,
+        details TEXT,
+        summary TEXT NOT NULL,
+        duration_ms INTEGER NOT NULL,
+        ran_at REAL NOT NULL,
+        predicted_pass REAL,
+        predicted_at REAL,
+        iteration_number INTEGER DEFAULT 1
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_compliance_checks_tx
+        ON compliance_checks(transaction_id)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_compliance_checks_check_id
+        ON compliance_checks(check_id)
     """,
 
     # Calibration disputes - AI pushback on measurement artifacts

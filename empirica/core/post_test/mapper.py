@@ -205,26 +205,22 @@ class GroundedVectorEstimate:
 class GroundedAssessment:
     """Complete grounded assessment alongside self-assessment.
 
+    Three-vector model (A3 Wave 1, SPEC 1 Part 3):
+    - self_assessed: AI's PREFLIGHT/POSTFLIGHT vectors (unchanged)
+    - grounded: service-computed observations mapped to vectors
+      (NOTE: this field holds what SPEC 1 calls "observed" — the rename
+      to an explicit observed/grounded split happens when B3 wires the
+      AI-reasoned grounded state. Until then, the field name stays to
+      avoid breaking 6+ consumers.)
+    - grounded_rationale: AI's reasoning for divergence (B3 will populate)
+
     insufficient_evidence_vectors lists vector names that had ALL their
     evidence sources excluded for the current work_type — meaning the
     instrument is fundamentally blind to this kind of work for these vectors.
-    These vectors are NOT in `grounded`, NOT in `calibration_gaps`, and
-    should NOT be written to calibration_trajectory or used to update
-    overestimate_tendency advisories. The AI's self-assessed value stands
-    as the best available estimate, with no false drift.
 
-    calibration_status indicates whether the assessment produced meaningful
-    grounded data:
-    - "grounded": normal calibration with sufficient evidence (default)
-    - "insufficient_evidence": grounded_coverage below the configured threshold
-      — calibration was halted rather than emit phantom scores
-    - "ungrounded_remote_ops": work_type=remote-ops, no local sources by
-      design — the AI declared this work outside the measurer's reach
-
-    Only "grounded" status writes to learning_trajectory or feeds
-    previous_transaction_feedback. Non-grounded statuses are
-    observation-skipping events (the response still displays self-assessed
-    vectors normally, but no drift is recorded).
+    calibration_status uses ComplianceStatus enum values (string-compatible).
+    Only "grounded" and "complete" statuses write to learning_trajectory
+    or feed previous_transaction_feedback.
     """
     session_id: str
     self_assessed: dict[str, float]
@@ -232,13 +228,29 @@ class GroundedAssessment:
     calibration_gaps: dict[str, float]
     grounded_coverage: float
     overall_calibration_score: float
-    phase: str = "combined"  # "noetic", "praxic", or "combined"
+    phase: str = "combined"
     insufficient_evidence_vectors: list[str] = None  # type: ignore[assignment]
-    calibration_status: str = "grounded"  # "grounded" | "insufficient_evidence" | "ungrounded_remote_ops"
+    calibration_status: str = "grounded"
+    # A3 additions — optional with defaults for backward compatibility
+    grounded_rationale: str | None = None
+    criticality: str | None = None
+    parent_transaction_id: str | None = None
 
     def __post_init__(self):
         if self.insufficient_evidence_vectors is None:
             self.insufficient_evidence_vectors = []
+
+    @property
+    def observed(self) -> dict[str, GroundedVectorEstimate]:
+        """Alias for 'grounded' — the SPEC 1 name for service-computed vectors.
+
+        The field is named 'grounded' for backward compatibility. When B3
+        wires the AI-reasoned grounded state, the distinction becomes:
+        - self.observed → what the services measured
+        - self.grounded → what the AI reasoned (not yet implemented)
+        For now they are the same object.
+        """
+        return self.grounded
 
 
 def _load_domain_weights(domain: str = "default") -> dict[str, Any]:

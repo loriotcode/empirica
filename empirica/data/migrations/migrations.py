@@ -1259,4 +1259,58 @@ ALL_MIGRATIONS: list[tuple[str, str, Callable]] = [
     ("032_calibration_disputes", "Add calibration_disputes table for AI pushback on measurement artifacts", migration_032_calibration_disputes),
     ("033_codebase_model", "Add codebase model tables for temporal entity tracking (world-model-mcp absorption)", migration_033_codebase_model),
     ("034_subagent_sessions", "Move subagent child sessions out of main sessions table to dedicated subagent_sessions table", migration_034_subagent_sessions),
+    ("035_three_vector_storage", "Add three-vector storage schema for Sentinel reframe (A3 Wave 1)", lambda cursor: migration_035_three_vector_storage(cursor)),
 ]
+
+
+def migration_035_three_vector_storage(cursor: sqlite3.Cursor):
+    """Add three-vector storage columns + compliance_checks table (A3 Wave 1).
+
+    Additive only — no column renames, no type changes, no constraint changes.
+    Legacy rows readable: NULL new columns map to legacy defaults at read time.
+
+    New columns on grounded_verifications:
+      - observed_vectors: the service-computed vectors (what was called 'grounded_vectors')
+      - grounded_rationale: AI's reasoning for divergence from observed
+      - criticality: domain criticality level
+      - compliance_status: compliance loop state
+      - parent_transaction_id: for iteration tracking
+
+    New column on calibration_trajectory:
+      - state_type: 'self_assessed' | 'observed' | 'grounded' (default 'grounded')
+
+    New table:
+      - compliance_checks: per-check results with Brier prediction fields
+    """
+    # grounded_verifications — additive columns
+    add_column_if_missing(cursor, "grounded_verifications", "observed_vectors", "TEXT")
+    add_column_if_missing(cursor, "grounded_verifications", "grounded_rationale", "TEXT")
+    add_column_if_missing(cursor, "grounded_verifications", "criticality", "TEXT")
+    add_column_if_missing(cursor, "grounded_verifications", "compliance_status", "TEXT")
+    add_column_if_missing(cursor, "grounded_verifications", "parent_transaction_id", "TEXT")
+
+    # calibration_trajectory — state_type for three-vector filtering
+    add_column_if_missing(cursor, "calibration_trajectory", "state_type", "TEXT", "'grounded'")
+
+    # compliance_checks table — per-check results
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS compliance_checks (
+            check_record_id TEXT PRIMARY KEY,
+            transaction_id TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            check_id TEXT NOT NULL,
+            tool TEXT NOT NULL,
+            passed INTEGER NOT NULL,
+            details TEXT,
+            summary TEXT NOT NULL,
+            duration_ms INTEGER NOT NULL,
+            ran_at REAL NOT NULL,
+            predicted_pass REAL,
+            predicted_at REAL,
+            iteration_number INTEGER DEFAULT 1
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_compliance_checks_tx ON compliance_checks(transaction_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_compliance_checks_check_id ON compliance_checks(check_id)")
+
+    logger.info("✅ Migration 035 complete: Three-vector storage schema added (A3 Wave 1)")
