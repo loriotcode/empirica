@@ -343,7 +343,7 @@ class ProseEvidenceCollector:
         # Goal completion as document output
         cursor.execute("""
             SELECT id, objective FROM goals
-            WHERE session_id = ? AND completed = 1
+            WHERE session_id = ? AND is_completed = 1
         """, (self.session_id,))
         completed_goals = cursor.fetchall()
 
@@ -440,7 +440,7 @@ class ProseEvidenceCollector:
         # Unknowns resolved this session
         cursor.execute("""
             SELECT COUNT(*) FROM project_unknowns
-            WHERE session_id = ? AND resolved = 1
+            WHERE session_id = ? AND is_resolved = 1
         """, (self.session_id,))
         resolved = cursor.fetchone()[0]
 
@@ -520,7 +520,7 @@ class ProseEvidenceCollector:
 
         # Handoff summaries
         cursor.execute("""
-            SELECT task_summary FROM project_handoffs WHERE session_id = ?
+            SELECT task_summary FROM handoff_reports WHERE session_id = ?
         """, (self.session_id,))
         for row in cursor.fetchall():
             if row[0]:
