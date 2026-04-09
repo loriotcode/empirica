@@ -2281,6 +2281,9 @@ def handle_postflight_submit_command(args):
             session_id = config_data.get('session_id') or getattr(args, 'session_id', None)
             vectors = config_data.get('vectors')
             reasoning = config_data.get('reasoning', '')
+            # B3: AI-reasoned grounded state (three-vector model)
+            postflight_grounded_vectors = config_data.get('grounded_vectors')
+            postflight_grounded_rationale = config_data.get('grounded_rationale')
 
             if not session_id or not vectors:
                 print(json.dumps({
@@ -2297,6 +2300,8 @@ def handle_postflight_submit_command(args):
             vectors = parse_json_safely(args.vectors) if isinstance(args.vectors, str) else args.vectors
             reasoning = args.reasoning
             output_format = getattr(args, 'output', 'json')
+            postflight_grounded_vectors = None
+            postflight_grounded_rationale = None
 
             if not session_id:
                 try:
@@ -2703,6 +2708,23 @@ def handle_postflight_submit_command(args):
                 "calibration": grounded_verification,
                 "sentinel": sentinel_decision.value if sentinel_decision else None,
             }
+
+            # B3: Three-vector block — only present when AI submitted grounded_vectors
+            if postflight_grounded_vectors:
+                # Extract observed vectors from the grounded_verification result
+                observed = {}
+                if grounded_verification:
+                    for phase_key in ("noetic", "praxic", "combined"):
+                        phase_data = grounded_verification.get("phases", {}).get(phase_key, {})
+                        if phase_data:
+                            for vec_name, update in phase_data.get("updates", {}).items():
+                                observed[vec_name] = update.get("observation")
+                result["three_vector"] = {
+                    "self_assessed": vectors,
+                    "observed": observed,
+                    "grounded": postflight_grounded_vectors,
+                    "rationale_present": bool(postflight_grounded_rationale),
+                }
 
             # MEMORY HOT-CACHE: Update CC MEMORY.md with ranked artifacts
             # This runs at every POSTFLIGHT, not just session-end

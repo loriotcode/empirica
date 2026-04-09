@@ -386,20 +386,30 @@ class GroundedCalibrationManager:
             }
 
         verification_id = str(uuid.uuid4())
+
+        # B3: observed_vectors stores service-computed vectors (what we used
+        # to call "grounded"). grounded_rationale stores AI's reasoning.
+        # criticality + compliance_status from the assessment's A3 fields.
+        observed_json = json.dumps(grounded_data)
+        grounded_rationale = getattr(assessment, 'grounded_rationale', None)
+        criticality = getattr(assessment, 'criticality', None)
+        compliance_status = getattr(assessment, 'calibration_status', 'grounded')
+
         cursor.execute("""
             INSERT INTO grounded_verifications (
                 verification_id, session_id, ai_id,
                 self_assessed_vectors, grounded_vectors, calibration_gaps,
                 grounded_coverage, overall_calibration_score,
                 evidence_count, sources_available, sources_failed,
-                domain, goal_id, phase
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                domain, goal_id, phase,
+                observed_vectors, grounded_rationale, criticality, compliance_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             verification_id,
             session_id,
             ai_id,
             json.dumps(assessment.self_assessed),
-            json.dumps(grounded_data),
+            json.dumps(grounded_data),  # legacy column — keeps working
             json.dumps(assessment.calibration_gaps),
             assessment.grounded_coverage,
             assessment.overall_calibration_score,
@@ -409,6 +419,10 @@ class GroundedCalibrationManager:
             domain,
             goal_id,
             phase,
+            observed_json,      # A3: new column with correct name
+            grounded_rationale, # B3: AI's reasoning
+            criticality,        # A3: domain criticality
+            compliance_status,  # A3: compliance loop state
         ))
 
         self.conn.commit()

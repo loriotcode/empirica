@@ -212,6 +212,22 @@ class PostflightInput(BaseModel):
     reasoning: str | None = Field(default="", max_length=5000, description="Reasoning for assessment")
     learnings: str | None = Field(default="", max_length=5000, description="Key learnings from session")
     goal_id: str | None = Field(default=None, max_length=100, description="Associated goal ID")
+    # B3: AI-reasoned grounded state (three-vector model)
+    grounded_vectors: dict[str, float] | None = Field(
+        default=None,
+        description=(
+            "AI-reasoned grounded state after seeing deterministic service "
+            "observations. If omitted, falls back to observed (legacy behavior)."
+        ),
+    )
+    grounded_rationale: str | None = Field(
+        default=None,
+        max_length=5000,
+        description=(
+            "AI's reasoning for any divergence between self-assessed vectors "
+            "and grounded_vectors. Documents why the AI adjusted (or didn't)."
+        ),
+    )
 
     @field_validator('session_id')
     @classmethod
