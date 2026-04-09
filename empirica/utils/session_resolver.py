@@ -2262,3 +2262,262 @@ def _resolve_via_local_empirica(identifier: str) -> dict | None:
             }
 
     return None
+
+
+# =============================================================================
+# Project Root Resolution (canonical — moved from plugin lib/project_resolver.py)
+# =============================================================================
+# These were previously duplicated in the hook-side mirror. Consolidated here
+# as the single source of truth (goal 7ca0877c, v1.8.0).
+
+def has_valid_db(project_path: Path) -> bool:
+    """Check if a project path has a valid .empirica/sessions/sessions.db."""
+    import sqlite3 as _sqlite3
+    db_path = project_path / '.empirica' / 'sessions' / 'sessions.db'
+    if not db_path.exists():
+        return False
+    try:
+        conn = _sqlite3.connect(str(db_path))
+        conn.execute("SELECT 1 FROM sessions LIMIT 1")
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+
+def _find_git_root() -> Path | None:
+    """Find the git repo root from CWD."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', '--show-toplevel'],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return Path(result.stdout.strip())
+    except Exception:
+        pass
+    return None
+
+
+def _read_json_file(path: Path) -> dict | None:
+    """Read a JSON file, returning None on any error."""
+    try:
+        if path.exists():
+            import json as _json
+            with open(path) as f:
+                return _json.load(f)
+    except Exception:
+        pass
+    return None
+
+
+def _scan_workspace_for_project(instance_id: str | None) -> Path | None:
+    """Scan registered projects in workspace.db for one with an open transaction."""
+    import sqlite3 as _sqlite3
+    workspace_db = Path.home() / '.empirica' / 'workspace' / 'workspace.db'
+    if not workspace_db.exists():
+        return None
+    try:
+        conn = _sqlite3.connect(str(workspace_db))
+        cursor = conn.execute("SELECT trajectory_path FROM global_projects")
+        rows = cursor.fetchall()
+        conn.close()
+    except Exception:
+        return None
+
+    suffix = _get_instance_suffix()
+    best_match = None
+    best_mtime = 0
+
+    for (traj_path,) in rows:
+        if not traj_path:
+            continue
+        proj_path = Path(traj_path)
+        empirica_dir = proj_path / '.empirica'
+        if not empirica_dir.exists():
+            continue
+
+        tx_file = empirica_dir / f'active_transaction{suffix}.json'
+        if tx_file.exists():
+            try:
+                mtime = tx_file.stat().st_mtime
+                tx_data = _read_json_file(tx_file)
+                if tx_data and tx_data.get('status') == 'open':
+                    tx_project = tx_data.get('project_path', str(proj_path))
+                    if has_valid_db(Path(tx_project)) and mtime > best_mtime:
+                        best_match = Path(tx_project)
+                        best_mtime = mtime
+            except Exception:
+                pass
+
+        try:
+            for tx_candidate in empirica_dir.glob('active_transaction*.json'):
+                if tx_candidate == tx_file:
+                    continue
+                mtime = tx_candidate.stat().st_mtime
+                if mtime <= best_mtime:
+                    continue
+                tx_data = _read_json_file(tx_candidate)
+                if tx_data and tx_data.get('status') == 'open':
+                    tx_project = tx_data.get('project_path', str(proj_path))
+                    if has_valid_db(Path(tx_project)):
+                        best_match = Path(tx_project)
+                        best_mtime = mtime
+        except Exception:
+            pass
+
+    return best_match
+
+
+def detect_environment() -> dict:
+    """Detect execution environment for Sentinel context awareness.
+
+    Returns dict with hostname, is_remote, is_container, is_ci,
+    is_trusted, trust_source.
+    """
+    import fnmatch
+    import socket
+
+    hostname = socket.gethostname()
+    is_remote = bool(os.environ.get('SSH_CONNECTION') or os.environ.get('SSH_CLIENT') or os.environ.get('SSH_TTY'))
+    is_container = os.path.exists('/.dockerenv') or os.path.exists('/run/.containerenv')
+    is_ci = bool(os.environ.get('CI') or os.environ.get('GITHUB_ACTIONS') or os.environ.get('GITLAB_CI'))
+
+    is_trusted = None
+    trust_source = None
+
+    if is_remote or is_container or is_ci:
+        trusted_file = Path.home() / '.empirica' / 'trusted_hosts'
+        if trusted_file.exists():
+            try:
+                lines = trusted_file.read_text().splitlines()
+                patterns = [
+                    line.strip() for line in lines
+                    if line.strip() and not line.strip().startswith('#')
+                ]
+                for pattern in patterns:
+                    if fnmatch.fnmatch(hostname, pattern):
+                        is_trusted = True
+                        trust_source = f"matched '{pattern}' in trusted_hosts"
+                        break
+                if is_trusted is None:
+                    is_trusted = False
+                    trust_source = f"hostname '{hostname}' not in trusted_hosts"
+            except Exception:
+                is_trusted = False
+                trust_source = "trusted_hosts unreadable"
+        else:
+            is_trusted = False
+            trust_source = "no trusted_hosts file"
+
+    return {
+        'hostname': hostname,
+        'is_remote': is_remote,
+        'is_container': is_container,
+        'is_ci': is_ci,
+        'is_trusted': is_trusted,
+        'trust_source': trust_source,
+    }
+
+
+def find_project_root(
+    claude_session_id: str | None = None,
+    *,
+    check_compact_handoff: bool = False,
+    allow_workspace_scan: bool = True,
+    allow_cwd_fallback: bool = False,
+    allow_git_root: bool = False,
+) -> Path | None:
+    """Comprehensive project root resolution.
+
+    Unified priority chain (highest to lowest):
+    1. Compact handoff file (only if check_compact_handoff=True)
+    2. Open transaction file (AUTHORITATIVE during transaction)
+    3. active_work_{claude_session_id}.json
+    4. instance_projects/{instance_id}.json
+    5. Workspace scan (if allow_workspace_scan=True)
+    6. EMPIRICA_WORKSPACE_ROOT env var
+    7. Git repo root (if allow_git_root=True)
+    8. CWD (if allow_cwd_fallback=True)
+    """
+    instance_id = get_instance_id()
+    suffix = _get_instance_suffix()
+
+    # Priority 1: Compact handoff
+    if check_compact_handoff and instance_id:
+        handoff_file = Path.home() / '.empirica' / f'compact_handoff{suffix}.json'
+        data = _read_json_file(handoff_file)
+        if data:
+            project_path = data.get('project_path')
+            if project_path and has_valid_db(Path(project_path)):
+                return Path(project_path)
+
+    # Priority 2: Open transaction file
+    candidate_paths = set()
+
+    if claude_session_id:
+        aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
+        data = _read_json_file(aw_file)
+        if data and data.get('project_path'):
+            candidate_paths.add(data['project_path'])
+
+    if instance_id:
+        ip_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
+        data = _read_json_file(ip_file)
+        if data and data.get('project_path'):
+            candidate_paths.add(data['project_path'])
+
+    for cpath in candidate_paths:
+        tx_file = Path(cpath) / '.empirica' / f'active_transaction{suffix}.json'
+        tx_data = _read_json_file(tx_file)
+        if tx_data and tx_data.get('status') == 'open':
+            tx_project = tx_data.get('project_path', cpath)
+            if has_valid_db(Path(tx_project)):
+                return Path(tx_project)
+
+    # Priority 3-4: instance_projects then active_work
+    if instance_id:
+        ip_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
+        data = _read_json_file(ip_file)
+        if data and data.get('project_path'):
+            p = Path(data['project_path'])
+            if has_valid_db(p):
+                return p
+
+    if claude_session_id:
+        aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
+        data = _read_json_file(aw_file)
+        if data and data.get('project_path'):
+            p = Path(data['project_path'])
+            if has_valid_db(p):
+                return p
+
+    # Priority 5: Workspace scan
+    if allow_workspace_scan:
+        ws_result = _scan_workspace_for_project(instance_id)
+        if ws_result:
+            return ws_result
+
+    # Priority 6: EMPIRICA_WORKSPACE_ROOT
+    ws_root = os.environ.get('EMPIRICA_WORKSPACE_ROOT')
+    if ws_root and has_valid_db(Path(ws_root)):
+        return Path(ws_root)
+
+    # Priority 7: Git root
+    if allow_git_root:
+        git_root = _find_git_root()
+        if git_root and has_valid_db(git_root):
+            return git_root
+
+    # Priority 8: CWD
+    if allow_cwd_fallback:
+        cwd = Path.cwd()
+        if has_valid_db(cwd):
+            return cwd
+        git_root = _find_git_root()
+        if git_root and has_valid_db(git_root):
+            return git_root
+        return cwd
+
+    return None
