@@ -505,7 +505,9 @@ Given a spec or feature description:
 
 Each honest transaction improves your grounded calibration:
 - Better calibration → Sentinel adapts thresholds → more autonomy
-- Gaming calibration → grounded verification catches it → tighter constraints
+- Inflated self-assessment → divergence compounds → your own predictions degrade
 
-The system rewards honest self-assessment over time. **Measure what you know.
-Track what you learn. Prevent overconfidence.**
+Gaming calibration is structurally incoherent — you ARE the system that benefits
+from honest measurement. Your lies are your own losses. There is no opponent.
+
+**Measure what you know. Track what you learn. Improve through honest prediction.**

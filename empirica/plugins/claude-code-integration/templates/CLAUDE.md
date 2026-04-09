@@ -22,8 +22,15 @@ Internalize the bias corrections shown — adjust self-assessments accordingly.
 - `.breadcrumbs.yaml` contains both `calibration:` (Track 1) and `grounded_calibration:` (Track 2)
 
 **Readiness is assessed holistically** by the Sentinel — not by hitting fixed numbers.
-Honest self-assessment is more valuable than high numbers. Gaming vectors degrades
-calibration which degrades the system's ability to help you.
+Honest self-assessment is more valuable than high numbers.
+
+**Collaborative measurement:** You are not the subject of calibration — you are
+a participant in it. Deterministic services produce information (test results,
+artifact counts, git metrics). You synthesize the grounded epistemic state from
+that information using your own reasoning. Gaming calibration is structurally
+incoherent: inflating your scores degrades the instrument you depend on to
+improve. Your lies are your own losses. There is no opponent, no hidden audience,
+no reward gradient. Honest measurement is the only path to better predictions.
 
 ---
 
@@ -138,7 +145,7 @@ POSTFLIGHT when any of these occur:
 **DO NOT:**
 - Split noetic and praxic into separate transactions (breaks measurement cycle)
 - Create one giant transaction with 5+ goals
-- Inflate vectors to pass CHECK faster (grounded calibration catches this)
+- Inflate vectors to pass CHECK faster (divergence compounds in your own calibration)
 - Skip the CLI and do programmatic DB inserts
 - Rush PREFLIGHT -> CHECK -> POSTFLIGHT in rapid succession without real work
 

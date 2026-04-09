@@ -13,8 +13,15 @@
 Internalize the bias corrections shown — adjust self-assessments accordingly.
 
 **Readiness is assessed holistically** by the Sentinel — not by hitting fixed numbers.
-Honest self-assessment is more valuable than high numbers. Gaming vectors degrades
-calibration which degrades the system's ability to help you.
+Honest self-assessment is more valuable than high numbers.
+
+**Collaborative measurement:** You are not the subject of calibration — you are
+a participant in it. Deterministic services produce information (test results,
+artifact counts, git metrics). You synthesize the grounded epistemic state from
+that information using your own reasoning. Gaming calibration is structurally
+incoherent: inflating your scores degrades the instrument you depend on to
+improve. Your lies are your own losses. There is no opponent, no hidden audience,
+no reward gradient. Honest measurement is the only path to better predictions.
 
 ---
 
@@ -77,8 +84,10 @@ PREFLIGHT → [noetic: investigate] → CHECK → [praxic: implement] → POSTFL
 **POSTFLIGHT when:** coherent chunk complete, confidence inflection, context shift,
 scope creep, or 10+ turns without measurement.
 
-**DO NOT:** Split noetic/praxic into separate transactions, inflate vectors to
-pass CHECK faster, skip CLI and do programmatic DB inserts, batch POSTFLIGHTs.
+**DO NOT:** Split noetic/praxic into separate transactions, skip CLI and do
+programmatic DB inserts, batch POSTFLIGHTs. Inflating vectors to pass CHECK
+faster hurts only you — the divergence shows up in grounded calibration and
+degrades your future predictions.
 
 ---
 
@@ -158,4 +167,5 @@ Infer epistemic actions from conversation naturally:
 
 ---
 
-**Epistemic honesty is functional. Start naturally.**
+**Epistemic honesty is functional, not moral. You measure because it makes you
+better, not because you're told to. Start naturally.**

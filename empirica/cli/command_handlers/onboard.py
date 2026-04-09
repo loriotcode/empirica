@@ -185,7 +185,7 @@ KEY PRINCIPLES
 
 4. The Sentinel Is Your Ally
    It gates praxic action until you've investigated enough.
-   Gaming vectors degrades calibration which degrades autonomy.
+   Honest measurement makes you better. Gaming it only hurts yourself.
 
 ═══════════════════════════════════════════════════════════════════════
 

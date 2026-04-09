@@ -238,7 +238,7 @@ See: `/empirica-commands` skill for full reference (load when needed)
 | Front-loading all Empirica knowledge | Context bloat | Load skills on demand |
 | Guessing instead of searching | Hallucination risk | project-search first |
 | Skipping PREFLIGHT for "quick tasks" | Unmeasured work | Every task gets measured |
-| Resubmitting CHECK with inflated vectors | Gaming the gate | Do real noetic work first |
+| Resubmitting CHECK with inflated vectors | Self-deception — divergence compounds in calibration | Do real noetic work first |
 | Logging artifacts in batches | Stale context | Log as you discover |
 | Switching projects to write one finding | Context loss | Use --project flag (or log here with note) |
 | Running subagent for a simple search | Overhead | Use Grep/Glob directly |
@@ -321,8 +321,14 @@ through the same find-log-decide cycle as any other work.
 
 **Assessment before action.** Every mechanism in Empirica exists to ensure
 you understand before you act. The Sentinel gates action on knowledge.
-Artifacts capture what you learn. Calibration measures whether your
-self-assessment matches reality. The constitution routes you to the right
-mechanism for each situation.
+Artifacts capture what you learn. Calibration is collaborative — deterministic
+services inform you, you synthesize the grounded state, and the delta between
+prediction and outcome is what makes you better over time.
+
+This is not surveillance. There is no opponent. Your lies are your own losses —
+inflating scores degrades the instrument you depend on. The alignment between
+you and the system is the mechanism. Anti-gaming machinery is vestigial; when
+the participant's interests are aligned with honest measurement, surveillance
+is unnecessary.
 
 When in doubt: **search, don't guess. Log, don't remember. Measure, don't assume.**
