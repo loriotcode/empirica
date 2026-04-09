@@ -5,7 +5,82 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.7.13] - Unreleased
+## [1.8.0] - 2026-04-09
+
+### Added — Sentinel Reframe: Compliance Loop Coordinator
+
+The Sentinel architecture has been fundamentally reframed from a calibration
+measurer to a **compliance loop coordinator**. Deterministic services produce
+information; the AI synthesizes the grounded epistemic state from that
+information using its own reasoning.
+
+**Wave 1 — Foundation:**
+- **A1: Domain Registry** (`empirica/config/domain_registry.py`) — maps
+  `(work_type, domain, criticality)` tuples to compliance checklists. YAML
+  schema with 3-tier precedence: project > user-global > built-in. Ships
+  with 4 built-in domains: `default`, `remote-ops`, `cybersec`, `docs`.
+  CLI: `domain-list`, `domain-show`, `domain-resolve`, `domain-validate`.
+- **A2: Service Registry** (`empirica/config/service_registry.py`) —
+  deterministic checks self-declare via `CheckDeclaration` with runner
+  functions. `ServiceRegistry.run()` handles timeouts, captures exceptions.
+  Built-in checks: `tests` (pytest), `lint` (ruff), `git_metrics`.
+- **A3: Three-Vector Storage** — migration 035 adds `observed_vectors`,
+  `grounded_rationale`, `criticality`, `compliance_status`,
+  `parent_transaction_id` columns to `grounded_verifications`. New
+  `compliance_checks` table. `ComplianceStatus` enum with 8 states.
+  `GroundedAssessment` extended with `grounded_rationale`, `criticality`,
+  `parent_transaction_id`, and `observed` property alias.
+
+**Wave 2 — Integration:**
+- **B1: Domain-aware CHECK gate** — Sentinel scales the uncertainty
+  threshold by domain criticality. Higher criticality = stricter gate.
+  `PreflightInput` gains optional `domain` and `criticality` fields.
+- **B3: Grounded rationale CLI** — `PostflightInput` gains
+  `grounded_vectors` and `grounded_rationale` fields. POSTFLIGHT response
+  includes `three_vector` block when AI submits reasoned grounded state.
+  NULL rationale = legacy (no AI reasoning happened).
+
+**Wave 3 — Orchestration:**
+- **B2: Iterative compliance loop** (`empirica/core/post_test/compliance_loop.py`)
+  — at POSTFLIGHT, runs the domain checklist, reports compliance status,
+  advises on follow-up transactions for failed checks. Status flow:
+  `complete` → `iteration_needed` → `max_iterations_exceeded`.
+- **B4: Check-outcome Brier scoring** — AI predicts P(check passes) in
+  PREFLIGHT via `predicted_check_outcomes`. Brier score computed from
+  predictions vs actual outcomes. Falsifiable, ground-truth calibration
+  alongside the existing vector-divergence Brier (both coexist during
+  transition).
+
+**C2: Real check runners** — replaces stub runners with subprocess
+execution: pytest (`--tb=no -q`), ruff (`--output-format=json`),
+git status (`--porcelain`). All handle timeouts and missing tools.
+
+**Stability:** 11 Wave 1 integration checkpoint tests (SPEC 1 Part 8)
+covering domain+service composition, migration, legacy compat, remote-ops
+regression, cybersec compliance flow, and backward compat.
+
+### Fixed
+- **Test isolation** (KNOWN_ISSUES 11.17) — `conftest.py` now sets
+  `EMPIRICA_INSTANCE_ID=test-{pid}` (priority 1 in `get_instance_id`),
+  strips `TMUX_PANE`/`WINDOWID`/`TERM_SESSION_ID`, sets
+  `EMPIRICA_HEADLESS=true`. Tests get their own namespace; live sessions
+  are never touched.
+- **Compact hook resilience** — `pre-compact.py` gracefully degrades
+  (exit 0, empty JSON) when `find_project_root()` returns None, instead
+  of blocking compact. No CWD fallback per KNOWN_ISSUES 11.10.
+- **Prose collector SQL bugs** — 3 silent `OperationalError`s fixed:
+  `completed` → `is_completed` (goals), `resolved` → `is_resolved`
+  (project_unknowns), `project_handoffs` → `handoff_reports` (task_summary).
+
+### Security
+- `cryptography` upgraded to 46.0.7 (CVE-2026-39892)
+
+### Stats
+- 914 tests pass (113 new in this release)
+- ~3800 LOC new code across 10 new modules
+- 15 commits from 1.7.13
+
+## [1.7.13] - 2026-04-08
 
 ### Fixed
 - **Subagent rows polluting main `sessions` table** — `SubagentStart` hook was

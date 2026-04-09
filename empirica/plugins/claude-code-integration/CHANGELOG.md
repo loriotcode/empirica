@@ -5,6 +5,20 @@ All notable changes to the Empirica Integration Plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-04-09
+
+### Changed
+- **Sentinel gate** — domain-aware threshold scaling via `DomainRegistry`.
+  `_get_domain_scaled_thresholds()` adjusts uncertainty threshold by
+  `coverage_min` from the domain checklist. `PREFLIGHT` gains `domain`,
+  `criticality`, and `predicted_check_outcomes` fields.
+- **Pre-compact hook** — graceful degradation (exit 0, empty JSON) when
+  project root unresolvable, instead of blocking compact.
+
+### Fixed
+- Test isolation: `EMPIRICA_INSTANCE_ID=test-{pid}` prevents test
+  pollution of live `instance_projects` files.
+
 ## [1.0.0] - 2025-12-28
 
 ### Added

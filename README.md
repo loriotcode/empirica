@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.7.13-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.7.13)
+[![Version](https://img.shields.io/badge/version-1.8.0-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.8.0)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -34,9 +34,9 @@ AI coding agents today have no self-awareness about what they know:
 |------------|-------------------|
 | **Measures before acting** | AI investigates your codebase before touching it. The Sentinel gate blocks edits until understanding is demonstrated |
 | **Remembers across sessions** | Findings, dead-ends, and learnings persist in a 4-layer memory system. Session 3 starts where Session 2 left off |
-| **Prevents confident mistakes** | The CHECK gate uses thresholds computed dynamically from calibration data before allowing action |
+| **Prevents confident mistakes** | The CHECK gate uses domain-aware thresholds scaled by criticality — cybersec/high is stricter than default/low |
 | **Shows confidence in real-time** | Live statusline in your terminal: `[empirica] ⚡94% ↕70% │ 🎯3 │ POST 🔍92% │ K:95% C:92%` |
-| **Calibrates against reality** | Dual-track verification compares AI self-assessment against objective evidence — tests, git metrics, goal completion |
+| **Calibrates against reality** | Three-vector model: self-assessed, observed (from deterministic checks), and AI-reasoned grounded state with rationale. Domain compliance loops iterate until all checks pass |
 | **Tracks your codebase** | Temporal entity model auto-extracts functions, classes, and imports from every file edit — the AI knows what's alive and what's stale |
 | **Works through natural language** | You describe tasks normally. The AI operates the measurement system automatically |
 
@@ -100,13 +100,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.7.13-alpine
+docker pull nubaeon/empirica:1.8.0-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.7.13
+docker pull nubaeon/empirica:1.8.0
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.7.13 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.8.0 /bin/bash
 ```
 </details>
 
@@ -266,18 +266,19 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.7.13
+## What's New in 1.8.0 — Sentinel Reframe
 
-- **Subagent rows polluting main `sessions` table** — `SubagentStart` hook was
-- **Cross-project session reuse leaving parent unrecoverable after compact**
-- **Test coverage:** `tests/test_subagent_sessions.py` — 13 new tests
-- **Grounded calibration honesty — `insufficient_evidence` and `remote-ops`** —
-- **CWD overrides bypassing open transactions at compact boundary**
-- **Auto-memory loaded from wrong project across CWD mismatch**
-- **`project-switch` auto-heal** (KNOWN_ISSUES 11.25, completes the
-- **`empirica diagnose` command** — new CLI command that walks the
+The Sentinel is now a **compliance loop coordinator**. Deterministic services produce information; the AI synthesizes the grounded epistemic state.
 
-### Previous Highlights (1.6.11–1.7.0)
+- **Domain Registry** — `(work_type, domain, criticality)` tuples map to compliance checklists. 4 built-in domains: `default`, `remote-ops`, `cybersec`, `docs`. CLI: `domain-list`, `domain-show`, `domain-resolve`
+- **Domain-aware CHECK gate** — uncertainty threshold scales by criticality. `cybersec/high` is stricter than `default/low`
+- **Three-vector model** — `self_assessed`, `observed` (from deterministic checks), and AI-reasoned `grounded` state with rationale
+- **Compliance loop** — POSTFLIGHT runs domain checklist, reports status, advises on follow-up for failed checks
+- **Check-outcome Brier** — AI predicts P(check passes), Brier measures against actual outcomes. Falsifiable calibration
+- **Real check runners** — pytest, ruff, and git status execute as subprocess checks (not stubs)
+- **Test isolation** — tests no longer pollute live sessions via TMUX_PANE inheritance
+
+### Previous Highlights (1.7.0–1.7.13)
 
 - **Empirica Constitution** — 12-section governance framework routing situations to mechanisms
 - **Epistemic Persistence Protocol (EPP)** — Calibrated position-holding under pushback, replacing AAP
@@ -317,6 +318,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.7.13
+**Version:** 1.8.0
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*
