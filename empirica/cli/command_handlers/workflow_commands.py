@@ -295,6 +295,7 @@ def handle_preflight_submit_command(args):
             work_type = getattr(validated, 'work_type', None)
             domain = getattr(validated, 'domain', None)
             criticality = getattr(validated, 'criticality', None)
+            predicted_check_outcomes = getattr(validated, 'predicted_check_outcomes', None)
         else:
             session_id = args.session_id
             vectors = parse_json_safely(args.vectors) if isinstance(args.vectors, str) else args.vectors
@@ -409,6 +410,8 @@ def handle_preflight_submit_command(args):
                                     tx_d['domain'] = domain
                                 if criticality:
                                     tx_d['criticality'] = criticality
+                                if predicted_check_outcomes:
+                                    tx_d['predicted_check_outcomes'] = predicted_check_outcomes
                                 # Auto-select cascade profile from work parameters
                                 from empirica.config.threshold_loader import ThresholdLoader
                                 selected_profile = ThresholdLoader.select_profile_for_work(
@@ -2731,8 +2734,25 @@ def handle_postflight_submit_command(args):
             }
 
             # B2: Add compliance block if domain checks ran
+            # B4: Compute check-outcome Brier if AI made predictions
             if compliance_result is not None:
-                result["compliance"] = compliance_result.to_dict()
+                compliance_dict = compliance_result.to_dict()
+                # Attach predictions from PREFLIGHT to check results
+                _predictions = (_tx or {}).get('predicted_check_outcomes', {})
+                if _predictions and compliance_result.check_results:
+                    for cr in compliance_result.check_results:
+                        check_id = cr.get("check_id")
+                        if check_id and check_id in _predictions:
+                            cr["predicted_pass"] = _predictions[check_id]
+                    # Compute Brier on predictions vs actuals
+                    try:
+                        from empirica.core.post_test.dynamic_thresholds import compute_check_brier
+                        check_brier = compute_check_brier(compliance_result.check_results)
+                        if check_brier:
+                            compliance_dict["check_brier"] = check_brier
+                    except Exception:
+                        pass
+                result["compliance"] = compliance_dict
 
             # B3: Three-vector block — only present when AI submitted grounded_vectors
             if postflight_grounded_vectors:

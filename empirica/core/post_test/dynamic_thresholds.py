@@ -129,6 +129,57 @@ def compute_brier_score(predictions: list[tuple[float, float]]) -> float:
     return sum((p - o) ** 2 for p, o in predictions) / len(predictions)
 
 
+def compute_check_brier(
+    check_results: list[dict],
+) -> dict | None:
+    """Compute Brier score from compliance check predictions vs actuals (B4).
+
+    This is the falsifiable Brier path: the AI predicts P(check passes),
+    the check runs, the outcome is ground truth. Unlike vector-divergence
+    Brier, this measures a real falsifiable prediction.
+
+    Args:
+        check_results: List of dicts with 'passed' (bool) and optional
+                      'predicted_pass' (float 0-1). Only checks with
+                      predictions contribute to the score.
+
+    Returns:
+        Dict with brier_score, n_predictions, per_check breakdown,
+        or None if no predictions were made.
+    """
+    pairs = []
+    per_check = []
+    for cr in check_results:
+        predicted = cr.get("predicted_pass")
+        if predicted is None:
+            continue
+        actual = 1.0 if cr.get("passed") else 0.0
+        contribution = (predicted - actual) ** 2
+        pairs.append((predicted, actual))
+        per_check.append({
+            "check_id": cr.get("check_id", "unknown"),
+            "predicted_pass": predicted,
+            "actual_pass": actual == 1.0,
+            "brier_contribution": round(contribution, 4),
+        })
+
+    if not pairs:
+        return None
+
+    brier = sum((p - o) ** 2 for p, o in pairs) / len(pairs)
+    return {
+        "brier_score": round(brier, 4),
+        "n_predictions": len(pairs),
+        "per_check": per_check,
+        "interpretation": (
+            "perfect" if brier < 0.01 else
+            "good" if brier < 0.1 else
+            "moderate" if brier < 0.25 else
+            "poor"
+        ),
+    }
+
+
 def compute_brier_decomposition(
     predictions: list[tuple[float, float]],
     n_bins: int = 10,

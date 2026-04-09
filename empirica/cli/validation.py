@@ -119,6 +119,14 @@ class PreflightInput(BaseModel):
         description="Criticality level — determines required check rigor",
         pattern="^(low|medium|high|critical)$",
     )
+    predicted_check_outcomes: dict[str, float] | None = Field(
+        default=None,
+        description=(
+            "AI's predicted probability of each compliance check passing. "
+            "Keys are check_ids from ServiceRegistry. Used for Brier scoring "
+            "of check-outcome predictions (B4)."
+        ),
+    )
 
     @field_validator('session_id')
     @classmethod
