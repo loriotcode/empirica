@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 _qdrant_available = None
 _qdrant_warned = False
 
+
+class CollectionDimensionMismatchError(RuntimeError):
+    """Raised when an existing Qdrant collection and embeddings provider disagree."""
+
 def _check_qdrant_available() -> bool:
     """Check if Qdrant is available and enabled."""
     global _qdrant_available, _qdrant_warned
@@ -77,6 +81,131 @@ def _get_vector_size() -> int:
     except Exception as e:
         logger.debug(f"Could not get vector size: {e}, defaulting to 1024")
         return 1024
+
+
+def _get_provider_context() -> str:
+    """Return a short provider/model label for mismatch errors."""
+    try:
+        from .embeddings import get_provider_info
+
+        info = get_provider_info()
+        provider = info.get("provider", "unknown")
+        model = info.get("model", "unknown")
+        return f"{provider}/{model}"
+    except Exception:
+        return "current embeddings configuration"
+
+
+def _extract_vector_size(vectors_config) -> int | None:
+    """Extract vector size from Qdrant's collection config structure."""
+    size = getattr(vectors_config, "size", None)
+    if isinstance(size, int):
+        return size
+    if isinstance(vectors_config, dict):
+        for params in vectors_config.values():
+            nested_size = getattr(params, "size", None)
+            if isinstance(nested_size, int):
+                return nested_size
+    return None
+
+
+def _get_collection_vector_size(client, collection_name: str) -> int | None:
+    """Read the configured vector size for an existing Qdrant collection."""
+    try:
+        coll_info = client.get_collection(collection_name)
+        vectors_config = coll_info.config.params.vectors
+        return _extract_vector_size(vectors_config)
+    except Exception as e:
+        logger.debug(f"Could not read collection dimensions for {collection_name}: {e}")
+        return None
+
+
+def _create_collection_with_size(client, collection_name: str, vector_size: int) -> None:
+    """Create a single-vector cosine collection with the resolved dimension."""
+    _, Distance, VectorParams, _ = _get_qdrant_imports()
+    client.create_collection(
+        collection_name=collection_name,
+        vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+    )
+
+
+def _ensure_collection_matches_vector(
+    client,
+    collection_name: str,
+    vector_size: int,
+    *,
+    create_if_missing: bool = False,
+) -> bool:
+    """Ensure a collection exists with the same dimension as the resolved embeddings."""
+    if client.collection_exists(collection_name):
+        existing_size = _get_collection_vector_size(client, collection_name)
+        if existing_size is not None and existing_size != vector_size:
+            provider_context = _get_provider_context()
+            raise CollectionDimensionMismatchError(
+                f"Qdrant collection '{collection_name}' is configured for {existing_size}d vectors, "
+                f"but {provider_context} resolved to {vector_size}d. "
+                "Update EMPIRICA_EMBEDDINGS_MODEL (or related provider config) and rebuild Qdrant with "
+                "`empirica rebuild --qdrant` before writing semantic data."
+            )
+        return False
+
+    if create_if_missing:
+        _create_collection_with_size(client, collection_name, vector_size)
+        logger.info(f"Created Qdrant collection {collection_name} with {vector_size} dimensions")
+        return True
+
+    return False
+
+
+def _get_embedding_for_collection(
+    client,
+    collection_name: str,
+    text: str,
+    *,
+    create_if_missing: bool = False,
+) -> list[float] | None:
+    """Embed text and verify the target collection matches the embedding dimension."""
+    embedding = _get_embedding_safe(text)
+    if embedding is None:
+        return None
+    _ensure_collection_matches_vector(
+        client,
+        collection_name,
+        len(embedding),
+        create_if_missing=create_if_missing,
+    )
+    return embedding
+
+
+def _get_embeddings_batch_for_collection(
+    client,
+    collection_name: str,
+    texts: list[str],
+    *,
+    create_if_missing: bool = False,
+) -> list[list[float] | None]:
+    """Batch embed texts and verify the target collection matches the batch dimension."""
+    vectors = _get_embeddings_batch(texts)
+    first_vector = next((vector for vector in vectors if vector is not None), None)
+    if first_vector is None:
+        return vectors
+
+    vector_size = len(first_vector)
+    _ensure_collection_matches_vector(
+        client,
+        collection_name,
+        vector_size,
+        create_if_missing=create_if_missing,
+    )
+
+    for vector in vectors:
+        if vector is not None and len(vector) != vector_size:
+            provider_context = _get_provider_context()
+            raise CollectionDimensionMismatchError(
+                f"Embeddings batch for '{collection_name}' returned mixed dimensions "
+                f"under {provider_context}. Rebuild Qdrant after fixing the configured model."
+            )
+    return vectors
 
 
 def _get_qdrant_client():

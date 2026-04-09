@@ -780,7 +780,9 @@ def handle_setup_claude_code_command(args):
                         print("✓ Ollama: installed, qwen3-embedding available (1024d)")
                     elif "nomic-embed-text" in result.stdout:
                         embedding_ok = True
-                        print("✓ Ollama: installed, nomic-embed-text available (consider upgrading to qwen3-embedding)")
+                        print("✓ Ollama: installed, nomic-embed-text available (768d)")
+                        print("    If Qdrant collections were created at 1024d, switch models and run:")
+                        print("    empirica rebuild --qdrant")
                     else:
                         print("⚠ Ollama: installed, but no embedding model pulled")
                         print("    Fix: ollama pull qwen3-embedding")

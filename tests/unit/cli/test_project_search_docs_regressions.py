@@ -18,7 +18,6 @@ def test_project_search_focused_includes_docs_by_default():
     client = type("DummyClient", (), {"collection_exists": lambda self, name: False})()
 
     with patch("empirica.core.qdrant.memory._check_qdrant_available", return_value=True), \
-         patch("empirica.core.qdrant.memory._get_embedding_safe", return_value=[0.1, 0.2, 0.3]), \
          patch("empirica.core.qdrant.memory._get_qdrant_client", return_value=client):
         results = search("project-id", "workflow state model")
 
