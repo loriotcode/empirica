@@ -2698,6 +2698,27 @@ def handle_postflight_submit_command(args):
                 checkpoint_id=checkpoint_id, postflight_transaction_id=postflight_transaction_id,
             )
 
+            # B2: Compliance loop — run domain checklist after grounded verification
+            compliance_result = None
+            try:
+                from empirica.core.post_test.compliance_loop import run_compliance_checks
+                # Read domain/criticality from transaction file
+                _tx = R.transaction_read() or {}
+                _pf_domain = _tx.get('domain')
+                _pf_criticality = _tx.get('criticality')
+                _pf_work_type = _tx.get('work_type', postflight_work_type)
+                if _pf_domain or _pf_criticality:
+                    compliance_result = run_compliance_checks(
+                        session_id=session_id,
+                        transaction_id=postflight_transaction_id,
+                        work_type=_pf_work_type,
+                        domain=_pf_domain,
+                        criticality=_pf_criticality,
+                        project_path=resolved_project_path,
+                    )
+            except Exception as e:
+                logger.debug(f"Compliance loop failed (non-fatal): {e}")
+
             result = {
                 "ok": True,
                 "session_id": session_id,
@@ -2708,6 +2729,10 @@ def handle_postflight_submit_command(args):
                 "calibration": grounded_verification,
                 "sentinel": sentinel_decision.value if sentinel_decision else None,
             }
+
+            # B2: Add compliance block if domain checks ran
+            if compliance_result is not None:
+                result["compliance"] = compliance_result.to_dict()
 
             # B3: Three-vector block — only present when AI submitted grounded_vectors
             if postflight_grounded_vectors:
