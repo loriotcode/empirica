@@ -26,6 +26,7 @@ from .command_handlers.domain_commands import (
     handle_domain_validate_command,
 )
 from .command_handlers.edit_verification_command import handle_edit_with_confidence_command
+from .command_handlers.resolve_command import handle_resolve_command
 from .command_handlers.issue_capture_commands import (
     handle_issue_export_command,
     handle_issue_handoff_command,
@@ -190,6 +191,7 @@ from .parsers import (
     add_concept_graph_parsers,
     add_config_parsers,
     add_domain_parsers,
+    add_resolve_parser,
     add_edit_verification_parsers,
     add_epistemics_parsers,
     add_investigation_parsers,
@@ -259,6 +261,7 @@ def create_argument_parser():
     add_utility_parsers(subparsers)
     add_config_parsers(subparsers)
     add_domain_parsers(subparsers)
+    add_resolve_parser(subparsers)
     add_monitor_parsers(subparsers)
     add_action_parsers(subparsers)
     add_checkpoint_parsers(subparsers)
@@ -432,6 +435,9 @@ def main(args=None):
             'domain-show': handle_domain_show_command,
             'domain-resolve': handle_domain_resolve_command,
             'domain-validate': handle_domain_validate_command,
+
+            # Unified resolve command
+            'resolve': handle_resolve_command,
 
             # Monitor commands
             'monitor': handle_monitor_command,

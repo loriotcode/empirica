@@ -48,7 +48,7 @@ from .cascade_parsers import add_cascade_parsers
 from .checkpoint_parsers import add_checkpoint_parsers
 from .concept_graph_parsers import add_concept_graph_parsers
 from .config_parsers import add_config_parsers
-from .domain_parsers import add_domain_parsers
+from .domain_parsers import add_domain_parsers, add_resolve_parser
 from .edit_verification_parsers import add_edit_verification_parsers
 from .epistemics_parsers import add_epistemics_parsers
 from .investigation_parsers import add_investigation_parsers
@@ -108,4 +108,5 @@ __all__ = [
     'add_profile_parsers',
     'add_serve_parsers',
     'add_domain_parsers',
+    'add_resolve_parser',
 ]
