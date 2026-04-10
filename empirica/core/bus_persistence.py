@@ -175,8 +175,6 @@ class QdrantBusObserver(EpistemicObserver):
         self.session_id = session_id
         self._available = self._check_available()
         self._event_count = 0
-        if self._available:
-            self._ensure_collection()
 
     def _check_available(self) -> bool:
         """Check if Qdrant is available."""
@@ -193,23 +191,18 @@ class QdrantBusObserver(EpistemicObserver):
                 _get_qdrant_client,
                 _get_vector_size,
             )
+            from empirica.core.qdrant.connection import _ensure_collection_matches_vector
             client = _get_qdrant_client()
             if client is None:
                 self._available = False
                 return
 
-            collections = [c.name for c in client.get_collections().collections]
-            if self.COLLECTION_NAME not in collections:
-                from qdrant_client.models import Distance, VectorParams
-                vector_size = _get_vector_size()
-                client.create_collection(
-                    collection_name=self.COLLECTION_NAME,
-                    vectors_config=VectorParams(
-                        size=vector_size,
-                        distance=Distance.COSINE,
-                    ),
-                )
-                logger.info(f"Created Qdrant collection: {self.COLLECTION_NAME}")
+            _ensure_collection_matches_vector(
+                client,
+                self.COLLECTION_NAME,
+                _get_vector_size(),
+                create_if_missing=False,
+            )
         except Exception as e:
             logger.debug(f"Could not ensure Qdrant collection: {e}")
             self._available = False
@@ -223,21 +216,25 @@ class QdrantBusObserver(EpistemicObserver):
             from qdrant_client.models import PointStruct
 
             from empirica.core.qdrant.vector_store import (
-                _get_embedding_safe,
                 _get_qdrant_client,
             )
+            from empirica.core.qdrant.connection import _get_embedding_for_collection
 
             # Create searchable text from event
             event_text = (
                 f"{event.event_type}: {event.agent_id} "
                 f"{json.dumps(event.data)[:500]}"
             )
-            embedding = _get_embedding_safe(event_text)
-            if embedding is None:
-                return
-
             client = _get_qdrant_client()
             if client is None:
+                return
+            embedding = _get_embedding_for_collection(
+                client,
+                self.COLLECTION_NAME,
+                event_text,
+                create_if_missing=True,
+            )
+            if embedding is None:
                 return
 
             point_id = str(uuid.uuid4())
@@ -278,18 +275,19 @@ class QdrantBusObserver(EpistemicObserver):
 
         try:
             from qdrant_client.models import FieldCondition, Filter, MatchValue
-
-            from empirica.core.qdrant.vector_store import (
-                _get_embedding_safe,
-                _get_qdrant_client,
-            )
-
-            embedding = _get_embedding_safe(query_text)
-            if embedding is None:
-                return []
+            from empirica.core.qdrant.connection import _get_embedding_for_collection
+            from empirica.core.qdrant.vector_store import _get_qdrant_client
 
             client = _get_qdrant_client()
             if client is None:
+                return []
+            embedding = _get_embedding_for_collection(
+                client,
+                self.COLLECTION_NAME,
+                query_text,
+                create_if_missing=False,
+            )
+            if embedding is None:
                 return []
 
             query_filter = None

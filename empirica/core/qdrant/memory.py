@@ -14,11 +14,10 @@ from empirica.core.qdrant.collections import (
 )
 from empirica.core.qdrant.connection import (
     _check_qdrant_available,
-    _get_embedding_safe,
-    _get_embeddings_batch,
+    _get_embedding_for_collection,
+    _get_embeddings_batch_for_collection,
     _get_qdrant_client,
     _get_qdrant_imports,
-    _get_vector_size,
     _rest_search,
     logger,
 )
@@ -50,18 +49,13 @@ def embed_single_memory_item(
         return False
 
     try:
-        _, Distance, VectorParams, PointStruct = _get_qdrant_imports()
+        _, _, _, PointStruct = _get_qdrant_imports()
         client = _get_qdrant_client()
         if client is None:
             return False
         coll = _memory_collection(project_id)
 
-        # Ensure collection exists
-        if not client.collection_exists(coll):
-            vector_size = _get_vector_size()
-            client.create_collection(coll, vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE))
-
-        vector = _get_embedding_safe(text)
+        vector = _get_embedding_for_collection(client, coll, text, create_if_missing=True)
         if vector is None:
             return False
 
@@ -103,22 +97,20 @@ def upsert_docs(project_id: str, docs: list[dict]) -> int:
         return 0
 
     try:
-        _, Distance, VectorParams, PointStruct = _get_qdrant_imports()
+        _, _, _, PointStruct = _get_qdrant_imports()
         client = _get_qdrant_client()
         if client is None:
             return 0
         coll = _docs_collection(project_id)
 
-        if not client.collection_exists(coll):
-            vector_size = _get_vector_size()
-            client.create_collection(
-                coll,
-                vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
-            )
-
         points = []
         for d in docs:
-            vector = _get_embedding_safe(d.get("text", ""))
+            vector = _get_embedding_for_collection(
+                client,
+                coll,
+                d.get("text", ""),
+                create_if_missing=not client.collection_exists(coll),
+            )
             if vector is None:
                 continue
             payload = {
@@ -160,7 +152,12 @@ def upsert_memory(project_id: str, items: list[dict]) -> int:
         vectors = []
         for i in range(0, len(texts), embed_batch_size):
             batch_texts = texts[i:i + embed_batch_size]
-            batch_vectors = _get_embeddings_batch(batch_texts)
+            batch_vectors = _get_embeddings_batch_for_collection(
+                client,
+                coll,
+                batch_texts,
+                create_if_missing=not client.collection_exists(coll),
+            )
             vectors.extend(batch_vectors)
 
         points = []
@@ -242,10 +239,6 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
     if not _check_qdrant_available():
         return empty_result
 
-    qvec = _get_embedding_safe(query_text)
-    if qvec is None:
-        return empty_result
-
     # Collection config: (name, collection_fn, payload_fields)
     _SEARCH_COLLECTIONS = {
         "docs": (_docs_collection, ["doc_path", "tags", "concepts"]),
@@ -296,6 +289,10 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
         try:
             coll_name = coll_fn(project_id)
             if client.collection_exists(coll_name):
+                qvec = _get_embedding_for_collection(client, coll_name, query_text, create_if_missing=False)
+                if qvec is None:
+                    results[kind_name] = []
+                    continue
                 resp = client.query_points(
                     collection_name=coll_name, query=qvec, limit=limit,
                     with_payload=True, query_filter=query_filter)
@@ -320,7 +317,15 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
             if kind_name not in _SEARCH_COLLECTIONS:
                 continue
             coll_fn, fields = _SEARCH_COLLECTIONS[kind_name]
-            raw = _rest_search(coll_fn(project_id), qvec, limit)
+            coll_name = coll_fn(project_id)
+            if client.collection_exists(coll_name):
+                qvec = _get_embedding_for_collection(client, coll_name, query_text, create_if_missing=False)
+            else:
+                qvec = None
+            if qvec is None:
+                results[kind_name] = []
+                continue
+            raw = _rest_search(coll_name, qvec, limit)
             results[kind_name] = [
                 {"score": d.get('score', 0.0),
                  **{f: (d.get('payload') or {}).get(f) for f in fields}}
