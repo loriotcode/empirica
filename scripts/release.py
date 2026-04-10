@@ -396,6 +396,16 @@ class ReleaseManager:
 
         info(f"Sweep complete: {updated} files updated")
 
+        # Clear bytecode cache so stale .pyc files don't shadow new version strings
+        cleared = 0
+        for pycache in self.repo_root.rglob("__pycache__"):
+            if pycache.is_dir():
+                import shutil
+                shutil.rmtree(pycache, ignore_errors=True)
+                cleared += 1
+        if cleared:
+            info(f"Cleared {cleared} __pycache__ directories")
+
     def sync_readme_whats_new(self):
         """Sync README 'What's New' section from CHANGELOG.
 

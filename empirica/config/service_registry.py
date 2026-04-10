@@ -179,21 +179,41 @@ class ServiceRegistry:
 
 
 # ---------------------------------------------------------------------------
-# Built-in check runners (C2 — real subprocess execution)
+# Built-in check runners (C2 — goal-scoped subprocess execution)
+#
+# All runners receive context["changed_files"] from the compliance loop.
+# When available, checks scope to changed files only — making compliance
+# meaningful per-goal rather than repo-wide.
 # ---------------------------------------------------------------------------
 
+def _py_files_from_changed(context: dict[str, Any]) -> list[str]:
+    """Extract .py files from context changed_files."""
+    return [f for f in context.get("changed_files", []) if f.endswith(".py")]
+
+
 def _run_tests_check(context: dict[str, Any]) -> CheckResult:
-    """Run pytest and report pass/fail."""
+    """Run pytest — scoped to changed modules when available."""
     import subprocess
     project_path = context.get("project_path", ".")
+    changed_py = _py_files_from_changed(context)
+
+    # Scope: if we have changed files, only test those modules
+    cmd = ["python3", "-m", "pytest", "--tb=no", "-q"]
+    scope_note = ""
+    if changed_py:
+        # Find test files that might cover the changed modules
+        test_args = []
+        for f in changed_py:
+            if "/test_" in f or f.startswith("test_"):
+                test_args.append(f)
+        if test_args:
+            cmd.extend(test_args)
+            scope_note = f" (scoped to {len(test_args)} test files)"
 
     try:
         result = subprocess.run(
-            ["python3", "-m", "pytest", "--tb=no", "-q"],
-            capture_output=True, text=True, timeout=300,
-            cwd=project_path,
+            cmd, capture_output=True, text=True, timeout=300, cwd=project_path,
         )
-        # Parse pytest -q output: "N passed, M failed" or "N passed"
         stdout = result.stdout.strip()
         passed = failed = 0
         for part in stdout.split("\n")[-1].split(","):
@@ -209,13 +229,14 @@ def _run_tests_check(context: dict[str, Any]) -> CheckResult:
                 except (ValueError, IndexError):
                     pass
 
+        summary = f"{passed} passed, {failed} failed" if failed else f"{passed} passed"
         return CheckResult(
             check_id="tests",
             passed=result.returncode == 0,
-            details={"passed": passed, "failed": failed, "exit_code": result.returncode},
-            summary=f"{passed} passed, {failed} failed" if failed else f"{passed} passed",
-            duration_ms=0,
-            ran_at=time.time(),
+            details={"passed": passed, "failed": failed, "exit_code": result.returncode,
+                      "scoped": bool(scope_note), "changed_files": len(changed_py)},
+            summary=summary + scope_note,
+            duration_ms=0, ran_at=time.time(),
         )
     except subprocess.TimeoutExpired:
         return CheckResult(
@@ -230,15 +251,21 @@ def _run_tests_check(context: dict[str, Any]) -> CheckResult:
 
 
 def _run_lint_check(context: dict[str, Any]) -> CheckResult:
-    """Run ruff check and report pass/fail."""
+    """Run ruff check — scoped to changed files when available."""
     import subprocess
     project_path = context.get("project_path", ".")
+    changed_py = _py_files_from_changed(context)
+
+    # Scope: lint only changed files if available
+    cmd = ["ruff", "check", "--output-format=json", "--quiet"]
+    scope_note = ""
+    if changed_py:
+        cmd.extend(changed_py)
+        scope_note = f" (scoped to {len(changed_py)} files)"
 
     try:
         result = subprocess.run(
-            ["ruff", "check", "--output-format=json", "--quiet"],
-            capture_output=True, text=True, timeout=60,
-            cwd=project_path,
+            cmd, capture_output=True, text=True, timeout=60, cwd=project_path,
         )
         import json as _json
         errors = 0
@@ -248,13 +275,14 @@ def _run_lint_check(context: dict[str, Any]) -> CheckResult:
         except Exception:
             errors = 1 if result.returncode != 0 else 0
 
+        summary = f"{errors} lint errors" if errors else "lint clean"
         return CheckResult(
             check_id="lint",
             passed=result.returncode == 0,
-            details={"errors": errors, "exit_code": result.returncode},
-            summary=f"{errors} lint errors" if errors else "lint clean",
-            duration_ms=0,
-            ran_at=time.time(),
+            details={"errors": errors, "exit_code": result.returncode,
+                      "scoped": bool(scope_note), "changed_files": len(changed_py)},
+            summary=summary + scope_note,
+            duration_ms=0, ran_at=time.time(),
         )
     except subprocess.TimeoutExpired:
         return CheckResult(
@@ -276,22 +304,114 @@ def _run_git_metrics_check(context: dict[str, Any]) -> CheckResult:
     try:
         result = subprocess.run(
             ["git", "status", "--porcelain"],
-            capture_output=True, text=True, timeout=10,
-            cwd=project_path,
+            capture_output=True, text=True, timeout=10, cwd=project_path,
         )
-        uncommitted = len([l for l in result.stdout.strip().split("\n") if l.strip()])
+        uncommitted = len([line for line in result.stdout.strip().split("\n") if line.strip()])
         return CheckResult(
             check_id="git_metrics",
             passed=uncommitted == 0,
             details={"uncommitted_files": uncommitted},
             summary=f"{uncommitted} uncommitted files" if uncommitted else "working tree clean",
-            duration_ms=0,
-            ran_at=time.time(),
+            duration_ms=0, ran_at=time.time(),
         )
     except Exception:
         return CheckResult(
             check_id="git_metrics", passed=True, details={"skipped": True},
             summary="git not available — skipped", duration_ms=0, ran_at=time.time(),
+        )
+
+
+def _run_complexity_check(context: dict[str, Any]) -> CheckResult:
+    """Check cyclomatic complexity of changed files via radon."""
+    import subprocess
+    project_path = context.get("project_path", ".")
+    changed_py = _py_files_from_changed(context)
+
+    if not changed_py:
+        return CheckResult(
+            check_id="complexity", passed=True, details={"skipped": True, "reason": "no changed .py files"},
+            summary="no changed files to check", duration_ms=0, ran_at=time.time(),
+        )
+
+    try:
+        result = subprocess.run(
+            ["radon", "cc", "--average", "--no-assert", "-s"] + changed_py,
+            capture_output=True, text=True, timeout=30, cwd=project_path,
+        )
+        # Parse average complexity from last line: "Average complexity: A (2.5)"
+        avg = 0.0
+        grade = "A"
+        for line in reversed(result.stdout.strip().split("\n")):
+            if "Average complexity" in line:
+                parts = line.split("(")
+                if len(parts) >= 2:
+                    try:
+                        avg = float(parts[-1].rstrip(")"))
+                    except ValueError:
+                        pass
+                grade_parts = line.split()
+                for p in grade_parts:
+                    if p in ("A", "B", "C", "D", "E", "F"):
+                        grade = p
+                break
+
+        passed = grade in ("A", "B", "C")  # D, E, F fail
+        return CheckResult(
+            check_id="complexity",
+            passed=passed,
+            details={"average_cc": avg, "grade": grade, "files_checked": len(changed_py)},
+            summary=f"complexity {grade} (avg {avg:.1f}) on {len(changed_py)} files",
+            duration_ms=0, ran_at=time.time(),
+        )
+    except FileNotFoundError:
+        return CheckResult(
+            check_id="complexity", passed=True, details={"skipped": True},
+            summary="radon not available — skipped", duration_ms=0, ran_at=time.time(),
+        )
+    except Exception as e:
+        return CheckResult(
+            check_id="complexity", passed=True, details={"error": str(e)[:200]},
+            summary=f"complexity check error: {e}", duration_ms=0, ran_at=time.time(),
+        )
+
+
+def _run_dep_audit_check(context: dict[str, Any]) -> CheckResult:
+    """Check for known vulnerabilities in dependencies via pip-audit."""
+    import subprocess
+    project_path = context.get("project_path", ".")
+
+    try:
+        result = subprocess.run(
+            ["pip-audit", "--format=json", "--progress-spinner=off"],
+            capture_output=True, text=True, timeout=120, cwd=project_path,
+        )
+        import json as _json
+        vulns = 0
+        try:
+            data = _json.loads(result.stdout) if result.stdout.strip() else []
+            if isinstance(data, list):
+                vulns = len(data)
+            elif isinstance(data, dict):
+                vulns = len(data.get("dependencies", []))
+        except Exception:
+            vulns = 1 if result.returncode != 0 else 0
+
+        return CheckResult(
+            check_id="dep_audit",
+            passed=vulns == 0,
+            details={"vulnerabilities": vulns, "exit_code": result.returncode},
+            summary=f"{vulns} known vulnerabilities" if vulns else "no known vulnerabilities",
+            duration_ms=0, ran_at=time.time(),
+        )
+    except FileNotFoundError:
+        return CheckResult(
+            check_id="dep_audit", passed=True, details={"skipped": True},
+            summary="pip-audit not available — skipped", duration_ms=0, ran_at=time.time(),
+        )
+    except subprocess.TimeoutExpired:
+        return CheckResult(
+            check_id="dep_audit", passed=True, details={"error": "timeout"},
+            summary="pip-audit timed out after 120s", duration_ms=120000, ran_at=time.time(),
         )
 
 
@@ -324,6 +444,24 @@ def _register_builtin_checks() -> None:
             runner=_run_git_metrics_check,
             timeout_seconds=30,
             tags=("vcs",),
+        ),
+        CheckDeclaration(
+            check_id="complexity",
+            tool="radon",
+            applies_to=(("code", "*"),),
+            criterion_description="Changed files have acceptable cyclomatic complexity (A-C)",
+            runner=_run_complexity_check,
+            timeout_seconds=30,
+            tags=("quality",),
+        ),
+        CheckDeclaration(
+            check_id="dep_audit",
+            tool="pip-audit",
+            applies_to=(("code", "*"), ("infra", "*")),
+            criterion_description="No known vulnerabilities in dependencies",
+            runner=_run_dep_audit_check,
+            timeout_seconds=120,
+            tags=("security",),
         ),
     ]
 

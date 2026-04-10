@@ -93,53 +93,42 @@ class TestRunComplianceChecks:
 
     def test_all_checks_pass_returns_complete(self):
         """When all required checks pass, status is complete."""
-        # Register checks that the default/medium checklist requires
+        # default/low requires only tests
         ServiceRegistry.register(CheckDeclaration(
             check_id="tests", tool="pytest",
             applies_to=(("code", "*"),),
             criterion_description="tests pass",
             runner=_make_passing_runner("tests"),
         ))
-        ServiceRegistry.register(CheckDeclaration(
-            check_id="lint", tool="ruff",
-            applies_to=(("code", "*"),),
-            criterion_description="lint clean",
-            runner=_make_passing_runner("lint"),
-        ))
 
         result = run_compliance_checks(
             session_id="s1", transaction_id="t1",
-            work_type="code", domain="default", criticality="medium",
+            work_type="code", domain="default", criticality="low",
         )
         assert result is not None
         assert result.is_complete
-        assert result.checks_passed == 2
+        assert result.checks_passed == 1
         assert result.checks_failed == 0
 
     def test_failed_check_returns_iteration_needed(self):
         """When a check fails, status is iteration_needed with advisory."""
+        # default/low requires only tests — register it as failing
         ServiceRegistry.register(CheckDeclaration(
             check_id="tests", tool="pytest",
             applies_to=(("code", "*"),),
             criterion_description="tests pass",
-            runner=_make_passing_runner("tests"),
-        ))
-        ServiceRegistry.register(CheckDeclaration(
-            check_id="lint", tool="ruff",
-            applies_to=(("code", "*"),),
-            criterion_description="lint clean",
-            runner=_make_failing_runner("lint"),
+            runner=_make_failing_runner("tests"),
         ))
 
         result = run_compliance_checks(
             session_id="s1", transaction_id="t1",
-            work_type="code", domain="default", criticality="medium",
+            work_type="code", domain="default", criticality="low",
         )
         assert result is not None
         assert result.status == "iteration_needed"
         assert result.checks_failed == 1
         assert result.next_transaction is not None
-        assert "lint" in result.next_transaction["intent"]
+        assert "tests" in result.next_transaction["intent"]
 
     def test_max_iterations_exceeded(self):
         """After max_iterations, status changes to max_iterations_exceeded."""
@@ -149,14 +138,8 @@ class TestRunComplianceChecks:
             criterion_description="tests pass",
             runner=_make_failing_runner("tests"),
         ))
-        ServiceRegistry.register(CheckDeclaration(
-            check_id="lint", tool="ruff",
-            applies_to=(("code", "*"),),
-            criterion_description="lint clean",
-            runner=_make_failing_runner("lint"),
-        ))
 
-        # default/low has max_iterations=3
+        # default/low has max_iterations=3, requires only tests
         result = run_compliance_checks(
             session_id="s1", transaction_id="t1",
             work_type="code", domain="default", criticality="low",

@@ -2705,12 +2705,25 @@ def handle_postflight_submit_command(args):
             compliance_result = None
             try:
                 from empirica.core.post_test.compliance_loop import run_compliance_checks
+                from empirica.config.service_registry import ServiceRegistry
+                if not ServiceRegistry.list_all():
+                    ServiceRegistry.load_builtins()
                 # Read domain/criticality from transaction file
                 _tx = R.transaction_read() or {}
                 _pf_domain = _tx.get('domain')
                 _pf_criticality = _tx.get('criticality')
                 _pf_work_type = _tx.get('work_type', postflight_work_type)
                 if _pf_domain or _pf_criticality:
+                    # Goal-scoped: read edited_files from hook counters
+                    _edited = []
+                    try:
+                        _hc = R.hook_counters_read() if hasattr(R, 'hook_counters_read') else None
+                        if _hc:
+                            _edited = _hc.get('edited_files', [])
+                        elif _tx:
+                            _edited = _tx.get('edited_files', [])
+                    except Exception:
+                        pass
                     compliance_result = run_compliance_checks(
                         session_id=session_id,
                         transaction_id=postflight_transaction_id,
@@ -2718,6 +2731,7 @@ def handle_postflight_submit_command(args):
                         domain=_pf_domain,
                         criticality=_pf_criticality,
                         project_path=resolved_project_path,
+                        changed_files=_edited,
                     )
             except Exception as e:
                 logger.debug(f"Compliance loop failed (non-fatal): {e}")

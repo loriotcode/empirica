@@ -19,6 +19,7 @@ criticalities:
     required_checks:
       - tests
       - lint
+      - complexity
     thresholds:
       coverage_min: 0.3
       check_pass_ratio: 1.0
@@ -29,6 +30,8 @@ criticalities:
     required_checks:
       - tests
       - lint
+      - complexity
+      - dep_audit
     thresholds:
       coverage_min: 0.5
       check_pass_ratio: 1.0
@@ -39,6 +42,9 @@ criticalities:
     required_checks:
       - tests
       - lint
+      - complexity
+      - dep_audit
+      - git_metrics
     thresholds:
       coverage_min: 0.7
       check_pass_ratio: 1.0

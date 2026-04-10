@@ -64,6 +64,7 @@ def run_compliance_checks(
     project_path: str | None = None,
     db=None,
     iteration_number: int = 1,
+    changed_files: list[str] | None = None,
 ) -> ComplianceResult | None:
     """Run the domain compliance checklist and return results.
 
@@ -76,10 +77,6 @@ def run_compliance_checks(
     try:
         from empirica.config.domain_registry import DomainKey, DomainRegistry
         from empirica.config.service_registry import ServiceRegistry
-
-        # Load builtins if not already loaded
-        if not ServiceRegistry.list_all():
-            ServiceRegistry.load_builtins()
 
         # Resolve the checklist
         reg = DomainRegistry(
@@ -113,6 +110,7 @@ def run_compliance_checks(
             "domain": domain,
             "criticality": criticality,
             "project_path": project_path,
+            "changed_files": changed_files or [],
         }
 
         check_results = []
