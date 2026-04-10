@@ -545,7 +545,7 @@ def handle_session_create_command(args):
         # The project_path in the JSON tells us which project's DB to use
         active_session_file = Path.home() / '.empirica' / f'active_session{instance_suffix}'
         active_session_file.parent.mkdir(parents=True, exist_ok=True)
-        # Atomic write: temp file + rename prevents partial reads from concurrent access
+        # Atomic write: temp file + replace prevents partial reads from concurrent access
         # Store JSON with session_id AND project_path so statusline can find
         # the correct DB even when cwd changes (prevents user confusion about data loss)
         import json as _json
@@ -564,7 +564,7 @@ def handle_session_create_command(args):
         try:
             with os.fdopen(tmp_fd, 'w') as tmp_f:
                 tmp_f.write(_json.dumps(active_session_data))
-            os.rename(tmp_path, str(active_session_file))
+            os.replace(tmp_path, str(active_session_file))
         except BaseException:
             try:
                 os.unlink(tmp_path)

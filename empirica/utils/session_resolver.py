@@ -1029,7 +1029,7 @@ def write_active_transaction(
     try:
         with os.fdopen(tmp_fd, 'w') as tmp_f:
             json.dump(tx_data, tmp_f, indent=2)
-        os.rename(tmp_path, str(path))
+        os.replace(tmp_path, str(path))
     except BaseException:
         try:
             os.unlink(tmp_path)
@@ -1077,7 +1077,7 @@ def increment_transaction_tool_count(claude_session_id: str = None) -> dict | No
         try:
             with __import__('os').fdopen(tmp_fd, 'w') as tmp_f:
                 json.dump(tx_data, tmp_f, indent=2)
-            __import__('os').rename(tmp_path, str(tx_path))
+            __import__('os').replace(tmp_path, str(tx_path))
         except BaseException:
             try:
                 __import__('os').unlink(tmp_path)
@@ -1245,7 +1245,7 @@ def set_active_engagement(engagement_id: str, claude_session_id: str = None) -> 
         try:
             with os.fdopen(tmp_fd, 'w') as tmp_f:
                 json.dump(tx_data, tmp_f, indent=2)
-            os.rename(tmp_path, str(tx_path))
+            os.replace(tmp_path, str(tx_path))
         except BaseException:
             try:
                 os.unlink(tmp_path)

@@ -151,7 +151,7 @@ def add_delegated_work_to_parent(tool_call_count: int) -> bool:
         try:
             with os.fdopen(fd, 'w') as tf:
                 json.dump(counters, tf, indent=2)
-            os.rename(tmp, str(counters_path))
+            os.replace(tmp, str(counters_path))
         except BaseException:
             try:
                 os.unlink(tmp)
