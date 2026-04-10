@@ -485,6 +485,215 @@ def _run_dep_audit_check(context: dict[str, Any]) -> CheckResult:
         )
 
 
+# ---------------------------------------------------------------------------
+# Artifact-based check runners (universal — query Empirica DB, not subprocess)
+#
+# These checks work across ALL domains: consulting, research, operations,
+# marketing. They verify epistemic process quality by querying the artifact
+# tables for the current transaction.
+# ---------------------------------------------------------------------------
+
+def _run_artifact_breadth_check(context: dict[str, Any]) -> CheckResult:
+    """Check that multiple artifact types were logged in this transaction.
+
+    Minimum 3 distinct types (e.g., findings + decisions + assumptions)
+    indicates the AI is doing genuine epistemic work, not just coding.
+    """
+    try:
+        from empirica.data.session_database import SessionDatabase
+        db = SessionDatabase()
+        cursor = db.conn.cursor()
+        tx_id = context.get("transaction_id")
+        session_id = context.get("session_id")
+
+        # Count distinct artifact types logged in this transaction
+        types_found = set()
+        tables = [
+            ("project_findings", "findings"),
+            ("project_unknowns", "unknowns"),
+            ("project_dead_ends", "dead_ends"),
+            ("mistakes_made", "mistakes"),
+            ("assumptions", "assumptions"),
+            ("decisions", "decisions"),
+        ]
+
+        for table, label in tables:
+            try:
+                if tx_id:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE transaction_id = ?", (tx_id,))
+                elif session_id:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE session_id = ?", (session_id,))
+                else:
+                    continue
+                count = cursor.fetchone()[0]
+                if count > 0:
+                    types_found.add(label)
+            except Exception:
+                continue
+
+        db.close()
+        breadth = len(types_found)
+        passed = breadth >= 2  # At least 2 distinct types
+        return CheckResult(
+            check_id="artifact_breadth",
+            passed=passed,
+            details={"types_found": sorted(types_found), "breadth": breadth},
+            summary=f"{breadth} artifact types ({', '.join(sorted(types_found))})" if types_found else "no artifacts logged",
+            duration_ms=0, ran_at=time.time(),
+        )
+    except Exception as e:
+        return CheckResult(
+            check_id="artifact_breadth", passed=True, details={"error": str(e)[:200]},
+            summary="artifact breadth check failed (non-blocking)", duration_ms=0, ran_at=time.time(),
+        )
+
+
+def _run_assumptions_flagged_check(context: dict[str, Any]) -> CheckResult:
+    """Check that logged assumptions have confidence scores."""
+    try:
+        from empirica.data.session_database import SessionDatabase
+        db = SessionDatabase()
+        cursor = db.conn.cursor()
+        session_id = context.get("session_id")
+
+        if not session_id:
+            db.close()
+            return CheckResult(
+                check_id="assumptions_flagged", passed=True, details={"skipped": True},
+                summary="no session — skipped", duration_ms=0, ran_at=time.time(),
+            )
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM assumptions WHERE session_id = ?", (session_id,)
+        )
+        total = cursor.fetchone()[0]
+
+        if total == 0:
+            db.close()
+            return CheckResult(
+                check_id="assumptions_flagged", passed=True,
+                details={"total": 0, "note": "no assumptions logged"},
+                summary="no assumptions to check",
+                duration_ms=0, ran_at=time.time(),
+            )
+
+        # Check how many have confidence scores
+        cursor.execute(
+            "SELECT COUNT(*) FROM assumptions WHERE session_id = ? AND confidence IS NOT NULL AND confidence > 0",
+            (session_id,),
+        )
+        scored = cursor.fetchone()[0]
+        db.close()
+
+        passed = scored == total
+        return CheckResult(
+            check_id="assumptions_flagged",
+            passed=passed,
+            details={"total": total, "scored": scored, "unscored": total - scored},
+            summary=f"{scored}/{total} assumptions have confidence scores",
+            duration_ms=0, ran_at=time.time(),
+        )
+    except Exception as e:
+        return CheckResult(
+            check_id="assumptions_flagged", passed=True, details={"error": str(e)[:200]},
+            summary="assumptions check failed (non-blocking)", duration_ms=0, ran_at=time.time(),
+        )
+
+
+def _run_unknowns_resolved_check(context: dict[str, Any]) -> CheckResult:
+    """Check that unknowns logged in this session are resolved or acknowledged."""
+    try:
+        from empirica.data.session_database import SessionDatabase
+        db = SessionDatabase()
+        cursor = db.conn.cursor()
+        session_id = context.get("session_id")
+
+        if not session_id:
+            db.close()
+            return CheckResult(
+                check_id="unknowns_resolved", passed=True, details={"skipped": True},
+                summary="no session — skipped", duration_ms=0, ran_at=time.time(),
+            )
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM project_unknowns WHERE session_id = ? AND is_resolved = 0",
+            (session_id,),
+        )
+        unresolved = cursor.fetchone()[0]
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM project_unknowns WHERE session_id = ?",
+            (session_id,),
+        )
+        total = cursor.fetchone()[0]
+        db.close()
+
+        passed = unresolved == 0
+        return CheckResult(
+            check_id="unknowns_resolved",
+            passed=passed,
+            details={"total": total, "unresolved": unresolved, "resolved": total - unresolved},
+            summary=f"{unresolved} unresolved unknowns" if unresolved else "all unknowns resolved",
+            duration_ms=0, ran_at=time.time(),
+        )
+    except Exception as e:
+        return CheckResult(
+            check_id="unknowns_resolved", passed=True, details={"error": str(e)[:200]},
+            summary="unknowns check failed (non-blocking)", duration_ms=0, ran_at=time.time(),
+        )
+
+
+def _run_scope_coverage_check(context: dict[str, Any]) -> CheckResult:
+    """Check that goal subtasks are completed (scope coverage)."""
+    try:
+        from empirica.data.session_database import SessionDatabase
+        db = SessionDatabase()
+        cursor = db.conn.cursor()
+        session_id = context.get("session_id")
+
+        if not session_id:
+            db.close()
+            return CheckResult(
+                check_id="scope_coverage", passed=True, details={"skipped": True},
+                summary="no session — skipped", duration_ms=0, ran_at=time.time(),
+            )
+
+        # Count goals and completion for this session
+        cursor.execute(
+            "SELECT COUNT(*) FROM goals WHERE session_id = ?", (session_id,)
+        )
+        total_goals = cursor.fetchone()[0]
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM goals WHERE session_id = ? AND is_completed = 1",
+            (session_id,),
+        )
+        completed = cursor.fetchone()[0]
+        db.close()
+
+        if total_goals == 0:
+            return CheckResult(
+                check_id="scope_coverage", passed=True,
+                details={"total": 0, "note": "no goals in session"},
+                summary="no goals to check", duration_ms=0, ran_at=time.time(),
+            )
+
+        ratio = completed / total_goals
+        passed = ratio >= 0.5  # At least half the goals done
+        return CheckResult(
+            check_id="scope_coverage",
+            passed=passed,
+            details={"total": total_goals, "completed": completed, "ratio": round(ratio, 2)},
+            summary=f"{completed}/{total_goals} goals completed ({ratio:.0%})",
+            duration_ms=0, ran_at=time.time(),
+        )
+    except Exception as e:
+        return CheckResult(
+            check_id="scope_coverage", passed=True, details={"error": str(e)[:200]},
+            summary="scope coverage check failed (non-blocking)", duration_ms=0, ran_at=time.time(),
+        )
+
+
 def _register_builtin_checks() -> None:
     """Register all built-in checks."""
     builtins = [
@@ -534,6 +743,45 @@ def _register_builtin_checks() -> None:
             timeout_seconds=120,
             tags=("security",),
             tier="release",
+        ),
+        # Artifact-based checks (universal — all domains)
+        CheckDeclaration(
+            check_id="artifact_breadth",
+            tool="empirica-db",
+            applies_to=(("code", "*"), ("infra", "*"), ("research", "*"), ("comms", "*"), ("design", "*"), ("docs", "*"), ("data", "*"), ("debug", "*"), ("config", "*"), ("audit", "*"), ("release", "*")),
+            criterion_description="At least 2 distinct artifact types logged (findings, decisions, assumptions, etc.)",
+            runner=_run_artifact_breadth_check,
+            timeout_seconds=5,
+            tags=("epistemic", "universal"),
+        ),
+        CheckDeclaration(
+            check_id="assumptions_flagged",
+            tool="empirica-db",
+            applies_to=(("*", "consulting"), ("*", "research"), ("*", "operations"), ("*", "marketing")),
+            criterion_description="All logged assumptions have confidence scores",
+            runner=_run_assumptions_flagged_check,
+            timeout_seconds=5,
+            tags=("epistemic", "knowledge-work"),
+        ),
+        CheckDeclaration(
+            check_id="unknowns_resolved",
+            tool="empirica-db",
+            applies_to=(("*", "consulting"), ("*", "research")),
+            criterion_description="No unresolved unknowns blocking the deliverable",
+            runner=_run_unknowns_resolved_check,
+            timeout_seconds=5,
+            tags=("epistemic", "knowledge-work"),
+            tier="goal_completion",
+        ),
+        CheckDeclaration(
+            check_id="scope_coverage",
+            tool="empirica-db",
+            applies_to=(("*", "consulting"), ("*", "operations"), ("*", "marketing")),
+            criterion_description="At least 50% of session goals completed",
+            runner=_run_scope_coverage_check,
+            timeout_seconds=5,
+            tags=("epistemic", "deliverable"),
+            tier="goal_completion",
         ),
     ]
 

@@ -1,0 +1,58 @@
+domain: marketing
+version: "1"
+description: "Content creation, campaign management, outreach, advertising, social media"
+
+applies_to_work_types:
+  - comms
+  - design
+  - docs
+  - data
+
+criticalities:
+  low:
+    description: "Internal drafts, social media posts, informal outreach"
+    required_checks:
+      - artifact_breadth
+    thresholds:
+      coverage_min: 0.3
+      check_pass_ratio: 1.0
+    max_iterations: 3
+
+  medium:
+    description: "Published content, email campaigns, client-facing marketing"
+    required_checks:
+      - artifact_breadth
+      - assumptions_flagged
+      - scope_coverage
+    thresholds:
+      coverage_min: 0.5
+      check_pass_ratio: 1.0
+    max_iterations: 5
+
+  high:
+    description: "Paid advertising, press releases, public campaigns"
+    required_checks:
+      - artifact_breadth
+      - assumptions_flagged
+      - scope_coverage
+    thresholds:
+      coverage_min: 0.7
+      check_pass_ratio: 1.0
+    max_iterations: 5
+
+  critical:
+    description: "Regulated advertising (financial, medical, legal disclaimers)"
+    required_checks:
+      - artifact_breadth
+      - assumptions_flagged
+      - scope_coverage
+      - unknowns_resolved
+    thresholds:
+      coverage_min: 0.85
+      check_pass_ratio: 1.0
+    max_iterations: 8
+
+hints_to_ai:
+  - "Log assumptions about target audience explicitly."
+  - "Decision-log the messaging angle and why alternatives were rejected."
+  - "For regulated industries, flag compliance requirements as unknowns until verified."

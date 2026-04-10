@@ -1,0 +1,56 @@
+domain: research
+version: "1"
+description: "Academic, R&D, and investigation work — literature review, experiments, analysis"
+
+applies_to_work_types:
+  - research
+  - audit
+  - docs
+
+criticalities:
+  low:
+    description: "Exploratory investigation, literature scans, feasibility checks"
+    required_checks:
+      - artifact_breadth
+    thresholds:
+      coverage_min: 0.3
+      check_pass_ratio: 1.0
+    max_iterations: 3
+
+  medium:
+    description: "Structured research, competitive analysis, technology evaluation"
+    required_checks:
+      - artifact_breadth
+      - assumptions_flagged
+      - unknowns_resolved
+    thresholds:
+      coverage_min: 0.5
+      check_pass_ratio: 1.0
+    max_iterations: 5
+
+  high:
+    description: "Published research, peer-reviewed submissions, grant proposals"
+    required_checks:
+      - artifact_breadth
+      - assumptions_flagged
+      - unknowns_resolved
+    thresholds:
+      coverage_min: 0.7
+      check_pass_ratio: 1.0
+    max_iterations: 5
+
+  critical:
+    description: "Clinical trials, regulatory submissions, safety-critical research"
+    required_checks:
+      - artifact_breadth
+      - assumptions_flagged
+      - unknowns_resolved
+    thresholds:
+      coverage_min: 0.85
+      check_pass_ratio: 1.0
+    max_iterations: 8
+
+hints_to_ai:
+  - "Log dead-ends explicitly — failed approaches are research contributions."
+  - "Every claim needs a finding with evidence, not just assumptions."
+  - "Distinguish between verified findings and unverified assumptions."

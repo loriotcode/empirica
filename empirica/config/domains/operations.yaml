@@ -1,0 +1,56 @@
+domain: operations
+version: "1"
+description: "Scheduling, dispatching, project management, operational workflows"
+
+applies_to_work_types:
+  - config
+  - comms
+  - data
+
+criticalities:
+  low:
+    description: "Internal task tracking, team coordination"
+    required_checks:
+      - artifact_breadth
+    thresholds:
+      coverage_min: 0.3
+      check_pass_ratio: 1.0
+    max_iterations: 3
+
+  medium:
+    description: "Client-facing scheduling, resource allocation, event planning"
+    required_checks:
+      - artifact_breadth
+      - scope_coverage
+    thresholds:
+      coverage_min: 0.5
+      check_pass_ratio: 1.0
+    max_iterations: 5
+
+  high:
+    description: "Live event operations, production schedules, SLA-bound work"
+    required_checks:
+      - artifact_breadth
+      - scope_coverage
+      - assumptions_flagged
+    thresholds:
+      coverage_min: 0.7
+      check_pass_ratio: 1.0
+    max_iterations: 5
+
+  critical:
+    description: "Safety-critical operations, regulated logistics"
+    required_checks:
+      - artifact_breadth
+      - scope_coverage
+      - assumptions_flagged
+      - unknowns_resolved
+    thresholds:
+      coverage_min: 0.85
+      check_pass_ratio: 1.0
+    max_iterations: 8
+
+hints_to_ai:
+  - "Log decisions about resource allocation with rationale."
+  - "Flag scheduling assumptions — dates and availability change."
+  - "Complete all subtasks or explicitly defer with reason."
