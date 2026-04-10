@@ -65,6 +65,7 @@ def run_compliance_checks(
     db=None,
     iteration_number: int = 1,
     changed_files: list[str] | None = None,
+    execution_tier: str = "always",
 ) -> ComplianceResult | None:
     """Run the domain compliance checklist and return results.
 
@@ -119,7 +120,7 @@ def run_compliance_checks(
 
         for check_id in checklist.required:
             try:
-                result = ServiceRegistry.run(check_id, context)
+                result = ServiceRegistry.run(check_id, context, execution_tier=execution_tier)
                 result_dict = {
                     "check_id": result.check_id,
                     "passed": result.passed,
@@ -128,6 +129,11 @@ def run_compliance_checks(
                 }
                 if result.predicted_pass is not None:
                     result_dict["predicted_pass"] = result.predicted_pass
+                if result.cached:
+                    result_dict["cached"] = True
+                if result.deferred:
+                    result_dict["deferred"] = True
+                    result_dict["tier"] = result.tier
                 check_results.append(result_dict)
 
                 if result.passed:

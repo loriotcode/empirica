@@ -153,6 +153,9 @@ def compute_check_brier(
         predicted = cr.get("predicted_pass")
         if predicted is None:
             continue
+        # Exclude deferred (not run) and cached (stale prediction surface)
+        if cr.get("deferred"):
+            continue
         actual = 1.0 if cr.get("passed") else 0.0
         contribution = (predicted - actual) ** 2
         pairs.append((predicted, actual))

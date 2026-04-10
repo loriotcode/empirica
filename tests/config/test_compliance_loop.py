@@ -23,8 +23,10 @@ from empirica.core.post_test.compliance_loop import (
 @pytest.fixture(autouse=True)
 def clean_registry():
     ServiceRegistry._registered.clear()
+    ServiceRegistry.clear_cache()
     yield
     ServiceRegistry._registered.clear()
+    ServiceRegistry.clear_cache()
 
 
 def _make_passing_runner(check_id: str = "test_check"):
@@ -104,6 +106,7 @@ class TestRunComplianceChecks:
         result = run_compliance_checks(
             session_id="s1", transaction_id="t1",
             work_type="code", domain="default", criticality="low",
+            execution_tier="goal_completion",
         )
         assert result is not None
         assert result.is_complete
@@ -123,6 +126,7 @@ class TestRunComplianceChecks:
         result = run_compliance_checks(
             session_id="s1", transaction_id="t1",
             work_type="code", domain="default", criticality="low",
+            execution_tier="goal_completion",  # tests tier=goal_completion
         )
         assert result is not None
         assert result.status == "iteration_needed"
@@ -144,6 +148,7 @@ class TestRunComplianceChecks:
             session_id="s1", transaction_id="t1",
             work_type="code", domain="default", criticality="low",
             iteration_number=3,
+            execution_tier="goal_completion",
         )
         assert result is not None
         assert result.status == "max_iterations_exceeded"

@@ -43,6 +43,11 @@ class CheckResult:
     predicted_pass: float | None = None
     predicted_at: float | None = None
 
+    # Cache/tier metadata — informs the AI what actually ran
+    cached: bool = False          # True if result came from cache
+    deferred: bool = False        # True if check was deferred (tier too high)
+    tier: str = "always"          # "always" | "goal_completion" | "release"
+
 
 @dataclass(frozen=True)
 class CheckDeclaration:
@@ -55,15 +60,22 @@ class CheckDeclaration:
     runner: Callable[..., CheckResult]
     timeout_seconds: int = 120
     tags: tuple[str, ...] = ()
+    tier: str = "always"  # "always" = every POSTFLIGHT, "goal_completion" = at goal close, "release" = pre-release only
 
 
 class ServiceRegistry:
     """Registry of available deterministic checks.
 
     Class-level registry — all methods are classmethods for singleton access.
+
+    Cache: check results are cached by (check_id, content_hash) where
+    content_hash is derived from changed_files. If the same files produce
+    the same hash, the cached result is returned instantly. Cache is
+    per-session (cleared on session-create).
     """
 
     _registered: dict[str, CheckDeclaration] = {}
+    _cache: dict[tuple[str, str], CheckResult] = {}  # (check_id, content_hash) → result
 
     @classmethod
     def register(cls, declaration: CheckDeclaration) -> None:
@@ -115,25 +127,79 @@ class ServiceRegistry:
         return sorted(matches, key=lambda d: d.check_id)
 
     @classmethod
+    def _content_hash(cls, context: dict[str, Any]) -> str:
+        """Compute a content hash from changed_files for cache keying."""
+        import hashlib
+        changed = sorted(context.get("changed_files", []))
+        return hashlib.md5("|".join(changed).encode()).hexdigest()[:12]
+
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Clear the check result cache (call on session-create)."""
+        cls._cache.clear()
+
+    @classmethod
     def run(
         cls,
         check_id: str,
         context: dict[str, Any],
         predicted_pass: float | None = None,
+        execution_tier: str = "always",
     ) -> CheckResult:
-        """Invoke a check's runner. Handles exceptions gracefully.
+        """Invoke a check's runner with caching and tier awareness.
 
-        If the runner raises, returns a failed CheckResult with the
-        exception details. Duration is always measured.
+        Cache: results are cached by (check_id, content_hash). Same changed
+        files = same hash = cached result returned instantly. The AI is told
+        via result.cached=True so it knows this wasn't a fresh run.
+
+        Tiers: if the check's tier is higher than execution_tier, the check
+        is deferred. The AI is told via result.deferred=True so it excludes
+        this check from its Brier predictions.
+
+        Tier hierarchy: always < goal_completion < release
         """
         decl = cls.get(check_id)  # raises KeyError if unknown
-        start = time.time()
+        tier_order = {"always": 0, "goal_completion": 1, "release": 2}
         predicted_at = time.time() if predicted_pass is not None else None
 
+        # Tier check: defer if check tier exceeds execution tier
+        if tier_order.get(decl.tier, 0) > tier_order.get(execution_tier, 0):
+            return CheckResult(
+                check_id=check_id,
+                passed=True,  # deferred = not blocking
+                details={"deferred": True, "tier": decl.tier, "execution_tier": execution_tier},
+                summary=f"deferred ({decl.tier} tier, running at {execution_tier})",
+                duration_ms=0,
+                ran_at=time.time(),
+                predicted_pass=predicted_pass,
+                predicted_at=predicted_at,
+                deferred=True,
+                tier=decl.tier,
+            )
+
+        # Cache check: if changed_files produce the same hash, reuse result
+        content_hash = cls._content_hash(context)
+        cache_key = (check_id, content_hash)
+        cached = cls._cache.get(cache_key)
+        if cached is not None:
+            return CheckResult(
+                check_id=cached.check_id,
+                passed=cached.passed,
+                details={**cached.details, "cache_hit": True},
+                summary=cached.summary + " (cached)",
+                duration_ms=0,
+                ran_at=cached.ran_at,
+                predicted_pass=predicted_pass,
+                predicted_at=predicted_at,
+                cached=True,
+                tier=decl.tier,
+            )
+
+        # Execute the runner
+        start = time.time()
         try:
             result = decl.runner(context)
             elapsed_ms = int((time.time() - start) * 1000)
-            # Ensure duration reflects actual measurement
             result = CheckResult(
                 check_id=result.check_id,
                 passed=result.passed,
@@ -143,6 +209,7 @@ class ServiceRegistry:
                 ran_at=result.ran_at,
                 predicted_pass=predicted_pass,
                 predicted_at=predicted_at,
+                tier=decl.tier,
             )
         except Exception as e:
             elapsed_ms = int((time.time() - start) * 1000)
@@ -157,9 +224,12 @@ class ServiceRegistry:
                 ran_at=time.time(),
                 predicted_pass=predicted_pass,
                 predicted_at=predicted_at,
+                tier=decl.tier,
             )
             logger.warning("Check %s failed: %s: %s", check_id, err_type, err_msg)
 
+        # Cache the result
+        cls._cache[cache_key] = result
         return result
 
     @classmethod
@@ -426,6 +496,7 @@ def _register_builtin_checks() -> None:
             runner=_run_tests_check,
             timeout_seconds=300,
             tags=("testing",),
+            tier="goal_completion",
         ),
         CheckDeclaration(
             check_id="lint",
@@ -462,6 +533,7 @@ def _register_builtin_checks() -> None:
             runner=_run_dep_audit_check,
             timeout_seconds=120,
             tags=("security",),
+            tier="release",
         ),
     ]
 

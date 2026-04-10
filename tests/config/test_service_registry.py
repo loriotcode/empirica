@@ -25,10 +25,12 @@ from empirica.config.service_registry import (
 
 @pytest.fixture(autouse=True)
 def clean_registry():
-    """Reset the registry between tests."""
+    """Reset the registry and cache between tests."""
     ServiceRegistry._registered.clear()
+    ServiceRegistry.clear_cache()
     yield
     ServiceRegistry._registered.clear()
+    ServiceRegistry.clear_cache()
 
 
 def _make_result(check_id: str = "test_check", passed: bool = True) -> CheckResult:
