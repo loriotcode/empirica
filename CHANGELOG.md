@@ -5,6 +5,46 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.1] - 2026-04-10
+
+### Added
+- **Goal-scoped compliance checks** — runners receive `changed_files` from
+  the transaction's edited_files. Tests scope to changed test files, lint
+  scopes to changed .py files, complexity measures changed files only.
+- **New check runners:** `complexity` (radon cc, grades A-F) and `dep_audit`
+  (pip-audit for known CVEs).
+- **Tiered execution** — checks have tiers: `always` (lint, complexity),
+  `goal_completion` (tests), `release` (dep_audit). Per-POSTFLIGHT cost
+  drops from ~700MB/180s to ~80MB/5s.
+- **Check result caching** — results cached by `(check_id, content_hash)`.
+  Same changed files = same hash = instant cached result. AI sees
+  `cached: true` or `deferred: true` on each result.
+- **Unified `empirica resolve <id>`** — auto-detects artifact type and
+  resolves. Searches unknowns, findings, dead-ends, mistakes, assumptions,
+  decisions by ID prefix.
+- **Bytecode cache invalidation** — `release.py` now clears `__pycache__`
+  after version sweep.
+
+### Changed
+- **Onboarding** (`empirica onboard`) — updated for compliance pipeline,
+  three-vector model, domain/criticality in PREFLIGHT, skills references.
+- **Transaction skill** — new section 4f documents the compliance loop,
+  tiered execution, caching, and Brier scoring on check predictions.
+- **System prompt** — v1.8.0 reframe language, domain commands, resolve.
+- **Constitution** — cross-project writing uses `--project-id <name>`.
+- **Default domain** — medium adds complexity, high adds dep_audit,
+  critical adds git_metrics.
+
+### Fixed
+- **Windows atomic state writes** (PR #85, @kars85) — `os.rename` →
+  `os.replace` across 8 files. Prevents `FileExistsError` on Windows.
+- **Qdrant dimension drift guard** (PR #83, @kars85) — centralised
+  dimension check in `_ensure_collection_matches_vector` prevents silent
+  data corruption from embedding model changes.
+
+### Community
+- Thanks @kars85 for PR #83 + #85 — consistent quality contributions.
+
 ## [1.8.0] - 2026-04-09
 
 ### Added — Sentinel Reframe: Compliance Loop Coordinator
