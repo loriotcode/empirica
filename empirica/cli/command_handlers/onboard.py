@@ -39,22 +39,31 @@ CORE CONCEPTS
    Meta:          UNCERTAINTY (higher = more uncertain)
 
 2. Epistemic Transaction Workflow
-   PREFLIGHT --> CHECK --> POSTFLIGHT --> POST-TEST
+   PREFLIGHT --> CHECK --> POSTFLIGHT --> POST-TEST --> COMPLIANCE
 
-   - PREFLIGHT:  Assess baseline before starting (what do you know?)
-   - CHECK:      Sentinel gate - ready to act, or investigate more?
+   - PREFLIGHT:  Assess baseline + declare domain/criticality
+   - CHECK:      Sentinel gate - ready to act? (domain-aware thresholds)
    - POSTFLIGHT: Measure learning delta (what did you learn?)
-   - POST-TEST:  Automatic grounded verification against objective evidence
+   - POST-TEST:  Deterministic checks inform your assessment
+   - COMPLIANCE: Domain checklist - iterate until all checks pass
 
 3. Noetic vs Praxic Phases
    - Noetic:  Investigation (read, search, explore, log findings)
    - Praxic:  Action (write code, edit files, commit)
    - The Sentinel gates praxic tools until CHECK passes
 
-4. Dual-Track Calibration
-   - Track 1 (Self-Referential): PREFLIGHT vs POSTFLIGHT delta
-   - Track 2 (Grounded): Self-assessment vs objective evidence (tests, git, goals)
-   - Bias corrections computed automatically from your history
+4. Three-Vector Calibration
+   - Self-assessed: Your PREFLIGHT/POSTFLIGHT predictions
+   - Observed:      What deterministic services measured (tests, lint, etc.)
+   - Grounded:      Your reasoned synthesis with rationale
+   - Services INFORM - they don't score. You produce the calibration.
+   - Brier scoring measures your predictions of check outcomes
+
+5. Domain Compliance
+   - Domains (default, cybersec, docs, remote-ops) define checklists
+   - Criticality (low/medium/high/critical) scales required checks
+   - Checks are tiered: lint+complexity always, tests at goal close
+   - Results cached by content hash - same files = instant recheck
 
 ═══════════════════════════════════════════════════════════════════════
 
@@ -77,10 +86,14 @@ Step 5: Run PREFLIGHT (opens a transaction)
    $ empirica preflight-submit - << 'EOF'
    {{
      "task_context": "What you're about to do",
+     "work_type": "code",
+     "domain": "default",
+     "criticality": "medium",
      "vectors": {{"know": 0.6, "uncertainty": 0.4, "context": 0.7, "clarity": 0.8}},
      "reasoning": "Honest assessment of current state"
    }}
    EOF
+   # domain/criticality are optional — set them for compliance checks
 
 Step 6: Investigate (noetic phase)
    - Read code, search patterns, explore
@@ -133,9 +146,15 @@ Project Management:
    $ empirica project-list                       # List all projects
    $ empirica project-switch <name>              # Switch project
 
+Domain Compliance:
+   $ empirica domain-list                              # List domains + criticalities
+   $ empirica domain-show cybersec                     # Show checklist for a domain
+   $ empirica domain-resolve code --domain cybersec    # What checks would run?
+   $ empirica resolve <artifact-id>                    # Resolve any artifact by ID
+
 Calibration Reports:
-   $ empirica calibration-report                        # Grounded verification (Track 2, default)
-   $ empirica calibration-report --learning-trajectory  # Self-referential (Track 1)
+   $ empirica calibration-report                        # Grounded verification
+   $ empirica calibration-report --learning-trajectory  # Self-referential delta
    $ empirica calibration-report --trajectory           # Trend over time
 
 Semantic Search (requires Qdrant):
@@ -149,21 +168,36 @@ Session Management:
 
 ═══════════════════════════════════════════════════════════════════════
 
-TRANSACTION DISCIPLINE
+TRANSACTION DISCIPLINE + EPISTEMIC PLANNING
 
 A transaction = one measured chunk of work. PREFLIGHT opens a measurement
-window. POSTFLIGHT closes it and captures what you learned.
+window. POSTFLIGHT closes it, runs compliance checks, and captures learning.
 
    Session Start
      +-- Create goals (from task description)
-     +-- Transaction 1: Goal A
-          PREFLIGHT -> [noetic: investigate] -> CHECK -> [praxic: implement] -> POSTFLIGHT
+     +-- Transaction 1: Goal A (domain=default, criticality=medium)
+     |    PREFLIGHT -> [noetic: investigate] -> CHECK -> [praxic: implement]
+     |    -> POSTFLIGHT -> [compliance: lint ✓ complexity ✓ tests deferred]
      +-- Transaction 2: Goal B (informed by T1's findings)
-          PREFLIGHT -> [noetic: investigate] -> CHECK -> [praxic: implement] -> POSTFLIGHT
+     |    PREFLIGHT -> [noetic: investigate] -> CHECK -> [praxic: implement]
+     |    -> POSTFLIGHT -> [compliance: lint ✓ complexity ✓ tests ✓ (goal close)]
+     +-- Release
+          Tests run at goal_completion tier, dep_audit at release tier
 
-Scope each transaction by what you can handle without losing context.
-Between transactions, review open artifacts: close completed goals,
-resolve unknowns into findings, verify or falsify assumptions.
+Use the /epistemic-transaction skill to plan multi-goal work:
+   1. Interview the task (clarify scope)
+   2. Explore the codebase (noetic tools)
+   3. Decompose into goals (empirica goals-create)
+   4. Generate transaction plan (estimated vectors per goal)
+   5. Execute with PREFLIGHT/CHECK/POSTFLIGHT per transaction
+
+Use the /empirica-constitution skill for routing decisions:
+   - Which mechanism for this situation?
+   - Cross-project writing (--project-id <name>)
+   - When to checkpoint, when to compact
+
+Between transactions: close completed goals, resolve unknowns,
+verify or falsify assumptions. Each goal = one transaction.
 
 ═══════════════════════════════════════════════════════════════════════
 
@@ -177,7 +211,8 @@ KEY PRINCIPLES
    Compare PREFLIGHT vs POSTFLIGHT to see epistemic growth:
    - KNOW increase = learned domain knowledge
    - UNCERTAINTY decrease = reduced ambiguity
-   - Grounded verification catches systematic biases
+   - Three-vector model: your assessment + service observations + grounded state
+   - Services inform your score — they don't replace it
 
 3. Log As You Discover
    Findings, unknowns, dead-ends - log them as they happen.

@@ -296,6 +296,8 @@ empirica preflight-submit - << 'EOF'
   "task_context": "Transaction 1: Implement auth middleware. Scope: middleware chain, role guards, unit tests.",
   "work_type": "code",
   "work_context": "iteration",
+  "domain": "default",
+  "criticality": "medium",
   "vectors": {
     "know": 0.5, "uncertainty": 0.4,
     "context": 0.6, "clarity": 0.7,
@@ -389,10 +391,52 @@ empirica postflight-submit - << 'EOF'
     "context": 0.90, "clarity": 0.95,
     "completion": 1.0, "do": 0.90
   },
-  "reasoning": "Auth middleware implemented with role guards. Unit tests passing. JWT validation works. Learned about Express 5 async middleware change."
+  "reasoning": "Auth middleware implemented with role guards. Unit tests passing."
 }
 EOF
 ```
+
+### 4f. Compliance Loop — Domain Checklist (automatic)
+
+After POSTFLIGHT, the compliance loop runs automatically when `domain` and
+`criticality` were set in PREFLIGHT. It checks the domain's required services:
+
+```
+POSTFLIGHT response includes:
+  "compliance": {
+    "status": "complete" | "iteration_needed" | "max_iterations_exceeded",
+    "checks_run": 3,
+    "checks_passed": 2,
+    "checks_failed": 1,
+    "check_results": [
+      {"check_id": "lint", "passed": true, "summary": "lint clean (scoped to 4 files)"},
+      {"check_id": "complexity", "passed": true, "summary": "complexity A (avg 2.1)"},
+      {"check_id": "tests", "deferred": true, "tier": "goal_completion"}
+    ],
+    "next_transaction": {  // only if iteration_needed
+      "intent": "address failures: tests",
+      "inherited_domain": "default",
+      "inherited_criticality": "medium"
+    }
+  }
+```
+
+**Tiered execution:** Checks run at different points to manage resource cost:
+- **always** (every POSTFLIGHT): lint, complexity, git_metrics — ~5s, ~80MB
+- **goal_completion** (at goal close): tests — runs full pytest
+- **release** (pre-release only): dep_audit — pip-audit for CVEs
+
+**Cached results:** Same changed files = same content hash = cached result.
+The AI sees `"cached": true` and knows it wasn't a fresh run.
+
+**Brier scoring:** If you predicted check outcomes in PREFLIGHT
+(`predicted_check_outcomes`), the compliance response includes a `check_brier`
+block measuring your prediction accuracy. Only freshly-run checks count —
+deferred and cached are excluded.
+
+**Three-vector model:** After seeing compliance results, you can submit
+`grounded_vectors` + `grounded_rationale` in POSTFLIGHT to record your
+reasoned synthesis. Services inform; you score.
 
 ---
 
