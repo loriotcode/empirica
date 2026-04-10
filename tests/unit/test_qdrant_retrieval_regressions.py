@@ -7,6 +7,10 @@ from empirica.cli.command_handlers.project_embed import (
     _has_indexed_python_files,
     _resolve_doc_path,
 )
+from empirica.core.qdrant.connection import (
+    CollectionDimensionMismatchError,
+    _ensure_collection_matches_vector,
+)
 from empirica.core.qdrant.embeddings import EmbeddingsProvider
 from empirica.core.qdrant.memory import upsert_docs
 
@@ -74,8 +78,8 @@ def test_upsert_docs_creates_collection_before_upsert():
     client.upsert_calls = []
     client.collection_exists = lambda name: False
 
-    def create_collection(name, vectors_config):
-        client.created = (name, vectors_config)
+    def create_collection(name=None, vectors_config=None, collection_name=None):
+        client.created = (collection_name or name, vectors_config)
 
     def upsert(collection_name, points):
         client.upsert_calls.append((collection_name, points))
@@ -86,17 +90,48 @@ def test_upsert_docs_creates_collection_before_upsert():
     with patch("empirica.core.qdrant.memory._check_qdrant_available", return_value=True), \
          patch("empirica.core.qdrant.memory._get_qdrant_imports", return_value=(None, DummyDistance, DummyVectorParams, DummyPointStruct)), \
          patch("empirica.core.qdrant.memory._get_qdrant_client", return_value=client), \
-         patch("empirica.core.qdrant.memory._get_vector_size", return_value=384), \
-         patch("empirica.core.qdrant.memory._get_embedding_safe", return_value=[0.1, 0.2, 0.3]), \
+         patch("empirica.core.qdrant.connection._get_qdrant_imports", return_value=(None, DummyDistance, DummyVectorParams, DummyPointStruct)), \
+         patch("empirica.core.qdrant.connection._get_embedding_safe", return_value=[0.1, 0.2, 0.3]), \
          patch("empirica.core.qdrant.memory._docs_collection", return_value="project_test_docs"):
         count = upsert_docs("project-id", [{"id": 1, "text": "hello", "metadata": {"doc_path": "a.md"}}])
 
     assert count == 1
     assert client.created is not None
     assert client.created[0] == "project_test_docs"
-    assert client.created[1].size == 384
+    assert client.created[1].size == 3
     assert client.created[1].distance == DummyDistance.COSINE
     assert len(client.upsert_calls) == 1
+
+
+def test_dimension_guard_raises_before_mismatched_qdrant_write():
+    class DummyCollectionInfo:
+        class Config:
+            class Params:
+                class Vectors:
+                    size = 1024
+
+                vectors = Vectors()
+
+            params = Params()
+
+        config = Config()
+
+    client = type("DummyClient", (), {})()
+    client.collection_exists = lambda name: True
+    client.get_collection = lambda name: DummyCollectionInfo()
+
+    with patch("empirica.core.qdrant.connection._get_provider_context", return_value="ollama/nomic-embed-text"):
+        try:
+            _ensure_collection_matches_vector(client, "epistemic_events", 768, create_if_missing=False)
+            raised = None
+        except Exception as exc:  # pragma: no branch - assertion below validates type
+            raised = exc
+
+    assert isinstance(raised, CollectionDimensionMismatchError)
+    assert "epistemic_events" in str(raised)
+    assert "1024d" in str(raised)
+    assert "768d" in str(raised)
+    assert "rebuild --qdrant" in str(raised)
 
 
 def test_embed_ollama_retries_with_smaller_prompts_before_fallback():

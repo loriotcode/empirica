@@ -138,7 +138,7 @@ def main():
         try:
             with os.fdopen(fd, 'w') as tf:
                 json.dump(counters, tf, indent=2)
-            os.rename(tmp, str(counters_path))
+            os.replace(tmp, str(counters_path))
         except BaseException:
             try:
                 os.unlink(tmp)

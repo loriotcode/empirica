@@ -470,7 +470,7 @@ def handle_preflight_submit_command(args):
                                 fd, tmp = _tempfile.mkstemp(dir=str(tx_path.parent))
                                 with os.fdopen(fd, 'w') as tf:
                                     _json.dump(tx_data, tf, indent=2)
-                                os.rename(tmp, str(tx_path))
+                                os.replace(tmp, str(tx_path))
                     except Exception as e_avg:
                         logger.debug(f"Avg turns calculation failed (non-fatal): {e_avg}")
             except Exception as e:

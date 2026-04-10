@@ -669,7 +669,7 @@ def _try_increment_tool_count(claude_session_id: str | None = None,
         try:
             with os.fdopen(fd, 'w') as tf:
                 json.dump(counters, tf, indent=2)
-            os.rename(tmp, str(counters_path))
+            os.replace(tmp, str(counters_path))
         except BaseException:
             try:
                 os.unlink(tmp)
