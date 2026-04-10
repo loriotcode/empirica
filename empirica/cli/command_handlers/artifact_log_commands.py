@@ -440,7 +440,7 @@ def handle_engagement_focus_command(args):
                 try:
                     with os.fdopen(tmp_fd, 'w') as tmp_f:
                         json.dump(tx_data, tmp_f, indent=2)
-                    os.rename(tmp_path, str(tx_path))
+                    os.replace(tmp_path, str(tx_path))
                 except BaseException:
                     try:
                         os.unlink(tmp_path)
