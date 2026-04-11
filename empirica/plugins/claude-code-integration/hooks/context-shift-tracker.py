@@ -90,10 +90,28 @@ def main():
             # - transaction state (open vs closed)
             # We just provide the data point.
             if state_age < 60 and used_pct > 0:
+                ctx_msg = f"context: {int(used_pct)}%"
+                # At >85% context, advise auto-switching to CWD project
+                # if CWD differs from active transaction project
+                if used_pct > 85:
+                    try:
+                        cwd = str(Path.cwd().resolve())
+                        tx_file = _find_transaction_file(claude_session_id)
+                        if tx_file:
+                            tx_data = json.loads(Path(tx_file).read_text())
+                            tx_project = tx_data.get('project_path', '')
+                            if tx_project and str(Path(tx_project).resolve()) != cwd:
+                                ctx_msg += (
+                                    f" | CWD project differs from transaction project"
+                                    f" — consider project-switch to {Path(cwd).name}"
+                                    f" before compaction"
+                                )
+                    except Exception:
+                        pass
                 output = {
                     "hookSpecificOutput": {
                         "hookEventName": "UserPromptSubmit",
-                        "additionalContext": f"context: {int(used_pct)}%"
+                        "additionalContext": ctx_msg
                     }
                 }
     except Exception:

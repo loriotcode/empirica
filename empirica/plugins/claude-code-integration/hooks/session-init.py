@@ -514,37 +514,38 @@ def main():
     event_type = hook_input.get('type', 'startup')
     is_resume = event_type == 'resume'
 
-    # Find project root (uses instance-aware resolution to survive CWD resets)
-    # session-init needs CWD and git root fallbacks for first-time projects
-    project_root = find_project_root(claude_session_id, allow_cwd_fallback=True, allow_git_root=True)
-
-    # STARTUP OVERRIDE: On fresh sessions, prefer CWD over stale instance files.
-    # Instance files persist from previous sessions and may point to a different
-    # project. On startup, the user explicitly opened Claude Code in a specific
-    # directory — that intent should win. On resume/compact/clear, the instance
-    # file IS authoritative (same session, CWD may have been reset by Claude Code).
+    # CWD-FIRST ADOPTION: On startup, if CWD has an open transaction, adopt it.
+    # This is the common case after tmux restart — the user opened Claude Code
+    # in the project folder and expects it to reconnect. Skips the full
+    # instance_projects resolution chain which may point to a stale pane.
     #
-    # GUARD: Even on startup, an OPEN TRANSACTION on the resolved project is
-    # authoritative — transactions span compaction boundaries and a new fresh
-    # session may inherit one. Bypassing the guard would orphan the transaction
-    # and create a duplicate session in the wrong project (KNOWN_ISSUES 11.26).
-    if event_type == 'startup' and project_root:
-        from project_resolver import _get_instance_suffix
-        suffix = _get_instance_suffix()
-        tx_file = Path(project_root) / '.empirica' / f'active_transaction{suffix}.json'
-        has_open_tx = False
-        try:
-            if tx_file.exists():
-                with open(tx_file) as f:
-                    has_open_tx = json.load(f).get('status') == 'open'
-        except Exception:
-            pass
+    # Principle: CWD with open transaction = adopt. No transaction = fall
+    # through to normal resolution. Open transactions are authoritative
+    # (KNOWN_ISSUES 11.26). This replaces the old STARTUP OVERRIDE.
+    cwd_adopted = False
+    if event_type == 'startup':
+        cwd_root = _find_git_root() or Path.cwd()
+        if has_valid_db(cwd_root):
+            empirica_dir = cwd_root / '.empirica'
+            try:
+                for tx_candidate in sorted(empirica_dir.glob('active_transaction*.json'),
+                                           key=lambda p: p.stat().st_mtime, reverse=True):
+                    try:
+                        with open(tx_candidate) as f:
+                            tx_data = json.load(f)
+                        if tx_data.get('status') == 'open':
+                            project_root = cwd_root
+                            cwd_adopted = True
+                            print(f"Adopted open transaction from CWD: {tx_candidate.name}", file=sys.stderr)
+                            break
+                    except Exception:
+                        continue
+            except Exception:
+                pass
 
-        if not has_open_tx:
-            cwd_root = _find_git_root() or Path.cwd()
-            if cwd_root.resolve() != Path(project_root).resolve():
-                if has_valid_db(cwd_root) or not has_valid_db(Path(project_root)):
-                    project_root = cwd_root
+    if not cwd_adopted:
+        # Normal resolution — instance-aware chain with CWD/git fallbacks
+        project_root = find_project_root(claude_session_id, allow_cwd_fallback=True, allow_git_root=True)
 
     os.chdir(project_root)
 
