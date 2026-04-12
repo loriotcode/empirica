@@ -694,6 +694,208 @@ def _run_scope_coverage_check(context: dict[str, Any]) -> CheckResult:
         )
 
 
+# ---------------------------------------------------------------------------
+# Provenance check runners (query provenance graph columns from T1)
+# ---------------------------------------------------------------------------
+
+def _run_recommendation_traceability_check(context: dict[str, Any]) -> CheckResult:
+    """Verify that decisions reference findings (evidence-backed choices).
+
+    At least half of decisions should cite evidence via evidence_refs.
+    Decisions without evidence are hunches — still valid but flagged.
+    """
+    try:
+        from empirica.data.session_database import SessionDatabase
+        db = SessionDatabase()
+        cursor = db.conn.cursor()
+        session_id = context.get("session_id")
+
+        if not session_id:
+            db.close()
+            return CheckResult(
+                check_id="recommendation_traceability", passed=True, details={"skipped": True},
+                summary="no session — skipped", duration_ms=0, ran_at=time.time(),
+            )
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM decisions WHERE session_id = ?", (session_id,)
+        )
+        total = cursor.fetchone()[0]
+
+        if total == 0:
+            db.close()
+            return CheckResult(
+                check_id="recommendation_traceability", passed=True,
+                details={"total": 0, "note": "no decisions logged"},
+                summary="no decisions to check", duration_ms=0, ran_at=time.time(),
+            )
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM decisions WHERE session_id = ? AND evidence_refs IS NOT NULL",
+            (session_id,),
+        )
+        evidenced = cursor.fetchone()[0]
+        db.close()
+
+        ratio = evidenced / total
+        passed = ratio >= 0.5
+        return CheckResult(
+            check_id="recommendation_traceability",
+            passed=passed,
+            details={"total": total, "evidenced": evidenced, "ratio": round(ratio, 2)},
+            summary=f"{evidenced}/{total} decisions cite evidence ({ratio:.0%})",
+            duration_ms=0, ran_at=time.time(),
+        )
+    except Exception as e:
+        return CheckResult(
+            check_id="recommendation_traceability", passed=True, details={"error": str(e)[:200]},
+            summary="traceability check failed (non-blocking)", duration_ms=0, ran_at=time.time(),
+        )
+
+
+def _run_finding_sourced_check(context: dict[str, Any]) -> CheckResult:
+    """Verify that findings reference sources (not just observations).
+
+    Informational — many valid findings are observations without external
+    sources. Only flags when source ratio is very low (< 25%) and there
+    are enough findings to be meaningful (>= 3).
+    """
+    try:
+        from empirica.data.session_database import SessionDatabase
+        db = SessionDatabase()
+        cursor = db.conn.cursor()
+        session_id = context.get("session_id")
+
+        if not session_id:
+            db.close()
+            return CheckResult(
+                check_id="finding_sourced", passed=True, details={"skipped": True},
+                summary="no session — skipped", duration_ms=0, ran_at=time.time(),
+            )
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM project_findings WHERE session_id = ?", (session_id,)
+        )
+        total = cursor.fetchone()[0]
+
+        if total == 0:
+            db.close()
+            return CheckResult(
+                check_id="finding_sourced", passed=True,
+                details={"total": 0, "note": "no findings logged"},
+                summary="no findings to check", duration_ms=0, ran_at=time.time(),
+            )
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM project_findings WHERE session_id = ? AND source_refs IS NOT NULL",
+            (session_id,),
+        )
+        sourced = cursor.fetchone()[0]
+        db.close()
+
+        ratio = sourced / total
+        # Lenient: pass unless very few findings have sources AND there are enough to matter
+        passed = total < 3 or ratio >= 0.25
+        return CheckResult(
+            check_id="finding_sourced",
+            passed=passed,
+            details={"total": total, "sourced": sourced, "ratio": round(ratio, 2)},
+            summary=f"{sourced}/{total} findings cite sources ({ratio:.0%})",
+            duration_ms=0, ran_at=time.time(),
+        )
+    except Exception as e:
+        return CheckResult(
+            check_id="finding_sourced", passed=True, details={"error": str(e)[:200]},
+            summary="finding sourced check failed (non-blocking)", duration_ms=0, ran_at=time.time(),
+        )
+
+
+def _run_provenance_depth_check(context: dict[str, Any]) -> CheckResult:
+    """Verify the full chain: source → finding → decision exists at least once.
+
+    Checks that at least one decision has evidence_refs pointing to a finding
+    that has source_refs pointing to a source. This proves the provenance
+    graph is being used end-to-end.
+    """
+    try:
+        import json as _json
+        from empirica.data.session_database import SessionDatabase
+        db = SessionDatabase()
+        cursor = db.conn.cursor()
+        session_id = context.get("session_id")
+
+        if not session_id:
+            db.close()
+            return CheckResult(
+                check_id="provenance_depth", passed=True, details={"skipped": True},
+                summary="no session — skipped", duration_ms=0, ran_at=time.time(),
+            )
+
+        # Find decisions with evidence_refs in this session
+        cursor.execute(
+            "SELECT evidence_refs FROM decisions WHERE session_id = ? AND evidence_refs IS NOT NULL",
+            (session_id,),
+        )
+        decisions_with_evidence = cursor.fetchall()
+
+        if not decisions_with_evidence:
+            db.close()
+            return CheckResult(
+                check_id="provenance_depth", passed=False,
+                details={"chains": 0, "note": "no decisions with evidence refs"},
+                summary="no complete provenance chain (no evidenced decisions)",
+                duration_ms=0, ran_at=time.time(),
+            )
+
+        # Collect all finding IDs referenced by decisions
+        all_finding_ids = set()
+        for (refs_json,) in decisions_with_evidence:
+            try:
+                refs = _json.loads(refs_json) if isinstance(refs_json, str) else refs_json
+                if isinstance(refs, list):
+                    all_finding_ids.update(refs)
+            except Exception:
+                continue
+
+        if not all_finding_ids:
+            db.close()
+            return CheckResult(
+                check_id="provenance_depth", passed=False,
+                details={"chains": 0, "note": "evidence_refs parse failed"},
+                summary="no complete provenance chain",
+                duration_ms=0, ran_at=time.time(),
+            )
+
+        # Check if any of those findings have source_refs
+        placeholders = ",".join("?" for _ in all_finding_ids)
+        cursor.execute(
+            f"SELECT COUNT(*) FROM project_findings WHERE id IN ({placeholders}) AND source_refs IS NOT NULL",
+            tuple(all_finding_ids),
+        )
+        sourced_findings = cursor.fetchone()[0]
+        db.close()
+
+        passed = sourced_findings > 0
+        return CheckResult(
+            check_id="provenance_depth",
+            passed=passed,
+            details={
+                "decisions_with_evidence": len(decisions_with_evidence),
+                "finding_ids_referenced": len(all_finding_ids),
+                "sourced_findings": sourced_findings,
+                "complete_chains": sourced_findings,
+            },
+            summary=f"{sourced_findings} complete source→finding→decision chain(s)" if sourced_findings
+            else "no complete provenance chain",
+            duration_ms=0, ran_at=time.time(),
+        )
+    except Exception as e:
+        return CheckResult(
+            check_id="provenance_depth", passed=True, details={"error": str(e)[:200]},
+            summary="provenance depth check failed (non-blocking)", duration_ms=0, ran_at=time.time(),
+        )
+
+
 def _register_builtin_checks() -> None:
     """Register all built-in checks."""
     builtins = [
@@ -781,6 +983,35 @@ def _register_builtin_checks() -> None:
             runner=_run_scope_coverage_check,
             timeout_seconds=5,
             tags=("epistemic", "deliverable"),
+            tier="goal_completion",
+        ),
+        # Provenance graph checks (T2 — query source→finding→decision links)
+        CheckDeclaration(
+            check_id="recommendation_traceability",
+            tool="empirica-db",
+            applies_to=(("*", "consulting"), ("*", "research")),
+            criterion_description="At least 50% of decisions cite evidence (finding IDs)",
+            runner=_run_recommendation_traceability_check,
+            timeout_seconds=5,
+            tags=("epistemic", "provenance"),
+        ),
+        CheckDeclaration(
+            check_id="finding_sourced",
+            tool="empirica-db",
+            applies_to=(("*", "research"), ("*", "consulting")),
+            criterion_description="Findings cite sources (informational — low threshold)",
+            runner=_run_finding_sourced_check,
+            timeout_seconds=5,
+            tags=("epistemic", "provenance"),
+        ),
+        CheckDeclaration(
+            check_id="provenance_depth",
+            tool="empirica-db",
+            applies_to=(("*", "consulting"), ("*", "research")),
+            criterion_description="At least one complete source→finding→decision chain exists",
+            runner=_run_provenance_depth_check,
+            timeout_seconds=5,
+            tags=("epistemic", "provenance"),
             tier="goal_completion",
         ),
     ]

@@ -23,6 +23,7 @@ criticalities:
       - artifact_breadth
       - assumptions_flagged
       - unknowns_resolved
+      - finding_sourced
     thresholds:
       coverage_min: 0.5
       check_pass_ratio: 1.0
@@ -34,6 +35,8 @@ criticalities:
       - artifact_breadth
       - assumptions_flagged
       - unknowns_resolved
+      - finding_sourced
+      - recommendation_traceability
     thresholds:
       coverage_min: 0.7
       check_pass_ratio: 1.0
@@ -45,6 +48,9 @@ criticalities:
       - artifact_breadth
       - assumptions_flagged
       - unknowns_resolved
+      - finding_sourced
+      - recommendation_traceability
+      - provenance_depth
     thresholds:
       coverage_min: 0.85
       check_pass_ratio: 1.0
