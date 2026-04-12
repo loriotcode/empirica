@@ -521,11 +521,11 @@ become decisions. Stale artifacts are noise, not signal.
 |-------|----------|
 | **Planning** | `goals-create`, `goals-add-subtask`, `unknown-log`, `assumption-log` |
 | **PREFLIGHT** | `preflight-submit` (opens transaction) |
-| **Noetic** | `finding-log`, `unknown-log`, `deadend-log`, `assumption-log`, `source-add` |
+| **Noetic** | `source-add`, `finding-log --source <id>`, `unknown-log`, `deadend-log`, `assumption-log` |
 | **CHECK** | `check-submit` (gates noetic → praxic) |
-| **Praxic** | `finding-log`, `decision-log`, `goals-complete-subtask` |
+| **Praxic** | `finding-log`, `decision-log --evidence <id>`, `goals-complete-subtask` |
 | **POSTFLIGHT** | `postflight-submit` (closes transaction + triggers grounded verification) |
-| **Between** | `goals-complete`, `unknown-resolve`, `goals-list` |
+| **Between** | `goals-complete`, `unknown-resolve --finding <id>`, `goals-list` |
 
 ---
 

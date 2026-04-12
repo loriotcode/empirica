@@ -97,8 +97,10 @@ Step 5: Run PREFLIGHT (opens a transaction)
 
 Step 6: Investigate (noetic phase)
    - Read code, search patterns, explore
-   - Log what you learn:
-     $ empirica finding-log --finding "Discovered X works by Y" --impact 0.7
+   - Log sources as you discover them:
+     $ empirica source-add --title "API docs" --source-type doc --url "https://..."
+   - Log findings WITH source refs:
+     $ empirica finding-log --finding "Discovered X works by Y" --impact 0.7 --source <source-id>
      $ empirica unknown-log --unknown "Need to investigate Z"
      $ empirica deadend-log --approach "Tried X" --why-failed "Failed because Y"
 
@@ -111,6 +113,8 @@ Step 7: CHECK gate (when ready to act)
    EOF
 
 Step 8: Act (praxic phase) - write code, run tests, commit
+   - Log decisions WITH evidence:
+     $ empirica decision-log --choice "Use pattern X" --rationale "Because Y" --evidence <finding-id>
 
 Step 9: Complete your goal
    $ empirica goals-complete --goal-id <ID> --reason "Done because..."
@@ -128,11 +132,12 @@ Step 10: POSTFLIGHT (closes the transaction)
 KEY CAPABILITIES
 
 Noetic Artifacts (breadcrumbs - log as you work):
-   $ empirica finding-log --finding "..."       # What was learned
-   $ empirica unknown-log --unknown "..."        # What's unclear
-   $ empirica deadend-log --approach "..."       # Failed approaches
-   $ empirica assumption-log --assumption "..."  # Unverified beliefs
-   $ empirica decision-log --choice "..."        # Choice points
+   $ empirica source-add --title "..." --source-type doc  # External sources
+   $ empirica finding-log --finding "..." --source <id>   # What was learned (with provenance)
+   $ empirica unknown-log --unknown "..."                 # What's unclear
+   $ empirica deadend-log --approach "..."                # Failed approaches
+   $ empirica assumption-log --assumption "..."           # Unverified beliefs
+   $ empirica decision-log --choice "..." --evidence <id> # Choices (with evidence)
 
 Praxic Artifacts (goals - track progress):
    $ empirica goals-create --objective "..."     # Create goal
