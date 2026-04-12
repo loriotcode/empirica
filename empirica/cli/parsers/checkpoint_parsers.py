@@ -484,6 +484,7 @@ def add_checkpoint_parsers(subparsers):
     finding_log_parser.add_argument('--subject', help='Subject/workstream identifier (auto-detected from directory if omitted)')
     finding_log_parser.add_argument('--impact', type=float, help='Impact score 0.0-1.0 (importance of this finding, auto-derived from CASCADE if omitted)')
     finding_log_parser.add_argument('--scope', choices=['session', 'project', 'both'], help='Scope: session (ephemeral), project (persistent), or both (dual-log). Auto-inferred if omitted.')
+    finding_log_parser.add_argument('--source', action='append', dest='source_ids', help='Source ID (from source-add). Repeatable for multiple sources.')
     _add_entity_flags(finding_log_parser)
     finding_log_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     finding_log_parser.add_argument('--verbose', action='store_true', help='Show detailed operation info')
@@ -514,6 +515,7 @@ def add_checkpoint_parsers(subparsers):
     )
     unknown_resolve_parser.add_argument('--unknown-id', required=True, help='Unknown UUID')
     unknown_resolve_parser.add_argument('--resolved-by', required=True, help='How was this unknown resolved?')
+    unknown_resolve_parser.add_argument('--finding', dest='resolution_finding_id', help='Finding ID that answered this unknown (provenance link)')
     unknown_resolve_parser.add_argument('--output', choices=['human', 'json'], default='json', help='Output format (default: json)')
     unknown_resolve_parser.add_argument('--verbose', action='store_true', help='Show detailed operation info')
 
@@ -581,6 +583,7 @@ def add_checkpoint_parsers(subparsers):
     decision_log_parser.add_argument('--reversibility', choices=['exploratory', 'committal', 'forced'], default='exploratory', help='How reversible is this decision?')
     decision_log_parser.add_argument('--domain', help='Domain scope (e.g., security, architecture)')
     decision_log_parser.add_argument('--goal-id', help='Optional goal UUID')
+    decision_log_parser.add_argument('--evidence', action='append', dest='evidence_refs', help='Finding ID as evidence for this decision. Repeatable for multiple findings.')
     _add_entity_flags(decision_log_parser)
     decision_log_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
 

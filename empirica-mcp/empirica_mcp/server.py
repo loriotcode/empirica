@@ -109,9 +109,11 @@ TOOL_REGISTRY: dict[str, dict] = {
         "params": {"finding": "--finding", "impact": "--impact", "session_id": "--session-id",
                    "goal_id": "--goal-id", "subtask_id": "--subtask-id", "project_id": "--project-id",
                    "subject": "--subject", "scope": "--scope",
-                   "entity_type": "--entity-type", "entity_id": "--entity-id", "via": "--via"},
+                   "entity_type": "--entity-type", "entity_id": "--entity-id", "via": "--via",
+                   "source_ids": "--source"},
         "required": ["finding"],
-        "desc": "Log a finding (what was learned)",
+        "desc": "Log a finding (what was learned). Use source_ids to link to epistemic sources.",
+        "list_params": ["source_ids"],
     },
     "unknown_log": {
         "cli": "unknown-log",
@@ -152,9 +154,11 @@ TOOL_REGISTRY: dict[str, dict] = {
         "params": {"choice": "--choice", "rationale": "--rationale", "alternatives": "--alternatives",
                    "reversibility": "--reversibility", "confidence": "--confidence", "domain": "--domain",
                    "session_id": "--session-id", "goal_id": "--goal-id", "project_id": "--project-id",
-                   "entity_type": "--entity-type", "entity_id": "--entity-id", "via": "--via"},
+                   "entity_type": "--entity-type", "entity_id": "--entity-id", "via": "--via",
+                   "evidence_refs": "--evidence"},
         "required": ["choice", "rationale"],
-        "desc": "Log a decision with rationale",
+        "desc": "Log a decision with rationale. Use evidence_refs to link to supporting findings.",
+        "list_params": ["evidence_refs"],
     },
     "source_add": {
         "cli": "source-add",
@@ -229,9 +233,10 @@ TOOL_REGISTRY: dict[str, dict] = {
     },
     "unknown_resolve": {
         "cli": "unknown-resolve",
-        "params": {"unknown_id": "--unknown-id", "resolved_by": "--resolved-by"},
+        "params": {"unknown_id": "--unknown-id", "resolved_by": "--resolved-by",
+                   "resolution_finding_id": "--finding"},
         "required": ["unknown_id"],
-        "desc": "Resolve an unknown",
+        "desc": "Resolve an unknown. Use resolution_finding_id to link to the finding that answered it.",
     },
 
     # --- Search and memory ---
@@ -462,8 +467,12 @@ def _build_tool_schema(name: str, entry: dict) -> types.Tool:
         pos_name = entry["positional"]
         properties[pos_name] = {"type": "string", "description": f"{pos_name} (positional argument)"}
 
+    list_params = set(entry.get("list_params", []))
     for param in entry["params"]:
-        if param in _NUMERIC_PARAMS:
+        if param in list_params:
+            properties[param] = {"type": "array", "items": {"type": "string"},
+                                 "description": f"List of {param.replace('_', ' ')}"}
+        elif param in _NUMERIC_PARAMS:
             properties[param] = {"type": "number", "description": param.replace("_", " ").title()}
         elif param in _BOOLEAN_PARAMS:
             properties[param] = {"type": "boolean", "description": param.replace("_", " ").title()}
@@ -559,10 +568,15 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 cmd.append(str(pos_val))
 
         # Standard commands: map params to CLI flags
+        list_params = set(entry.get("list_params", []))
         for param, flag in entry["params"].items():
             value = arguments.get(param)
             if value is not None:
-                if isinstance(value, bool):
+                if param in list_params and isinstance(value, list):
+                    # Repeat flag for each item (e.g., --source id1 --source id2)
+                    for item in value:
+                        cmd.extend([flag, str(item)])
+                elif isinstance(value, bool):
                     if value:
                         cmd.append(flag)
                 else:

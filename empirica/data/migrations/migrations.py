@@ -1260,6 +1260,7 @@ ALL_MIGRATIONS: list[tuple[str, str, Callable]] = [
     ("033_codebase_model", "Add codebase model tables for temporal entity tracking (world-model-mcp absorption)", migration_033_codebase_model),
     ("034_subagent_sessions", "Move subagent child sessions out of main sessions table to dedicated subagent_sessions table", migration_034_subagent_sessions),
     ("035_three_vector_storage", "Add three-vector storage schema for Sentinel reframe (A3 Wave 1)", lambda cursor: migration_035_three_vector_storage(cursor)),
+    ("036_provenance_graph", "Add provenance graph columns: source_refs on findings, evidence_refs on decisions, resolution_finding_id on unknowns", lambda cursor: migration_036_provenance_graph(cursor)),
 ]
 
 
@@ -1314,3 +1315,20 @@ def migration_035_three_vector_storage(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_compliance_checks_check_id ON compliance_checks(check_id)")
 
     logger.info("✅ Migration 035 complete: Three-vector storage schema added (A3 Wave 1)")
+
+
+def migration_036_provenance_graph(cursor: sqlite3.Cursor):
+    """Add provenance graph columns for source→finding→decision traceability.
+
+    Additive only — all columns NULL-defaulted. Existing artifacts unaffected.
+
+    New columns:
+      - project_findings.source_refs: JSON array of source IDs (from source-add)
+      - decisions.evidence_refs: JSON array of finding IDs (evidence for this decision)
+      - project_unknowns.resolution_finding_id: finding ID that resolved this unknown
+    """
+    add_column_if_missing(cursor, "project_findings", "source_refs", "TEXT")
+    add_column_if_missing(cursor, "decisions", "evidence_refs", "TEXT")
+    add_column_if_missing(cursor, "project_unknowns", "resolution_finding_id", "TEXT")
+
+    logger.info("✅ Migration 036 complete: Provenance graph columns added")

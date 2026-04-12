@@ -583,6 +583,9 @@ def handle_finding_log_command(args):
             from empirica.cli.cli_utils import print_project_context
             print_project_context(quiet=True)
 
+        # Extract source IDs (from --source flags or config)
+        source_ids = (config_data or {}).get('source_ids') or getattr(args, 'source_ids', None)
+
         # Store to SQLite (durable)
         finding_id = db.log_finding(
             project_id=ctx['project_id'],
@@ -594,7 +597,8 @@ def handle_finding_log_command(args):
             impact=ctx['impact'],
             transaction_id=ctx['transaction_id'],
             entity_type=ctx['entity_type'],
-            entity_id=ctx['entity_id']
+            entity_id=ctx['entity_id'],
+            source_ids=source_ids,
         )
 
         # Entity cross-link
@@ -639,6 +643,7 @@ def handle_finding_log_command(args):
             "entity_type": entity_type or 'project',
             "entity_id": entity_id,
             "via": via,
+            "source_ids": source_ids,
             "git_stored": git_stored,  # Git notes for sync
             "embedded": embedded,
             "eidetic": eidetic_result,  # "created" | "confirmed" | None
@@ -816,6 +821,7 @@ def handle_unknown_resolve_command(args):
 
         unknown_id = getattr(args, 'unknown_id', None)
         resolved_by = getattr(args, 'resolved_by', None)
+        resolution_finding_id = getattr(args, 'resolution_finding_id', None)
         output_format = getattr(args, 'output', 'json')
 
         if not unknown_id or not resolved_by:
@@ -828,7 +834,11 @@ def handle_unknown_resolve_command(args):
 
         # Resolve the unknown
         db = SessionDatabase()
-        db.resolve_unknown(unknown_id=unknown_id, resolved_by=resolved_by)
+        db.resolve_unknown(
+            unknown_id=unknown_id,
+            resolved_by=resolved_by,
+            resolution_finding_id=resolution_finding_id,
+        )
         db.close()
 
         # Format output
@@ -836,6 +846,7 @@ def handle_unknown_resolve_command(args):
             "ok": True,
             "unknown_id": unknown_id,
             "resolved_by": resolved_by,
+            "resolution_finding_id": resolution_finding_id,
             "message": "Unknown resolved successfully"
         }
 
@@ -845,6 +856,8 @@ def handle_unknown_resolve_command(args):
             print("✅ Unknown resolved successfully")
             print(f"   Unknown ID: {unknown_id[:8]}...")
             print(f"   Resolved by: {resolved_by}")
+            if resolution_finding_id:
+                print(f"   Linked finding: {resolution_finding_id[:8]}...")
 
         return 0
 
@@ -1247,6 +1260,9 @@ def handle_decision_log_command(args):
         else:
             alternatives_list = []
 
+        # Extract evidence refs (from --evidence flags or config)
+        evidence_refs = (config_data or {}).get('evidence_refs') or getattr(args, 'evidence_refs', None)
+
         # Store to SQLite (durable)
         decision_id = db.log_decision(
             project_id=ctx['project_id'],
@@ -1260,6 +1276,7 @@ def handle_decision_log_command(args):
             transaction_id=ctx['transaction_id'],
             entity_type=ctx['entity_type'],
             entity_id=ctx['entity_id'],
+            evidence_refs=evidence_refs,
         )
 
         # GIT NOTES
@@ -1323,6 +1340,7 @@ def handle_decision_log_command(args):
             "rationale": rationale,
             "confidence": confidence,
             "reversibility": reversibility,
+            "evidence_refs": evidence_refs,
             "embedded": embedded,
             "git_stored": git_stored,
             "message": "Decision logged",

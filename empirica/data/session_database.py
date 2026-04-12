@@ -2235,7 +2235,8 @@ class SessionDatabase:
         impact: float | None = None,
         transaction_id: str | None = None,
         entity_type: str | None = None,
-        entity_id: str | None = None
+        entity_id: str | None = None,
+        source_ids: list[str] | None = None,
     ) -> str:
         """Log a project finding (delegates to BreadcrumbRepository)"""
         # Auto-derive impact from latest CASCADE if not provided
@@ -2246,7 +2247,8 @@ class SessionDatabase:
             project_id, session_id, finding, goal_id, subtask_id, subject, impact,
             transaction_id=transaction_id,
             entity_type=entity_type,
-            entity_id=entity_id
+            entity_id=entity_id,
+            source_ids=source_ids,
         )
 
     def log_session_finding(
@@ -2343,9 +2345,12 @@ class SessionDatabase:
             entity_id=entity_id
         )
 
-    def resolve_unknown(self, unknown_id: str, resolved_by: str):
+    def resolve_unknown(self, unknown_id: str, resolved_by: str,
+                        resolution_finding_id: str | None = None):
         """Mark an unknown as resolved (delegates to BreadcrumbRepository)"""
-        return self.breadcrumbs.resolve_unknown(unknown_id, resolved_by)
+        return self.breadcrumbs.resolve_unknown(
+            unknown_id, resolved_by,
+            resolution_finding_id=resolution_finding_id)
 
     def log_dead_end(
         self,
@@ -2631,6 +2636,7 @@ class SessionDatabase:
         transaction_id: str | None = None,
         entity_type: str | None = None,
         entity_id: str | None = None,
+        evidence_refs: list[str] | None = None,
     ) -> str:
         """Log a decision choice point (delegates to BreadcrumbRepository)."""
         return self.breadcrumbs.log_decision(
@@ -2638,7 +2644,8 @@ class SessionDatabase:
             alternatives=alternatives, confidence=confidence,
             reversibility=reversibility, goal_id=goal_id,
             transaction_id=transaction_id,
-            entity_type=entity_type, entity_id=entity_id)
+            entity_type=entity_type, entity_id=entity_id,
+            evidence_refs=evidence_refs)
 
     def log_token_saving(
         self,

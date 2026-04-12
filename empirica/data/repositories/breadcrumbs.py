@@ -125,7 +125,8 @@ class BreadcrumbRepository(BaseRepository):
         impact: float | None = None,
         transaction_id: str | None = None,
         entity_type: str | None = None,
-        entity_id: str | None = None
+        entity_id: str | None = None,
+        source_ids: list[str] | None = None,
     ) -> str:
         """Log a project finding (what was learned/discovered)
 
@@ -178,16 +179,19 @@ class BreadcrumbRepository(BaseRepository):
             "source_refs": source_refs if source_refs else None,
         }
 
+        # Serialize explicit source IDs (from source-add) as JSON for the column
+        source_refs_json = json.dumps(source_ids) if source_ids else None
+
         self._execute("""
             INSERT INTO project_findings (
                 id, project_id, session_id, goal_id, subtask_id,
                 finding, created_timestamp, finding_data, subject, impact,
-                transaction_id, entity_type, entity_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                transaction_id, entity_type, entity_id, source_refs
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             finding_id, project_id, session_id, goal_id, subtask_id,
             finding, time.time(), json.dumps(finding_data), subject, impact,
-            transaction_id, entity_type, entity_id
+            transaction_id, entity_type, entity_id, source_refs_json
         ))
 
         self.commit()
@@ -272,28 +276,32 @@ class BreadcrumbRepository(BaseRepository):
 
         return unknown_id
 
-    def resolve_unknown(self, unknown_id: str, resolved_by: str):
+    def resolve_unknown(self, unknown_id: str, resolved_by: str,
+                        resolution_finding_id: str | None = None):
         """Mark an unknown as resolved
 
         Args:
             unknown_id: Full or partial UUID (minimum 8 chars)
             resolved_by: Resolution explanation
+            resolution_finding_id: Optional finding ID that answered this unknown
         """
         # Support partial UUID matching (like git short hashes)
         if len(unknown_id) < 36:
             # Partial ID - use LIKE
             self._execute("""
                 UPDATE project_unknowns
-                SET is_resolved = TRUE, resolved_by = ?, resolved_timestamp = ?
+                SET is_resolved = TRUE, resolved_by = ?, resolved_timestamp = ?,
+                    resolution_finding_id = ?
                 WHERE id LIKE ?
-            """, (resolved_by, time.time(), f"{unknown_id}%"))
+            """, (resolved_by, time.time(), resolution_finding_id, f"{unknown_id}%"))
         else:
             # Full ID - exact match
             self._execute("""
                 UPDATE project_unknowns
-                SET is_resolved = TRUE, resolved_by = ?, resolved_timestamp = ?
+                SET is_resolved = TRUE, resolved_by = ?, resolved_timestamp = ?,
+                    resolution_finding_id = ?
                 WHERE id = ?
-            """, (resolved_by, time.time(), unknown_id))
+            """, (resolved_by, time.time(), resolution_finding_id, unknown_id))
 
         self.commit()
         logger.info(f"✅ Unknown resolved: {unknown_id[:8]}...")
@@ -771,6 +779,7 @@ class BreadcrumbRepository(BaseRepository):
         transaction_id: str | None = None,
         entity_type: str | None = None,
         entity_id: str | None = None,
+        evidence_refs: list[str] | None = None,
     ) -> str:
         """Log a decision choice point to the decisions table."""
         decision_id = str(uuid.uuid4())
@@ -780,18 +789,20 @@ class BreadcrumbRepository(BaseRepository):
         if not entity_id and entity_type == 'project':
             entity_id = project_id
 
+        evidence_refs_json = json.dumps(evidence_refs) if evidence_refs else None
+
         self._execute("""
             INSERT INTO decisions (
                 id, choice, alternatives, rationale,
                 confidence_at_decision, reversibility,
                 entity_type, entity_id, project_id, session_id,
-                transaction_id, goal_id, created_timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                transaction_id, goal_id, created_timestamp, evidence_refs
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             decision_id, choice, alternatives, rationale,
             confidence, reversibility,
             entity_type, entity_id, project_id, session_id,
-            transaction_id, goal_id, time.time()
+            transaction_id, goal_id, time.time(), evidence_refs_json
         ))
 
         self.commit()
