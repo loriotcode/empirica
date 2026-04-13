@@ -51,6 +51,29 @@ SCHEMAS = [
 
                     lesson_data TEXT NOT NULL,
 
+                    -- Composable epistemic patterns (migration 037)
+                    abstraction_level TEXT DEFAULT 'personal',
+                    sharing_policy TEXT DEFAULT 'private',
+                    abstract_pattern TEXT,
+                    parent_lesson_id TEXT,
+
+                    entity_ids TEXT,
+                    project_id TEXT,
+                    org_id TEXT,
+                    user_id TEXT,
+
+                    trigger_type TEXT,
+                    trigger_config TEXT,
+
+                    output_format TEXT DEFAULT 'markdown',
+                    output_renderer TEXT DEFAULT 'template',
+                    output_config TEXT,
+
+                    execution_count INTEGER DEFAULT 0,
+                    feedback_score REAL DEFAULT 0.0,
+                    last_executed REAL,
+                    last_feedback REAL,
+
                     UNIQUE(name, version)
                 )
     """,
@@ -68,6 +91,11 @@ SCHEMAS = [
                     expected_outcome TEXT,
                     error_recovery TEXT,
                     timeout_ms INTEGER,
+
+                    -- Cortex cache integration (migration 037)
+                    query_pattern TEXT,
+                    cache_tier TEXT,
+                    requires_auth TEXT,
 
                     FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE,
                     UNIQUE(lesson_id, step_order)

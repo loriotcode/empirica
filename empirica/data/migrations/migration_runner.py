@@ -87,6 +87,8 @@ def column_exists(cursor: sqlite3.Cursor, table: str, column: str) -> bool:
         'calibration_trajectory',
         # Subagent isolation (migration 034)
         'subagent_sessions',
+        # Composable epistemic patterns (migration 037)
+        'lessons', 'lesson_steps',
     }
 
     if table not in VALID_TABLES:
@@ -126,6 +128,8 @@ def add_column_if_missing(cursor: sqlite3.Cursor, table: str, column: str, colum
         'calibration_trajectory',
         # Subagent isolation (migration 034)
         'subagent_sessions',
+        # Composable epistemic patterns (migration 037)
+        'lessons', 'lesson_steps',
     }
     VALID_COLUMN_TYPES = {
         'TEXT', 'INTEGER', 'REAL', 'BLOB', 'NULL',

@@ -1261,6 +1261,7 @@ ALL_MIGRATIONS: list[tuple[str, str, Callable]] = [
     ("034_subagent_sessions", "Move subagent child sessions out of main sessions table to dedicated subagent_sessions table", migration_034_subagent_sessions),
     ("035_three_vector_storage", "Add three-vector storage schema for Sentinel reframe (A3 Wave 1)", lambda cursor: migration_035_three_vector_storage(cursor)),
     ("036_provenance_graph", "Add provenance graph columns: source_refs on findings, evidence_refs on decisions, resolution_finding_id on unknowns", lambda cursor: migration_036_provenance_graph(cursor)),
+    ("037_composable_lessons", "Evolve lessons into composable epistemic patterns with abstraction levels, sharing, EKG connections, triggers, output renderers", lambda cursor: migration_037_composable_lessons(cursor)),
 ]
 
 
@@ -1332,3 +1333,63 @@ def migration_036_provenance_graph(cursor: sqlite3.Cursor):
     add_column_if_missing(cursor, "project_unknowns", "resolution_finding_id", "TEXT")
 
     logger.info("✅ Migration 036 complete: Provenance graph columns added")
+
+
+def migration_037_composable_lessons(cursor: sqlite3.Cursor):
+    """Evolve lessons into composable epistemic patterns.
+
+    Adds fields for:
+    - Abstraction levels (personal → project → domain → cross-org)
+    - Sharing policy (private → licensed)
+    - EKG entity connections
+    - Trigger model (schedule, state_change, event)
+    - Output rendering (template, llm, notebooklm, google_workspace)
+    - Feedback loop (execution count, feedback score)
+    - Cross-org pattern matching (abstract_pattern canonical name)
+
+    Also extends lesson_steps with query_pattern and cache_tier
+    for Cortex cache integration.
+
+    All columns NULL-defaulted. Existing lessons (if any) unaffected.
+    """
+    # ── lessons table: abstraction and sharing ──
+    add_column_if_missing(cursor, "lessons", "abstraction_level", "TEXT", "'personal'")
+    add_column_if_missing(cursor, "lessons", "sharing_policy", "TEXT", "'private'")
+    add_column_if_missing(cursor, "lessons", "abstract_pattern", "TEXT")
+    add_column_if_missing(cursor, "lessons", "parent_lesson_id", "TEXT")
+
+    # ── lessons table: EKG connections ──
+    add_column_if_missing(cursor, "lessons", "entity_ids", "TEXT")  # JSON array
+    add_column_if_missing(cursor, "lessons", "project_id", "TEXT")
+    add_column_if_missing(cursor, "lessons", "org_id", "TEXT")
+    add_column_if_missing(cursor, "lessons", "user_id", "TEXT")
+
+    # ── lessons table: trigger model ──
+    add_column_if_missing(cursor, "lessons", "trigger_type", "TEXT")  # schedule|state_change|event|manual|suggestion
+    add_column_if_missing(cursor, "lessons", "trigger_config", "TEXT")  # JSON
+
+    # ── lessons table: output rendering ──
+    add_column_if_missing(cursor, "lessons", "output_format", "TEXT", "'markdown'")
+    add_column_if_missing(cursor, "lessons", "output_renderer", "TEXT", "'template'")
+    add_column_if_missing(cursor, "lessons", "output_config", "TEXT")  # JSON
+
+    # ── lessons table: feedback loop ──
+    add_column_if_missing(cursor, "lessons", "execution_count", "INTEGER", "0")
+    add_column_if_missing(cursor, "lessons", "feedback_score", "REAL", "0.0")
+    add_column_if_missing(cursor, "lessons", "last_executed", "REAL")
+    add_column_if_missing(cursor, "lessons", "last_feedback", "REAL")
+
+    # ── lesson_steps table: Cortex integration ──
+    add_column_if_missing(cursor, "lesson_steps", "query_pattern", "TEXT")  # JSON: Qdrant query spec
+    add_column_if_missing(cursor, "lesson_steps", "cache_tier", "TEXT")  # frozen|cold|search|warm|hot
+    add_column_if_missing(cursor, "lesson_steps", "requires_auth", "TEXT")  # what API keys needed
+
+    # ── indexes for efficient queries ──
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_abstraction ON lessons(abstraction_level)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_sharing ON lessons(sharing_policy)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_pattern ON lessons(abstract_pattern)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_project ON lessons(project_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_org ON lessons(org_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_domain ON lessons(domain)")
+
+    logger.info("✅ Migration 037 complete: Composable epistemic patterns schema added")
