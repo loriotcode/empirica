@@ -119,7 +119,32 @@ def main():
 
     tx_path = _find_transaction_file(claude_session_id)
     if not tx_path:
-        # No active transaction — still output context warning if applicable
+        # No active transaction — suggest constitution skill for orientation
+        # This fires when the AI hasn't done PREFLIGHT yet, which is exactly
+        # when the constitution is most valuable (routing decisions).
+        skill_nudge = "no active transaction — load /empirica-constitution for orientation before PREFLIGHT"
+
+        # Also check if the user's prompt suggests complex work
+        # that would benefit from the transaction skill
+        user_prompt = hook_input.get('prompt', '').lower()
+        complex_work_signals = [
+            'plan', 'implement', 'spec', 'transaction', 'transactions',
+            'preflight', 'artifacts', 'epistemic', 'break this down',
+            'how should i approach', 'decompose', 'multi-step', 'complex',
+        ]
+        if any(signal in user_prompt for signal in complex_work_signals):
+            skill_nudge += " | complex work detected — consider /epistemic-transaction for structured decomposition"
+
+        if output.get("hookSpecificOutput", {}).get("additionalContext"):
+            output["hookSpecificOutput"]["additionalContext"] += f" | {skill_nudge}"
+        else:
+            output = {
+                "hookSpecificOutput": {
+                    "hookEventName": "UserPromptSubmit",
+                    "additionalContext": skill_nudge
+                }
+            }
+
         print(json.dumps(output))
         return
 
