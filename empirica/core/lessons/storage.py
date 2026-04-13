@@ -214,8 +214,14 @@ class LessonStorageManager:
              source_confidence, teaching_quality, reproducibility,
              step_count, prereq_count, replay_count, success_rate,
              suggested_tier, suggested_price, created_by,
-             created_timestamp, updated_timestamp, lesson_data)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             created_timestamp, updated_timestamp, lesson_data,
+             abstraction_level, sharing_policy, abstract_pattern,
+             parent_lesson_id, entity_ids, project_id, org_id, user_id,
+             trigger_type, trigger_config, output_format, output_renderer,
+             output_config, execution_count, feedback_score,
+             last_executed, last_feedback)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             warm['id'], warm['name'], warm['version'], warm['description'],
             warm['domain'], warm['tags'],
@@ -223,7 +229,15 @@ class LessonStorageManager:
             warm['step_count'], warm['prereq_count'], warm['replay_count'], warm['success_rate'],
             warm['suggested_tier'], warm['suggested_price'], warm['created_by'],
             warm['created_timestamp'], warm['updated_timestamp'],
-            json.dumps(lesson.to_dict())  # Full JSON for reference
+            json.dumps(lesson.to_dict()),  # Full JSON for reference
+            lesson.abstraction_level, lesson.sharing_policy, lesson.abstract_pattern,
+            lesson.parent_lesson_id, json.dumps(lesson.entity_ids) if lesson.entity_ids else None,
+            lesson.project_id, lesson.org_id, lesson.user_id,
+            lesson.trigger_type, json.dumps(lesson.trigger_config) if lesson.trigger_config else None,
+            lesson.output_format, lesson.output_renderer,
+            json.dumps(lesson.output_config) if lesson.output_config else None,
+            lesson.execution_count, lesson.feedback_score,
+            lesson.last_executed, lesson.last_feedback,
         ))
 
         # Steps
@@ -232,12 +246,16 @@ class LessonStorageManager:
             cursor.execute("""
                 INSERT OR REPLACE INTO lesson_steps
                 (id, lesson_id, step_order, phase, action, target, code,
-                 critical, expected_outcome, error_recovery, timeout_ms)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 critical, expected_outcome, error_recovery, timeout_ms,
+                 query_pattern, cache_tier, requires_auth)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 step_id, lesson.id, step.order, step.phase.value, step.action,
                 step.target, step.code, step.critical, step.expected_outcome,
-                step.error_recovery, step.timeout_ms
+                step.error_recovery, step.timeout_ms,
+                json.dumps(step.query_pattern) if hasattr(step, 'query_pattern') and step.query_pattern else None,
+                getattr(step, 'cache_tier', None),
+                getattr(step, 'requires_auth', None),
             ))
 
         # Epistemic deltas

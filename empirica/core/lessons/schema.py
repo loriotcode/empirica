@@ -99,6 +99,11 @@ class LessonStep:
     error_recovery: str | None = None # What to do if step fails
     timeout_ms: int | None = None     # Max time for this step
 
+    # Cortex cache integration (migration 037)
+    query_pattern: dict | None = None  # Qdrant query spec for this step's data
+    cache_tier: str | None = None      # frozen|cold|search|warm|hot
+    requires_auth: str | None = None   # what API keys/auth this step needs
+
     def to_dict(self) -> dict:
         """Convert step to dictionary representation."""
         return {
@@ -110,7 +115,10 @@ class LessonStep:
             'critical': self.critical,
             'expected_outcome': self.expected_outcome,
             'error_recovery': self.error_recovery,
-            'timeout_ms': self.timeout_ms
+            'timeout_ms': self.timeout_ms,
+            'query_pattern': self.query_pattern,
+            'cache_tier': self.cache_tier,
+            'requires_auth': self.requires_auth,
         }
 
     @classmethod
@@ -125,7 +133,10 @@ class LessonStep:
             critical=d.get('critical', False),
             expected_outcome=d.get('expected_outcome'),
             error_recovery=d.get('error_recovery'),
-            timeout_ms=d.get('timeout_ms')
+            timeout_ms=d.get('timeout_ms'),
+            query_pattern=d.get('query_pattern'),
+            cache_tier=d.get('cache_tier'),
+            requires_auth=d.get('requires_auth'),
         )
 
 
@@ -321,6 +332,35 @@ class Lesson:
     tags: list[str] = field(default_factory=list)
     domain: str | None = None         # e.g., 'browser-automation', 'git', 'api'
 
+    # ── Composable epistemic patterns (migration 037) ──
+
+    # Abstraction and sharing
+    abstraction_level: Literal['personal', 'project', 'domain', 'cross_org'] = 'personal'
+    sharing_policy: Literal['private', 'project', 'org', 'public', 'licensed'] = 'private'
+    abstract_pattern: str | None = None    # canonical pattern name for cross-cutting
+    parent_lesson_id: str | None = None    # lesson this was abstracted from
+
+    # EKG connections
+    entity_ids: list[str] = field(default_factory=list)  # connected entity IDs
+    project_id: str | None = None
+    org_id: str | None = None
+    user_id: str | None = None
+
+    # Trigger model
+    trigger_type: str | None = None        # schedule|state_change|event|manual|suggestion
+    trigger_config: dict | None = None     # schedule spec, vector thresholds, etc.
+
+    # Output rendering
+    output_format: str = 'markdown'        # markdown|html|infographic|slides|audio|video
+    output_renderer: str = 'template'      # template|llm|notebooklm|google_workspace
+    output_config: dict | None = None      # renderer-specific config
+
+    # Feedback loop
+    execution_count: int = 0
+    feedback_score: float = 0.0
+    last_executed: float | None = None
+    last_feedback: float | None = None
+
     @staticmethod
     def generate_id(name: str, version: str) -> str:
         """Generate deterministic lesson ID from name and version"""
@@ -346,7 +386,25 @@ class Lesson:
             'created_timestamp': self.created_timestamp,
             'updated_timestamp': self.updated_timestamp,
             'tags': self.tags,
-            'domain': self.domain
+            'domain': self.domain,
+            # Composable fields
+            'abstraction_level': self.abstraction_level,
+            'sharing_policy': self.sharing_policy,
+            'abstract_pattern': self.abstract_pattern,
+            'parent_lesson_id': self.parent_lesson_id,
+            'entity_ids': self.entity_ids,
+            'project_id': self.project_id,
+            'org_id': self.org_id,
+            'user_id': self.user_id,
+            'trigger_type': self.trigger_type,
+            'trigger_config': self.trigger_config,
+            'output_format': self.output_format,
+            'output_renderer': self.output_renderer,
+            'output_config': self.output_config,
+            'execution_count': self.execution_count,
+            'feedback_score': self.feedback_score,
+            'last_executed': self.last_executed,
+            'last_feedback': self.last_feedback,
         }
 
     def to_hot_dict(self) -> dict:
