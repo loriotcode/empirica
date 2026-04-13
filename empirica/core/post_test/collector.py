@@ -611,61 +611,6 @@ class PostTestCollector:
                 metadata={"phase": "noetic"},
             ))
 
-        # Project epistemic depth: how many prior artifacts exist in this project
-        # from PREVIOUS sessions? Rich epistemic history means richer context
-        # available via PREFLIGHT patterns, project-search, and Qdrant retrieval.
-        # This measures the context AVAILABLE, not whether the AI used it —
-        # but availability is a necessary condition for context richness.
-        try:
-            prior_artifact_count = 0
-            for table in ("project_findings", "project_unknowns",
-                          "project_dead_ends", "decisions", "assumptions"):
-                try:
-                    cursor.execute(f"""
-                        SELECT COUNT(*) FROM {table}
-                        WHERE session_id != ?
-                    """, (self.session_id,))
-                    prior_artifact_count += cursor.fetchone()[0]
-                except Exception:
-                    continue
-
-            if prior_artifact_count > 0:
-                # Normalize: 20 prior artifacts = 0.5, 100+ = 1.0
-                depth = min(1.0, prior_artifact_count / 100.0)
-                items.append(EvidenceItem(
-                    source="noetic",
-                    metric_name="project_epistemic_depth",
-                    value=depth,
-                    raw_value={"prior_artifacts": prior_artifact_count},
-                    quality=EvidenceQuality.SEMI_OBJECTIVE,
-                    supports_vectors=["context"],
-                    metadata={"phase": "noetic"},
-                ))
-
-            # Prior transactions in this session: how many PREFLIGHT+POSTFLIGHT
-            # cycles has this session completed? More completed transactions
-            # = more accumulated context within this session.
-            cursor.execute("""
-                SELECT COUNT(*) FROM reflexes
-                WHERE session_id = ? AND phase = 'POSTFLIGHT'
-            """, (self.session_id,))
-            completed_txns = cursor.fetchone()[0]
-
-            if completed_txns > 0:
-                # Normalize: 1 prior tx = 0.4, 5+ = 1.0
-                session_context = min(1.0, 0.2 + completed_txns * 0.2)
-                items.append(EvidenceItem(
-                    source="noetic",
-                    metric_name="session_accumulated_context",
-                    value=session_context,
-                    raw_value={"completed_transactions": completed_txns},
-                    quality=EvidenceQuality.SEMI_OBJECTIVE,
-                    supports_vectors=["context"],
-                    metadata={"phase": "noetic"},
-                ))
-        except Exception:
-            pass  # Non-fatal
-
         return items
 
     def _collect_goal_metrics(self) -> list[EvidenceItem]:
@@ -958,6 +903,58 @@ class PostTestCollector:
                 quality=EvidenceQuality.INFERRED,
                 supports_vectors=["signal"],
             ))
+
+        # ── Context evidence: project/session-level knowledge availability ──
+        # These are phase-agnostic (run in both noetic and praxic phases)
+        # because they measure AVAILABLE context, not phase-specific activity.
+
+        # Project epistemic depth: prior artifacts from other sessions.
+        # Rich project history = richer context available via PREFLIGHT,
+        # project-search, and Qdrant retrieval.
+        try:
+            prior_artifact_count = 0
+            for table in ("project_findings", "project_unknowns",
+                          "project_dead_ends", "decisions", "assumptions"):
+                try:
+                    cursor.execute(f"""
+                        SELECT COUNT(*) FROM {table}
+                        WHERE session_id != ?
+                    """, (self.session_id,))
+                    prior_artifact_count += cursor.fetchone()[0]
+                except Exception:
+                    continue
+
+            if prior_artifact_count > 0:
+                depth = min(1.0, prior_artifact_count / 100.0)
+                items.append(EvidenceItem(
+                    source="artifacts",
+                    metric_name="project_epistemic_depth",
+                    value=depth,
+                    raw_value={"prior_artifacts": prior_artifact_count},
+                    quality=EvidenceQuality.SEMI_OBJECTIVE,
+                    supports_vectors=["context"],
+                ))
+
+            # Session accumulated context: completed transactions in this session.
+            # More completed transactions = deeper understanding accumulated.
+            cursor.execute("""
+                SELECT COUNT(*) FROM reflexes
+                WHERE session_id = ? AND phase = 'POSTFLIGHT'
+            """, (self.session_id,))
+            completed_txns = cursor.fetchone()[0]
+
+            if completed_txns > 0:
+                session_context = min(1.0, 0.2 + completed_txns * 0.2)
+                items.append(EvidenceItem(
+                    source="artifacts",
+                    metric_name="session_accumulated_context",
+                    value=session_context,
+                    raw_value={"completed_transactions": completed_txns},
+                    quality=EvidenceQuality.SEMI_OBJECTIVE,
+                    supports_vectors=["context"],
+                ))
+        except Exception:
+            pass  # Non-fatal
 
         return items
 
