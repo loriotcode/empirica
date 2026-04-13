@@ -953,6 +953,33 @@ class PostTestCollector:
                     quality=EvidenceQuality.SEMI_OBJECTIVE,
                     supports_vectors=["context"],
                 ))
+
+            # PREFLIGHT pattern count: how many prior-knowledge patterns were
+            # loaded at PREFLIGHT? Stored in transaction file by PREFLIGHT handler.
+            # More patterns = richer task-relevant context available.
+            try:
+                from empirica.utils.session_resolver import _get_instance_suffix
+                suffix = _get_instance_suffix()
+                project_root = self._resolve_project_root()
+                if project_root:
+                    tx_file = Path(project_root) / '.empirica' / f'active_transaction{suffix}.json'
+                    if tx_file.exists():
+                        with open(tx_file) as f:
+                            tx_data = json.load(f)
+                        pattern_count = tx_data.get('preflight_pattern_count', 0)
+                        if pattern_count > 0:
+                            # Normalize: 5 patterns = 0.33, 15+ = 1.0
+                            richness = min(1.0, pattern_count / 15.0)
+                            items.append(EvidenceItem(
+                                source="artifacts",
+                                metric_name="preflight_context_richness",
+                                value=richness,
+                                raw_value={"pattern_count": pattern_count},
+                                quality=EvidenceQuality.SEMI_OBJECTIVE,
+                                supports_vectors=["context", "know"],
+                            ))
+            except Exception:
+                pass  # Non-fatal — pattern count may not be available
         except Exception:
             pass  # Non-fatal
 

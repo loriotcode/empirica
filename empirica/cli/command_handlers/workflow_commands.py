@@ -710,6 +710,24 @@ def handle_preflight_submit_command(args):
                                    f"{len(patterns.get('related_goals', []))} goals, "
                                    f"{len(patterns.get('unverified_assumptions', []))} assumptions, "
                                    f"{len(patterns.get('prior_decisions', []))} decisions")
+                    # Persist pattern count in transaction file for context evidence
+                    if patterns:
+                        try:
+                            import json as _pjson
+                            pattern_count = sum(
+                                len(v) for k, v in patterns.items()
+                                if isinstance(v, list) and k != 'time_gap'
+                            )
+                            suffix = R.instance_suffix()
+                            tx_file = Path(resolved_project_path) / '.empirica' / f'active_transaction{suffix}.json'
+                            if tx_file.exists():
+                                with open(tx_file) as f:
+                                    tx_d = _pjson.load(f)
+                                tx_d['preflight_pattern_count'] = pattern_count
+                                with open(tx_file, 'w') as f:
+                                    _pjson.dump(tx_d, f, indent=2)
+                        except Exception:
+                            pass  # Non-fatal
                 except Exception as e:
                     logger.debug(f"Pattern retrieval failed (optional): {e}")
 

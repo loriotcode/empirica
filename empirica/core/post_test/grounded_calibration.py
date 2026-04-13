@@ -726,17 +726,58 @@ def _run_single_phase_verification(
         work_type=work_type,
     )
 
+    # Effective coverage: weight-aware coverage computation.
+    # Raw coverage = grounded_vectors / 13 (all vectors equally).
+    # Effective coverage = grounded_vectors weighted by category importance.
+    # A noetic phase with know+context+signal grounded and research work_type
+    # has high effective coverage (those ARE the important vectors for research)
+    # even though raw coverage is only 3/13 = 0.23.
+    effective_coverage = assessment.grounded_coverage  # default: use raw
+    try:
+        from empirica.core.post_test.mapper import _load_domain_weights
+        config = _load_domain_weights(domain or "default", work_type=work_type)
+        cat_weights = config["category_weights"]
+        vector_map = config["vector_category_map"]
+
+        # Which vectors have grounded estimates?
+        grounded_vectors = set(assessment.grounded.keys())
+
+        # Sum category weights for categories that have ANY grounded vector
+        covered_weight = 0.0
+        total_weight = 0.0
+        for cat in ("foundation", "comprehension", "execution", "meta"):
+            cat_w = cat_weights.get(cat, 0.25)
+            total_weight += cat_w
+            # Does any vector in this category have grounded evidence?
+            cat_vectors = [v for v, c in vector_map.items() if c == cat]
+            if any(v in grounded_vectors for v in cat_vectors):
+                covered_weight += cat_w
+
+        if total_weight > 0:
+            # Category breadth: how many of the 4 categories have evidence?
+            # Single-category coverage is risky even if high-weight — apply
+            # breadth penalty to require evidence across multiple categories.
+            categories_covered = sum(
+                1 for cat in ("foundation", "comprehension", "execution", "meta")
+                if any(v in grounded_vectors for v in
+                       [v2 for v2, c in vector_map.items() if c == cat])
+            )
+            breadth_factor = categories_covered / 4.0  # 1 cat = 0.25, 2 = 0.50, etc.
+            effective_coverage = (covered_weight / total_weight) * breadth_factor
+    except Exception:
+        pass  # Fall back to raw coverage
+
     # Coverage threshold gate. If grounded_coverage is below the threshold,
     # the bundle had items but they didn't ground enough vectors to produce
     # statistically meaningful calibration. Halt and surface as insufficient.
     # Storage operations below are skipped — the trajectory and verifications
     # tables only contain grounded data.
-    if assessment.grounded_coverage < INSUFFICIENT_EVIDENCE_THRESHOLD:
+    if effective_coverage < INSUFFICIENT_EVIDENCE_THRESHOLD:
         return _build_insufficient_evidence_response(
             phase=phase,
             vectors=vectors,
             bundle=bundle,
-            grounded_coverage=assessment.grounded_coverage,
+            grounded_coverage=effective_coverage,
             reason=(
                 f"grounded_coverage {assessment.grounded_coverage:.2f} < "
                 f"threshold {INSUFFICIENT_EVIDENCE_THRESHOLD}"
