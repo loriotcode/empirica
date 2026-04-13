@@ -626,6 +626,39 @@ def handle_preflight_submit_command(args):
                                 if underestimate_tendency:
                                     previous_transaction_feedback["underestimate_tendency"] = underestimate_tendency
 
+                        # Challenge-framed narrative: uses trajectory and personal best
+                        # to activate quality-tail generation (challenge → elaboration → improvement)
+                        try:
+                            cursor.execute("""
+                                SELECT overall_calibration_score FROM grounded_verifications
+                                WHERE ai_id = ? AND project_id = ?
+                                AND overall_calibration_score IS NOT NULL
+                                AND overall_calibration_score > 0
+                                ORDER BY created_at DESC LIMIT 10
+                            """, (ai_id, project_id))
+                            recent_scores = [r[0] for r in cursor.fetchall()]
+                            if len(recent_scores) >= 3:
+                                avg_score = sum(recent_scores) / len(recent_scores)
+                                best_score = min(recent_scores)
+                                current_score = recent_scores[0]
+                                # Build challenge narrative
+                                parts = []
+                                if current_score <= best_score * 1.1:
+                                    parts.append(f"calibration {current_score:.3f} — near your best ({best_score:.3f}), maintain this")
+                                elif current_score > avg_score:
+                                    parts.append(f"calibration {current_score:.3f} — above your average ({avg_score:.3f}), your best is {best_score:.3f}")
+                                else:
+                                    parts.append(f"calibration {current_score:.3f} — trending well (avg {avg_score:.3f}, best {best_score:.3f})")
+
+                                if overestimate_tendency:
+                                    parts.append(f"tighten: {', '.join(overestimate_tendency[:3])}")
+                                if underestimate_tendency:
+                                    parts.append(f"trust more: {', '.join(underestimate_tendency[:3])}")
+
+                                previous_transaction_feedback["calibration_challenge"] = " | ".join(parts)
+                        except Exception:
+                            pass
+
                         previous_transaction_feedback["note"] = (
                             "Directional feedback only — be more cautious with overestimate vectors, "
                             "less cautious with underestimate vectors. Specific values are user-facing only. "
