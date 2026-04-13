@@ -253,14 +253,20 @@ class GroundedAssessment:
         return self.grounded
 
 
-def _load_domain_weights(domain: str = "default") -> dict[str, Any]:
-    """Load domain category weights and vector-category map from confidence_weights.yaml.
+def _load_domain_weights(domain: str = "default", work_type: str | None = None) -> dict[str, Any]:
+    """Load category weights and vector-category map from confidence_weights.yaml.
+
+    Resolution priority (the triad): work_type > domain > default.
+    When work_type is known, its category weights override domain weights.
+    This makes calibration scoring sensitive to what kind of work is being done,
+    not just which project/domain it's in.
 
     Args:
         domain: Domain name (software, consulting, research, operations, default)
+        work_type: Work type from PREFLIGHT (code, research, debug, docs, etc.)
 
     Returns:
-        Dict with 'category_weights' and 'vector_category_map'
+        Dict with 'category_weights', 'vector_category_map', and 'weight_source'
     """
     config_path = Path(__file__).parent.parent.parent / "config" / "mco" / "confidence_weights.yaml"
     defaults = {
@@ -278,6 +284,7 @@ def _load_domain_weights(domain: str = "default") -> dict[str, Any]:
             "engagement": "meta",
             "uncertainty": "meta",
         },
+        "weight_source": "default",
     }
     if not config_path.exists():
         return defaults
@@ -286,10 +293,34 @@ def _load_domain_weights(domain: str = "default") -> dict[str, Any]:
         with open(config_path) as f:
             config = yaml.safe_load(f) or {}
 
-        domain_weights = config.get("domain_category_weights", {})
-        category_weights = domain_weights.get(domain, domain_weights.get("default", defaults["category_weights"]))
         vector_map = config.get("vector_category_map", defaults["vector_category_map"])
-        return {"category_weights": category_weights, "vector_category_map": vector_map}
+
+        # Priority: work_type > domain > default
+        weight_source = "default"
+        category_weights = defaults["category_weights"]
+
+        # Try work_type first (most specific)
+        if work_type:
+            wt_weights = config.get("work_type_category_weights", {})
+            if work_type in wt_weights:
+                category_weights = wt_weights[work_type]
+                weight_source = f"work_type:{work_type}"
+
+        # Fall back to domain if work_type didn't match
+        if weight_source == "default":
+            domain_weights = config.get("domain_category_weights", {})
+            if domain in domain_weights:
+                category_weights = domain_weights[domain]
+                weight_source = f"domain:{domain}"
+            elif "default" in domain_weights:
+                category_weights = domain_weights["default"]
+                weight_source = "domain:default"
+
+        return {
+            "category_weights": category_weights,
+            "vector_category_map": vector_map,
+            "weight_source": weight_source,
+        }
     except Exception as e:
         logger.warning(f"Failed to load domain weights: {e}")
         return defaults
@@ -369,11 +400,14 @@ def _compute_weighted_calibration(
     calibration_gaps: dict[str, float],
     domain: str = "default",
     per_vector_weights: dict[str, float] | None = None,
+    work_type: str | None = None,
 ) -> float:
     """Compute category-weighted calibration score.
 
-    Tier 1: Domain category weights determine how much each category contributes.
+    Tier 1: Work-type (or domain) category weights determine how much each category contributes.
     Tier 2: Per-vector weights (optional) scale individual vector gaps within categories.
+
+    Resolution: work_type > domain > default (the triad).
 
     Args:
         calibration_gaps: Dict of vector_name → gap (self - grounded)
@@ -386,7 +420,7 @@ def _compute_weighted_calibration(
     if not calibration_gaps:
         return 0.0
 
-    config = _load_domain_weights(domain)
+    config = _load_domain_weights(domain, work_type=work_type)
     category_weights = config["category_weights"]
     vector_map = config["vector_category_map"]
 
@@ -536,9 +570,10 @@ class EvidenceMapper:
                 self_u = self_assessed_vectors["uncertainty"]
                 calibration_gaps["uncertainty"] = round(self_u - meta_u, 4)
 
-        # Overall calibration score — domain-weighted (Tier 1 + optional Tier 2)
+        # Overall calibration score — work-type/domain-weighted (Tier 1 + optional Tier 2)
         overall_score = _compute_weighted_calibration(
             calibration_gaps, domain=domain, per_vector_weights=per_vector_weights,
+            work_type=work_type,
         )
 
         return GroundedAssessment(

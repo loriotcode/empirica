@@ -185,6 +185,85 @@ domain_category_weights:
     execution: 0.25
     meta: 0.15
 
+# =============================================================================
+# WORK TYPE CATEGORY WEIGHTS
+# =============================================================================
+#
+# How much each CATEGORY matters for each WORK TYPE.
+# When work_type is known (from PREFLIGHT), these OVERRIDE domain_category_weights.
+# Priority: work_type > domain > default
+#
+# Rationale: within the same project, a "research" task cares about different
+# vectors than a "code" task. Foundation + meta are always load-bearing;
+# the work_type shifts weight between comprehension and execution.
+
+work_type_category_weights:
+  code:
+    foundation: 0.30
+    comprehension: 0.15
+    execution: 0.40       # shipping code = execution-heavy
+    meta: 0.15
+
+  research:
+    foundation: 0.30
+    comprehension: 0.35   # understanding = comprehension-heavy
+    execution: 0.10       # research doesn't ship (yet)
+    meta: 0.25            # honest uncertainty matters MORE in research
+
+  debug:
+    foundation: 0.30
+    comprehension: 0.25
+    execution: 0.35       # state awareness critical
+    meta: 0.10
+
+  docs:
+    foundation: 0.25
+    comprehension: 0.40   # clarity paramount
+    execution: 0.20
+    meta: 0.15
+
+  comms:
+    foundation: 0.25
+    comprehension: 0.35   # clarity + coherence
+    execution: 0.20
+    meta: 0.20
+
+  design:
+    foundation: 0.30
+    comprehension: 0.30   # coherence + clarity
+    execution: 0.20
+    meta: 0.20
+
+  infra:
+    foundation: 0.30
+    comprehension: 0.15
+    execution: 0.40       # infrastructure = execution-heavy
+    meta: 0.15
+
+  audit:
+    foundation: 0.30
+    comprehension: 0.30   # signal quality critical
+    execution: 0.15
+    meta: 0.25            # uncertainty matters in audit
+
+  data:
+    foundation: 0.30
+    comprehension: 0.25
+    execution: 0.30
+    meta: 0.15
+
+  config:
+    foundation: 0.30
+    comprehension: 0.20
+    execution: 0.35
+    meta: 0.15
+
+  release:
+    foundation: 0.25
+    comprehension: 0.15
+    execution: 0.45       # release = almost pure execution
+    meta: 0.15
+
 # Vector-to-category mapping (used by mapper to assign vectors to categories).
 # Renamed engagement → meta on 2026-04-07 to match David's design recap:
 # the 4th category contains relational/meta vectors (engagement + uncertainty),
