@@ -337,6 +337,12 @@ def _compute_meta_uncertainty(
     reported?" — derived from the coverage (how much we could verify) and
     gap magnitudes (how wrong the verified parts were) of the OTHER vectors.
 
+    NOTE: This value is computed for FEEDBACK and REPORTING only. It appears
+    in calibration_gaps so the AI can see the divergence, and it gates CHECK
+    via the uncertainty threshold. However, it is EXCLUDED from the calibration
+    score computation because its grounded value is derived from the same gaps
+    it would be scored against — a circular dependency that adds noise, not signal.
+
     This aligns with the statusline's confidence formula, which treats
     confidence as a derived display quantity computed from know/context/
     completion/(1-uncertainty). The vector layer follows the same pattern:
@@ -571,8 +577,13 @@ class EvidenceMapper:
                 calibration_gaps["uncertainty"] = round(self_u - meta_u, 4)
 
         # Overall calibration score — work-type/domain-weighted (Tier 1 + optional Tier 2)
+        # Exclude uncertainty from scoring: it's a meta-vector whose "grounded"
+        # value is derived from the same gaps it would be scored against (circular).
+        # Uncertainty still appears in calibration_gaps for feedback/reporting
+        # and still gates CHECK — it's just not part of the Brier score.
+        scoring_gaps = {k: v for k, v in calibration_gaps.items() if k != "uncertainty"}
         overall_score = _compute_weighted_calibration(
-            calibration_gaps, domain=domain, per_vector_weights=per_vector_weights,
+            scoring_gaps, domain=domain, per_vector_weights=per_vector_weights,
             work_type=work_type,
         )
 
