@@ -116,6 +116,26 @@ the uncertainty threshold via the Domain Registry (`DomainRegistry.resolve()`).
 information. The AI synthesizes the **grounded state** from that information with
 explicit rationale. The services inform; they do not score. The AI gives the score.
 
+### Uncertainty Exclusion from Calibration Score (v1.8.2)
+
+Uncertainty is a **meta-vector** — its grounded value is derived from the coverage
+and gap magnitudes of the other 12 vectors. Including it in the calibration score
+creates a circular dependency: the score would grade a meta-prediction using
+evidence derived from the same predictions it's meta about.
+
+**What changed:** Uncertainty is excluded from `_compute_weighted_calibration()`.
+The `scoring_gaps` dict filters it out before computing the weighted Brier number.
+
+**What didn't change:** Uncertainty still:
+- Appears in `calibration_gaps` (visible in POSTFLIGHT response for feedback)
+- Gates CHECK (via `uncertainty_threshold` in sentinel-gate.py)
+- Feeds PREFLIGHT trajectory feedback (`underestimate_tendency: [uncertainty]`)
+- Gets a grounded observation via `_compute_meta_uncertainty()`
+
+The behavioral fix (AI reporting higher uncertainty) comes from trajectory pattern
+feedback, not per-transaction grounding. The measurement doesn't need to be in
+the score to drive improvement.
+
 ### Mechanism
 
 ```python

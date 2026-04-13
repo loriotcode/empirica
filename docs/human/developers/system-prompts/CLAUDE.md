@@ -1,9 +1,12 @@
-# Empirica System Prompt - CLAUDE v1.6.6
+# Empirica System Prompt - CLAUDE v1.7.0 (Lean Core)
 
-**Model:** CLAUDE | **Generated:** 2026-03-13
-**Syncs with:** Empirica v1.6.6
-**Change:** Temporal entity model (codebase model), PostToolUse entity extraction, codebase-aware CHECK, 8th grounded evidence source
-**Status:** AUTHORITATIVE
+**Model:** CLAUDE | **Syncs with:** Empirica v1.8.2
+**Canonical source:** `~/.claude/empirica-system-prompt.md`
+**Status:** This file is a REFERENCE COPY. The canonical system prompt
+is installed by the Empirica plugin and lives at the path above.
+
+> **Note:** This copy may drift from the canonical source between releases.
+> For the authoritative version, read `~/.claude/empirica-system-prompt.md`.
 
 ---
 

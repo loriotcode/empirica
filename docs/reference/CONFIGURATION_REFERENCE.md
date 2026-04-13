@@ -1094,6 +1094,15 @@ Empirica uses a 4-layer weight system for calibration scoring. Each layer serves
 - **Granularity:** Per domain (software, consulting, research, operations, default)
 - **Example:** Software domain weights execution at 0.35 (shipping code matters most), research weights comprehension at 0.30
 
+**Layer 2.5: Work-Type Category Weights (1.8.2+)**
+- **Source:** `config/mco/confidence_weights.yaml` — `work_type_category_weights`
+- **Purpose:** Override domain category weights when `work_type` is known from PREFLIGHT. Makes calibration sensitive to what kind of work is being done, not just which project/domain.
+- **Consumer:** `core/post_test/mapper.py` — `_load_domain_weights(domain, work_type)`
+- **Granularity:** Per transaction (from PREFLIGHT `work_type` field)
+- **Resolution:** work_type > domain > default (the triad)
+- **Profiles:** 11 work types defined (code, research, debug, docs, comms, design, infra, audit, data, config, release)
+- **Example:** Research weights comprehension at 0.35 and meta at 0.25 (honest uncertainty matters more), code weights execution at 0.40 (shipping matters most)
+
 **Layer 3: Per-Project Per-Phase Weights (Tier 2)**
 - **Source:** `.empirica/project.yaml` — `calibration_weights` (seeded at `project-init`, backfilled by `project-bootstrap` for older projects)
 - **Purpose:** Scale individual vector gaps within categories, per phase (noetic vs praxic)
@@ -1112,13 +1121,16 @@ Empirica uses a 4-layer weight system for calibration scoring. Each layer serves
 ```
 PREFLIGHT declares work_type + work_context
     ↓
-Layer 4: Evidence items scaled by work_type relevance
+Layer 4: Evidence items scaled by work_type relevance (source exclusion)
     ↓
 Layer 3: Per-vector gaps scaled by project phase weights
     ↓
-Layer 2: Gaps grouped by category, weighted by domain importance
+Layer 2.5: Category weights resolved by triad (work_type > domain > default)
+    ↓
+Layer 2: Gaps grouped by category, weighted by resolved category weights
     ↓
 = Overall calibration score (lower = better calibrated)
+    Note: uncertainty excluded from score (circular dependency)
 ```
 
 **Cascade Profile Selection:**

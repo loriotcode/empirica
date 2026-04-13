@@ -5,6 +5,57 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.2] - 2026-04-13
+
+### Added — Provenance Graph
+- **Migration 036** — three provenance columns (all NULL-defaulted, additive):
+  `source_refs` on project_findings (JSON array of source IDs),
+  `evidence_refs` on decisions (JSON array of finding IDs),
+  `resolution_finding_id` on project_unknowns.
+- **CLI flags** — `--source` on finding-log (repeatable), `--evidence` on
+  decision-log (repeatable), `--finding` on unknown-resolve. Links artifacts
+  into a source-finding-decision traceability chain.
+- **MCP tool parity** — `source_ids` on finding_log, `evidence_refs` on
+  decision_log, `resolution_finding_id` on unknown_resolve. Array params
+  handled via new `list_params` registry field.
+- **Three check runners** — `recommendation_traceability` (decisions cite
+  evidence), `finding_sourced` (findings cite sources), `provenance_depth`
+  (at least one complete source-finding-decision chain).
+- **Domain YAML updates** — consulting adds traceability at medium+, sourced
+  at high+, depth at critical. Research adds sourced at medium+, traceability
+  at high+, depth at critical.
+
+### Added — Calibration Infrastructure
+- **Work-type vector weight profiles** — 11 profiles in
+  `confidence_weights.yaml` (code, research, debug, docs, comms, design,
+  infra, audit, data, config, release). Triad resolution: work_type overrides
+  domain overrides default. Research weights comprehension 0.35 and meta 0.25;
+  code weights execution 0.40.
+- **Context evidence items** — `project_epistemic_depth` (prior artifacts from
+  other sessions), `session_accumulated_context` (completed transactions this
+  session), `preflight_context_richness` (PREFLIGHT pattern count from
+  transaction file). Fixes structural 0.72 context calibration gap.
+- **Weight-aware coverage** — coverage threshold gate uses category-weighted
+  coverage instead of raw vector count. Includes breadth penalty (single
+  category insufficient). Enables noetic phase grounded calibration.
+- **PREFLIGHT pattern persistence** — pattern count stored in transaction file
+  so collector can read it at POSTFLIGHT for context evidence.
+- **Uncertainty excluded from calibration score** — meta-uncertainty is
+  circular (derived from gaps it would be scored against). Still gates CHECK,
+  still appears in feedback, just not in the Brier number.
+
+### Added — Skill Nudges
+- **UserPromptSubmit hook** suggests `/empirica-constitution` when no active
+  transaction exists (pre-PREFLIGHT orientation). Detects complex work signals
+  (plan, implement, spec, transaction, preflight, artifacts, epistemic) and
+  suggests `/epistemic-transaction` for structured decomposition.
+
+### Changed
+- **System prompt** — provenance-first proactive behaviors, source-finding-
+  decision in collaborative mode signals table.
+- **Transaction skill** — quick reference shows --source/--evidence/--finding.
+- **Onboard** — source-add in investigation step, --evidence in praxic step.
+
 ## [1.8.1] - 2026-04-10
 
 ### Added

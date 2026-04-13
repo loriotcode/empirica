@@ -1,8 +1,13 @@
 # Epistemic Tracking API Reference
 
-**Version:** 1.6.6
+**Version:** 1.8.2
 **Module:** `empirica.data.epistemic_snapshot`, `empirica.core.epistemic_trajectory`
 **Purpose:** AI epistemic state capture, persistence, and cross-AI transfer
+
+> **1.8.x additions:** Three-vector model (self_assessed/observed/grounded),
+> provenance graph (source_refs, evidence_refs, resolution_finding_id),
+> work-type vector weight profiles, weight-aware calibration coverage,
+> uncertainty excluded from calibration score. See CHANGELOG.md for details.
 
 ---
 

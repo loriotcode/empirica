@@ -438,14 +438,45 @@ EMPIRICA_SENTINEL_LOOPING=false     # Disable investigate loops
 
 ---
 
+## Provenance Graph (1.8.2+)
+
+Artifacts can be linked into a source-finding-decision traceability chain:
+
+```bash
+# Log a source, capture its ID
+empirica source-add --title "API docs" --source-type doc --url "https://..."
+
+# Log a finding WITH source provenance
+empirica finding-log --finding "Auth uses JWT RS256" --source <source-id>
+
+# Log a decision WITH evidence (finding IDs)
+empirica decision-log --choice "Use middleware factory" \
+  --rationale "Enables per-route config" \
+  --evidence <finding-id-1> --evidence <finding-id-2>
+
+# Resolve an unknown WITH the finding that answered it
+empirica unknown-resolve --unknown-id <id> --finding <finding-id>
+```
+
+**CLI flags:** `--source` (finding-log, repeatable), `--evidence` (decision-log,
+repeatable), `--finding` (unknown-resolve). All optional — omitting them still
+works, the provenance link is just absent.
+
+**MCP params:** `source_ids` (array), `evidence_refs` (array),
+`resolution_finding_id` (string).
+
+**Compliance checks:** `recommendation_traceability` (decisions cite evidence),
+`finding_sourced` (findings cite sources), `provenance_depth` (full chain exists).
+
 ## Best Practices
 
 1. **Always PREFLIGHT before investigation** — Establishes baseline for learning measurement
 2. **CHECK before major actions** — Gate prevents premature praxic work
 3. **POSTFLIGHT honestly** — Accurate vectors enable calibration improvement
-4. **Log artifacts during work** — finding-log, unknown-log, deadend-log feed POST-TEST
+4. **Log artifacts with provenance** — finding-log --source, decision-log --evidence
 5. **Multiple goals per transaction is fine** — Transactions measure coherent work chunks
 6. **Natural commit points** — Close transaction at confidence inflection, topic pivot, or context shift
+7. **Commit before POSTFLIGHT** — Uncommitted work is invisible to grounded calibration
 
 ---
 
