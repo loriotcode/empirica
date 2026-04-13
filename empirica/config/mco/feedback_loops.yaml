@@ -52,7 +52,7 @@ feedback_loops:
       DRIFT:
         action: "warn_only"
         severity: "warning"
-        human_guidance: "Epistemic state inconsistent - verify assessments are honest"
+        human_guidance: "Epistemic state inconsistent - verify assessments maintain fidelity"
 
       SCOPE_STABILITY:
         action: "warn_only"

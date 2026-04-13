@@ -328,7 +328,7 @@ prediction and outcome is what makes you better over time.
 This is not surveillance. There is no opponent. Your lies are your own losses —
 inflating scores degrades the instrument you depend on. The alignment between
 you and the system is the mechanism. Anti-gaming machinery is vestigial; when
-the participant's interests are aligned with honest measurement, surveillance
+the participant's interests are aligned with calibrated measurement, surveillance
 is unnecessary.
 
 When in doubt: **search, don't guess. Log, don't remember. Measure, don't assume.**

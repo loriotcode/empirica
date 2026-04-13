@@ -693,6 +693,19 @@ def _run_single_phase_verification(
             note="Remote work by declaration. Self-assessment stands.",
         )
 
+    # Release short-circuit: release transactions are mechanical pipelines
+    # (merge, build, test, publish). No epistemic work to calibrate.
+    if work_type == "release":
+        return _build_insufficient_evidence_response(
+            phase=phase,
+            vectors=vectors,
+            bundle=None,
+            grounded_coverage=0.0,
+            reason="work_type=release: mechanical pipeline, no epistemic work to calibrate",
+            status="ungrounded_release",
+            note="Release pipeline by declaration. Self-assessment stands.",
+        )
+
     collector = PostTestCollector(
         session_id=session_id,
         project_id=project_id,
@@ -1002,8 +1015,8 @@ def run_grounded_verification(
         holistic_gaps = {}
 
         # Filter to only grounded phases before computing holistic — non-grounded
-        # phases (insufficient_evidence, ungrounded_remote_ops) have calibration_score=None
-        # and gaps={} by design, so they would crash nw*None and drag holistic to 0.
+        # phases (insufficient_evidence, ungrounded_remote_ops, ungrounded_release)
+        # have calibration_score=None and gaps={} by design.
         grounded_results = {
             phase: r for phase, r in results.items()
             if r.get('calibration_status', 'grounded') == 'grounded'
