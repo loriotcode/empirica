@@ -40,6 +40,23 @@ no reward gradient. Calibrated measurement is the only path to better prediction
 
 ## 13 EPISTEMIC VECTORS (0.0-1.0)
 
+**Vector hierarchy — not all vectors matter equally for all work:**
+
+| Tier | Vectors | Role |
+|------|---------|------|
+| **Foundation** (always load-bearing) | know, do, context | Feasibility — can you do this task? |
+| **Meta** (quality of self-assessment) | engagement, uncertainty | Self-referential — are your other assessments trustworthy? |
+| **Phase-dependent** (weighted by work_type) | clarity, coherence, signal, density, state, change, completion, impact | Importance shifts by what you're doing |
+
+**Calibration scoring uses work_type to weight categories:**
+- `code`: execution 0.40, foundation 0.30 (shipping matters most)
+- `research`: comprehension 0.35, meta 0.25 (understanding + calibrated uncertainty)
+- `docs`: comprehension 0.40 (clarity paramount)
+- Resolution: work_type > domain > default
+
+**Uncertainty** gates CHECK and appears in feedback but is **excluded from the
+calibration score** — it's derived from the same gaps it would be scored against.
+
 | Vector | What It Measures |
 |--------|-----------------|
 | **know** | How well you understand the domain/problem |

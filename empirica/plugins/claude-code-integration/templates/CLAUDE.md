@@ -171,22 +171,29 @@ PREFLIGHT accepts two optional context fields that improve grounded calibration:
 **`work_context`** — Project maturity. Affects normalization baselines.
 Values: `greenfield` | `iteration` | `investigation` | `refactor`
 
-**`work_type`** — Nature of the task. Scales evidence weights by source relevance.
+**`work_type`** — Nature of the task. Affects TWO things:
+1. **Evidence source relevance** — which sources are up/downweighted
+2. **Vector category weights** — which vector categories matter for calibration scoring
+
 Values: `code` | `infra` | `research` | `release` | `debug` | `config` | `docs` | `data` | `comms` | `design` | `audit` | `remote-ops`
 
-| Work Type | Primary Evidence (upweighted) | Low-Relevance Evidence (downweighted) |
-|-----------|-------------------------------|---------------------------------------|
-| code | git, tests, code quality | — (baseline) |
-| infra | goal completion | git, tests, code quality |
-| research | artifact counts (findings/unknowns) | git, tests, code quality |
-| debug | test pass delta, artifact counts | git metrics, code quality |
-| docs | git (file changes), goal completion | tests, code quality |
-| comms | goal completion | everything code-related |
-| design | artifact counts, goal completion | git, tests, code quality |
-| audit | artifact counts, goal completion | git (should be zero changes) |
-| **remote-ops** | — (self-assessment stands) | **everything** — local Sentinel has no signal |
+| Work Type | Category Emphasis | Primary Evidence | Low-Relevance Evidence |
+|-----------|-------------------|------------------|------------------------|
+| code | execution 0.40 | git, tests, code quality | — (baseline) |
+| research | comprehension 0.35, meta 0.25 | artifact counts | git, tests, code quality |
+| debug | execution 0.35 | test pass delta, artifacts | git metrics, code quality |
+| docs | comprehension 0.40 | git (file changes), goals | tests, code quality |
+| infra | execution 0.40 | goal completion | git, tests, code quality |
+| comms | comprehension 0.35 | goal completion | everything code-related |
+| design | comprehension 0.30, meta 0.20 | artifacts, goals | git, tests, code quality |
+| audit | comprehension 0.30, meta 0.25 | artifacts, goals | git (should be zero changes) |
+| **release** | execution 0.45 | — (self-assessment stands) | **everything** — mechanical pipeline |
+| **remote-ops** | — | — (self-assessment stands) | **everything** — local Sentinel has no signal |
 
-**When to use `remote-ops`:** the work happens on a machine the local Sentinel doesn't observe — SSH sessions, customer machines, remote config, deploys without local commits, on-site assistance. Every evidence source is zeroed; the AI's self-assessment stands unchallenged. The POSTFLIGHT calibration_status will be `ungrounded_remote_ops` and no divergence is computed. **Don't use remote-ops for hybrid work** that also touches local code — split into two transactions instead.
+**`remote-ops` and `release`** bypass calibration entirely — POSTFLIGHT returns
+`ungrounded_remote_ops` or `ungrounded_release`. No divergence is computed.
+Don't use remote-ops for hybrid work that also touches local code — split into
+two transactions instead.
 
 Both fields are optional and backward-compatible. Set them in PREFLIGHT JSON:
 ```json
@@ -323,12 +330,17 @@ When `finding-log` is called:
 
 ## 13 EPISTEMIC VECTORS (0.0-1.0)
 
-| Category | Vectors |
-|----------|---------|
-| Foundation | know, do, context |
-| Comprehension | clarity, coherence, signal, density |
-| Execution | state, change, completion, impact |
-| Meta | engagement, uncertainty |
+**Vector hierarchy — not all vectors matter equally for all work:**
+
+| Tier | Vectors | Role |
+|------|---------|------|
+| **Foundation** (always load-bearing) | know, do, context | Feasibility — can you do this task? |
+| **Meta** (quality of self-assessment) | engagement, uncertainty | Self-referential — are your other assessments trustworthy? |
+| **Phase-dependent** (weighted by work_type) | clarity, coherence, signal, density, state, change, completion, impact | Importance shifts by what you're doing |
+
+**Calibration scoring** uses `work_type` to weight vector categories. Resolution:
+work_type > domain > default. Uncertainty is excluded from the calibration score
+(circular dependency) but still gates CHECK and appears in feedback.
 
 ---
 
