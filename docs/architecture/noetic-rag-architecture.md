@@ -113,7 +113,7 @@ PREFLIGHT ─────► CHECK ───┼─────────► PO
 
 3. **Capability Belief → Grounded Calibration**
    - Source: `run_grounded_verification(postflight_vectors)`
-   - Compares: Self-assessment vs objective evidence (tests, git metrics)
+   - Compares: Belief vectors vs deterministic service observations
    - Updates: `grounded_beliefs` table, exports to `.breadcrumbs.yaml`
 
 4. **Learning Trajectory → Analytics**
@@ -158,7 +158,7 @@ POSTFLIGHT self-assessment ──────────► Objective evidence
           └────── calibration gap ─────────────┘
 ```
 
-**Measures:** Self-assessment accuracy (calibration)
+**Measures:** Belief calibration (divergence from service observations)
 **Used for:** Sentinel bias correction via `load_grounded_corrections()`
 **Sources:** Test results, git metrics, artifact counts, goal completion
 

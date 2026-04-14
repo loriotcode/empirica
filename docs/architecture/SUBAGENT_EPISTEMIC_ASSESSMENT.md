@@ -386,7 +386,7 @@ infrastructure — turtles all the way down.
 | `subagent-stop.py` hook | Result capture + postflight recording |
 | Persona registry (Qdrant) | Store archetype profiles + calibration |
 | Calibration collection | Per-archetype Brier scores |
-| Finding-log | Parent assessment = grounded truth |
+| Finding-log | Parent assessment = reference belief state |
 | Sentinel | Can apply earned autonomy thresholds |
 
 ### New Storage

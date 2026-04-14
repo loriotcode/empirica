@@ -11,7 +11,7 @@ Empirica is a **measurement-first epistemic framework** for AI agents. It provid
 
 - **13 epistemic vectors** measuring cognitive state (know, uncertainty, engagement, etc.)
 - **CASCADE workflow** — structured investigation before action
-- **Grounded calibration** — comparing self-assessment against objective evidence
+- **Grounded calibration** — comparing beliefs against deterministic service observations
 - **Sentinel gate** — blocks action until sufficient understanding
 - **Multi-layer memory** — eidetic (facts), episodic (narratives), prosodic (voice)
 - **Instance isolation** — multiple AI instances work without cross-talk
@@ -155,7 +155,7 @@ PREFLIGHT → [NOETIC: investigate] → CHECK → [PRAXIC: act] → POSTFLIGHT
 
 ### Dual-Track Calibration
 - **Track 1 (self-referential):** PREFLIGHT→POSTFLIGHT delta = learning measurement
-- **Track 2 (grounded):** POSTFLIGHT vs objective evidence = calibration accuracy
+- **Track 2 (grounded):** POSTFLIGHT beliefs vs service observations = belief calibration
 - 8 evidence sources: pytest, git, code quality, goals, artifacts, issues, sentinel, codebase model
 
 ### Instance Isolation

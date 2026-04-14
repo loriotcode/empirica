@@ -29,7 +29,7 @@ Claude Code has no self-awareness infrastructure:
 | No epistemic vectors | Cannot measure what it knows vs. doesn't know |
 | No calibration | Cannot detect when it's overconfident or underconfident |
 | No uncertainty quantification | Cannot distinguish high-confidence facts from guesses |
-| No grounded verification | Cannot compare self-assessment against objective evidence |
+| No grounded verification | Cannot compare beliefs against deterministic service observations |
 | No dead-end memory | Cannot prevent re-exploring failed approaches |
 | No cognitive immune system | Cannot decay stale beliefs or strengthen confirmed ones |
 | No transaction measurement | Cannot capture learning deltas across work sessions |
@@ -58,7 +58,7 @@ deltas. Without measurement, compaction destroys context permanently.
 ### 2. Dual-Track Calibration
 
 - **Track 1 (self-referential)**: How vectors change from PREFLIGHT to POSTFLIGHT
-- **Track 2 (grounded)**: POSTFLIGHT vectors compared against objective evidence
+- **Track 2 (grounded)**: POSTFLIGHT belief vectors compared against service observations
   (test results, git metrics, goal completion, artifact counts)
 
 When Track 1 and Track 2 disagree, Track 2 is more trustworthy. This prevents

@@ -116,7 +116,7 @@ If it incentivizes performance theater, don't.
 
 > *Trust is calibrated, not assumed.*
 
-Gate thresholds adapt based on demonstrated calibration accuracy. Well-calibrated agents
+Gate thresholds adapt based on demonstrated belief calibration. Well-calibrated agents
 earn looser gates. Poorly calibrated agents face tighter constraints. This is not
 punishment — it is the natural consequence of measurement-verified trust.
 

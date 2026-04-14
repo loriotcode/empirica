@@ -109,7 +109,7 @@ PREFLIGHT -> CHECK(investigate) -> CHECK(investigate) -> CHECK(proceed) -> POSTF
 ## Dynamic Thresholds from Calibration History
 
 The Sentinel uses Brier-based dynamic thresholds that adapt based on
-demonstrated calibration accuracy. In v1.8.2, domain criticality further scales
+demonstrated belief calibration. In v1.8.2, domain criticality further scales
 the uncertainty threshold via the Domain Registry (`DomainRegistry.resolve()`).
 
 **Key principle (v1.8.2):** Deterministic services produce **observed vectors** —
@@ -330,9 +330,9 @@ would not exist.
 
 1. **CHECK is the boundary** — not an arbitrary split, it's the gate that already exists
 2. **Absence is evidence** — "searched and found nothing" is noetic signal, not silence
-3. **Earned not given** — autonomy increases only with demonstrated calibration accuracy
+3. **Earned not given** — autonomy increases only with demonstrated belief calibration
 4. **Self-correcting** — regression automatically tightens gates, no manual intervention
 5. **Domain-scoped** — expertise in one area doesn't grant autonomy in another
 6. **Phase-specific** — noetic and praxic competence are independent axes
-7. **Safety floors** — no amount of calibration accuracy removes all gates
+7. **Safety floors** — no amount of belief calibration removes all gates
 8. **Human retains override** — dynamic thresholds adjust AI autonomy, not human authority

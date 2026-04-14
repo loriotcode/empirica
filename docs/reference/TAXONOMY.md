@@ -142,7 +142,7 @@ An assessment is a snapshot of all 13 vectors at a point in time. There are thre
 | **Grounded calibration** | Parallel calibration track that compares POSTFLIGHT self-assessment against objective post-test evidence (tests, git metrics, artifact ratios). More trustworthy than self-referential calibration. |
 | **Noetic calibration** | Phase-specific calibration for investigation work (PREFLIGHT→CHECK). Evidence: unknowns surfaced, dead-ends avoided, investigation findings, coverage breadth. Calibration question: "Did investigation reduce uncertainty proportional to claim?" |
 | **Praxic calibration** | Phase-specific calibration for action work (CHECK→POSTFLIGHT). Evidence: tests, git metrics, goal completions, artifact counts. Calibration question: "Did actions produce the outcomes predicted?" |
-| **Dynamic thresholds** | CHECK gate thresholds that adapt based on demonstrated calibration accuracy. Earned autonomy: well-calibrated AI gets looser gates. Regression auto-tightens. Safety floors prevent thresholds from going too low (know >= 0.55, uncertainty <= 0.50). |
+| **Dynamic thresholds** | CHECK gate thresholds that adapt based on demonstrated belief calibration. Earned autonomy: well-calibrated AI gets looser gates. Regression auto-tightens. Safety floors prevent thresholds from going too low (know >= 0.55, uncertainty <= 0.50). |
 | **Drift** | Divergence between an agent's confidence and actual performance over time. Detected by comparing sequential assessments. |
 | **Bias correction** | A per-vector adjustment (positive or negative) derived from calibration data. Applied to raw self-assessments to improve accuracy. Stored in `.breadcrumbs.yaml`. |
 
@@ -276,14 +276,14 @@ The enforcement system. Gates praxic actions (Edit, Write, NotebookEdit) based o
 
 **Readiness gate:** Dynamic thresholds from calibration history, with static fallback:
 - Static default: `know >= 0.70 AND uncertainty <= 0.35`
-- Dynamic: thresholds adjust based on demonstrated calibration accuracy per phase
+- Dynamic: thresholds adjust based on demonstrated belief calibration per phase
 - Safety floors: `know >= 0.55 AND uncertainty <= 0.50` (never goes below these)
 - Requires minimum 5 calibrated transactions before dynamic thresholds activate
 
 **Earned autonomy progression:**
 ```
 New AI:     Static defaults (tight gates, know >= 0.70)
-~5 txns:    Noetic calibration accuracy → loosen CHECK gate
+~5 txns:    Noetic belief calibration → loosen CHECK gate
 ~10 txns:   Both tracks stable → full earned autonomy
 Regression: Calibration accuracy drops → gates auto-tighten
 ```
@@ -472,10 +472,10 @@ Every Empirica term mapped to its closest developer-familiar equivalent. Where t
 | **Assessment** | Health check / status report | Formal snapshot of all 13 vectors with reasoning |
 | **Delta** | Diff / change measurement | Vector-wise difference = quantified learning |
 | **Calibration** | Accuracy analysis / bias audit | Bayesian update from accumulated prediction errors |
-| **Grounded calibration** | Ground truth comparison | Self-assessment vs objective evidence (tests, git, artifacts) |
+| **Grounded calibration** | Belief divergence measurement | Belief vectors vs deterministic service observations |
 | **Noetic calibration** | Research quality review | Measures investigation quality, not action output |
 | **Praxic calibration** | Sprint velocity / delivery review | Measures action quality against predictions |
-| **Dynamic thresholds** | Adaptive access control | Earned autonomy from demonstrated calibration accuracy |
+| **Dynamic thresholds** | Adaptive access control | Earned autonomy from demonstrated belief calibration |
 | **Drift** | Regression / model degradation | Confidence diverging from actual performance |
 | **Bias correction** | Error compensation / offset | Per-vector adjustment from historical calibration |
 | **PREFLIGHT** | Sprint planning / baseline | Opens epistemic transaction (BEGIN) |

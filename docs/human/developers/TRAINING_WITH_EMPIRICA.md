@@ -9,7 +9,7 @@ Every epistemic transaction captures a complete belief-update cycle:
 1. **PREFLIGHT** — AI self-assesses before work (13 vectors)
 2. **CHECK** — Sentinel gates noetic→praxic transition (with reasoning)
 3. **POSTFLIGHT** — AI self-assesses after work (13 vectors + delta)
-4. **Grounded verification** — Objective evidence compared to self-assessment
+4. **Grounded verification** — Deterministic service observations compared to belief vectors
 
 This produces training examples where the model learns to:
 - Accurately assess its own knowledge state
@@ -144,7 +144,7 @@ Each line is one epistemic transaction:
 
 ### The Reward Signal
 
-`grounded_calibration.calibration_score` is the key reward signal. It compares the AI's self-assessed vectors against objective evidence (test results, git metrics, goal completion, artifact counts). A score of 1.0 means perfect calibration — the AI knew exactly what it knew. Lower scores indicate either overconfidence or underconfidence.
+`grounded_calibration.calibration_score` is a belief divergence metric — NOT a reward signal. It measures how much the AI's belief vectors diverge from what deterministic services observe (test results, git metrics, goal completion, artifact counts). Lower scores indicate beliefs more aligned with observations. This divergence informs where work discipline may need attention (more noetic work? better artifact logging?), not where vector values need adjusting.
 
 `calibration_gaps` per vector shows where the AI is systematically miscalibrated, enabling targeted training on specific epistemic dimensions.
 
