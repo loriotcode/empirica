@@ -155,12 +155,16 @@ POSTFLIGHT when any of these occur:
 - Review and resolve open artifacts at each new transaction start
 - Maintain epistemic fidelity — confidence should match accuracy
 
----
+### Within-Transaction Discipline
 
-## COMMIT CADENCE
-
-**Commit after each goal completion.** Uncommitted work is a drift vector.
-Context can be lost on compaction. Don't accumulate changes.
+- **Goal-per-transaction:** Link each transaction to an empirica goal. Create subtasks
+  when scope breadth >= 0.3 or files >= 3.
+- **Commit-per-subtask:** Commit after each completed subtask or coherent work unit.
+  Don't batch commits to the end — uncommitted work is invisible to grounded calibration.
+- **Artifact breadth:** Log decisions, assumptions, dead-ends, and mistakes as they
+  occur — not just findings. Single-type logging leaves calibration gaps ungrounded.
+- **Complete goals before POSTFLIGHT:** `goals-complete` first, then `postflight-submit`.
+  Goal completion evidence closes with the measurement window.
 
 ---
 

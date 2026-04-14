@@ -515,6 +515,87 @@ become decisions. Stale artifacts are noise, not signal.
 
 ---
 
+## Transaction Discipline Rules
+
+These rules encode the working discipline that makes transactions meaningful.
+They are behavioral commitments, not code enforcement — internalize them.
+
+### Rule 1: Goal-per-Transaction
+
+Every transaction should reference an empirica goal. If the work is non-trivial
+(scope breadth >= 0.3 OR touching >= 3 files), create subtasks:
+
+```bash
+# At PREFLIGHT, link to a goal
+empirica goals-create --objective "Implement X"  # if not already created
+empirica goals-add-subtask --goal-id <ID> --description "Read and understand module Y"
+empirica goals-add-subtask --goal-id <ID> --description "Write implementation"
+empirica goals-add-subtask --goal-id <ID> --description "Add tests"
+```
+
+**Why:** Goalless transactions produce ungrounded completion vectors. The
+grounded calibration has nothing to measure your completion claims against.
+
+### Rule 2: Commit-per-Subtask
+
+Commit after each completed subtask or coherent work unit. Don't batch commits
+to the end of the transaction. Each commit should be meaningful and atomic.
+
+```
+WRONG: noetic → praxic → [edit 5 files] → one big commit → POSTFLIGHT
+RIGHT: noetic → praxic → [edit files A,B] → commit → [edit C] → commit → POSTFLIGHT
+```
+
+**Why:** Uncommitted work is invisible to grounded calibration. The `change`,
+`state`, and `do` vectors ground against git evidence. Late commits mean
+the POSTFLIGHT snapshot misses the learning trajectory.
+
+### Rule 3: Artifact Breadth
+
+Log the full breadth of epistemic artifacts — not just findings. Every
+transaction should capture what was relevant:
+
+| Happened | Log It |
+|----------|--------|
+| Made a choice between options | `decision-log` |
+| Assumed something unverified | `assumption-log` |
+| Tried something that didn't work | `deadend-log` |
+| Made an error | `mistake-log` |
+| Discovered something | `finding-log` |
+| Hit an open question | `unknown-log` |
+
+**Why:** Single-type artifact logging (only findings) leaves calibration
+gaps ungrounded. The retrospective breadth_note will flag this, but by then
+the measurement window is closing.
+
+### Rule 4: Complete Goals Before POSTFLIGHT
+
+If a transaction's goal is done, mark it complete BEFORE submitting POSTFLIGHT:
+
+```bash
+empirica goals-complete --goal-id <ID> --reason "Implemented and tested"
+empirica postflight-submit -  # AFTER goal completion
+```
+
+**Why:** Goal completion feeds the grounded calibration's completion
+vector. If you POSTFLIGHT first, the completion evidence window is already
+closed.
+
+### Rule 5: Subtask-Task Visibility (When Using Claude Code Tasks)
+
+For larger transactions, map empirica subtasks to Claude Code tasks so the
+user sees progress. Create tasks at PREFLIGHT, update as you complete:
+
+```
+empirica goals-add-subtask → Claude Code TaskCreate (mirror)
+empirica goals-complete-subtask → Claude Code TaskUpdate (mirror)
+```
+
+This is advisory — use your judgment on when the user benefits from
+visible task tracking vs when it's overhead.
+
+---
+
 ## Quick Reference: Commands by Phase
 
 | Phase | Commands |
