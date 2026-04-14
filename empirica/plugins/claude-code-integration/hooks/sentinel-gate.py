@@ -1807,7 +1807,7 @@ def _check_goalless_work(cursor, session_id: str, preflight_project_id, claude_s
         if _gl_project_id:
             cursor.execute("""
                 SELECT COUNT(*) FROM goals
-                WHERE project_id = ? AND is_completed = 0 AND status != 'completed'
+                WHERE project_id = ? AND status = 'in_progress'
             """, (_gl_project_id,))
             if cursor.fetchone()[0] == 0:
                 if _gl_count >= 10:

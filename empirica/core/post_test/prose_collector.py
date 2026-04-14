@@ -341,14 +341,15 @@ class ProseEvidenceCollector:
             ))
 
         # Goal completion as document output
+        # Exclude 'planned' goals — they exist but haven't been started
         cursor.execute("""
             SELECT id, objective FROM goals
-            WHERE session_id = ? AND is_completed = 1
+            WHERE session_id = ? AND is_completed = 1 AND status != 'planned'
         """, (self.session_id,))
         completed_goals = cursor.fetchall()
 
         cursor.execute("""
-            SELECT COUNT(*) FROM goals WHERE session_id = ?
+            SELECT COUNT(*) FROM goals WHERE session_id = ? AND status != 'planned'
         """, (self.session_id,))
         total_goals = cursor.fetchone()[0]
 
