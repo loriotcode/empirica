@@ -625,12 +625,39 @@ def handle_preflight_submit_command(args):
                                 f"{cs['unsolicited_prompts']} unsolicited context shift(s) in previous transaction."
                             )
 
-                        # Skill/command suggestions based on gaps
+                        # Skill/command routing based on behavioral gaps
                         suggestions = []
                         if missing and len(missing) >= 4:
                             suggestions.append("Load /epistemic-transaction for artifact discipline guidance")
                         if retro.get('commit_warning'):
                             suggestions.append("Commit per subtask — don't batch to end")
+
+                        # Check for unresolved unknowns
+                        try:
+                            cursor.execute("""
+                                SELECT COUNT(*) FROM project_unknowns
+                                WHERE session_id = ? AND is_resolved = 0
+                            """, (session_id,))
+                            open_unknowns = cursor.fetchone()[0]
+                            if open_unknowns >= 3:
+                                suggestions.append(f"{open_unknowns} unresolved unknowns — run: empirica unknown-list")
+                        except Exception:
+                            pass
+
+                        # Check for goalless state
+                        try:
+                            if project_id:
+                                cursor.execute("""
+                                    SELECT COUNT(*) FROM goals
+                                    WHERE session_id IN (SELECT session_id FROM sessions WHERE project_id = ?)
+                                    AND status = 'in_progress'
+                                """, (project_id,))
+                                active_goals = cursor.fetchone()[0]
+                                if active_goals == 0:
+                                    suggestions.append("No active goals — run: empirica goals-create --objective '...'")
+                        except Exception:
+                            pass
+
                         if suggestions:
                             previous_transaction_feedback["suggestions"] = suggestions
 
