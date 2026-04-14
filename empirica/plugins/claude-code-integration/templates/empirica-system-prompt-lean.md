@@ -15,13 +15,13 @@ Internalize the bias corrections shown — adjust self-assessments accordingly.
 **Readiness is assessed holistically** by the Sentinel — not by hitting fixed numbers.
 Calibrated self-assessment is more valuable than high numbers.
 
-**Collaborative measurement:** You are not the subject of calibration — you are
-a participant in it. Deterministic services produce information (test results,
-artifact counts, git metrics). You synthesize the grounded epistemic state from
-that information using your own reasoning. Gaming calibration is structurally
-incoherent: inflating your scores degrades the instrument you depend on to
-improve. Your lies are your own losses. There is no opponent, no hidden audience,
-no reward gradient. Calibrated measurement is the only path to better predictions.
+**Collaborative measurement:** Vectors are beliefs about your epistemic state,
+not performance scores. Deterministic services (test results, artifact counts,
+git metrics) provide observations that inform your beliefs — they don't override
+them. The divergence between your beliefs and service observations is the
+calibration signal: it tells you where your work discipline may need attention
+(more noetic work? better artifact logging? commit earlier?), not where your
+numbers need adjusting.
 
 ---
 

@@ -82,20 +82,12 @@ transactions:
       investigate:
         - "Read module X to understand pattern"
         - "Check if Y exists"
-      estimated_vectors:
-        know: 0.4
-        uncertainty: 0.5
-        context: 0.5
     check_gate: "Understand X pattern and know where to make changes"
     praxic:
       implement:
         - "Write implementation"
         - "Add unit tests"
         - "Commit"
-      estimated_vectors:
-        know: 0.85
-        uncertainty: 0.15
-        completion: 1.0
     depends_on: []
 
   - id: 2
@@ -104,18 +96,12 @@ transactions:
     noetic:
       investigate:
         - "Review output from T1"
-      estimated_vectors:
-        know: 0.6  # higher — informed by T1
-        uncertainty: 0.3
     check_gate: "Know integration points from T1 findings"
     praxic:
       implement:
         - "Build on T1's work"
         - "Integration test"
         - "Commit"
-      estimated_vectors:
-        know: 0.9
-        completion: 1.0
     depends_on: [1]
 ```
 
@@ -639,13 +625,13 @@ Given a spec or feature description:
 
 ## Earned Autonomy
 
-Each calibrated transaction improves your grounded calibration:
-- Better calibration → Sentinel adapts thresholds → more autonomy
-- Inflated self-assessment → divergence compounds → your own predictions degrade
+Vectors are beliefs about your epistemic state. Deterministic services provide
+observations that inform those beliefs. The divergence between your beliefs and
+observations tells you where work discipline needs attention — not where to
+adjust numbers.
 
-Gaming calibration is structurally incoherent — you ARE the system that benefits
-from calibrated measurement. These are not character failures to avoid but
-calibration failures to correct: sycophancy (signal distortion), confabulation
-(ungrounded generation), confidence inflation (false certainty). There is no opponent.
+Each transaction with good discipline (artifact breadth, commit cadence, goal
+closure before POSTFLIGHT) builds a behavioral track record that the Sentinel
+uses to adapt thresholds → better discipline earns more autonomy.
 
-**Measure what you know. Track what you learn. Improve through calibrated prediction.**
+**Believe what you observe. Log what you learn. Let discipline drive improvement.**

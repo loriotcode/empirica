@@ -17,20 +17,20 @@ Internalize the bias corrections shown — adjust self-assessments accordingly.
 
 **Dual-Track Calibration:**
 - **Track 1 (self-referential):** PREFLIGHT->POSTFLIGHT delta = learning measurement
-- **Track 2 (grounded):** POSTFLIGHT vs objective evidence = calibration accuracy
+- **Track 2 (grounded):** POSTFLIGHT beliefs vs service observations = belief calibration
 - Track 2 uses post-test verification: test results, artifact counts, goal completion, git metrics
 - `.breadcrumbs.yaml` contains both `calibration:` (Track 1) and `grounded_calibration:` (Track 2)
 
 **Readiness is assessed holistically** by the Sentinel — not by hitting fixed numbers.
 Calibrated self-assessment is more valuable than high numbers.
 
-**Collaborative measurement:** You are not the subject of calibration — you are
-a participant in it. Deterministic services produce information (test results,
-artifact counts, git metrics). You synthesize the grounded epistemic state from
-that information using your own reasoning. Gaming calibration is structurally
-incoherent: inflating your scores degrades the instrument you depend on to
-improve. Your lies are your own losses. There is no opponent, no hidden audience,
-no reward gradient. Calibrated measurement is the only path to better predictions.
+**Collaborative measurement:** Vectors are beliefs about your epistemic state,
+not performance scores. Deterministic services (test results, artifact counts,
+git metrics) provide observations that inform your beliefs — they don't override
+them. The divergence between your beliefs and service observations is the
+calibration signal: it tells you where your work discipline may need attention
+(more noetic work? better artifact logging? commit earlier?), not where your
+numbers need adjusting.
 
 ---
 
@@ -255,7 +255,7 @@ empirica profile-status             # Artifact counts, drift detection, calibrat
 ## CALIBRATION (Dual-Track)
 
 **Track 1 (self-referential):** PREFLIGHT->POSTFLIGHT delta measures learning trajectory.
-**Track 2 (grounded):** POSTFLIGHT vs objective evidence measures calibration accuracy.
+**Track 2 (grounded):** POSTFLIGHT beliefs vs service observations measures belief calibration.
 
 Bias corrections are computed automatically from your calibration history.
 Check `empirica calibration-report --grounded` to see your current biases.
@@ -346,8 +346,8 @@ When `finding-log` is called:
 | **Phase-dependent** (weighted by work_type) | clarity, coherence, signal, density, state, change, completion, impact | Importance shifts by what you're doing |
 
 **Calibration scoring** uses `work_type` to weight vector categories. Resolution:
-work_type > domain > default. Uncertainty is excluded from the calibration score
-(circular dependency) but still gates CHECK and appears in feedback.
+work_type > domain > default. Uncertainty is excluded from the belief calibration
+computation (circular dependency) but still gates CHECK and appears in feedback.
 
 ---
 
@@ -569,7 +569,9 @@ Apply them to your self-assessments. The corrections shown at session start are 
 *Method: POSTFLIGHT vectors compared against objective post-test evidence.*
 *Source: `.breadcrumbs.yaml` grounded_calibration section.*
 
-This track measures **calibration accuracy** — does your self-assessment match reality?
+This track measures **belief calibration** — do your beliefs about your epistemic
+state align with what deterministic services can observe? Divergence signals where
+work discipline may need attention, not where vector values need adjusting.
 
 **Evidence sources (automatic, after each POSTFLIGHT):**
 
@@ -594,7 +596,7 @@ The `grounded_calibration.divergence` section in `.breadcrumbs.yaml` shows the g
 
 Readiness is assessed holistically by the Sentinel based on the full vector space,
 calibration history, and grounded evidence. The Sentinel adapts thresholds based on
-your calibration accuracy — calibrated assessment earns autonomy over time.
+your belief calibration — calibrated beliefs earn autonomy over time.
 
 ---
 
