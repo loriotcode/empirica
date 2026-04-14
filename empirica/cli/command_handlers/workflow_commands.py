@@ -581,53 +581,61 @@ def handle_preflight_submit_command(args):
                 'EMPIRICA_CALIBRATION_FEEDBACK', 'true'
             ).lower() == 'true'
 
-            # ANTI-GAMING: Previous transaction feedback uses DIRECTIONAL signals only.
-            # The AI learns WHICH vectors it tends to over/underestimate (e.g., ["know", "context"])
-            # but NOT specific magnitudes, grounded means, or suggested ranges.
-            # This enables genuine learning without providing an "answer key" for gaming CHECK.
-            # Full calibration data (exact gaps, ranges) is user-facing only (calibration-report).
+            # BEHAVIORAL FEEDBACK: Pull discipline observations from last POSTFLIGHT.
+            # Vectors are beliefs about epistemic state — deterministic services inform
+            # work discipline, not vector adjustments. The feedback drives work decisions
+            # (more noetic? another transaction? better artifact discipline?) not scores.
             previous_transaction_feedback = None
             try:
-                if calibration_feedback_enabled and ai_id and ai_id != 'unknown' and project_id:
+                if calibration_feedback_enabled and ai_id and ai_id != 'unknown':
                     cursor = db.conn.cursor()
+
+                    # 1. Get last POSTFLIGHT retrospective from reflex metadata
                     cursor.execute("""
-                        SELECT gv.calibration_gaps, gv.overall_calibration_score,
-                               gv.grounded_coverage
-                        FROM grounded_verifications gv
-                        JOIN sessions s ON gv.session_id = s.session_id
-                        WHERE gv.ai_id = ? AND s.project_id = ?
-                        ORDER BY gv.created_at DESC
-                        LIMIT 1
-                    """, (ai_id, project_id))
-                    prev = cursor.fetchone()
-                    if prev:
-                        previous_transaction_feedback = {
-                            "calibration_score": round(prev[1], 3) if prev[1] else None,
-                            "grounded_coverage": round(prev[2], 3) if prev[2] else None,
-                        }
+                        SELECT meta FROM reflexes
+                        WHERE session_id = ? AND phase = 'POSTFLIGHT'
+                        ORDER BY timestamp DESC LIMIT 1
+                    """, (session_id,))
+                    pf_row = cursor.fetchone()
+                    if pf_row and pf_row[0]:
+                        pf_meta = json.loads(pf_row[0]) if isinstance(pf_row[0], str) else pf_row[0]
+                        retro = pf_meta.get('retrospective', {})
 
-                        # Directional-only feedback: WHICH vectors drift and IN WHICH direction
-                        # without specific magnitudes or target values (anti-gaming).
-                        # Helps the AI learn to self-correct without providing an "answer key".
-                        if prev[0]:
-                            gaps = json.loads(prev[0])
-                            significant = {v: g for v, g in gaps.items() if abs(g) > 0.1}
-                            if significant:
-                                overestimate_tendency = sorted(set(
-                                    v.split(":")[-1] if ":" in v else v
-                                    for v, g in significant.items() if g > 0
-                                ))
-                                underestimate_tendency = sorted(set(
-                                    v.split(":")[-1] if ":" in v else v
-                                    for v, g in significant.items() if g < 0
-                                ))
-                                if overestimate_tendency:
-                                    previous_transaction_feedback["overestimate_tendency"] = overestimate_tendency
-                                if underestimate_tendency:
-                                    previous_transaction_feedback["underestimate_tendency"] = underestimate_tendency
+                        previous_transaction_feedback = {}
 
-                        # Challenge-framed narrative: uses trajectory and personal best
-                        # to activate quality-tail generation (challenge → elaboration → improvement)
+                        # Artifact breadth gaps → actionable discipline
+                        artifact_counts = retro.get('artifact_counts', {})
+                        if artifact_counts:
+                            missing = [k for k, v in artifact_counts.items() if v == 0]
+                            if missing:
+                                previous_transaction_feedback["artifact_gaps"] = missing
+
+                        # Breadth note (narrow logging pattern)
+                        if retro.get('breadth_note'):
+                            previous_transaction_feedback["breadth_warning"] = retro['breadth_note']
+
+                        # Commit discipline
+                        if retro.get('commit_warning'):
+                            previous_transaction_feedback["commit_discipline"] = retro['commit_warning']
+
+                        # Context shifts (explains scope divergence)
+                        cs = pf_meta.get('context_shifts')
+                        if cs and cs.get('unsolicited_prompts', 0) > 0:
+                            previous_transaction_feedback["context_shifts"] = (
+                                f"{cs['unsolicited_prompts']} unsolicited context shift(s) in previous transaction."
+                            )
+
+                        # Skill/command suggestions based on gaps
+                        suggestions = []
+                        if missing and len(missing) >= 4:
+                            suggestions.append("Load /epistemic-transaction for artifact discipline guidance")
+                        if retro.get('commit_warning'):
+                            suggestions.append("Commit per subtask — don't batch to end")
+                        if suggestions:
+                            previous_transaction_feedback["suggestions"] = suggestions
+
+                    # 2. Belief calibration trend (rolling window, not per-tx score)
+                    if project_id:
                         try:
                             cursor.execute("""
                                 SELECT overall_calibration_score FROM grounded_verifications
@@ -638,58 +646,33 @@ def handle_preflight_submit_command(args):
                             """, (ai_id, project_id))
                             recent_scores = [r[0] for r in cursor.fetchall()]
                             if len(recent_scores) >= 3:
-                                avg_score = sum(recent_scores) / len(recent_scores)
-                                best_score = min(recent_scores)
-                                current_score = recent_scores[0]
-                                # Build challenge narrative
-                                parts = []
-                                if current_score <= best_score * 1.1:
-                                    parts.append(f"calibration {current_score:.3f} — near your best ({best_score:.3f}), maintain this")
-                                elif current_score > avg_score:
-                                    parts.append(f"calibration {current_score:.3f} — above your average ({avg_score:.3f}), your best is {best_score:.3f}")
+                                avg = sum(recent_scores) / len(recent_scores)
+                                # Trend: compare first half vs second half
+                                mid = len(recent_scores) // 2
+                                recent_half = sum(recent_scores[:mid]) / mid
+                                older_half = sum(recent_scores[mid:]) / (len(recent_scores) - mid)
+                                if recent_half < older_half * 0.85:
+                                    trend = "improving"
+                                elif recent_half > older_half * 1.15:
+                                    trend = "widening"
                                 else:
-                                    parts.append(f"calibration {current_score:.3f} — trending well (avg {avg_score:.3f}, best {best_score:.3f})")
-
-                                if overestimate_tendency:
-                                    parts.append(f"tighten: {', '.join(overestimate_tendency[:3])}")
-                                if underestimate_tendency:
-                                    parts.append(f"trust more: {', '.join(underestimate_tendency[:3])}")
-
-                                previous_transaction_feedback["calibration_challenge"] = " | ".join(parts)
+                                    trend = "stable"
+                                if previous_transaction_feedback is None:
+                                    previous_transaction_feedback = {}
+                                previous_transaction_feedback["calibration_trend"] = trend
                         except Exception:
                             pass
 
+                    if previous_transaction_feedback:
                         previous_transaction_feedback["note"] = (
-                            "Directional feedback only — be more cautious with overestimate vectors, "
-                            "less cautious with underestimate vectors. Specific values are user-facing only. "
-                            "These are drift patterns from deterministic proxies, not ground truth — "
-                            "investigate divergence rather than mechanically adjusting vectors."
+                            "Behavioral feedback from last transaction. Address through work "
+                            "discipline (more noetic work, better artifact logging, commit cadence) "
+                            "— not by adjusting vector values."
                         )
 
-                        # Context-shift data is non-gaming (explains WHY calibration drifted)
-                        try:
-                            cursor.execute("""
-                                SELECT meta FROM reflexes
-                                WHERE session_id = ? AND phase = 'POSTFLIGHT'
-                                ORDER BY timestamp DESC LIMIT 1
-                            """, (session_id,))
-                            pf_row = cursor.fetchone()
-                            if pf_row and pf_row[0]:
-                                pf_meta = json.loads(pf_row[0]) if isinstance(pf_row[0], str) else pf_row[0]
-                                cs = pf_meta.get('context_shifts')
-                                if cs and cs.get('unsolicited_prompts', 0) > 0:
-                                    previous_transaction_feedback["context_shifts"] = cs
-                                    previous_transaction_feedback["context_shift_note"] = (
-                                        f"{cs['unsolicited_prompts']} unsolicited context shift(s) detected in previous transaction. "
-                                        "Calibration divergence may be partially attributable to human-initiated redirection, not epistemic drift."
-                                    )
-                        except Exception:
-                            pass
-
                         logger.debug(
-                            f"Previous transaction feedback: score={prev[1]}, coverage={prev[2]}, "
-                            f"overest={previous_transaction_feedback.get('overestimate_tendency', [])}, "
-                            f"underest={previous_transaction_feedback.get('underestimate_tendency', [])}"
+                            f"Previous transaction feedback: gaps={previous_transaction_feedback.get('artifact_gaps', [])}, "
+                            f"trend={previous_transaction_feedback.get('calibration_trend', 'N/A')}"
                         )
             except Exception as e:
                 logger.debug(f"Previous transaction feedback lookup failed (non-fatal): {e}")
@@ -2616,6 +2599,10 @@ def handle_postflight_submit_command(args):
             except Exception:
                 pass  # Entity context is optional enrichment
 
+            # RETROSPECTIVE: Compute early so it's available for checkpoint metadata
+            # (persisted for next-PREFLIGHT behavioral feedback)
+            retrospective = _build_retrospective(session_id, postflight_transaction_id)
+
             # Add checkpoint - this writes to ALL 3 storage layers atomically (round auto-increments)
             # tool_call_count is stored in reflex_data so PREFLIGHT can compute avg_turns
             checkpoint_id = logger_instance.add_checkpoint(
@@ -2634,6 +2621,7 @@ def handle_postflight_submit_command(args):
                     "context_shifts": postflight_context_shifts if postflight_context_shifts.get('unsolicited_prompts', 0) > 0 else None,
                     "entity_context": postflight_entity_context or None,
                     "tool_trace": postflight_tool_trace if postflight_tool_trace else None,
+                    "retrospective": retrospective if retrospective else None,
                 }
             )
 
@@ -2871,8 +2859,8 @@ def handle_postflight_submit_command(args):
             except Exception as e:
                 logger.debug(f"MEMORY.md hot cache update skipped: {e}")
 
-            # RETROSPECTIVE: Artifact breadth, commit discipline, completion hints
-            retrospective = _build_retrospective(session_id, postflight_transaction_id)
+            # RETROSPECTIVE: Already computed before checkpoint (for persistence).
+            # Add to result for the AI to see in this POSTFLIGHT response.
             if retrospective:
                 result["retrospective"] = retrospective
 
