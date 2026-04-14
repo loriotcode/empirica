@@ -39,7 +39,7 @@ class GoalDataRepository(BaseRepository):
 
     def create_goal(self, session_id: str, objective: str, scope_breadth: float = None,
                    scope_duration: float = None, scope_coordination: float = None,
-                   beads_issue_id: str = None) -> str:
+                   beads_issue_id: str = None, status: str = 'in_progress') -> str:
         """Create a new goal for this session
 
         Args:
@@ -49,10 +49,14 @@ class GoalDataRepository(BaseRepository):
             scope_duration: 0.0-1.0 (0=minutes, 1=months)
             scope_coordination: 0.0-1.0 (0=solo, 1=heavy multi-agent)
             beads_issue_id: Optional BEADS issue ID (e.g., "bd-a1b2")
+            status: Initial status — 'planned' (logged, not started) or 'in_progress' (active)
 
         Returns:
             goal_id (UUID string)
         """
+        if status not in ('planned', 'in_progress'):
+            raise ValueError(f"Initial status must be 'planned' or 'in_progress', got '{status}'")
+
         goal_id = str(uuid.uuid4())
 
         # Build scope JSON from individual vectors
@@ -64,8 +68,8 @@ class GoalDataRepository(BaseRepository):
 
         self._execute("""
             INSERT INTO goals (id, session_id, objective, scope, status, created_timestamp, is_completed, goal_data, beads_issue_id)
-            VALUES (?, ?, ?, ?, 'in_progress', ?, 0, ?, ?)
-        """, (goal_id, session_id, objective, json.dumps(scope_data), time.time(), json.dumps({}), beads_issue_id))
+            VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+        """, (goal_id, session_id, objective, json.dumps(scope_data), status, time.time(), json.dumps({}), beads_issue_id))
 
         self.commit()
         return goal_id
@@ -325,20 +329,19 @@ class GoalDataRepository(BaseRepository):
         }
 
     def mark_goals_stale(self, session_id: str, stale_reason: str = "memory_compact") -> int:
-        """Mark all in_progress goals for a session as stale
+        """Record compact metadata on in_progress goals (status unchanged).
 
-        Called during memory compaction to signal that the AI's full context
-        about these goals has been lost. Post-compact AI should re-evaluate
-        these goals before continuing work.
+        Goals stay in_progress across compaction — the post-compact AI
+        picks them up naturally via goals-list. The 'stale' status was
+        removed: goals are either planned, in_progress, or completed.
 
         Args:
             session_id: Session UUID
-            stale_reason: Why goals are being marked stale (e.g., "memory_compact")
+            stale_reason: Why compaction happened (recorded in goal_data metadata)
 
         Returns:
-            Number of goals marked stale
+            Number of goals annotated
         """
-        # Update status and add stale metadata to goal_data
         cursor = self._execute("""
             SELECT id, goal_data FROM goals
             WHERE session_id = ? AND status = 'in_progress'
@@ -349,14 +352,12 @@ class GoalDataRepository(BaseRepository):
             goal_id = row[0]
             goal_data = json.loads(row[1]) if row[1] else {}
 
-            # Add stale metadata
-            goal_data['stale_since'] = time.time()
-            goal_data['stale_reason'] = stale_reason
+            # Record compaction event in metadata (status stays in_progress)
+            goal_data['last_compact'] = time.time()
+            goal_data['compact_reason'] = stale_reason
 
             self._execute("""
-                UPDATE goals
-                SET status = 'stale', goal_data = ?
-                WHERE id = ?
+                UPDATE goals SET goal_data = ? WHERE id = ?
             """, (json.dumps(goal_data), goal_id))
             count += 1
 
@@ -407,16 +408,18 @@ class GoalDataRepository(BaseRepository):
         return stale_goals
 
     def refresh_goal(self, goal_id: str) -> bool:
-        """Mark a stale goal as in_progress (AI has regained context)
+        """No-op — stale status removed. Goals stay in_progress across compaction.
+
+        Kept for backward compatibility with CLI command.
 
         Args:
-            goal_id: Goal UUID to refresh
+            goal_id: Goal UUID
 
         Returns:
-            True if refreshed, False if goal not found or not stale
+            True if goal exists and is in_progress, False otherwise
         """
         cursor = self._execute("""
-            SELECT goal_data FROM goals WHERE id = ? AND status = 'stale'
+            SELECT goal_data FROM goals WHERE id = ? AND status = 'in_progress'
         """, (goal_id,))
         row = cursor.fetchone()
 
@@ -427,9 +430,7 @@ class GoalDataRepository(BaseRepository):
         goal_data['refreshed_at'] = time.time()
 
         self._execute("""
-            UPDATE goals
-            SET status = 'in_progress', goal_data = ?
-            WHERE id = ?
+            UPDATE goals SET goal_data = ? WHERE id = ?
         """, (json.dumps(goal_data), goal_id))
 
         self.commit()

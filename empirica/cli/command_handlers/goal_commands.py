@@ -376,6 +376,17 @@ def handle_goals_create_command(args):
         # Save to database with transaction linkage
         success = goal_repo.save_goal(goal, session_id, transaction_id=transaction_id)
 
+        # Set initial status (planned or in_progress)
+        initial_status = 'in_progress'
+        if config_data:
+            initial_status = config_data.get('status', 'in_progress')
+        elif hasattr(args, 'status') and args.status:
+            initial_status = args.status
+        if initial_status == 'planned' and success:
+            goal_repo.db.conn.execute(
+                "UPDATE goals SET status = 'planned' WHERE id = ?", (goal.id,))
+            goal_repo.db.conn.commit()
+
         if success:
             # BEADS Integration (Optional)
             use_beads = getattr(args, 'use_beads', False) or (config_data and config_data.get('use_beads', False))

@@ -1103,14 +1103,29 @@ class PostTestCollector:
         """, (scope_start,))
         goals_completed = cursor.fetchone()[0]
 
-        # Total goals relevant to scope (for ratio):
-        #   - Transaction-scoped: goals active at preflight OR created within tx
-        #   - Session-scoped: goals active at session start
-        cursor.execute("""
-            SELECT COUNT(*) FROM goals
-            WHERE created_timestamp <= ?
-              AND (status != 'completed' OR completed_timestamp >= ?)
-        """, (scope_start + 1, scope_start))
+        # Total goals relevant to THIS transaction (for ratio):
+        # Only count goals that were TOUCHED in this transaction:
+        #   - Created during this transaction (created_timestamp >= scope_start)
+        #   - Completed during this transaction (completed_timestamp >= scope_start)
+        #   - Linked to this transaction via transaction_id
+        # This prevents historical goals from inflating the denominator
+        # (the 1/18 bug where 17 old open goals dilute a 1/1 completion).
+        # Exclude 'planned' goals — they exist but haven't been started yet.
+        if self.transaction_id:
+            cursor.execute("""
+                SELECT COUNT(DISTINCT id) FROM goals
+                WHERE status != 'planned'
+                  AND (transaction_id = ?
+                   OR created_timestamp >= ?
+                   OR (completed_timestamp >= ? AND completed_timestamp IS NOT NULL))
+            """, (self.transaction_id, scope_start, scope_start))
+        else:
+            cursor.execute("""
+                SELECT COUNT(DISTINCT id) FROM goals
+                WHERE status != 'planned'
+                  AND (created_timestamp >= ?
+                   OR (completed_timestamp >= ? AND completed_timestamp IS NOT NULL))
+            """, (scope_start, scope_start))
         total_goals_in_scope = max(cursor.fetchone()[0], goals_completed)
 
         scope_label = "transaction"

@@ -575,7 +575,7 @@ def _load_dynamic_context(session_id: str, ai_id: str, pre_snapshot: dict) -> di
         cursor.execute("""
             SELECT id, objective, status, scope, created_timestamp
             FROM goals
-            WHERE project_id = ? AND status IN ('active', 'in_progress', 'blocked')
+            WHERE project_id = ? AND status IN ('planned', 'in_progress')
             ORDER BY created_timestamp DESC LIMIT 3
         """, (project_id,))
         for row in cursor.fetchall():

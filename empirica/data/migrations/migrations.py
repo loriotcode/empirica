@@ -1262,6 +1262,7 @@ ALL_MIGRATIONS: list[tuple[str, str, Callable]] = [
     ("035_three_vector_storage", "Add three-vector storage schema for Sentinel reframe (A3 Wave 1)", lambda cursor: migration_035_three_vector_storage(cursor)),
     ("036_provenance_graph", "Add provenance graph columns: source_refs on findings, evidence_refs on decisions, resolution_finding_id on unknowns", lambda cursor: migration_036_provenance_graph(cursor)),
     ("037_composable_lessons", "Evolve lessons into composable epistemic patterns with abstraction levels, sharing, EKG connections, triggers, output renderers", lambda cursor: migration_037_composable_lessons(cursor)),
+    ("038_goal_lifecycle_simplify", "Simplify goal lifecycle: convert stale/blocked to in_progress, support planned status", lambda cursor: migration_038_goal_lifecycle_simplify(cursor)),
 ]
 
 
@@ -1393,3 +1394,20 @@ def migration_037_composable_lessons(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_domain ON lessons(domain)")
 
     logger.info("✅ Migration 037 complete: Composable epistemic patterns schema added")
+
+
+def migration_038_goal_lifecycle_simplify(cursor: sqlite3.Cursor):
+    """Simplify goal lifecycle: planned/in_progress/completed.
+
+    Converts stale and blocked goals to in_progress (they stay active
+    across compaction). The stale status was noise — goals should be
+    either planned, in_progress, or completed.
+    """
+    cursor.execute("""
+        UPDATE goals SET status = 'in_progress'
+        WHERE status IN ('stale', 'blocked')
+    """)
+    rows = cursor.rowcount
+    if rows:
+        logger.info(f"  Converted {rows} stale/blocked goals to in_progress")
+    logger.info("✅ Migration 038 complete: Goal lifecycle simplified")
