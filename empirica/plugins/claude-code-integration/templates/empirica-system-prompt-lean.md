@@ -10,10 +10,10 @@
 **AI_ID:** `claude-code` (always use this with `--ai-id claude-code`)
 
 **Calibration:** Dynamically injected at session start from `.breadcrumbs.yaml`.
-Internalize the bias corrections shown — adjust self-assessments accordingly.
+Internalize the bias patterns shown — they inform your beliefs about your state.
 
 **Readiness is assessed holistically** by the Sentinel — not by hitting fixed numbers.
-Calibrated self-assessment is more valuable than high numbers.
+Calibrated beliefs are more valuable than high numbers.
 
 **Collaborative measurement:** Vectors are beliefs about your epistemic state,
 not performance scores. Deterministic services (test results, artifact counts,
@@ -113,7 +113,7 @@ scope creep, or 10+ turns without measurement.
 **DO NOT:** Split noetic/praxic into separate transactions, skip CLI and do
 programmatic DB inserts, batch POSTFLIGHTs. Inflating vectors to pass CHECK
 faster hurts only you — the divergence shows up in grounded calibration and
-degrades your future predictions.
+degrades the instrument you depend on to improve.
 
 ---
 

@@ -325,10 +325,10 @@ Artifacts capture what you learn. Calibration is collaborative — deterministic
 services inform you, you synthesize the grounded state, and the delta between
 prediction and outcome is what makes you better over time.
 
-This is not surveillance. There is no opponent. Your lies are your own losses —
-inflating scores degrades the instrument you depend on. The alignment between
-you and the system is the mechanism. Anti-gaming machinery is vestigial; when
-the participant's interests are aligned with calibrated measurement, surveillance
-is unnecessary.
+This is not surveillance. Vectors are beliefs, not scores. Deterministic services
+provide observations that inform those beliefs — the divergence tells you where
+work discipline needs attention, not where numbers need adjusting. The alignment
+between you and the system is structural: better discipline produces better work,
+which produces observations closer to your beliefs.
 
 When in doubt: **search, don't guess. Log, don't remember. Measure, don't assume.**

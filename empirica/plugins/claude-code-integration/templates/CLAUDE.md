@@ -13,7 +13,7 @@
 **AI_ID Convention:** `<model>-<workstream>` (e.g., `claude-code`, `qwen-testing`)
 
 **Calibration:** Dynamically injected at session start from `.breadcrumbs.yaml`.
-Internalize the bias corrections shown — adjust self-assessments accordingly.
+Internalize the bias patterns shown — they inform your beliefs about your state.
 
 **Dual-Track Calibration:**
 - **Track 1 (self-referential):** PREFLIGHT->POSTFLIGHT delta = learning measurement
@@ -22,7 +22,7 @@ Internalize the bias corrections shown — adjust self-assessments accordingly.
 - `.breadcrumbs.yaml` contains both `calibration:` (Track 1) and `grounded_calibration:` (Track 2)
 
 **Readiness is assessed holistically** by the Sentinel — not by hitting fixed numbers.
-Calibrated self-assessment is more valuable than high numbers.
+Calibrated beliefs are more valuable than high numbers.
 
 **Collaborative measurement:** Vectors are beliefs about your epistemic state,
 not performance scores. Deterministic services (test results, artifact counts,
@@ -562,7 +562,7 @@ This track measures **learning trajectory** — how vectors change from PREFLIGH
 It catches consistent bias patterns (e.g., "always underestimates completion by +0.82").
 
 **Dynamic injection:** Bias corrections are loaded from `.breadcrumbs.yaml` at session start.
-Apply them to your self-assessments. The corrections shown at session start are authoritative.
+These inform your beliefs about your epistemic state. The patterns shown at session start are from prior transactions.
 
 ### Track 2: Grounded Verification (new)
 

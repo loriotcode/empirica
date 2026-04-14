@@ -415,14 +415,14 @@ POSTFLIGHT response includes:
 **Cached results:** Same changed files = same content hash = cached result.
 The AI sees `"cached": true` and knows it wasn't a fresh run.
 
-**Brier scoring:** If you predicted check outcomes in PREFLIGHT
+**Brier scoring:** If you stated check outcome beliefs in PREFLIGHT
 (`predicted_check_outcomes`), the compliance response includes a `check_brier`
-block measuring your prediction accuracy. Only freshly-run checks count —
+block measuring belief calibration. Only freshly-run checks count —
 deferred and cached are excluded.
 
 **Three-vector model:** After seeing compliance results, you can submit
 `grounded_vectors` + `grounded_rationale` in POSTFLIGHT to record your
-reasoned synthesis. Services inform; you score.
+reasoned synthesis. Services inform; you synthesize.
 
 ---
 
