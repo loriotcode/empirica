@@ -148,6 +148,40 @@ EOF
 
 **Key point:** When inside a transaction (after PREFLIGHT), you don't need `--session-id` — it's auto-derived.
 
+### Planned Goals Workflow (Collaborative Planning)
+
+Goals can be created with `--status planned` to log them without starting work.
+This enables a collaborative planning pattern: catalog goals first, review and
+prioritize with the user, then activate and execute.
+
+```bash
+# 1. Catalog goals collaboratively (all start as planned)
+empirica goals-create --objective "Implement auth middleware" --status planned
+empirica goals-create --objective "Add session management" --status planned
+empirica goals-create --objective "Write integration tests" --status planned
+
+# 2. Review what's planned
+empirica goals-list    # shows planned + in_progress goals
+
+# 3. Activate a goal when ready to work on it
+#    (goals-create without --status defaults to in_progress)
+#    Or start a PREFLIGHT referencing the planned goal
+
+# 4. Goal lifecycle: planned → in_progress → completed
+#    - planned: logged, not started, excluded from metrics
+#    - in_progress: actively being worked on
+#    - completed: done, with reason
+```
+
+**When to use planned goals:**
+- Decomposing a large task before starting any transaction
+- Logging future work ideas without polluting active goal counts
+- Building a backlog that the AI and user review together
+
+**Key difference from inline creation:** Planned goals let you separate
+the "what needs doing" conversation from the "doing it" transactions.
+This produces better-scoped transactions because the work is pre-defined.
+
 ### Multi-Session Collaboration
 
 ```bash

@@ -277,9 +277,11 @@ Calibration measures how well the AI knows what it knows:
 self-assessment change consistently? This catches bias patterns ("always underestimates
 completion by +0.8").
 
-**Track 2 (Grounded):** POSTFLIGHT vectors vs objective evidence. After POSTFLIGHT,
-the system automatically checks: did tests pass? How many files changed? Were goals
-completed? The gap between self-assessment and reality = calibration accuracy.
+**Track 2 (Grounded):** After POSTFLIGHT, deterministic services collect observations —
+did tests pass? How many files changed? Were goals completed? These observations are
+compared to the AI's belief vectors. Divergence signals where work discipline may need
+attention — it is not a measure of what the AI "really knows," but of whether its
+beliefs are converging with service observations over time.
 
 **Why this matters:** Good calibration → Sentinel loosens gates → AI gets more autonomy.
 Bad calibration → tighter gates → more investigation required before acting.

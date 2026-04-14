@@ -192,8 +192,8 @@ EOF
 ```
 
 - Learning delta: PREFLIGHT vs POSTFLIGHT vectors
-- Grounded verification (POST-TEST): compares self-assessment to objective evidence
-- Calibration: Were initial assessments accurate?
+- Grounded verification (POST-TEST): deterministic services collect observations (tests, git, goals) and compare them to the AI's belief vectors. Divergence signals where work discipline may need attention.
+- Belief calibration trend: are the AI's beliefs about its state converging with service observations over time?
 
 ---
 
