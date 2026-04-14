@@ -303,7 +303,7 @@ Epistemic tracking integrates with the epistemic transaction workflow:
 1. **PREFLIGHT** → Creates baseline snapshot
 2. **CHECK** → Validates readiness gate
 3. **POSTFLIGHT** → Creates final snapshot, computes delta
-4. **POST-TEST** → Grounds self-assessment in objective evidence
+4. **POST-TEST** → Grounds self-assessment in service observations
 
 ```
 PREFLIGHT (Snapshot A)

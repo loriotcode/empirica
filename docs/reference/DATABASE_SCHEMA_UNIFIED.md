@@ -42,7 +42,7 @@ cascades (1) ──> (N) bayesian_beliefs
 
 ### 3a. Verification & Grounded Calibration (5 tables, v1.5.0+)
 - **grounded_beliefs** - Parallel to bayesian_beliefs but evidence-based (objective grounding)
-- **verification_evidence** - Raw objective evidence records per session
+- **verification_evidence** - Raw deterministic service observation records per session
 - **grounded_verifications** - Per-session self-assessed vs grounded comparison results
 - **calibration_trajectory** - POSTFLIGHT-to-POSTFLIGHT tracking points for long-term calibration
 - **calibration_insights** - Systemic calibration patterns detected across verification history *(v1.5.10)*
@@ -353,7 +353,7 @@ projects (1) ──> (N) auto_captured_issues
 - `collected_at` REAL NOT NULL
 - `metadata` TEXT
 
-> Raw objective evidence records per session. Each record identifies which epistemic vectors it supports via `supports_vectors` (JSON array). Sources include test results, artifact counts, goal completion rates. Indexed on `(session_id)`.
+> Raw deterministic service observation records per session. Each record identifies which epistemic vectors it supports via `supports_vectors` (JSON array). Sources include test results, artifact counts, goal completion rates. Indexed on `(session_id)`.
 
 #### `grounded_verifications`
 **14 columns**
@@ -807,7 +807,7 @@ projects (1) ──> (N) auto_captured_issues
 - **Modular Architecture**: Tables are organized in logical modules (sessions, epistemic, goals, projects, tracking)
 - **Indexing**: All tables have appropriate indexes for performance
 - **Every project has its own SQLite database** mapped to the git repository
-- **Grounded Calibration (v1.5.0)**: Four verification tables provide post-test objective grounding for epistemic calibration, enabling comparison of self-assessed vs evidence-based vector values
+- **Grounded Calibration (v1.5.0)**: Four verification tables provide post-test observation grounding for belief calibration, enabling comparison of belief vectors vs service-observed values
 - **Transaction-First Architecture (v1.5.0)**: `transaction_id` column added to reflexes and all artifact tables (findings, unknowns, dead-ends, mistakes, goals, branches) for epistemic transaction scoping across compaction boundaries
 - **Entity-Agnostic Intent Layer (v1.5.1)**: `entity_type` + `entity_id` columns on artifact tables enable cross-entity tracking beyond project scope
 - **Phase-Aware Calibration (v1.5.1)**: `phase` column on grounded verification tables splits calibration into noetic (investigation) and praxic (action) tracks with dynamic thresholds

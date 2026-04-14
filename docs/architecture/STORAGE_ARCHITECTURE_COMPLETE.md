@@ -207,7 +207,7 @@ CREATE TABLE IF NOT EXISTS verification_evidence (
 );
 ```
 
-Raw objective evidence records per session. Each record identifies which epistemic vectors it supports, enabling grounded vector computation.
+Raw deterministic service observation records per session. Each record identifies which epistemic vectors it supports, enabling grounded vector computation.
 
 **Table:** `grounded_verifications`
 

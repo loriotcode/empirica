@@ -295,7 +295,7 @@ EOF
 - Updates Bayesian beliefs for calibration
 - Creates epistemic snapshot for session replay
 - Syncs to Qdrant memory (if configured)
-- Runs grounded calibration (POST-TEST) with objective evidence
+- Runs grounded calibration (POST-TEST) with deterministic service observations
 - Exports learning trajectory to `.breadcrumbs.yaml`
 
 ---

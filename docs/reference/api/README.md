@@ -61,7 +61,7 @@
 ### [CASCADE Workflow](cascade_workflow.md)
 - **PREFLIGHT/CHECK/POSTFLIGHT** - Epistemic measurement phases
 - **Transaction lifecycle** - File-based transaction tracking
-- **Grounded calibration** - POST-TEST verification with objective evidence
+- **Grounded calibration** - POST-TEST verification comparing beliefs with service observations
 
 ### [Workspace Management](workspace_management.md)
 - **workspace-init/list/overview/map** - Cross-project portfolio management

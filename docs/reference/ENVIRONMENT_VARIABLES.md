@@ -113,7 +113,7 @@ headroom for research-heavy sessions while still forcing measurement checkpoints
 export CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=30
 ```
 
-**Tuning:** Monitor calibration accuracy across sessions. If grounded calibration degrades
+**Tuning:** Monitor belief calibration trend across sessions. If grounded calibration degrades
 past 300K, reduce to 20% (200K). If transactions consistently close well before compact,
 you can increase. The Empirica calibration-report tracks this automatically.
 
