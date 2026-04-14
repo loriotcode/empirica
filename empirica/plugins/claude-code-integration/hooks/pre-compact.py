@@ -493,15 +493,31 @@ def main():
             # Build epistemic summary for the summarizer to see
             # This text gets injected into the conversation BEFORE summarization,
             # guiding the summarizer to prioritize epistemic state over file contents.
-            know_val = display_vectors.get('know', 'N/A')
-            unc_val = display_vectors.get('uncertainty', 'N/A')
             session_short = (breadcrumbs.get('session_id') or 'unknown')[:8]
             last_task = breadcrumbs.get('last_task', '')
             last_task_line = f"\nLast task: {last_task}" if last_task else ""
+
+            # Vectors are only meaningful when carrying an open transaction through
+            # compaction. After POSTFLIGHT (session complete), they're dangling
+            # numbers with no actionable value for the next session.
+            has_open_transaction = (
+                active_transaction is not None
+                and active_transaction.get('status') not in ('closed', None)
+            )
+
+            if has_open_transaction:
+                tx_id = active_transaction.get('transaction_id', 'unknown')[:8]
+                tx_status = active_transaction.get('status', 'unknown')
+                know_val = display_vectors.get('know', 'N/A')
+                unc_val = display_vectors.get('uncertainty', 'N/A')
+                vector_line = f"\n3. OPEN TRANSACTION {tx_id} (status: {tx_status}) — vectors: know={know_val}, uncertainty={unc_val}"
+                vector_line += "\n   These vectors represent mid-transaction state. Resume from where you left off."
+            else:
+                vector_line = f"\n3. Session {session_short} COMPLETED (no open transaction). Previous vectors are historical — run fresh PREFLIGHT."
+
             compact_guidance = f"""Compaction summary guidance: Epistemic state has been captured externally (Empirica breadcrumbs, git notes). The summarizer should prioritize:
 1. What the user asked for and decisions made (not file contents)
-2. Current task context and open questions (not code snippets)
-3. Session ID {session_short} with vectors know={know_val}, uncertainty={unc_val}{last_task_line}
+2. Current task context and open questions (not code snippets){vector_line}{last_task_line}
 File contents read during this session are available via Read tool — do NOT include them in the summary."""
 
             # Output ONLY schema-conforming fields to stdout
@@ -518,12 +534,13 @@ File contents read during this session are available via Read tool — do NOT in
             stale_msg = f", {stale_goals_count} goals marked stale" if stale_goals_count > 0 else ""
             notes_msg = "✓" if git_notes_written else "✗"
             stash_msg = " (stash: saved+restored)" if stash_created else ""
+            tx_state_msg = "OPEN (carrying through)" if has_open_transaction else "CLOSED (vectors historical)"
             print(f"""
 📸 Empirica: Pre-compact snapshot saved
    Session: {session_display}...
    Trigger: {trigger}
+   Transaction: {tx_state_msg}
    Vectors: {vector_source} ({len(display_vectors)} captured){stale_msg}
-   know={display_vectors.get('know', 'N/A')}, unc={display_vectors.get('uncertainty', 'N/A')}
    Snapshot: {snapshot_path.name}
    Git notes: {notes_msg}{stash_msg}
 """, file=sys.stderr)
