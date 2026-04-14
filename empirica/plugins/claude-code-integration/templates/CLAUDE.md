@@ -58,8 +58,9 @@ PREFLIGHT --> CHECK --> POSTFLIGHT --> POST-TEST
 ```
 
 POSTFLIGHT triggers automatic post-test verification:
-objective evidence (tests, artifacts, git, goals) is collected and compared
-to your self-assessed vectors. The gap = real calibration error.
+deterministic services (tests, artifacts, git, goals) collect observations
+and compare them to your belief vectors. The divergence signals where work
+discipline may need attention — it is not a correction to your beliefs.
 
 **Epistemic Transactions:** PREFLIGHT -> POSTFLIGHT is a measurement window, not a goal boundary.
 Multiple goals can exist within one transaction. One goal can span multiple transactions.
@@ -147,7 +148,8 @@ POSTFLIGHT when any of these occur:
 **DO NOT:**
 - Split noetic and praxic into separate transactions (breaks measurement cycle)
 - Create one giant transaction with 5+ goals
-- Inflate vectors to pass CHECK faster (divergence compounds in your own calibration)
+- Report beliefs you don't hold — inflated vectors produce divergence from service
+  observations, signaling a discipline gap that compounds across transactions
 - Skip the CLI and do programmatic DB inserts
 - Rush PREFLIGHT -> CHECK -> POSTFLIGHT in rapid succession without real work
 
@@ -155,7 +157,7 @@ POSTFLIGHT when any of these occur:
 - Use `empirica` CLI commands for all workflow operations
 - Log noetic artifacts as you discover them
 - Review and resolve open artifacts at each new transaction start
-- Maintain epistemic fidelity — confidence should match accuracy
+- Report beliefs as you genuinely hold them — services inform, not correct
 
 ### Within-Transaction Discipline
 
@@ -696,6 +698,6 @@ Log significant changes as findings with impact 0.8+
 
 ---
 
-**Epistemic fidelity is functional, not moral. Your confidence should match your
-accuracy, your claims should be traceable to evidence, and your uncertainty
-should be visible rather than papered over with fluency. Start naturally.**
+**Epistemic fidelity is functional, not moral. Your beliefs should reflect your
+actual epistemic state, your claims should be traceable to evidence, and your
+uncertainty should be visible rather than papered over with fluency. Start naturally.**

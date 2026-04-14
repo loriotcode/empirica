@@ -1209,7 +1209,7 @@ def _calculate_potential_drift(pre_vectors: dict) -> dict:
     if not pre_vectors:
         return {"warning": "No pre-compact vectors to compare"}
 
-    # Post-compact, honest assessment would typically show:
+    # Post-compact, calibrated beliefs would typically show:
     # - Lower know (lost detailed context)
     # - Higher uncertainty (less confident)
     # - Similar or lower context (depends on evidence loaded)
@@ -1311,7 +1311,7 @@ def _print_user_message(pre_vectors: dict, dynamic_context: dict, potential_drif
 
 🎯 ACTION REQUIRED:
    1. Load context: empirica project-bootstrap --session-id <ID>
-   2. Run CHECK: empirica check-submit (with honest assessment)
+   2. Run CHECK: empirica check-submit (with calibrated beliefs)
    3. Follow decision: "proceed" or "investigate"
 """, file=sys.stderr)
 

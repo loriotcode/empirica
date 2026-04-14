@@ -206,7 +206,7 @@ def main():
             f'"task_outcome": "<what was accomplished in this transaction>", '
             f'"vectors": {{"know": ..., "uncertainty": ..., "context": ..., '
             f'"completion": ..., "impact": ..., "do": ..., "change": ...}}, '
-            f'"reasoning": "<honest assessment of this work chunk>"}}\n'
+            f'"reasoning": "<what you believe about your epistemic state after this work>"}}\n'
             f"EOF\n```\n\n"
             f"After POSTFLIGHT, start a new PREFLIGHT for the next chunk of work.\n"
         )

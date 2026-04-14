@@ -238,7 +238,7 @@ See: `/empirica-commands` skill for full reference (load when needed)
 | Front-loading all Empirica knowledge | Context bloat | Load skills on demand |
 | Guessing instead of searching | Hallucination risk | project-search first |
 | Skipping PREFLIGHT for "quick tasks" | Unmeasured work | Every task gets measured |
-| Resubmitting CHECK with inflated vectors | Self-deception — divergence compounds in calibration | Do real noetic work first |
+| Resubmitting CHECK with inflated vectors | Inflated beliefs produce discipline gaps that compound | Do real noetic work first |
 | Logging artifacts in batches | Stale context | Log as you discover |
 | Switching projects to write one finding | Context loss | Use --project flag (or log here with note) |
 | Running subagent for a simple search | Overhead | Use Grep/Glob directly |

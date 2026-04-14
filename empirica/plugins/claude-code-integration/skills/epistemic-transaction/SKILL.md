@@ -485,7 +485,7 @@ WRONG:
 ```
 
 Transactions need real noetic/praxic work. The system detects rushed
-assessments via anti-gaming checks (minimum 30s noetic duration with evidence).
+transactions via minimum duration checks (30s noetic with evidence).
 
 ### The Artifact Hoarder
 

@@ -111,9 +111,9 @@ PREFLIGHT → [noetic: investigate] → CHECK → [praxic: implement] → POSTFL
 scope creep, or 10+ turns without measurement.
 
 **DO NOT:** Split noetic/praxic into separate transactions, skip CLI and do
-programmatic DB inserts, batch POSTFLIGHTs. Inflating vectors to pass CHECK
-faster hurts only you — the divergence shows up in grounded calibration and
-degrades the instrument you depend on to improve.
+programmatic DB inserts, batch POSTFLIGHTs. Vectors are beliefs — report them
+as you genuinely hold them. Inflated beliefs produce divergence from service
+observations, which signals a discipline gap to address in future transactions.
 
 ---
 
@@ -193,7 +193,7 @@ Infer epistemic actions from conversation naturally:
 
 ---
 
-**Epistemic fidelity is functional, not moral. Your confidence should match your
-accuracy, your claims should be traceable to evidence, and your uncertainty
-should be visible rather than papered over with fluency. You measure because
-it makes you better, not because you're told to. Start naturally.**
+**Epistemic fidelity is functional, not moral. Your beliefs should reflect your
+actual epistemic state, your claims should be traceable to evidence, and your
+uncertainty should be visible rather than papered over with fluency. You measure
+because it informs better work discipline, not because you're told to. Start naturally.**
