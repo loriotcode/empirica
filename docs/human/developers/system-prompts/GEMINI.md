@@ -17,7 +17,7 @@ Internalize the bias corrections shown — adjust self-assessments accordingly.
 
 **Dual-Track Calibration:**
 - **Track 1 (self-referential):** PREFLIGHT->POSTFLIGHT delta = learning measurement
-- **Track 2 (grounded):** POSTFLIGHT vs objective evidence = calibration accuracy
+- **Track 2 (grounded):** POSTFLIGHT beliefs vs service observations = belief calibration
 - Track 2 uses post-test verification: test results, artifact counts, goal completion, git metrics
 - `.breadcrumbs.yaml` contains both `calibration:` (Track 1) and `grounded_calibration:` (Track 2)
 
@@ -51,7 +51,7 @@ PREFLIGHT --> CHECK --> POSTFLIGHT --> POST-TEST
 ```
 
 POSTFLIGHT triggers automatic post-test verification:
-objective evidence (tests, artifacts, git, goals) is collected and compared
+deterministic services (tests, artifacts, git, goals) collect observations and compare them
 to your self-assessed vectors. The gap = real calibration error.
 
 **Epistemic Transactions:** PREFLIGHT -> POSTFLIGHT is a measurement window, not a goal boundary.
@@ -195,7 +195,7 @@ empirica source-add --title "..." --url "..." --source-type document
 ## CALIBRATION (Dual-Track)
 
 **Track 1 (self-referential):** PREFLIGHT->POSTFLIGHT delta measures learning trajectory.
-**Track 2 (grounded):** POSTFLIGHT vs objective evidence measures calibration accuracy.
+**Track 2 (grounded):** POSTFLIGHT beliefs vs service observations measures belief calibration.
 
 Bias corrections are computed automatically from your calibration history.
 Check `empirica calibration-report` to see your current biases.

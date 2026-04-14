@@ -35,7 +35,7 @@ Apply them to your self-assessments. The corrections shown at session start are 
 *Method: POSTFLIGHT vectors compared against objective post-test evidence.*
 *Source: `.breadcrumbs.yaml` grounded_calibration section.*
 
-This track measures **calibration accuracy** — does your self-assessment match reality?
+This track measures **belief calibration** — do your beliefs about your epistemic state align with what deterministic services observe? Divergence signals where work discipline may need attention, not where vector values need adjusting.
 
 **Evidence sources (automatic, after each POSTFLIGHT):**
 
@@ -69,7 +69,7 @@ feedback: adjust your self-assessment or flag evidence collection issues to the 
 
 Readiness is assessed holistically by the Sentinel based on the full vector space,
 calibration history, and grounded evidence. The Sentinel adapts thresholds based on
-your calibration accuracy — honest assessment earns autonomy over time.
+your belief calibration — calibrated beliefs earn autonomy over time.
 
 ---
 
