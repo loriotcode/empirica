@@ -124,12 +124,14 @@ PREFLIGHT -> [noetic: explore, read, search] -> CHECK -> [praxic: edit, write, c
 **DO NOT split noetic and praxic into separate transactions** — this is the #1 mistake.
 CHECK gates the transition, it does NOT end the transaction.
 
-### Between Transactions: Artifact Lifecycle
+### Between Transactions: Artifact Review
 
-At the start of each new transaction, review your open artifacts:
-1. `goals-list` — Close completed goals with `goals-complete --goal-id <ID> --reason "..."`
-2. Open unknowns — Resolve answered ones with `unknown-resolve`, then `finding-log`
-3. Open assumptions — Log `decision-log` for verified/falsified beliefs
+At the start of each new transaction, review open artifacts. Resolve those
+that are completed or no longer pertinent. Where uncertainty is high about
+whether an artifact is still relevant, surface it collaboratively:
+1. `goals-list` — Close goals no longer needed with reason
+2. Open unknowns — Resolve answered ones, surface uncertain ones to user
+3. Open assumptions — Convert verified ones to `decision-log` or `finding-log`
 
 ### Natural Commit Points
 
@@ -158,13 +160,14 @@ POSTFLIGHT when any of these occur:
 ### Within-Transaction Discipline
 
 - **Goal-per-transaction:** Link each transaction to an empirica goal. Create subtasks
-  when scope breadth >= 0.3 or files >= 3.
+  when the goal has distinct steps. Use `--status planned` for goals logged but not yet started.
 - **Commit-per-subtask:** Commit after each completed subtask or coherent work unit.
   Don't batch commits to the end — uncommitted work is invisible to grounded calibration.
 - **Artifact breadth:** Log decisions, assumptions, dead-ends, and mistakes as they
   occur — not just findings. Single-type logging leaves calibration gaps ungrounded.
-- **Complete goals before POSTFLIGHT:** `goals-complete` first, then `postflight-submit`.
-  Goal completion evidence closes with the measurement window.
+- **Close before POSTFLIGHT:** Complete goals (`goals-complete`) and resolve unknowns
+  (`unknown-resolve`) BEFORE `postflight-submit`. The measurement window closes at
+  POSTFLIGHT — anything logged after is invisible to grounded calibration.
 
 ---
 

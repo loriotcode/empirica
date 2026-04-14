@@ -128,18 +128,18 @@ transaction planning with vector estimates, goal decomposition, and examples.
 Transaction lifecycle
 ├── Starting measured work → empirica preflight-submit (opens measurement window)
 ├── Ready to act? → empirica check-submit (gates noetic → praxic)
+├── Goal completed → goals-complete + commit (BEFORE postflight)
+├── Unknowns answered → unknown-resolve (BEFORE postflight)
 ├── Done with coherent chunk → empirica postflight-submit (closes window)
 ├── Scope creep detected → POSTFLIGHT current, new PREFLIGHT for expanded scope
 ├── Context shift (new topic) → POSTFLIGHT, then new PREFLIGHT
-├── 10+ turns without measurement → Natural POSTFLIGHT point
-└── Goal completed → empirica goals-complete + commit
+└── 10+ turns without measurement → Natural POSTFLIGHT point
 
 Between transactions
-├── Review open goals → empirica goals-list
-├── Close completed goals → empirica goals-complete --goal-id ID
-├── Resolve answered unknowns → empirica unknown-resolve
+├── Review open artifacts → empirica goals-list, unknown-list
+├── Resolve what's no longer pertinent → goals-complete, unknown-resolve
 ├── Convert verified assumptions → empirica decision-log
-└── Clean stale artifacts → Prevents noise accumulation
+└── Surface uncertain relevance collaboratively with user
 ```
 
 **Routing rule — declare `work_type=remote-ops` when:**

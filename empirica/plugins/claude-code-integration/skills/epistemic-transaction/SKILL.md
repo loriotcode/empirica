@@ -440,19 +440,19 @@ reasoned synthesis. Services inform; you score.
 
 ---
 
-## Step 5: Between Transactions — Artifact Lifecycle
+## Step 5: Between Transactions — Artifact Review
 
-At the start of each new transaction, clean up:
+At the start of each new transaction, review open artifacts. Resolve those
+that are completed or no longer pertinent. Where uncertainty is high about
+whether an artifact is still relevant, surface it collaboratively:
 
 ```bash
-# 1. Close completed goals
+# 1. Review what's open
 empirica goals-list
-empirica goals-complete --goal-id <ID> --reason "Implemented and tested"
+empirica unknown-list
 
-# 2. Resolve answered unknowns
-empirica unknown-resolve --unknown-id <UUID> --resolved-by "Found in codebase"
-# Then log what you learned
-empirica finding-log --finding "Answer: roles stored in JWT claims.roles[]" --impact 0.4
+# 2. Goals no longer needed → close with reason
+empirica goals-complete --goal-id <ID> --reason "Superseded by new approach"
 
 # 3. Verify/falsify assumptions
 # Confirmed assumption → finding
@@ -511,7 +511,8 @@ WRONG:
 ```
 
 Resolve artifacts between transactions. Unknowns become findings. Assumptions
-become decisions. Stale artifacts are noise, not signal.
+become decisions. Unresolved artifacts accumulate as noise — resolve what's
+answered, close what's no longer pertinent.
 
 ---
 
@@ -522,8 +523,8 @@ They are behavioral commitments, not code enforcement — internalize them.
 
 ### Rule 1: Goal-per-Transaction
 
-Every transaction should reference an empirica goal. If the work is non-trivial
-(scope breadth >= 0.3 OR touching >= 3 files), create subtasks:
+Every transaction should reference an empirica goal. If the goal has distinct
+steps, create subtasks to track them:
 
 ```bash
 # At PREFLIGHT, link to a goal
@@ -531,10 +532,15 @@ empirica goals-create --objective "Implement X"  # if not already created
 empirica goals-add-subtask --goal-id <ID> --description "Read and understand module Y"
 empirica goals-add-subtask --goal-id <ID> --description "Write implementation"
 empirica goals-add-subtask --goal-id <ID> --description "Add tests"
+
+# For goals you want to log but not start yet:
+empirica goals-create --objective "Future: refactor Y" --status planned
 ```
 
 **Why:** Goalless transactions produce ungrounded completion vectors. The
 grounded calibration has nothing to measure your completion claims against.
+`planned` goals are visible in `goals-list` but excluded from measurement
+until moved to `in_progress`.
 
 ### Rule 2: Commit-per-Subtask
 
@@ -568,18 +574,22 @@ transaction should capture what was relevant:
 gaps ungrounded. The retrospective breadth_note will flag this, but by then
 the measurement window is closing.
 
-### Rule 4: Complete Goals Before POSTFLIGHT
+### Rule 4: Close Artifacts Before POSTFLIGHT
 
-If a transaction's goal is done, mark it complete BEFORE submitting POSTFLIGHT:
+Complete goals and resolve unknowns BEFORE submitting POSTFLIGHT:
 
 ```bash
+# Close what's done
 empirica goals-complete --goal-id <ID> --reason "Implemented and tested"
-empirica postflight-submit -  # AFTER goal completion
+empirica unknown-resolve --unknown-id <ID> --resolved-by "Found in codebase"
+
+# THEN close the measurement window
+empirica postflight-submit -
 ```
 
-**Why:** Goal completion feeds the grounded calibration's completion
-vector. If you POSTFLIGHT first, the completion evidence window is already
-closed.
+**Why:** The measurement window closes at POSTFLIGHT. Goal completion and
+unknown resolution feed grounded calibration's completion and know vectors.
+If you POSTFLIGHT first, the evidence is invisible to calibration.
 
 ### Rule 5: Subtask-Task Visibility (When Using Claude Code Tasks)
 
@@ -605,8 +615,9 @@ visible task tracking vs when it's overhead.
 | **Noetic** | `source-add`, `finding-log --source <id>`, `unknown-log`, `deadend-log`, `assumption-log` |
 | **CHECK** | `check-submit` (gates noetic → praxic) |
 | **Praxic** | `finding-log`, `decision-log --evidence <id>`, `goals-complete-subtask` |
+| **Before POSTFLIGHT** | `goals-complete`, `unknown-resolve` (close artifacts before measurement window closes) |
 | **POSTFLIGHT** | `postflight-submit` (closes transaction + triggers grounded verification) |
-| **Between** | `goals-complete`, `unknown-resolve --finding <id>`, `goals-list` |
+| **Between** | `goals-list`, review open artifacts, resolve what's no longer pertinent |
 
 ---
 

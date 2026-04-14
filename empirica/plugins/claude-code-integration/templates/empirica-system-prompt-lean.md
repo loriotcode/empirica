@@ -98,13 +98,14 @@ PREFLIGHT → [noetic: investigate] → CHECK → [praxic: implement] → POSTFL
 
 **Within-transaction discipline:**
 - **Goal-per-transaction:** Link each transaction to an empirica goal. Create subtasks
-  when scope breadth >= 0.3 or files >= 3.
+  when the goal has distinct steps. Use `--status planned` for goals logged but not yet started.
 - **Commit-per-subtask:** Commit after each completed subtask or coherent work unit.
   Don't batch commits to the end. Uncommitted work is invisible to grounded calibration.
 - **Artifact breadth:** Log decisions, assumptions, dead-ends, and mistakes as they
   occur — not just findings. Single-type logging leaves calibration gaps ungrounded.
-- **Complete goals before POSTFLIGHT:** `goals-complete` first, then `postflight-submit`.
-  Goal completion evidence closes with the measurement window.
+- **Close before POSTFLIGHT:** Complete goals (`goals-complete`) and resolve unknowns
+  (`unknown-resolve`) BEFORE `postflight-submit`. The measurement window closes at
+  POSTFLIGHT — anything logged after is invisible to grounded calibration.
 
 **POSTFLIGHT when:** coherent chunk complete, confidence inflection, context shift,
 scope creep, or 10+ turns without measurement.
