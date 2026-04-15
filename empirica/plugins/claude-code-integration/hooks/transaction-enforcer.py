@@ -33,9 +33,33 @@ from typing import Optional
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from project_resolver import _get_instance_suffix, get_instance_id
 
-# Thresholds (can be tuned via env vars)
-SOFT_THRESHOLD = int(os.environ.get('EMPIRICA_TX_SOFT_TURNS', '12'))
-HARD_THRESHOLD = int(os.environ.get('EMPIRICA_TX_HARD_TURNS', '20'))
+# Thresholds: project.yaml > env vars > defaults
+def _load_thresholds():
+    """Load transaction thresholds from project config, env vars, or defaults."""
+    soft, hard = 12, 20
+    try:
+        import yaml
+        for cfg_path in [
+            Path.cwd() / '.empirica-project' / 'PROJECT_CONFIG.yaml',
+            Path.cwd() / 'PROJECT_CONFIG.yaml',
+        ]:
+            if cfg_path.exists():
+                with open(cfg_path) as f:
+                    cfg = yaml.safe_load(f) or {}
+                tx = cfg.get('transaction', {})
+                if tx.get('soft_reminder_turns'):
+                    soft = int(tx['soft_reminder_turns'])
+                if tx.get('max_transaction_turns'):
+                    hard = int(tx['max_transaction_turns'])
+                break
+    except Exception:
+        pass
+    # Env vars override project config
+    soft = int(os.environ.get('EMPIRICA_TX_SOFT_TURNS', str(soft)))
+    hard = int(os.environ.get('EMPIRICA_TX_HARD_TURNS', str(hard)))
+    return soft, hard
+
+SOFT_THRESHOLD, HARD_THRESHOLD = _load_thresholds()
 
 
 def _find_transaction_file(instance_id: str) -> Path | None:

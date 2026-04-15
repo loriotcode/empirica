@@ -188,6 +188,94 @@ def main():
             except OSError:
                 pass
 
+        # ARTIFACT REMINDER: At configurable turn threshold, check if artifacts
+        # have been logged for the current transaction. Goal-aware: reads scope
+        # to determine expectation level.
+        tool_calls = counters.get('tool_call_count', 0)
+        reminder_turns = 15  # default
+        try:
+            import yaml
+            for cfg_path in [
+                tx_path.parent.parent / '.empirica-project' / 'PROJECT_CONFIG.yaml',
+                tx_path.parent.parent / 'PROJECT_CONFIG.yaml',
+            ]:
+                if cfg_path.exists():
+                    with open(cfg_path) as f:
+                        cfg = yaml.safe_load(f) or {}
+                    reminder_turns = int(cfg.get('transaction', {}).get(
+                        'log_artifacts_reminder_turns', reminder_turns))
+                    break
+        except Exception:
+            pass
+
+        if tool_calls >= reminder_turns and not counters.get('artifact_reminded'):
+            # Check artifact counts for this transaction
+            try:
+                tx_id = tx.get('transaction_id')
+                session_id = tx.get('session_id')
+                if tx_id and session_id:
+                    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
+                    from empirica.data.session_database import SessionDatabase
+                    db = SessionDatabase()
+                    cursor = db.conn.cursor()
+                    total = 0
+                    for table in ('project_findings', 'project_unknowns', 'project_dead_ends',
+                                  'mistakes_made', 'assumptions', 'decisions'):
+                        try:
+                            cursor.execute(
+                                f"SELECT COUNT(*) FROM {table} WHERE session_id = ? AND transaction_id = ?",
+                                (session_id, tx_id))
+                            total += cursor.fetchone()[0]
+                        except Exception:
+                            pass
+                    db.close()
+
+                    if total == 0:
+                        # Goal-aware: check scope for expectation
+                        goal_hint = ""
+                        try:
+                            cursor2 = SessionDatabase().conn.cursor()
+                            cursor2.execute("""
+                                SELECT objective, scope FROM goals
+                                WHERE transaction_id = ? AND status = 'in_progress'
+                                LIMIT 1
+                            """, (tx_id,))
+                            row = cursor2.fetchone()
+                            if row:
+                                scope = json.loads(row[1]) if row[1] else {}
+                                breadth = scope.get('breadth', 0.3)
+                                if breadth >= 0.5:
+                                    goal_hint = f" Working on '{row[0][:50]}...' (breadth {breadth}) — decisions and assumptions are likely worth capturing."
+                                else:
+                                    goal_hint = f" Working on '{row[0][:50]}...' — at minimum log a finding."
+                        except Exception:
+                            pass
+
+                        reminder = (
+                            f"Artifact reminder: {tool_calls} tool calls, 0 artifacts logged "
+                            f"in this transaction.{goal_hint} "
+                            f"Commands: finding-log, decision-log, assumption-log, unknown-log"
+                        )
+                        if output.get("hookSpecificOutput", {}).get("additionalContext"):
+                            output["hookSpecificOutput"]["additionalContext"] += f" | {reminder}"
+                        else:
+                            output.setdefault("hookSpecificOutput", {})["additionalContext"] = reminder
+
+                        counters['artifact_reminded'] = True
+                        # Re-write counters with reminder flag
+                        fd2, tmp2 = tempfile.mkstemp(dir=str(counters_path.parent))
+                        try:
+                            with os.fdopen(fd2, 'w') as tf2:
+                                json.dump(counters, tf2, indent=2)
+                            os.replace(tmp2, str(counters_path))
+                        except BaseException:
+                            try:
+                                os.unlink(tmp2)
+                            except OSError:
+                                pass
+            except Exception:
+                pass
+
     except Exception:
         pass
 
