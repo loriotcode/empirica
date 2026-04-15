@@ -535,6 +535,8 @@ def main(args=None):
             'goals-resume': handle_goals_resume_command,
             'goals-mark-stale': handle_goals_mark_stale_command,
             'goals-get-stale': handle_goals_get_stale_command,
+            'goals-activate': handle_goals_activate_command,
+            'goal-activate': handle_goals_activate_command,
             'goals-refresh': handle_goals_refresh_command,
 
             # Vision commands

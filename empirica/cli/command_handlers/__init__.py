@@ -74,6 +74,7 @@ from .goal_commands import (
     handle_goals_mark_stale_command,
     handle_goals_progress_command,
     handle_goals_ready_command,
+    handle_goals_activate_command,
     handle_goals_refresh_command,
     handle_goals_resume_command,
     handle_goals_search_command,
@@ -237,6 +238,7 @@ __all__ = [
     'handle_sessions_resume_command',
     'handle_goals_mark_stale_command',  # Pre-compact hook - mark goals stale
     'handle_goals_get_stale_command',   # Get stale goals needing re-evaluation
+    'handle_goals_activate_command',    # Activate planned goal → in_progress
     'handle_goals_refresh_command',     # Refresh stale goal back to in_progress
 
     # NEW: Identity Management Commands (Phase 2 - EEP-1)

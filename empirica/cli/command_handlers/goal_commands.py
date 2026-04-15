@@ -1524,6 +1524,57 @@ def handle_goals_get_stale_command(args):
         handle_cli_error(e, "Get stale goals", getattr(args, 'verbose', False))
 
 
+def handle_goals_activate_command(args):
+    """Handle goals-activate command — transition a planned goal to in_progress.
+
+    Links the goal to the current transaction so the Sentinel can track it.
+    """
+    try:
+        from empirica.data.repositories.goals import GoalDataRepository
+
+        goal_id = args.goal_id
+        output_format = getattr(args, 'output', 'json')
+
+        # Auto-derive transaction_id
+        transaction_id = None
+        try:
+            transaction_id = R.transaction_id()
+        except Exception:
+            pass
+
+        repo = GoalDataRepository()
+        try:
+            activated = repo.activate_goal(goal_id, transaction_id=transaction_id)
+        finally:
+            repo.close()
+
+        if activated:
+            result = {
+                "ok": True,
+                "goal_id": goal_id,
+                "status": "in_progress",
+                "transaction_id": transaction_id,
+                "message": f"Goal {goal_id[:8]} activated — now in_progress and linked to current transaction"
+            }
+            if output_format == 'json':
+                print(json.dumps(result))
+            else:
+                print(f"✅ Activated goal: {goal_id[:8]}")
+                if transaction_id:
+                    print(f"   Linked to transaction: {transaction_id[:8]}")
+        else:
+            result = {
+                "ok": False,
+                "error": f"Goal {goal_id} not found or not in 'planned' status"
+            }
+            print(json.dumps(result))
+            sys.exit(1)
+
+    except Exception as e:
+        from empirica.cli.cli_utils import handle_cli_error
+        handle_cli_error(e, "Activate goal", getattr(args, 'verbose', False))
+
+
 def handle_goals_refresh_command(args):
     """Handle goals-refresh command - Mark a stale goal as in_progress
 

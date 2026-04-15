@@ -872,6 +872,13 @@ def add_checkpoint_parsers(subparsers):
     goals_get_stale_parser.add_argument('--project-id', help='Filter by project ID')
     goals_get_stale_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
 
+    # Goals activate command (transition planned → in_progress, link to transaction)
+    goals_activate_parser = subparsers.add_parser('goals-activate',
+        aliases=['goal-activate'],
+        help='Activate a planned goal — set to in_progress and link to current transaction')
+    goals_activate_parser.add_argument('--goal-id', required=True, help='Goal UUID to activate (prefix match)')
+    goals_activate_parser.add_argument('--output', choices=['human', 'json'], default='json', help='Output format')
+
     # Goals refresh command (mark stale goal as in_progress after regaining context)
     goals_refresh_parser = subparsers.add_parser('goals-refresh',
         help='Refresh a stale goal back to in_progress (AI has regained context)')
