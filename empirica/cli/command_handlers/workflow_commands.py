@@ -2768,6 +2768,7 @@ def handle_postflight_submit_command(args):
 
             # B2: Compliance loop — run domain checklist after grounded verification
             compliance_result = None
+            compliance_error = None
             try:
                 from empirica.core.post_test.compliance_loop import run_compliance_checks
                 from empirica.config.service_registry import ServiceRegistry
@@ -2799,7 +2800,12 @@ def handle_postflight_submit_command(args):
                         changed_files=_edited,
                     )
             except Exception as e:
-                logger.debug(f"Compliance loop failed (non-fatal): {e}")
+                import traceback
+                logger.warning(f"Compliance loop failed: {e}")
+                logger.debug(traceback.format_exc())
+                # Surface the error so the AI knows compliance didn't run
+                compliance_result = None
+                compliance_error = str(e)
 
             result = {
                 "ok": True,
@@ -2811,6 +2817,10 @@ def handle_postflight_submit_command(args):
                 "calibration": grounded_verification,
                 "sentinel": sentinel_decision.value if sentinel_decision else None,
             }
+
+            # Surface compliance error if it failed
+            if compliance_result is None and compliance_error:
+                result["compliance_error"] = compliance_error
 
             # B2: Add compliance block if domain checks ran
             # B4: Compute check-outcome Brier if AI made predictions
