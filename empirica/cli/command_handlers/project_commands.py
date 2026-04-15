@@ -6,7 +6,7 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from empirica.utils.session_resolver import InstanceResolver as R
 
@@ -1170,7 +1170,7 @@ def handle_project_switch_command(args):
 
             # Epistemic Brief — quantified project profile
             try:
-                from empirica.core.epistemic_brief import generate_epistemic_brief, format_brief_human
+                from empirica.core.epistemic_brief import format_brief_human, generate_epistemic_brief
                 _sw_db_path_str = str(Path(project_path) / '.empirica' / 'sessions' / 'sessions.db') if project_path else None
                 if _sw_db_path_str and Path(_sw_db_path_str).exists():
                     brief = generate_epistemic_brief(project_id, db_path=_sw_db_path_str)

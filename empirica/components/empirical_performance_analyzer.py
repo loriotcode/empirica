@@ -9,7 +9,7 @@ This stub prevents import errors and returns sensible defaults.
 
 import time
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 try:
     import psutil

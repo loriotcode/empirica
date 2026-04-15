@@ -6,7 +6,6 @@ semantic index (docs/SEMANTIC_INDEX.yaml).
 from __future__ import annotations
 
 import os
-from typing import Optional
 
 
 def _load_yaml(path: str) -> dict:

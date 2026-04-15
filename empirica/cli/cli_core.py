@@ -26,7 +26,6 @@ from .command_handlers.domain_commands import (
     handle_domain_validate_command,
 )
 from .command_handlers.edit_verification_command import handle_edit_with_confidence_command
-from .command_handlers.resolve_command import handle_resolve_command
 from .command_handlers.issue_capture_commands import (
     handle_issue_export_command,
     handle_issue_handoff_command,
@@ -35,6 +34,7 @@ from .command_handlers.issue_capture_commands import (
     handle_issue_show_command,
     handle_issue_stats_command,
 )
+from .command_handlers.resolve_command import handle_resolve_command
 from .command_handlers.utility_commands import (
     handle_efficiency_report,
     handle_log_token_saving,
@@ -105,6 +105,14 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
         return super()._format_action(action)
 
 # Import all parser modules
+from empirica.cli.command_handlers.bus_commands import (
+    handle_bus_dispatch_command,
+    handle_bus_instances_command,
+    handle_bus_register_command,
+    handle_bus_status_command,
+    handle_bus_subscribe_command,
+)
+
 from .command_handlers.agent_commands import (
     handle_agent_aggregate_command,
     handle_agent_discover_command,
@@ -151,13 +159,6 @@ from .command_handlers.message_commands import (
     handle_message_send_command,
     handle_message_thread_command,
 )
-from empirica.cli.command_handlers.bus_commands import (
-    handle_bus_dispatch_command,
-    handle_bus_instances_command,
-    handle_bus_register_command,
-    handle_bus_status_command,
-    handle_bus_subscribe_command,
-)
 from .command_handlers.persona_commands import (
     handle_persona_find_command,
     handle_persona_list_command,
@@ -191,7 +192,6 @@ from .parsers import (
     add_concept_graph_parsers,
     add_config_parsers,
     add_domain_parsers,
-    add_resolve_parser,
     add_edit_verification_parsers,
     add_epistemics_parsers,
     add_investigation_parsers,
@@ -207,6 +207,7 @@ from .parsers import (
     add_profile_parsers,
     add_query_parsers,
     add_release_parsers,
+    add_resolve_parser,
     add_sentinel_parsers,
     add_serve_parsers,
     add_session_parsers,

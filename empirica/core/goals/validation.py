@@ -7,7 +7,7 @@ Designed to catch errors early and provide clear feedback.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from .types import Goal, ScopeVector, SuccessCriterion
 
@@ -22,10 +22,10 @@ class ValidationError(Exception):
 def validate_objective(objective: str) -> None:
     """
     Validate goal objective
-    
+
     Args:
         objective: Goal objective string
-        
+
     Raises:
         ValidationError: If objective is invalid
     """
@@ -39,10 +39,10 @@ def validate_objective(objective: str) -> None:
 def validate_success_criteria(success_criteria: list[SuccessCriterion]) -> None:
     """
     Validate success criteria list
-    
+
     Args:
         success_criteria: List of success criteria
-        
+
     Raises:
         ValidationError: If criteria are invalid
     """
@@ -79,10 +79,10 @@ def validate_success_criteria(success_criteria: list[SuccessCriterion]) -> None:
 def validate_complexity(complexity: float | None) -> None:
     """
     Validate complexity estimate
-    
+
     Args:
         complexity: Complexity value (should be 0.0-1.0)
-        
+
     Raises:
         ValidationError: If complexity is out of range
     """
@@ -96,13 +96,13 @@ def validate_complexity(complexity: float | None) -> None:
 def validate_scope_vector(scope: ScopeVector) -> None:
     """
     Validate scope vector and check coherence
-    
+
     Args:
         scope: ScopeVector to validate
-        
+
     Raises:
         ValidationError: If scope values are out of range
-        
+
     Logs warnings for incoherent combinations (advisory, not blocking).
     """
     if not isinstance(scope, ScopeVector):
@@ -136,10 +136,10 @@ def validate_scope_vector(scope: ScopeVector) -> None:
 def validate_goal(goal: Goal) -> None:
     """
     Validate complete goal object
-    
+
     Args:
         goal: Goal to validate
-        
+
     Raises:
         ValidationError: If goal is invalid
     """
@@ -152,10 +152,10 @@ def validate_goal(goal: Goal) -> None:
 def validate_mcp_goal_input(arguments: dict[str, Any]) -> None:
     """
     Validate MCP create_goal input arguments
-    
+
     Args:
         arguments: MCP tool arguments dict
-        
+
     Raises:
         ValidationError: If arguments are invalid
     """
@@ -209,7 +209,7 @@ def validate_mcp_goal_input(arguments: dict[str, Any]) -> None:
                 value = float(scope[field])
                 if not (0.0 <= value <= 1.0):
                     raise ValidationError(f"scope.{field} must be 0.0-1.0, got {value}")
-            except (TypeError, ValueError) as e:
+            except (TypeError, ValueError):
                 raise ValidationError(f"scope.{field} must be a number, got {scope[field]}")
 
     # Validate complexity if provided
@@ -228,10 +228,10 @@ def validate_mcp_goal_input(arguments: dict[str, Any]) -> None:
 def validate_mcp_subtask_input(arguments: dict[str, Any]) -> None:
     """
     Validate MCP add_subtask input arguments
-    
+
     Args:
         arguments: MCP tool arguments dict
-        
+
     Raises:
         ValidationError: If arguments are invalid
     """

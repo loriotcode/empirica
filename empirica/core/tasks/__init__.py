@@ -10,9 +10,9 @@ from .repository import TaskRepository
 from .types import EpistemicImportance, SubTask, TaskDecomposition, TaskStatus
 
 __all__ = [
+    'EpistemicImportance',
     'SubTask',
     'TaskDecomposition',
-    'EpistemicImportance',
-    'TaskStatus',
-    'TaskRepository'
+    'TaskRepository',
+    'TaskStatus'
 ]

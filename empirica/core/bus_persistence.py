@@ -27,7 +27,7 @@ import json
 import logging
 import os
 import uuid
-from typing import Any, Optional
+from typing import Any
 
 from empirica.core.epistemic_bus import (
     EpistemicEvent,
@@ -187,11 +187,11 @@ class QdrantBusObserver(EpistemicObserver):
     def _ensure_collection(self):
         """Create events collection if needed."""
         try:
+            from empirica.core.qdrant.connection import _ensure_collection_matches_vector
             from empirica.core.qdrant.vector_store import (
                 _get_qdrant_client,
                 _get_vector_size,
             )
-            from empirica.core.qdrant.connection import _ensure_collection_matches_vector
             client = _get_qdrant_client()
             if client is None:
                 self._available = False
@@ -215,10 +215,10 @@ class QdrantBusObserver(EpistemicObserver):
         try:
             from qdrant_client.models import PointStruct
 
+            from empirica.core.qdrant.connection import _get_embedding_for_collection
             from empirica.core.qdrant.vector_store import (
                 _get_qdrant_client,
             )
-            from empirica.core.qdrant.connection import _get_embedding_for_collection
 
             # Create searchable text from event
             event_text = (
@@ -275,6 +275,7 @@ class QdrantBusObserver(EpistemicObserver):
 
         try:
             from qdrant_client.models import FieldCondition, Filter, MatchValue
+
             from empirica.core.qdrant.connection import _get_embedding_for_collection
             from empirica.core.qdrant.vector_store import _get_qdrant_client
 

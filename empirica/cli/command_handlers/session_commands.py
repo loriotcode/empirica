@@ -106,7 +106,7 @@ def handle_sessions_list_command(args):
                     else:
                         # Unknown format, return as string
                         return str(ts)
-                except (ValueError, AttributeError, OSError) as e:
+                except (ValueError, AttributeError, OSError):
                     # Invalid timestamp, return as string
                     return str(ts) if ts else None
 
@@ -166,7 +166,7 @@ def handle_sessions_show_command(args):
             if getattr(args, 'output', None) == 'json':
                 print(json.dumps({"ok": False, "error": str(e)}))
             else:
-                print(f"\n❌ {str(e)}")
+                print(f"\n❌ {e!s}")
                 print(f"💡 Provided: {session_id_arg}")
                 print("💡 List sessions with: empirica sessions-list")
             return
@@ -398,7 +398,7 @@ def handle_sessions_export_command(args):
         try:
             session_id = R.resolve_session(session_id_arg)
         except ValueError as e:
-            print(f"\n❌ {str(e)}")
+            print(f"\n❌ {e!s}")
             print(f"💡 Provided: {session_id_arg}")
             return
 

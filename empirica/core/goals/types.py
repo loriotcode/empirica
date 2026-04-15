@@ -10,14 +10,14 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
 class ScopeVector:
     """
     Goal scope as epistemic vectors (AI self-assesses, Sentinel validates coherence)
-    
+
     Replaces categorical enum with numeric dimensions for genuine AI assessment.
     """
     breadth: float      # 0.0-1.0: How wide the goal spans (0=single function, 1=entire codebase)
@@ -82,7 +82,7 @@ class Dependency:
 class Goal:
     """
     Structured goal representation
-    
+
     MVP Design: AI creates goals explicitly via MCP tools.
     No automatic parsing - keeps it simple and heuristic-free.
     """
@@ -205,9 +205,9 @@ class Goal:
     def get_subtasks(self):
         """
         Get all subtasks for this goal
-        
+
         Returns list of SubTask objects from database
-        
+
         Note: Creates its own repository connection for simplicity.
         For bulk operations, use TaskRepository directly.
         """
@@ -222,7 +222,7 @@ class Goal:
     def calculate_progress(self) -> dict[str, Any]:
         """
         Calculate goal progress based on subtasks
-        
+
         Returns:
             {
                 'total_subtasks': int,
@@ -291,11 +291,11 @@ class Goal:
     def is_ready_for_completion(self) -> bool:
         """
         Check if goal is ready to be marked complete
-        
+
         Checks:
         1. All subtasks completed or skipped (if subtasks exist)
         2. Falls back to is_completed flag if no subtasks
-        
+
         Returns:
             True if ready for completion, False otherwise
         """

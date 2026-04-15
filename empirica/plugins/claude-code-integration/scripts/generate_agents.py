@@ -23,7 +23,6 @@ Usage:
 import json
 import sys
 from pathlib import Path
-from typing import Optional
 
 # Tool mapping: persona capabilities -> Claude Code tool names
 TOOL_MAPPING = {

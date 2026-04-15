@@ -44,6 +44,7 @@ def format_help_text(text, required=False, default=None):
 from .action_parsers import add_action_parsers
 from .agent_parsers import add_agent_parsers
 from .architecture_parsers import add_architecture_parsers
+from .bus_parsers import add_bus_parsers
 from .cascade_parsers import add_cascade_parsers
 from .checkpoint_parsers import add_checkpoint_parsers
 from .concept_graph_parsers import add_concept_graph_parsers
@@ -53,7 +54,6 @@ from .edit_verification_parsers import add_edit_verification_parsers
 from .epistemics_parsers import add_epistemics_parsers
 from .investigation_parsers import add_investigation_parsers
 from .issue_capture_parsers import add_issue_capture_parsers
-from .bus_parsers import add_bus_parsers
 from .lesson_parsers import add_lesson_parsers
 from .mcp_parsers import add_mcp_parsers
 from .memory_parsers import add_memory_parsers
@@ -75,38 +75,38 @@ from .utility_parsers import add_utility_parsers
 from .vision_parsers import add_vision_parsers
 
 __all__ = [
-    'format_help_text',
-    'add_cascade_parsers',
-    'add_investigation_parsers',
-    'add_performance_parsers',
-    'add_skill_parsers',
-    'add_utility_parsers',
-    'add_config_parsers',
-    'add_monitor_parsers',
-    'add_session_parsers',
     'add_action_parsers',
-    'add_checkpoint_parsers',
-    'add_user_interface_parsers',
-    'add_vision_parsers',
-    'add_epistemics_parsers',
-    'add_edit_verification_parsers',
-    'add_issue_capture_parsers',
-    'add_architecture_parsers',
-    'add_query_parsers',
     'add_agent_parsers',
-    'add_sentinel_parsers',
-    'add_persona_parsers',
-    'add_release_parsers',
-    'add_lesson_parsers',
-    'add_onboarding_parsers',
-    'add_trajectory_parsers',
-    'add_concept_graph_parsers',
-    'add_mcp_parsers',
-    'add_message_parsers',
+    'add_architecture_parsers',
     'add_bus_parsers',
-    'add_memory_parsers',
-    'add_profile_parsers',
-    'add_serve_parsers',
+    'add_cascade_parsers',
+    'add_checkpoint_parsers',
+    'add_concept_graph_parsers',
+    'add_config_parsers',
     'add_domain_parsers',
+    'add_edit_verification_parsers',
+    'add_epistemics_parsers',
+    'add_investigation_parsers',
+    'add_issue_capture_parsers',
+    'add_lesson_parsers',
+    'add_mcp_parsers',
+    'add_memory_parsers',
+    'add_message_parsers',
+    'add_monitor_parsers',
+    'add_onboarding_parsers',
+    'add_performance_parsers',
+    'add_persona_parsers',
+    'add_profile_parsers',
+    'add_query_parsers',
+    'add_release_parsers',
     'add_resolve_parser',
+    'add_sentinel_parsers',
+    'add_serve_parsers',
+    'add_session_parsers',
+    'add_skill_parsers',
+    'add_trajectory_parsers',
+    'add_user_interface_parsers',
+    'add_utility_parsers',
+    'add_vision_parsers',
+    'format_help_text',
 ]

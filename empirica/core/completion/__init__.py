@@ -11,8 +11,8 @@ from .tracker import CompletionTracker
 from .types import CompletionMetrics, CompletionRecord
 
 __all__ = [
-    'CompletionRecord',
     'CompletionMetrics',
+    'CompletionRecord',
     'CompletionTracker',
     'GitProgressQuery'
 ]

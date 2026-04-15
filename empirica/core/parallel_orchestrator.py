@@ -27,7 +27,7 @@ Usage:
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from empirica.core.attention_budget import (
     AttentionBudget,

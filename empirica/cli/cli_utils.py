@@ -7,7 +7,7 @@ import os
 import subprocess
 import time
 from collections.abc import Sequence
-from typing import Any, Optional
+from typing import Any
 
 
 def safe_print(*args, **kwargs):
@@ -167,7 +167,7 @@ def handle_cli_error(error: Exception, command: str, verbose: bool = False, sess
         # Capture the error if service is available
         if service:
             issue_id = service.capture_error(
-                message=f"{command} command failed: {str(error)}",
+                message=f"{command} command failed: {error!s}",
                 severity=IssueSeverity.HIGH,
                 category=IssueCategory.ERROR,
                 context={"command": command},
@@ -307,20 +307,20 @@ def format_component_list(components: list[dict[str, Any]], show_details: bool =
 def print_project_context(quiet: bool = False, verbose: bool = False) -> dict[str, str] | None:
     """
     Print current project context banner.
-    
+
     Shows:
     - Project name
     - Project ID
     - Current location
     - Database path
-    
+
     This helps AI agents understand which project they're working in,
     preventing accidental writes to wrong project databases.
-    
+
     Args:
         quiet: If True, only print minimal info (single line)
         verbose: If True, show additional details (git remote, etc.)
-    
+
     Returns:
         dict with project info (name, project_id, git_root, db_path),
         or None if not in a project

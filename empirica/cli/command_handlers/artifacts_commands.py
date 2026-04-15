@@ -946,7 +946,7 @@ def _render_calibration(cal_data):
 
 def _render_readme(counts, recent_items):
     """Render root README.md — project epistemic dashboard."""
-    total = sum(counts.values())
+    sum(counts.values())
     lines = [
         "# Empirica Epistemic Audit Trail",
         "",

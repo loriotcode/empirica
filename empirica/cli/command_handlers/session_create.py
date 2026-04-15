@@ -228,7 +228,7 @@ def handle_session_create_command(args):
         if output_format != 'json':
             from empirica.cli.cli_utils import print_project_context
             print()
-            project_context = print_project_context(quiet=False, verbose=False)
+            print_project_context(quiet=False, verbose=False)
             print()
 
         # AUTO-INIT: Initialize .empirica/ if not present (issue #25)

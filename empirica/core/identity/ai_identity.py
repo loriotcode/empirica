@@ -29,7 +29,7 @@ import logging
 import os
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
@@ -54,17 +54,17 @@ def _get_identity_password() -> bytes | None:
 class AIIdentity:
     """
     AI Identity with Ed25519 keypair
-    
+
     Usage:
         # Create new identity
         identity = AIIdentity(ai_id="claude-code")
         identity.generate_keypair()
         identity.save_keypair()
-        
+
         # Load existing identity
         identity = AIIdentity(ai_id="claude-code")
         identity.load_keypair()
-        
+
         # Use for signing
         signature = identity.sign(message)
         verified = identity.verify(signature, message, public_key)
@@ -73,7 +73,7 @@ class AIIdentity:
     def __init__(self, ai_id: str, identity_dir: str | None = None):
         """
         Initialize AI Identity
-        
+
         Args:
             ai_id: AI identifier (e.g., "claude-code", "mini-agent")
             identity_dir: Custom identity storage directory
@@ -98,7 +98,7 @@ class AIIdentity:
     def generate_keypair(self) -> None:
         """
         Generate new Ed25519 keypair
-        
+
         Raises:
             RuntimeError: If keypair already exists
         """
@@ -280,13 +280,13 @@ class AIIdentity:
     def sign(self, message: bytes) -> bytes:
         """
         Sign message with private key
-        
+
         Args:
             message: Message to sign
-            
+
         Returns:
             bytes: Signature
-            
+
         Raises:
             RuntimeError: If no private key loaded
         """
@@ -299,12 +299,12 @@ class AIIdentity:
     def verify(signature: bytes, message: bytes, public_key_bytes: bytes) -> bool:
         """
         Verify signature with public key
-        
+
         Args:
             signature: Signature to verify
             message: Original message
             public_key_bytes: Public key bytes
-            
+
         Returns:
             bool: True if signature valid
         """
@@ -328,7 +328,7 @@ class AIIdentity:
     def export_public_key(self) -> dict[str, Any]:
         """
         Export public key for sharing
-        
+
         Returns:
             Dict with ai_id, public_key, created_at
         """
@@ -346,16 +346,16 @@ class AIIdentity:
 class IdentityManager:
     """
     Manage multiple AI identities
-    
+
     Usage:
         manager = IdentityManager()
-        
+
         # List identities
         identities = manager.list_identities()
-        
+
         # Load identity
         identity = manager.load_identity("claude-code")
-        
+
         # Create identity
         identity = manager.create_identity("new-agent")
     """
@@ -367,7 +367,7 @@ class IdentityManager:
     def list_identities(self) -> list[dict[str, Any]]:
         """
         List all identities
-        
+
         Returns:
             List of identity summaries
         """
@@ -395,10 +395,10 @@ class IdentityManager:
     def load_identity(self, ai_id: str) -> AIIdentity:
         """
         Load existing identity
-        
+
         Args:
             ai_id: AI identifier
-            
+
         Returns:
             AIIdentity: Loaded identity
         """
@@ -409,11 +409,11 @@ class IdentityManager:
     def create_identity(self, ai_id: str, overwrite: bool = False) -> AIIdentity:
         """
         Create new identity
-        
+
         Args:
             ai_id: AI identifier
             overwrite: Allow overwriting existing identity
-            
+
         Returns:
             AIIdentity: New identity
         """

@@ -38,7 +38,7 @@ class RetryPolicy:
     ):
         """
         Initialize retry policy.
-        
+
         Args:
             max_retries: Maximum number of retry attempts
             base_delay: Initial delay in seconds
@@ -94,15 +94,15 @@ class RetryPolicy:
     def execute_with_retry(self, func: Callable, *args, **kwargs) -> Any:
         """
         Execute function with exponential backoff retry.
-        
+
         Args:
             func: Function to execute
             *args: Positional arguments for func
             **kwargs: Keyword arguments for func
-            
+
         Returns:
             Result of func if successful
-            
+
         Raises:
             Last exception if all retries exhausted
         """
@@ -161,7 +161,7 @@ class ConnectionPool:
     ):
         """
         Initialize connection pool.
-        
+
         Args:
             connection_factory: Function that creates connections
             pool_size: Number of connections to maintain
@@ -243,7 +243,7 @@ class CircuitBreaker:
     ):
         """
         Initialize circuit breaker.
-        
+
         Args:
             failure_threshold: Failures before opening circuit
             recovery_timeout: Time before attempting recovery
@@ -259,7 +259,7 @@ class CircuitBreaker:
     def call(self, func: Callable, *args, **kwargs) -> Any:
         """
         Execute function through circuit breaker.
-        
+
         States:
         - closed: Normal operation, calls go through
         - open: Too many failures, calls rejected
@@ -284,7 +284,7 @@ class CircuitBreaker:
 
             return result
 
-        except Exception as e:
+        except Exception:
             self.failure_count += 1
             self.last_failure_time = time.time()
 

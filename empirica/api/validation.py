@@ -16,7 +16,7 @@ Usage:
 
 import logging
 import re
-from typing import Any, Optional
+from typing import Any
 
 from flask import jsonify
 

@@ -25,7 +25,7 @@ Usage:
 import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Optional
+from typing import Any
 
 from empirica.core.persona import PersonaManager, PersonaProfile
 from empirica.data.session_database import SessionDatabase

@@ -631,7 +631,6 @@ def handle_goals_add_subtask_command(args):
                     # Continue without BEADS - it's optional
 
             # Qdrant embedding (safe degradation)
-            qdrant_embedded = False
             try:
                 from empirica.core.qdrant.vector_store import embed_subtask
                 from empirica.data.session_database import SessionDatabase as SubtaskDB
@@ -650,7 +649,7 @@ def handle_goals_add_subtask_command(args):
                 if row:
                     goal_objective, session_id, project_id, ai_id = row
                     if project_id:
-                        qdrant_embedded = embed_subtask(
+                        embed_subtask(
                             project_id=project_id,
                             subtask_id=subtask.id,
                             description=description,
@@ -1240,9 +1239,9 @@ def handle_sessions_resume_command(args):
             # Calculate current phase from cascades if available
             cascade_cursor = db.conn.cursor()
             cascade_cursor.execute("""
-                SELECT preflight_completed, think_completed, plan_completed, 
-                       investigate_completed, check_completed, act_completed, postflight_completed 
-                FROM cascades 
+                SELECT preflight_completed, think_completed, plan_completed,
+                       investigate_completed, check_completed, act_completed, postflight_completed
+                FROM cascades
                 WHERE session_id = ? ORDER BY started_at DESC LIMIT 1
             """, (session_data['session_id'],))
 
@@ -1531,6 +1530,7 @@ def handle_goals_activate_command(args):
     """
     try:
         from empirica.data.repositories.goals import GoalDataRepository
+        from empirica.data.session_database import SessionDatabase
 
         goal_id = args.goal_id
         output_format = getattr(args, 'output', 'json')
@@ -1542,11 +1542,10 @@ def handle_goals_activate_command(args):
         except Exception:
             pass
 
-        repo = GoalDataRepository()
-        try:
-            activated = repo.activate_goal(goal_id, transaction_id=transaction_id)
-        finally:
-            repo.close()
+        db = SessionDatabase()
+        repo = GoalDataRepository(db.conn)
+        activated = repo.activate_goal(goal_id, transaction_id=transaction_id)
+        db.close()
 
         if activated:
             result = {
@@ -1621,7 +1620,7 @@ def handle_goals_refresh_command(args):
 
 def handle_goals_ready_command(args):
     """Query BEADS ready work + filter by Empirica epistemic criteria
-    
+
     Returns tasks that are:
     1. Dependency-ready (BEADS: no open blockers)
     2. Epistemically-ready (Empirica: confidence/uncertainty thresholds)
@@ -1736,7 +1735,7 @@ def handle_goals_ready_command(args):
 
             # Get epistemic state from latest CHECK or PREFLIGHT
             cursor = db.conn.execute("""
-                SELECT phase, engagement, know, do, context, clarity, coherence, 
+                SELECT phase, engagement, know, do, context, clarity, coherence,
                        signal, density, state, change, completion, impact, uncertainty
                 FROM reflexes
                 WHERE session_id = ?
@@ -1768,7 +1767,7 @@ def handle_goals_ready_command(args):
                     'impact': reflex_row[12],
                     'uncertainty': reflex_row[13]
                 }
-                phase = reflex_row[0]
+                reflex_row[0]
 
                 # Extract epistemic state
                 last_confidence = vectors.get('know', 0.5)

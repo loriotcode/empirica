@@ -9,7 +9,7 @@ Handles profile selection, constraint validation, and runtime tuning.
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -161,7 +161,7 @@ class ProfileLoader:
     def __init__(self, config_path: Path | None = None):
         """
         Initialize profile loader
-        
+
         Args:
             config_path: Path to investigation_profiles.yaml (default: auto-detect)
         """
@@ -281,12 +281,12 @@ class ProfileLoader:
     ) -> InvestigationProfile:
         """
         Select appropriate profile based on context
-        
+
         Args:
             ai_model: AI model identifier (e.g., "claude-sonnet")
             domain: Domain identifier (e.g., "medical", "research")
             explicit_profile: Explicitly requested profile name
-        
+
         Returns:
             Selected InvestigationProfile
         """
@@ -323,7 +323,7 @@ class ProfileLoader:
     def validate_constraints(self, profile: InvestigationProfile) -> list[str]:
         """
         Validate profile constraints against universal constraints
-        
+
         Returns:
             List of validation errors (empty if valid)
         """
@@ -393,11 +393,11 @@ def select_profile(
 
 
 __all__ = [
-    'InvestigationProfile',
-    'InvestigationConstraints',
     'ActionThresholds',
+    'InvestigationConstraints',
+    'InvestigationProfile',
     'ProfileLoader',
+    'get_profile_loader',
     'load_profile',
     'select_profile',
-    'get_profile_loader',
 ]

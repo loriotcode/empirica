@@ -2,7 +2,7 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 def export_to_reflex_logs(
@@ -200,7 +200,7 @@ def export_to_reflex_logs(
 
         return log_path
 
-    except Exception as e:
+    except Exception:
         return None
 
 

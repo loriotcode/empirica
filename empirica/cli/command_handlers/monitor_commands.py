@@ -51,7 +51,7 @@ class UsageMonitor:
     def __init__(self, stats_file: Path = None):
         """
         Initialize UsageMonitor.
-        
+
         Args:
             stats_file: Path to stats file (default from config)
         """
@@ -342,7 +342,7 @@ def _display_turtle_health():
 def handle_monitor_export_command(args):
     """
     Export monitoring data to file.
-    
+
     Supports JSON and CSV formats.
     """
     try:
@@ -392,7 +392,7 @@ def handle_monitor_export_command(args):
 def handle_monitor_reset_command(args):
     """
     Reset monitoring statistics.
-    
+
     Clears all recorded data.
     """
     try:
@@ -420,7 +420,7 @@ def handle_monitor_reset_command(args):
 def handle_monitor_cost_command(args):
     """
     Display cost analysis.
-    
+
     Shows detailed cost breakdown by adapter and time period.
     """
     try:
@@ -728,7 +728,7 @@ def handle_assess_state_command(args):
                         bar = "█" * bar_length + "░" * (20 - bar_length)
                         print(f"   {key:20s} {value:5.2f}  {bar}")
                     else:
-                        print(f"   {key:20s} {str(value)}")
+                        print(f"   {key:20s} {value!s}")
             else:
                 print("   ⚠️  No vectors available")
                 print("   Run PREFLIGHT or CHECK to establish baseline")
@@ -2108,8 +2108,12 @@ def handle_workflow_patterns_command(args):
 
         from empirica.config.path_resolver import get_session_db_path
         from empirica.core.workflow_patterns import (
-            detect_patterns, format_patterns_human, format_suggestions_human,
-            generate_suggestions, load_traces_from_db, load_transaction_outcomes,
+            detect_patterns,
+            format_patterns_human,
+            format_suggestions_human,
+            generate_suggestions,
+            load_traces_from_db,
+            load_transaction_outcomes,
         )
 
         db_path = str(get_session_db_path())

@@ -28,7 +28,7 @@ Design:
 
 import logging
 from hashlib import sha256
-from typing import Any, Optional
+from typing import Any
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams

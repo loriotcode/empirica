@@ -21,7 +21,6 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +218,7 @@ class CalibrationInsightsAnalyzer:
         total_records = len(records)
 
         for record in records:
-            for vector in record.get('gaps', {}).keys():
+            for vector in record.get('gaps', {}):
                 vector_appearances[vector] = vector_appearances.get(vector, 0) + 1
 
         # Also check coverage

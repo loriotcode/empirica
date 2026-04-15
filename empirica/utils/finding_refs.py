@@ -6,7 +6,7 @@ Foundation for future Qdrant/Sentinel integration.
 
 import re
 import subprocess
-from typing import Any, Optional
+from typing import Any
 
 
 def get_current_git_commit(repo_path: str = ".") -> str | None:
@@ -27,15 +27,15 @@ def get_current_git_commit(repo_path: str = ".") -> str | None:
 def parse_file_references(text: str) -> list[dict[str, Any]]:
     """
     Extract structured file references from finding text.
-    
+
     Patterns recognized:
     - file.py:45 -> {"file": "file.py", "line": 45}
     - file.py:45-52 -> {"file": "file.py", "lines": [45, 52]}
     - path/to/file.py:100 -> {"file": "path/to/file.py", "line": 100}
-    
+
     Args:
         text: Finding text possibly containing file references
-        
+
     Returns:
         List of structured references
     """
@@ -65,7 +65,7 @@ def parse_file_references(text: str) -> list[dict[str, Any]]:
 def parse_doc_references(text: str) -> list[dict[str, str]]:
     """
     Extract documentation references.
-    
+
     Patterns:
     - docs/guide.md -> {"doc": "docs/guide.md"}
     - README.md#section -> {"doc": "README.md", "section": "#section"}
@@ -103,13 +103,13 @@ def structure_finding(
 ) -> dict[str, Any]:
     """
     Convert plain text finding into structured format.
-    
+
     Args:
         finding_text: The finding text
         commit_sha: Git commit SHA (auto-detected if None)
         session_id: Session ID
         check_id: CHECK assessment ID
-        
+
     Returns:
         Structured finding with refs
     """

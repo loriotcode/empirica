@@ -6,7 +6,7 @@ Manages BEADS integration settings from .empirica/config.yaml
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -18,7 +18,7 @@ class BeadsConfig:
 
     def __init__(self, config_path: Path | None = None):
         """Initialize BEADS configuration
-        
+
         Args:
             config_path: Path to config.yaml (default: ./.empirica/config.yaml)
         """

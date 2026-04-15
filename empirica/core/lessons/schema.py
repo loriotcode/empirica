@@ -16,7 +16,7 @@ import hashlib
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Literal, Optional
+from typing import Literal
 
 
 class LessonPhase(Enum):

@@ -41,7 +41,6 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 from .collector import EvidenceBundle, PostTestCollector
 from .mapper import (
@@ -63,7 +62,7 @@ INSUFFICIENT_EVIDENCE_THRESHOLD = 0.3
 def _build_insufficient_evidence_response(
     phase: str,
     vectors: dict,
-    bundle: Optional[EvidenceBundle],
+    bundle: EvidenceBundle | None,
     grounded_coverage: float,
     reason: str,
     status: str = "insufficient_evidence",
@@ -923,7 +922,7 @@ def run_grounded_verification(
             noetic_only = phase_boundary.get("noetic_only", False)
 
             # Noetic vectors: delta from PREFLIGHT to CHECK
-            preflight_vectors = phase_boundary.get("preflight_vectors") or {}
+            phase_boundary.get("preflight_vectors") or {}
             check_vectors = phase_boundary.get("proceed_check_vectors") or {}
 
             # Noetic self-assessment = CHECK vectors (what AI claimed at CHECK)

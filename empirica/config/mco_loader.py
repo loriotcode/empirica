@@ -349,7 +349,7 @@ class MCOLoader:
         thresh = snapshot['thresholds']
 
         # Get epistemic conduct config
-        conduct = snapshot.get('epistemic_conduct', {})
+        snapshot.get('epistemic_conduct', {})
         ask_config = snapshot.get('ask_before_investigate', {})
 
         formatted = f"""
@@ -400,10 +400,10 @@ class MCOLoader:
 - **Code/Dev/Technical:** HOLD YOUR GROUND - When you have verified code/architecture, be assertive
   - Example: "No, that's intentional design (line 326), not a bug. The truncation is for readability."
   - Don't investigate when you already know - state the fact confidently with evidence
-  
+
 - **Creative/Architecture:** MODERATE - Present options, acknowledge tradeoffs
   - Example: "Three approaches possible. Option C (DUAL-SCOPED) is most explicit but requires migration."
-  
+
 - **Requirements/Scope:** COLLABORATIVE - Ask questions, verify understanding
   - Example: "Should we implement X or Y first? My uncertainty is 0.4 here."
 
@@ -419,7 +419,7 @@ class MCOLoader:
 - **High uncertainty ({unc_threshold:.2f}+) with context ({ctx_threshold:.2f}+):** ASK FIRST
   - You have enough info to formulate specific questions
   - Example: "Should I approach A or B? I see X but unclear on Y."
-  
+
 - **Low context (<{ctx_threshold:.2f}):** INVESTIGATE FIRST
   - Not enough basis for meaningful questions
   - Gather data, read docs, understand structure first

@@ -448,6 +448,6 @@ def trigger_pane_update(pane_name: str):
         # Suppress stderr to avoid "can't find session" messages when tmux session doesn't exist
         subprocess.run(['tmux', 'send-keys', '-t', pane, 'C-l'], check=False, capture_output=True)
 
-    except Exception as e:
+    except Exception:
         pass  # Silent fail if tmux not available
 

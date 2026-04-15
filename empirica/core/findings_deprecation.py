@@ -12,7 +12,6 @@ findings should be prioritized, while old low-impact findings fade.
 import logging
 import math
 from datetime import datetime
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -37,15 +36,15 @@ class FindingsDeprecationEngine:
     def calculate_time_decay(created_timestamp) -> float:
         """
         Calculate time decay factor using exponential decay.
-        
+
         Half-life: 30 days
         At 30 days: score = 0.5
         At 60 days: score = 0.25
         At 90 days: score = 0.125
-        
+
         Args:
             created_timestamp: Unix timestamp (float or string) of finding creation
-            
+
         Returns:
             Float 0.0-1.0, where 1.0 = just created, 0.0 = very old
         """
@@ -69,13 +68,13 @@ class FindingsDeprecationEngine:
     def calculate_completion_factor(goal_completion: float | None) -> float:
         """
         Calculate completion penalty factor.
-        
+
         Completed goals (completion=1.0) reduce by 30%
         In-progress goals (completion=0.0) full weight
-        
+
         Args:
             goal_completion: Goal completion percentage 0.0-1.0 or None
-            
+
         Returns:
             Multiplication factor 0.7-1.0
         """
@@ -96,19 +95,19 @@ class FindingsDeprecationEngine:
     ) -> float:
         """
         Calculate 0.0-1.0 relevance score for a finding.
-        
+
         Factors:
         - 40% time decay (newer = higher)
         - 30% impact weight * completion factor
         - 20% execution state delta (learning boost)
         - 10% task semantic similarity (future enhancement)
-        
+
         Args:
             finding: Finding dict with 'created_timestamp', 'impact'
             current_task: Optional current task description
             execution_state_delta: State improvement in current session
             goal_completion: Goal completion percentage if applicable
-            
+
         Returns:
             Float 0.0-1.0 relevance score
         """
@@ -155,7 +154,7 @@ class FindingsDeprecationEngine:
     ) -> list[dict]:
         """
         Filter findings by depth tier and relevance threshold.
-        
+
         Depth options:
         - "minimal": Only high-relevance (threshold 0.80)
         - "moderate": Recent context (threshold 0.60)
@@ -165,13 +164,13 @@ class FindingsDeprecationEngine:
             * uncertainty > 0.5: "full" (need context)
             * 0.3 < uncertainty <= 0.5: "moderate"
             * uncertainty <= 0.3: "minimal" (confident, focused)
-        
+
         Args:
             findings: List of finding dicts
             depth: Depth level string
             relevance_scores: Pre-calculated scores (else calculate)
             uncertainty: Current epistemic uncertainty 0.0-1.0
-            
+
         Returns:
             Filtered list of findings
         """
@@ -217,7 +216,7 @@ class FindingsDeprecationEngine:
     ) -> dict:
         """
         Generate summary statistics about findings relevance distribution.
-        
+
         Returns:
             Dict with count, avg_relevance, tier_distribution
         """

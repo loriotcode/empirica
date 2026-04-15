@@ -94,7 +94,7 @@ def handle_trajectory_show(args):
         print(f"{'='*60}\n")
 
         for row in rows:
-            traj_id = row[0]
+            row[0]
             session_id = row[1]
             snapshots = row[2]
             pattern = row[3]

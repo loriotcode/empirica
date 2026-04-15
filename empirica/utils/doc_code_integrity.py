@@ -13,7 +13,6 @@ import logging
 import re
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ class DocCodeIntegrityAnalyzer:
     def analyze_cli_commands(self) -> dict:
         """
         Phase 1: Analyze CLI command integrity
-        
+
         Returns dict with:
         - commands_in_docs: Commands mentioned in documentation
         - commands_in_code: Commands actually implemented
@@ -127,7 +126,7 @@ class DocCodeIntegrityAnalyzer:
     def _calculate_integrity_score(self, actual: set[str], documented: set[str]) -> float:
         """
         Calculate integrity score (0.0-1.0)
-        
+
         Perfect score (1.0): All actual commands documented, no phantom commands
         """
         if not actual and not documented:
@@ -144,7 +143,7 @@ class DocCodeIntegrityAnalyzer:
     def get_detailed_gaps(self) -> dict:
         """
         Get detailed information about integrity gaps
-        
+
         Returns structured report with file locations and context
         """
         cli_analysis = self.analyze_cli_commands()
@@ -200,7 +199,7 @@ class DocCodeIntegrityAnalyzer:
 def analyze_project_integrity(project_root: str | None = None) -> dict:
     """
     Convenience function to run full integrity analysis
-    
+
     Returns:
         Dict with integrity analysis results
     """
@@ -211,7 +210,7 @@ def analyze_project_integrity(project_root: str | None = None) -> dict:
 def analyze_complete_integrity(project_root: str | None = None) -> dict:
     """
     Run complete integrity analysis including deprecation and superfluity
-    
+
     Returns comprehensive integrity report
     """
     analyzer = DocCodeIntegrityAnalyzer(project_root)

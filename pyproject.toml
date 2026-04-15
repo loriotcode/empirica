@@ -201,11 +201,25 @@ extend-select = [
     "C4",  # flake8-comprehensions
     "SIM", # flake8-simplify
     "RUF", # ruff-specific rules
+    "S",   # flake8-bandit (security)
 ]
 ignore = [
-    "E501",  # line too long (handled by formatter)
-    "E741",  # ambiguous variable name
-    "B008",  # function call in argument defaults
+    "E501",   # line too long (handled by formatter)
+    "E741",   # ambiguous variable name
+    "B008",   # function call in argument defaults
+    # Zealous style rules — low signal, high noise
+    "SIM105", # suppressible-exception (contextlib.suppress not always clearer)
+    "SIM108", # if-else-to-ternary (often less readable)
+    "SIM102", # collapsible-if (often less readable)
+    "RUF001", # ambiguous unicode in string (intentional: × in formulas)
+    "RUF002", # ambiguous unicode in docstring (intentional)
+    "RUF005", # collection-literal-concatenation (style preference)
+    "B905",   # zip-without-strict (pedantic for internal code)
+    # Security false-positive heavy
+    "S607",   # start-process-with-partial-path (we legitimately call git, python3)
+    "S603",   # subprocess-without-shell-equals-true (subprocess is core to our hooks)
+    "S112",   # try-except-continue (style variant of S110, too noisy)
+    "S310",   # suspicious-url-open (legitimate URL handling)
 ]
 
 [tool.ruff.lint.mccabe]
@@ -217,7 +231,10 @@ section-order = ["future", "standard-library", "third-party", "first-party", "lo
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = ["S101"]  # allow assert in tests
+"tests/**/*.py" = ["S101"]  # allow assert in nested tests
 "__init__.py" = ["F401"]  # allow unused imports in __init__
+"empirica/plugins/**/*.py" = ["S108"]  # hooks use temp paths intentionally
+"scripts/*.py" = ["S108"]  # scripts use temp paths
 
 [tool.pyright]
 include = ["empirica", "tests"]

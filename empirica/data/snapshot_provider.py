@@ -37,7 +37,6 @@ import json
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from empirica.data.epistemic_snapshot import ContextSummary, EpistemicStateSnapshot
 

@@ -20,7 +20,7 @@ import subprocess
 import time
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 from .collector import EvidenceItem, EvidenceQuality

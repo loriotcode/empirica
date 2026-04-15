@@ -115,7 +115,7 @@ def handle_issue_list_command(args):
                             'updated_at': row['updated_at'],
                             'issue_category': row['issue_category']
                         })
-            except Exception as e:
+            except Exception:
                 issues = []
 
         if output == 'json':
@@ -267,7 +267,7 @@ def handle_issue_handoff_command(args):
         session_id = getattr(args, 'session_id', None)
         issue_id = getattr(args, 'issue_id', None)
         assigned_to = getattr(args, 'assigned_to', None)
-        output = getattr(args, 'output', 'json')
+        getattr(args, 'output', 'json')
 
         if not all([session_id, issue_id, assigned_to]):
             result = {
@@ -317,7 +317,7 @@ def handle_issue_resolve_command(args):
         session_id = getattr(args, 'session_id', None)
         issue_id = getattr(args, 'issue_id', None)
         resolution = getattr(args, 'resolution', None)
-        output = getattr(args, 'output', 'json')
+        getattr(args, 'output', 'json')
 
         if not all([session_id, issue_id, resolution]):
             result = {
@@ -366,7 +366,7 @@ def handle_issue_export_command(args):
     try:
         session_id = getattr(args, 'session_id', None)
         assigned_to = getattr(args, 'assigned_to', None)
-        output = getattr(args, 'output', 'json')
+        getattr(args, 'output', 'json')
 
         if not all([session_id, assigned_to]):
             result = {

@@ -18,8 +18,9 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -819,6 +820,7 @@ def _run_provenance_depth_check(context: dict[str, Any]) -> CheckResult:
     """
     try:
         import json as _json
+
         from empirica.data.session_database import SessionDatabase
         db = SessionDatabase()
         cursor = db.conn.cursor()

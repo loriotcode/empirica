@@ -42,7 +42,7 @@ SCHEMAS = [
                     created_timestamp REAL NOT NULL,
                     completed_timestamp REAL,
                     subtask_data TEXT NOT NULL,
-    
+
                     FOREIGN KEY (goal_id) REFERENCES goals(id)
                 )
     """,

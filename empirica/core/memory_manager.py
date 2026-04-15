@@ -20,7 +20,6 @@ from __future__ import annotations
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -245,7 +244,7 @@ def update_hot_cache(session_id: str, project_path: str | None = None,
         auto_lines.append("\n### Dead-Ends (avoid re-trying)")
         for d in artifacts['dead_ends'][:3]:
             approach = d['approach'][:80].replace('\n', ' ')
-            why = d['why_failed'][:60].replace('\n', ' ')
+            d['why_failed'][:60].replace('\n', ' ')
             auto_lines.append(f"- [{0.5 + len(d.get('why_failed', '')) / 500:.2f}] **Dead-End:** {approach}")
 
     # Mistakes with prevention
@@ -440,8 +439,8 @@ def promote_eidetic_to_memory(
 
     # Query Qdrant for promotable facts
     try:
-        from empirica.core.qdrant.connection import _get_qdrant_client
         from empirica.core.qdrant.collections import _eidetic_collection
+        from empirica.core.qdrant.connection import _get_qdrant_client
     except ImportError:
         logger.debug("Qdrant not available for promotion")
         return []
@@ -455,7 +454,7 @@ def promote_eidetic_to_memory(
 
         # Scroll for high-confidence, well-confirmed facts
         # Filter: confidence >= threshold AND confirmation_count >= threshold AND type=fact
-        from qdrant_client.models import Filter, FieldCondition, Range, MatchValue
+        from qdrant_client.models import FieldCondition, Filter, MatchValue, Range
 
         results = client.scroll(
             collection_name=collection,

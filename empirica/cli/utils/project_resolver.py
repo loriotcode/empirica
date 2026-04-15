@@ -9,7 +9,6 @@ Now also supports git-repo-based resolution for single-project-per-repo.
 import re
 import subprocess
 import sys
-from typing import Optional
 
 
 def normalize_git_url(url: str) -> str:

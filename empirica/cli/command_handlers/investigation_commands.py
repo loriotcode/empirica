@@ -11,10 +11,10 @@ from ..cli_utils import handle_cli_error, parse_json_safely, run_empirica_subpro
 def _get_recalibration_attempts(session_id: str) -> int:
     """
     Get the number of recalibration attempts in this session.
-    
+
     Prevents infinite INVESTIGATE loops by tracking how many times
     we've tried to recalibrate after drift detection.
-    
+
     Returns: Number of attempts (0 if session not found)
     """
     try:
@@ -77,7 +77,7 @@ def _get_profile_thresholds():
 
 def handle_investigate_command(args):
     """Handle investigation command (consolidates investigate + analyze)
-    
+
     For NOETIC RECALIBRATION:
     - If session-id provided, automatically load project-bootstrap first
     - Bootstrap provides context anchor (findings, unknowns, goals)
@@ -117,7 +117,7 @@ def handle_investigate_command(args):
                     print(f"   Findings: {len(bootstrap_context.get('findings', []))}")
                     print(f"   Unknowns: {len(bootstrap_context.get('unknowns', []))}")
                     print(f"   Goals: {len(bootstrap_context.get('goals', []))}")
-            except Exception as e:
+            except Exception:
                 # Bootstrap failure is non-fatal
                 pass
 
@@ -291,7 +291,7 @@ def _investigate_concept(concept: str, context: str = None, verbose: bool = Fals
     """Investigate a concept or abstract idea"""
     try:
         # NOTE: EpistemicAssessor moved to empirica-sentinel repo
-        context_data = parse_json_safely(context)
+        parse_json_safely(context)
 
         # Use available method or create mock result
         result = {

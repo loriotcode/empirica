@@ -16,7 +16,6 @@ import sys
 
 from empirica.cli.cli_utils import handle_cli_error
 
-
 # Tables to search, in priority order
 ARTIFACT_TABLES = [
     ("project_unknowns", "unknown", "is_resolved", "unknown"),

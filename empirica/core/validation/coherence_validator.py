@@ -12,7 +12,6 @@ Phase 3 Component: Ensures handoff context is valid
 """
 
 import logging
-from typing import Optional
 
 from .validation_utils import analyze_epistemic_trajectory, get_git_diff_summary
 

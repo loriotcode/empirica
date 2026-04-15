@@ -36,27 +36,23 @@ from .git_notes_storage import GitNotesStorage
 from .git_state_capture import GitStateCapture
 
 __all__ = [
-    # Data Structures
-    'VectorState',
-    'EpistemicAssessment',  # Alias for EpistemicAssessmentSchema (backwards compat)
-    'Action',
-
     # Constants
     'CANONICAL_WEIGHTS',
-    'ENGAGEMENT_THRESHOLD',
     'CRITICAL_THRESHOLDS',
-
-    # Logger
-    'ReflexLogger',
-    'log_assessment',
-    'log_assessment_sync',
-
+    'ENGAGEMENT_THRESHOLD',
+    'Action',
+    'CheckpointStorage',
+    'EpistemicAssessment',  # Alias for EpistemicAssessmentSchema (backwards compat)
     # NEW schema (main export)
     'EpistemicAssessmentSchema',
-
     # Git-enhanced checkpoint system (refactored)
     'GitEnhancedReflexLogger',
-    'GitStateCapture',
     'GitNotesStorage',
-    'CheckpointStorage'
+    'GitStateCapture',
+    # Logger
+    'ReflexLogger',
+    # Data Structures
+    'VectorState',
+    'log_assessment',
+    'log_assessment_sync'
 ]

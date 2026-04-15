@@ -32,7 +32,7 @@ import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -374,7 +374,7 @@ class SessionDatabase:
                                 phase: str):
         """
         DEPRECATED: Use store_vectors() instead.
-        
+
         This method is kept for backward compatibility with canonical structures.
         """
         if not CANONICAL_AVAILABLE:
@@ -460,7 +460,7 @@ class SessionDatabase:
     def get_cascade_assessments(self, cascade_id: str) -> list[dict]:
         """
         DEPRECATED: Use reflexes table queries instead.
-        
+
         Get all assessments for a cascade from reflexes table.
         """
         cursor = self.conn.cursor()
@@ -474,7 +474,7 @@ class SessionDatabase:
                                  uncertainty_notes: str = "") -> str:
         """
         DEPRECATED: Use store_vectors() instead.
-        
+
         This method redirects to store_vectors() for backward compatibility.
         """
         # Store metadata in reflex_data
@@ -502,7 +502,7 @@ class SessionDatabase:
                                    remaining_unknowns: list[str] | None = None) -> str:
         """
         DEPRECATED: Use store_vectors() instead.
-        
+
         This method redirects to store_vectors() for backward compatibility.
         """
         # Store CHECK-specific data in metadata
@@ -536,7 +536,7 @@ class SessionDatabase:
                                   learning_notes: str = "") -> str:
         """
         DEPRECATED: Use store_vectors() instead.
-        
+
         This method redirects to store_vectors() for backward compatibility.
         """
         # Store postflight-specific data in metadata
@@ -558,7 +558,7 @@ class SessionDatabase:
     def get_preflight_assessment(self, session_id: str) -> dict | None:
         """
         DEPRECATED: Use get_latest_vectors(session_id, phase='PREFLIGHT') instead.
-        
+
         This method redirects to reflexes table for backward compatibility.
         """
         return self.get_latest_vectors(session_id, phase="PREFLIGHT")
@@ -566,7 +566,7 @@ class SessionDatabase:
     def get_check_phase_assessments(self, session_id: str) -> list[dict]:
         """
         DEPRECATED: Use get_vectors_by_phase(session_id, phase='CHECK') instead.
-        
+
         This method redirects to reflexes table for backward compatibility.
         """
         return self.get_vectors_by_phase(session_id, phase="CHECK")
@@ -574,7 +574,7 @@ class SessionDatabase:
     def get_postflight_assessment(self, session_id: str) -> dict | None:
         """
         DEPRECATED: Use get_latest_vectors(session_id, phase='POSTFLIGHT') instead.
-        
+
         This method redirects to reflexes table for backward compatibility.
         """
         return self.get_latest_vectors(session_id, phase="POSTFLIGHT")
@@ -603,9 +603,9 @@ class SessionDatabase:
         """Get most recent session for an AI agent"""
         cursor = self.conn.cursor()
         cursor.execute("""
-            SELECT * FROM sessions 
-            WHERE ai_id = ? 
-            ORDER BY start_time DESC 
+            SELECT * FROM sessions
+            WHERE ai_id = ?
+            ORDER BY start_time DESC
             LIMIT 1
         """, (ai_id,))
         row = cursor.fetchone()
@@ -614,10 +614,10 @@ class SessionDatabase:
     def get_session_snapshot(self, session_id: str) -> dict | None:
         """
         Get git-native session snapshot showing where you left off
-        
+
         Args:
             session_id: Session identifier
-            
+
         Returns:
             Dictionary with git state, epistemic trajectory, learning delta, goals, sources
         """
@@ -829,15 +829,15 @@ class SessionDatabase:
     def get_git_checkpoint(self, session_id: str, phase: str | None = None) -> dict | None:
         """
         Retrieve checkpoint from git notes with SQLite fallback (Phase 2).
-        
+
         Priority:
         1. Try git notes first (via GitEnhancedReflexLogger)
         2. Fall back to SQLite reflexes if git unavailable
-        
+
         Args:
             session_id: Session identifier
             phase: Optional phase filter (PREFLIGHT, CHECK, POSTFLIGHT)
-        
+
         Returns:
             Checkpoint dict or None if not found
         """
@@ -860,12 +860,12 @@ class SessionDatabase:
     def list_git_checkpoints(self, session_id: str, limit: int = 10, phase: str | None = None) -> list[dict]:
         """
         List all checkpoints for session from git notes (Phase 2).
-        
+
         Args:
             session_id: Session identifier
             limit: Maximum number of checkpoints to return
             phase: Optional phase filter
-        
+
         Returns:
             List of checkpoint dicts
         """
@@ -887,11 +887,11 @@ class SessionDatabase:
     def get_checkpoint_diff(self, session_id: str, threshold: float = 0.15) -> dict:
         """
         Calculate vector differences between current state and last checkpoint (Phase 2).
-        
+
         Args:
             session_id: Session identifier
             threshold: Significance threshold for reporting changes
-        
+
         Returns:
             Dict with vector diffs and significant changes
         """
@@ -917,7 +917,7 @@ class SessionDatabase:
 
         checkpoint_vectors = last_checkpoint.get('vectors', {})
 
-        for key in current_vectors.keys():
+        for key in current_vectors:
             old_val = checkpoint_vectors.get(key, 0.5)
             new_val = current_vectors[key]
             if old_val is not None and new_val is not None:
@@ -954,7 +954,7 @@ class SessionDatabase:
 
         # Query reflexes table (unified storage)
         query = """
-            SELECT 
+            SELECT
                 id,
                 phase,
                 engagement,
@@ -1323,14 +1323,14 @@ class SessionDatabase:
 
     def get_ai_epistemic_handoff(self, project_id: str, ai_id: str) -> dict | None:
         """Get latest epistemic handoff (POSTFLIGHT checkpoint) for a specific AI.
-        
+
         Enables epistemic continuity by loading the previous session's ending epistemic state.
         """
         return self.projects.get_ai_epistemic_handoff(project_id, ai_id)
 
     def get_auto_captured_issues(self, project_id: str, limit: int = 10) -> list[dict]:
         """Get auto-captured issues for project.
-        
+
         Returns list of issues sorted by severity and recency.
         """
         cursor = self.conn.cursor()
@@ -1375,7 +1375,7 @@ class SessionDatabase:
 
     def get_git_status(self, project_root: str) -> dict | None:
         """Get git status information for the project.
-        
+
         Returns dict with:
         - current_branch: Current branch name
         - commits_ahead: Number of commits ahead of remote
@@ -2402,14 +2402,14 @@ class SessionDatabase:
     ) -> list[dict]:
         """
         Get all findings for a project with deprecation filtering.
-        
+
         Args:
             project_id: Project identifier
             limit: Optional limit on results
             subject: Optional subject filter
             depth: Relevance depth ("minimal", "moderate", "full", "complete", "auto")
             uncertainty: Epistemic uncertainty for auto-depth (0.0-1.0)
-            
+
         Returns:
             Filtered list of findings
         """
@@ -2449,7 +2449,7 @@ class SessionDatabase:
         source_metadata: dict | None = None
     ) -> str:
         """Add an epistemic source to ground project knowledge
-        
+
         Args:
             project_id: Project identifier
             source_type: Type of source ('url', 'doc', 'code_ref', 'paper', 'api_doc', 'git_commit', 'chat_transcript', 'epistemic_snapshot')
@@ -2463,7 +2463,7 @@ class SessionDatabase:
             related_findings: Optional list of finding IDs
             discovered_by_ai: Optional AI identifier
             source_metadata: Optional metadata dict
-            
+
         Returns:
             source_id: UUID string
         """
@@ -2503,14 +2503,14 @@ class SessionDatabase:
         limit: int | None = None
     ) -> list[dict]:
         """Get epistemic sources for a project
-        
+
         Args:
             project_id: Project identifier
             session_id: Optional filter by session
             source_type: Optional filter by type
             min_confidence: Minimum confidence threshold (default 0.0)
             limit: Optional limit on results
-            
+
         Returns:
             List of source dictionaries
         """

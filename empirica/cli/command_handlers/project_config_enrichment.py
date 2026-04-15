@@ -8,7 +8,7 @@ PROJECT_CONFIG.yaml to build intelligence over time.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -18,10 +18,10 @@ logger = logging.getLogger(__name__)
 def find_project_config(start_path: Path | None = None) -> Path | None:
     """
     Find .empirica-project/PROJECT_CONFIG.yaml by walking up directory tree.
-    
+
     Args:
         start_path: Where to start searching (defaults to cwd)
-        
+
     Returns:
         Path to PROJECT_CONFIG.yaml or None if not found
     """
@@ -58,11 +58,11 @@ def save_project_config(config_path: Path, config: dict[str, Any]):
 def enrich_with_finding(finding: str, session_id: str | None = None) -> bool:
     """
     Add finding to PROJECT_CONFIG.yaml in current project.
-    
+
     Args:
         finding: The finding to add
         session_id: Optional session ID for provenance
-        
+
     Returns:
         True if enrichment successful
     """
@@ -102,11 +102,11 @@ def enrich_with_finding(finding: str, session_id: str | None = None) -> bool:
 def enrich_with_unknown(unknown: str, session_id: str | None = None) -> bool:
     """
     Add unknown to PROJECT_CONFIG.yaml in current project.
-    
+
     Args:
         unknown: The unknown/challenge to add
         session_id: Optional session ID for provenance
-        
+
     Returns:
         True if enrichment successful
     """
@@ -147,12 +147,12 @@ def enrich_with_unknown(unknown: str, session_id: str | None = None) -> bool:
 def enrich_with_dead_end(approach: str, why_failed: str, session_id: str | None = None) -> bool:
     """
     Add dead end to PROJECT_CONFIG.yaml in current project.
-    
+
     Args:
         approach: What was tried
         why_failed: Why it didn't work
         session_id: Optional session ID for provenance
-        
+
     Returns:
         True if enrichment successful
     """
@@ -193,10 +193,10 @@ def enrich_with_dead_end(approach: str, why_failed: str, session_id: str | None 
 def get_recent_learnings(limit: int = 5) -> dict[str, list]:
     """
     Get recent learnings from PROJECT_CONFIG.yaml for display.
-    
+
     Args:
         limit: Max items per category
-        
+
     Returns:
         Dict with findings, challenges, dead_ends
     """

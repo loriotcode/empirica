@@ -15,7 +15,6 @@ API contract matches empirica-extension/src/api/empirica-client.ts:
 """
 
 import logging
-from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware

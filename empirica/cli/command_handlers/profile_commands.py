@@ -13,7 +13,7 @@ import logging
 import subprocess
 import time
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from ..cli_utils import handle_cli_error
 
@@ -646,6 +646,7 @@ def _get_calibration_summary(workspace) -> dict:
     calibration = {}
     try:
         from pathlib import Path
+
         import yaml
         bc_path = Path(workspace) / '.breadcrumbs.yaml'
         if bc_path.exists():

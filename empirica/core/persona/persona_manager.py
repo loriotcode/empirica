@@ -11,7 +11,6 @@ Handles:
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 from empirica.core.identity import AIIdentity
 

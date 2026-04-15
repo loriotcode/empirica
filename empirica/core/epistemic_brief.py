@@ -13,7 +13,6 @@ The brief is generated at bootstrap time and surfaced at project-switch.
 
 import logging
 import time
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -93,9 +92,7 @@ def _build_knowledge_state(project_id: str, db_path: str = None) -> dict:
                              'dead_ends': 'project_dead_ends', 'mistakes': 'mistakes_made',
                              'goals': 'goals', 'sessions': 'sessions'}.items():
             try:
-                if name == 'sessions':
-                    cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE project_id = ?", (project_id,))
-                elif name in ('findings', 'unknowns', 'dead_ends'):
+                if name == 'sessions' or name in ('findings', 'unknowns', 'dead_ends'):
                     cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE project_id = ?", (project_id,))
                 elif name == 'mistakes':
                     cursor.execute(f"""SELECT COUNT(*) FROM {table} m
@@ -200,8 +197,9 @@ def _build_calibration_health(project_id: str, db_path: str = None) -> dict:
     """Quantify calibration accuracy."""
     try:
         # Read from .breadcrumbs.yaml (canonical calibration source)
-        from empirica.config.path_resolver import get_empirica_root
         import yaml
+
+        from empirica.config.path_resolver import get_empirica_root
 
         calibration = {}
         try:

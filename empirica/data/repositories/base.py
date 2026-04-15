@@ -10,7 +10,6 @@ Design Pattern: Repository Pattern
 
 import logging
 import sqlite3
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

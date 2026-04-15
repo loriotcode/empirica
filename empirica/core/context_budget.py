@@ -44,7 +44,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from empirica.core.epistemic_bus import (
     EpistemicEvent,

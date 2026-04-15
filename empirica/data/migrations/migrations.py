@@ -220,7 +220,7 @@ def migration_013_session_scoped_breadcrumbs(cursor: sqlite3.Cursor):
             finding_data TEXT NOT NULL,
             subject TEXT,
             impact REAL,
-            
+
             FOREIGN KEY (session_id) REFERENCES sessions(session_id),
             FOREIGN KEY (goal_id) REFERENCES goals(id),
             FOREIGN KEY (subtask_id) REFERENCES subtasks(id)
@@ -243,7 +243,7 @@ def migration_013_session_scoped_breadcrumbs(cursor: sqlite3.Cursor):
             unknown_data TEXT NOT NULL,
             subject TEXT,
             impact REAL DEFAULT 0.5,
-            
+
             FOREIGN KEY (session_id) REFERENCES sessions(session_id),
             FOREIGN KEY (goal_id) REFERENCES goals(id),
             FOREIGN KEY (subtask_id) REFERENCES subtasks(id)
@@ -264,7 +264,7 @@ def migration_013_session_scoped_breadcrumbs(cursor: sqlite3.Cursor):
             created_timestamp REAL NOT NULL,
             dead_end_data TEXT NOT NULL,
             subject TEXT,
-            
+
             FOREIGN KEY (session_id) REFERENCES sessions(session_id),
             FOREIGN KEY (goal_id) REFERENCES goals(id),
             FOREIGN KEY (subtask_id) REFERENCES subtasks(id)
@@ -285,7 +285,7 @@ def migration_013_session_scoped_breadcrumbs(cursor: sqlite3.Cursor):
             prevention TEXT,
             created_timestamp REAL NOT NULL,
             mistake_data TEXT NOT NULL,
-            
+
             FOREIGN KEY (session_id) REFERENCES sessions(session_id),
             FOREIGN KEY (goal_id) REFERENCES goals(id)
         )

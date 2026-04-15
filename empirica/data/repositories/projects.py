@@ -9,7 +9,6 @@ import json
 import logging
 import time
 import uuid
-from typing import Optional
 
 from .base import BaseRepository
 
@@ -306,16 +305,16 @@ class ProjectRepository(BaseRepository):
 
     def get_ai_epistemic_handoff(self, project_id: str, ai_id: str) -> dict | None:
         """Get latest epistemic handoff (POSTFLIGHT checkpoint) for a specific AI in this project.
-        
+
         This loads the most recent session's POSTFLIGHT checkpoint for the given AI ID,
         enabling epistemic continuity across session boundaries.
-        
+
         Includes delta calculation: Shows what changed from PREFLIGHT → POSTFLIGHT.
-        
+
         Args:
             project_id: Project UUID
             ai_id: AI identifier (e.g., 'claude-code')
-            
+
         Returns:
             Dictionary with epistemic vectors, deltas, and reasoning, or None if no checkpoint exists
         """

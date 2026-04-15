@@ -266,7 +266,7 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
     _intelligence_filter = None
     if kind == "intelligence":
         try:
-            from qdrant_client.models import Filter, FieldCondition, MatchValue
+            from qdrant_client.models import FieldCondition, Filter, MatchValue
             _intelligence_filter = Filter(
                 must_not=[FieldCondition(key="type", match=MatchValue(value="code_api"))]
             )

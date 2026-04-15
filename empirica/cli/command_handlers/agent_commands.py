@@ -217,7 +217,7 @@ def handle_agent_report_command(args) -> dict:
                         "timestamp": time.time()
                     }
                 }])
-        except Exception as e:
+        except Exception:
             # Qdrant embedding is optional - don't fail the command
             pass
 
@@ -337,7 +337,7 @@ def handle_agent_export_command(args) -> dict:
     branch_id = getattr(args, 'branch_id', None)
     output_file = getattr(args, 'output_file', None)
     register = getattr(args, 'register', False)
-    output_format = getattr(args, 'output', 'json')
+    getattr(args, 'output', 'json')
 
     if not branch_id:
         return {"ok": False, "error": "branch_id required"}

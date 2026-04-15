@@ -24,7 +24,6 @@ Version: 2.1.0 (Unified Signaling)
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 # Add empirica to path
 EMPIRICA_ROOT = Path(__file__).parent.parent
@@ -562,6 +561,7 @@ def _resolve_project_path(stdin_claude_session_id=None) -> str | None:
     # Priority 0: instance_projects
     try:
         import json as _json
+
         from empirica.utils.session_resolver import InstanceResolver as R
         inst_id = R.instance_id()
         if inst_id:
@@ -685,6 +685,7 @@ def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id:
     # Priority 0: instance_projects → empirica_session_id
     try:
         import json as _json
+
         from empirica.utils.session_resolver import InstanceResolver as R
         _gas_inst_id = R.instance_id()
         if _gas_inst_id:
@@ -1254,12 +1255,10 @@ def main():
 
         # Auto-detect project from active context (6-tier priority chain)
         project_path = _resolve_project_path(stdin_claude_session_id)
-        is_local_project = project_path is not None
 
         if project_path:
             db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
             db = SessionDatabase(db_path=str(db_path))
-            is_local_project = True
         else:
             # No local .empirica/ found - show "no project" instead of using global data
             # This prevents showing Empirica project data in unrelated projects

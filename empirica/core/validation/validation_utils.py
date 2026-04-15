@@ -175,7 +175,7 @@ def understand_finding(finding: dict[str, any], my_knowledge: dict[str, float]) 
         bool - can I understand this finding?
     """
     try:
-        key = finding.get('key', '')
+        finding.get('key', '')
         domain = finding.get('domain', '')
 
         # If very low knowledge overall, probably can't understand

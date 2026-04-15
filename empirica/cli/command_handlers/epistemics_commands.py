@@ -11,7 +11,7 @@ from empirica.data.session_database import SessionDatabase
 def handle_epistemics_search_command(args):
     """
     Search epistemic learning trajectories across sessions.
-    
+
     Usage:
         empirica epistemics-search --project-id <UUID> --query "OAuth2 learning" --output json
         empirica epistemics-search --project-id <UUID> --query "auth" --min-learning 0.2 --limit 10
@@ -89,7 +89,7 @@ def handle_epistemics_search_command(args):
 def handle_epistemics_stats_command(args):
     """
     Show detailed epistemic trajectory for a session (epistemics-show).
-    
+
     Usage:
         empirica epistemics-show --session-id <UUID> --output json
         empirica epistemics-show --session-id <UUID> --phase PREFLIGHT
@@ -134,7 +134,7 @@ def handle_epistemics_stats_command(args):
         # Get reflexes with optional phase filter
         if phase_filter:
             cursor.execute("""
-                SELECT phase, engagement, know, do, context, clarity, coherence, 
+                SELECT phase, engagement, know, do, context, clarity, coherence,
                        signal, density, state, change, completion, impact, uncertainty,
                        reasoning, timestamp
                 FROM reflexes
@@ -216,7 +216,7 @@ def handle_epistemics_stats_command(args):
 def handle_epistemics_list_command(args):
     """
     List epistemic trajectories for a session.
-    
+
     Usage:
         empirica epistemics-list --session-id <UUID> --output json
     """

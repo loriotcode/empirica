@@ -12,7 +12,7 @@ import json
 import logging
 import subprocess
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class GitProgressQuery:
     """
     Query git notes for team progress tracking
-    
+
     Lead AI can query git to see what agents accomplished, when, and why.
     Combines task metadata with commit history for unified timeline.
     """
@@ -49,11 +49,11 @@ class GitProgressQuery:
     ) -> dict[str, Any]:
         """
         Get commit timeline for goal with task metadata
-        
+
         Args:
             goal_id: Goal UUID to query
             max_commits: Maximum commits to retrieve
-            
+
         Returns:
             Timeline dict with commits and task metadata
         """
@@ -140,11 +140,11 @@ class GitProgressQuery:
     ) -> dict[str, Any] | None:
         """
         Get task note for a specific commit
-        
+
         Args:
             commit_hash: Commit hash
             note_ref: Git notes reference
-            
+
         Returns:
             Task metadata dict or None
         """
@@ -176,12 +176,12 @@ class GitProgressQuery:
     ) -> dict[str, Any]:
         """
         Multi-goal progress for team coordination
-        
+
         Lead AI can see progress across multiple agents/goals
-        
+
         Args:
             goal_ids: List of goal UUIDs
-            
+
         Returns:
             Team progress summary
         """
@@ -219,13 +219,13 @@ class GitProgressQuery:
     ) -> dict[str, Any]:
         """
         Combine task metadata with epistemic state
-        
+
         Shows complete agent journey: goals → actions → learning
-        
+
         Args:
             session_id: Session UUID
             goal_id: Goal UUID
-            
+
         Returns:
             Unified timeline with tasks + epistemic checkpoints
         """
@@ -242,7 +242,7 @@ class GitProgressQuery:
             # Get epistemic checkpoints from session notes
             epistemic_ref = f"empirica/session/{session_id}"
 
-            result = subprocess.run(
+            subprocess.run(
                 ['git', 'log', '--max-count=100',
                  '--format=%H|%at', f'--notes={epistemic_ref}'],
                 capture_output=True,
@@ -309,12 +309,12 @@ class GitProgressQuery:
     ) -> dict[str, Any]:
         """
         Get recent activity across all goals
-        
+
         Useful for lead AI to see what's happening now
-        
+
         Args:
             hours: Hours to look back
-            
+
         Returns:
             Recent activity summary
         """

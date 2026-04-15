@@ -11,13 +11,12 @@ Returns assessment + recommended strategy.
 """
 
 from datetime import datetime
-from typing import Optional
 
 
 class EditConfidenceAssessor:
     """
     Assesses epistemic confidence before attempting file edits.
-    
+
     Prevents 80% of edit failures by detecting whitespace mismatches,
     stale context, and ambiguous targets BEFORE attempting edit.
     """
@@ -39,14 +38,14 @@ class EditConfidenceAssessor:
     ) -> dict[str, float]:
         """
         Assess confidence for an edit operation.
-        
+
         Args:
             file_path: Path to file being edited
             old_str: String to be replaced
             context_source: "memory" | "view_output" | "fresh_read"
             last_read_turn: When file was last read (optional)
             current_turn: Current turn number (optional)
-        
+
         Returns:
             Dict with epistemic vectors:
             {
@@ -81,7 +80,7 @@ class EditConfidenceAssessor:
     def recommend_strategy(self, assessment: dict[str, float]) -> tuple[str, str]:
         """
         Recommend edit strategy based on assessment.
-        
+
         Returns:
             (strategy, reasoning) where strategy is:
             - "atomic_edit": High confidence, use native edit tool
@@ -143,7 +142,7 @@ class EditConfidenceAssessor:
     ) -> float:
         """
         Assess how recently the file was read.
-        
+
         Returns:
             1.0: Fresh read (view_output in current turn)
             0.9: Very recent (1-2 turns ago)
@@ -181,7 +180,7 @@ class EditConfidenceAssessor:
     ) -> float:
         """
         Assess uncertainty about exact whitespace match.
-        
+
         Returns (uncertainty, higher = more uncertain):
             0.1: Low uncertainty (view output, consistent spacing)
             0.3: Moderate (view output, mixed tabs/spaces)
@@ -212,7 +211,7 @@ class EditConfidenceAssessor:
     def _assess_match_uniqueness(self, file_path: str, old_str: str) -> float:
         """
         Assess how unique the pattern is in the file.
-        
+
         Returns:
             0.9: Unique (1 occurrence)
             0.7: Somewhat unique (2-3 occurrences)
@@ -240,7 +239,7 @@ class EditConfidenceAssessor:
     def _assess_truncation_risk(self, old_str: str) -> float:
         """
         Assess risk that old_str is truncated in context window.
-        
+
         Returns (clarity, lower = more truncation risk):
             0.9: No truncation indicators
             0.6: Possible truncation (long lines)

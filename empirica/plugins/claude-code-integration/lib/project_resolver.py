@@ -36,7 +36,6 @@ import os
 import sqlite3
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 # =============================================================================
 # InstanceResolver — Hook-side facade that delegates to canonical
@@ -391,10 +390,10 @@ def get_active_session_id(claude_session_id: str = None) -> str | None:
 
 try:
     from empirica.utils.session_resolver import (
-        has_valid_db,
         _find_git_root,
         _read_json_file,
         _scan_workspace_for_project,
+        has_valid_db,
     )
 except ImportError:
     # Minimal fallbacks for bare-plugin environments

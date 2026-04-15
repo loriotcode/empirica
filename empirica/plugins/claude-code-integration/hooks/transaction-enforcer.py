@@ -27,11 +27,11 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 # Import shared utilities from plugin lib
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from project_resolver import _get_instance_suffix, get_instance_id
+
 
 # Thresholds: project.yaml > env vars > defaults
 def _load_thresholds():

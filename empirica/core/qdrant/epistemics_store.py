@@ -3,7 +3,6 @@ Epistemic learning trajectory storage and search.
 """
 from __future__ import annotations
 
-from typing import Optional
 
 from empirica.core.qdrant.collections import _epistemics_collection
 from empirica.core.qdrant.connection import (

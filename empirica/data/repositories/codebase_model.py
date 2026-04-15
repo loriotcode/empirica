@@ -9,7 +9,7 @@ import json
 import time
 import uuid
 from fnmatch import fnmatch
-from typing import Any, Optional
+from typing import Any
 
 from .base import BaseRepository
 

@@ -25,7 +25,7 @@ import math
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

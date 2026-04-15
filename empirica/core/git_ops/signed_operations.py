@@ -29,7 +29,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # Temporarily remove empirica.core.git from sys.modules to import GitPython 'git' module
 _empirica_git_module = sys.modules.pop('empirica.core.git', None)
@@ -363,10 +363,10 @@ class SignedGitOperations:
                                 )
 
                         except Exception as e:
-                            verification["error"] = f"Signature verification error: {str(e)}"
+                            verification["error"] = f"Signature verification error: {e!s}"
 
                 except Exception as e:
-                    verification["error"] = f"State parsing error: {str(e)}"
+                    verification["error"] = f"State parsing error: {e!s}"
 
                 results.append(verification)
 

@@ -10,7 +10,7 @@ Part of the GitEnhancedReflexLogger refactoring (extracted from 1,156 line file)
 import logging
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     pass

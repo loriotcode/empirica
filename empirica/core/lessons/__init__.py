@@ -53,28 +53,26 @@ from .schema import (
 from .storage import LessonStorageManager, get_lesson_storage
 
 __all__ = [
+    'Correction',
+    'EpistemicDelta',
+    'KnowledgeGraphEdge',
+    'KnowledgeGraphNode',
     # Schema
     'Lesson',
-    'LessonStep',
-    'LessonPhase',
-    'StepCriticality',
-    'EpistemicDelta',
-    'Prerequisite',
-    'PrerequisiteType',
-    'Correction',
-    'LessonRelation',
-    'RelationType',
     'LessonEpistemic',
-    'LessonValidation',
-    'KnowledgeGraphNode',
-    'KnowledgeGraphEdge',
-
-    # Storage
-    'LessonStorageManager',
-    'get_lesson_storage',
-
     # Hot Cache
     'LessonHotCache',
+    'LessonPhase',
+    'LessonRelation',
+    'LessonStep',
+    # Storage
+    'LessonStorageManager',
+    'LessonValidation',
+    'Prerequisite',
+    'PrerequisiteType',
+    'RelationType',
+    'StepCriticality',
     'get_hot_cache',
+    'get_lesson_storage',
     'initialize_hot_cache'
 ]

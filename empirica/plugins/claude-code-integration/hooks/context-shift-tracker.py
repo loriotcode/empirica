@@ -24,7 +24,7 @@ _lib_path = Path(__file__).parent.parent / 'lib'
 if str(_lib_path) not in sys.path:
     sys.path.insert(0, str(_lib_path))
 
-from project_resolver import get_instance_id, _get_instance_suffix
+from project_resolver import _get_instance_suffix, get_instance_id
 
 
 def _find_transaction_file(claude_session_id: 'str | None' = None) -> 'Path | None':
@@ -37,7 +37,7 @@ def _find_transaction_file(claude_session_id: 'str | None' = None) -> 'Path | No
         aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if aw_file.exists():
             try:
-                with open(aw_file, 'r') as f:
+                with open(aw_file) as f:
                     pp = json.load(f).get('project_path')
                 if pp:
                     candidate = Path(pp) / '.empirica' / f'active_transaction{suffix}.json'
@@ -51,7 +51,7 @@ def _find_transaction_file(claude_session_id: 'str | None' = None) -> 'Path | No
         ip_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
         if ip_file.exists():
             try:
-                with open(ip_file, 'r') as f:
+                with open(ip_file) as f:
                     pp = json.load(f).get('project_path')
                 if pp:
                     candidate = Path(pp) / '.empirica' / f'active_transaction{suffix}.json'
@@ -150,7 +150,7 @@ def main():
 
     try:
         # READ transaction file (read-only — check status only)
-        with open(tx_path, 'r') as f:
+        with open(tx_path) as f:
             tx = json.load(f)
 
         if tx.get('status') != 'open':
@@ -163,7 +163,7 @@ def main():
         counters = {}
         if counters_path.exists():
             try:
-                with open(counters_path, 'r') as f:
+                with open(counters_path) as f:
                     counters = json.load(f)
             except Exception:
                 counters = {}

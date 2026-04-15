@@ -14,17 +14,17 @@ Purpose: Validate the 80-90% token reduction hypothesis for git integration.
 
 Usage:
     metrics = TokenEfficiencyMetrics(session_id="abc-123")
-    
+
     # Measure context load
     metrics.measure_context_load(
         phase="PREFLIGHT",
         method="git",
         content=checkpoint_json
     )
-    
+
     # Compare with baseline
     report = metrics.compare_efficiency(baseline_session_id="session-5")
-    
+
     # Export report
     metrics.export_report(format="markdown", output_path="report.md")
 """
@@ -34,7 +34,7 @@ import logging
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class TokenMeasurement:
 class TokenEfficiencyMetrics:
     """
     Track and analyze token efficiency for Empirica workflows.
-    
+
     Compares git-based checkpoint loading (target) vs prompt-based full history
     loading (baseline) to validate token reduction hypothesis.
     """
@@ -65,7 +65,7 @@ class TokenEfficiencyMetrics:
     ):
         """
         Initialize token efficiency tracker.
-        
+
         Args:
             session_id: Session identifier
             storage_dir: Directory for storing metrics
@@ -102,14 +102,14 @@ class TokenEfficiencyMetrics:
     ) -> TokenMeasurement:
         """
         Measure token usage for context loading operation.
-        
+
         Args:
             phase: Workflow phase (PREFLIGHT, CHECK, ACT, POSTFLIGHT)
             method: Loading method ("git" or "prompt")
             content: Actual content being loaded
             content_type: Type of content (checkpoint, diff, full_history, etc.)
             metadata: Additional metadata
-        
+
         Returns:
             TokenMeasurement record
         """
@@ -136,15 +136,15 @@ class TokenEfficiencyMetrics:
     def _count_tokens(self, text: str) -> int:
         """
         Estimate token count from text.
-        
+
         Uses simple approximation: len(text.split()) * 1.3
-        
+
         Note: Phase 1.5 uses this approximation. Production will use tiktoken
         for accurate OpenAI token counting.
-        
+
         Args:
             text: Text to count tokens for
-        
+
         Returns:
             Estimated token count
         """
@@ -157,11 +157,11 @@ class TokenEfficiencyMetrics:
     def get_phase_total(self, phase: str, method: str | None = None) -> int:
         """
         Get total tokens for a specific phase.
-        
+
         Args:
             phase: Phase to sum (PREFLIGHT, CHECK, ACT, POSTFLIGHT)
             method: Filter by method (optional)
-        
+
         Returns:
             Total token count for phase
         """
@@ -175,10 +175,10 @@ class TokenEfficiencyMetrics:
     def get_session_total(self, method: str | None = None) -> int:
         """
         Get total tokens for entire session.
-        
+
         Args:
             method: Filter by method (optional)
-        
+
         Returns:
             Total token count
         """
@@ -192,11 +192,11 @@ class TokenEfficiencyMetrics:
     def calculate_reduction(self, baseline_tokens: int, actual_tokens: int) -> dict[str, Any]:
         """
         Calculate token reduction metrics.
-        
+
         Args:
             baseline_tokens: Baseline (prompt-based) token count
             actual_tokens: Actual (git-based) token count
-        
+
         Returns:
             Reduction metrics dictionary
         """
@@ -222,11 +222,11 @@ class TokenEfficiencyMetrics:
     def compare_efficiency(self, baseline_session_id: str | None = None) -> dict[str, Any]:
         """
         Compare current session efficiency against baseline.
-        
+
         Args:
             baseline_session_id: Session ID for baseline comparison (optional)
                                 If not provided, uses theoretical baseline values
-        
+
         Returns:
             Comprehensive efficiency report
         """
@@ -273,11 +273,11 @@ class TokenEfficiencyMetrics:
     ) -> str:
         """
         Export efficiency report.
-        
+
         Args:
             format: Export format ("json", "csv", "markdown")
             output_path: Output file path (optional, prints to stdout if None)
-        
+
         Returns:
             Report content as string
         """
@@ -399,7 +399,7 @@ class TokenEfficiencyMetrics:
     def load_measurements(self) -> bool:
         """
         Load measurements from disk.
-        
+
         Returns:
             True if loaded successfully, False otherwise
         """

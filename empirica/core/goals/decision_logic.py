@@ -15,14 +15,13 @@ Decision:
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
 class GoalDecision:
     """
     Result of goal creation decision logic
-    
+
     This is GUIDANCE, not prescription. AI can override.
     """
     should_create_goal_now: bool
@@ -53,13 +52,13 @@ def decide_goal_creation(
 ) -> GoalDecision:
     """
     Simple decision logic: Should we create a goal now?
-    
+
     Logic:
     1. Check CLARITY GATE (health_score + clarity)
     2. Check COMPREHENSION (clarity + signal)
     3. Check FOUNDATION (know + context)
     4. Decide based on all three
-    
+
     Args:
         clarity: How clear is the request? (0-1)
         signal: How good is the information quality? (0-1)
@@ -68,15 +67,15 @@ def decide_goal_creation(
         health_score: Overall epistemic health score (0-100)
         health_threshold: Minimum health score for clarity gate (default: 60.0)
         *_threshold: Decision thresholds (configurable)
-    
+
     Returns:
         GoalDecision with recommendation
-        
+
     Decision Matrix:
         health_score ≥ health_threshold → "Epistemic health is good"
         clarity ≥ threshold AND signal ≥ threshold → "I understand the request"
         know ≥ threshold AND context ≥ threshold → "I can operate"
-        
+
         healthy + understand + can_operate → create_goal
         healthy + understand + can't_operate → investigate_first
         not_healthy → improve_epistemic_health
@@ -192,7 +191,7 @@ def decide_goal_creation(
 def get_investigation_focus(decision: GoalDecision) -> str | None:
     """
     Helper: What should investigation focus on?
-    
+
     Returns:
         String describing investigation focus, or None if not investigating
     """
@@ -209,7 +208,7 @@ def get_investigation_focus(decision: GoalDecision) -> str | None:
 def format_decision_for_ai(decision: GoalDecision) -> str:
     """
     Format decision as natural language for AI reasoning
-    
+
     This is GUIDANCE for AI, not a command.
     """
     output = [

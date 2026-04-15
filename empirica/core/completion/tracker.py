@@ -12,7 +12,6 @@ import logging
 import re
 import subprocess
 import time
-from typing import Optional
 
 from empirica.core.goals.repository import GoalRepository
 from empirica.core.tasks.repository import TaskRepository
@@ -26,7 +25,7 @@ logger = logging.getLogger(__name__)
 class CompletionTracker:
     """
     Track goal and task completion with evidence mapping
-    
+
     MVP: Simple completion percentage calculation based on task status.
     Phase 2: Git notes integration for task metadata storage.
     """
@@ -34,7 +33,7 @@ class CompletionTracker:
     def __init__(self, db_path: str | None = None, enable_git_notes: bool = True):
         """
         Initialize tracker
-        
+
         Args:
             db_path: Optional custom database path
             enable_git_notes: Enable git notes for task metadata (default: True)
@@ -47,10 +46,10 @@ class CompletionTracker:
     def track_progress(self, goal_id: str) -> CompletionRecord:
         """
         Calculate completion status for a goal
-        
+
         Args:
             goal_id: Goal identifier
-            
+
         Returns:
             CompletionRecord with current status
         """
@@ -137,12 +136,12 @@ class CompletionTracker:
     def auto_update_completion(self, goal_id: str) -> CompletionRecord:
         """
         Automatically update completion based on current task status
-        
+
         MVP: Just calls track_progress (future: git commit parsing)
-        
+
         Args:
             goal_id: Goal identifier
-            
+
         Returns:
             Updated CompletionRecord
         """
@@ -157,13 +156,13 @@ class CompletionTracker:
     ) -> bool:
         """
         Mark subtask as complete with optional evidence
-        
+
         Phase 2: Also adds git note for task metadata
-        
+
         Args:
             subtask_id: SubTask identifier
             evidence: Completion evidence (commit hash, file path, etc.)
-            
+
         Returns:
             True if successful
         """
@@ -195,10 +194,10 @@ class CompletionTracker:
     def get_session_metrics(self, session_id: str) -> CompletionMetrics:
         """
         Calculate aggregate completion metrics for a session
-        
+
         Args:
             session_id: Session identifier
-            
+
         Returns:
             CompletionMetrics with aggregated statistics
         """
@@ -266,16 +265,16 @@ class CompletionTracker:
     ) -> int:
         """
         Scan recent git commits and auto-mark subtasks complete
-        
+
         Looks for commit message patterns like:
-        - ✅ [TASK:subtask-uuid] 
+        - ✅ [TASK:subtask-uuid]
         - [COMPLETE:subtask-uuid]
         - Addresses subtask subtask-uuid
-        
+
         Args:
             goal_id: Goal to update
             since: Time period to scan (git log --since format)
-            
+
         Returns:
             Number of subtasks auto-completed
         """
@@ -343,7 +342,7 @@ class CompletionTracker:
     def _check_git_available(self) -> bool:
         """
         Check if git is available and we're in a git repository
-        
+
         Returns:
             True if git available and in repo
         """
@@ -368,14 +367,14 @@ class CompletionTracker:
     ) -> str | None:
         """
         Add task completion note to git
-        
+
         Stores structured metadata in git notes for lead AI queries.
         Uses goal-specific namespace: refs/notes/empirica/tasks/<goal_id>
-        
+
         Args:
             subtask_id: SubTask UUID
             commit_hash: Commit hash to attach note to (default: HEAD)
-            
+
         Returns:
             Note SHA if successful, None if failed
         """

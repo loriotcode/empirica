@@ -31,16 +31,12 @@ class HumanReadableTranslator:
         # Overall quality
         if assessment.context_value >= 0.7:
             quality = "🌟 Excellent"
-            quality_emoji = "🌟"
         elif assessment.context_value >= 0.5:
             quality = "✅ Good"
-            quality_emoji = "✅"
         elif assessment.context_value >= 0.3:
             quality = "⚠️ Fair"
-            quality_emoji = "⚠️"
         else:
             quality = "⛔ Needs Work"
-            quality_emoji = "⛔"
 
         # Reading experience (clarity)
         if assessment.clarity >= 0.7:

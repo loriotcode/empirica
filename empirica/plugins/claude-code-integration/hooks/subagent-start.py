@@ -266,7 +266,7 @@ def main():
         child_session_id = child_result["child_session_id"]
 
         # Store mapping for SubagentStop rollup
-        session_file = store_subagent_session(agent_name, child_session_id, parent_session_id)
+        store_subagent_session(agent_name, child_session_id, parent_session_id)
 
         result = {
             "continue": True,

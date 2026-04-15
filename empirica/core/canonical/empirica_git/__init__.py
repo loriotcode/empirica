@@ -24,12 +24,12 @@ from .session_sync import SessionSync
 
 __all__ = [
     'CheckpointManager',
-    'auto_checkpoint',
     'GitGoalStore',
-    'SessionSync',
-    'SentinelHooks',
+    'GitMessageStore',
     'SentinelDecision',
+    'SentinelHooks',
     'SentinelState',
+    'SessionSync',
     'TurtleStatus',
-    'GitMessageStore'
+    'auto_checkpoint'
 ]

@@ -13,7 +13,7 @@ import json
 import logging
 import subprocess
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -377,7 +377,7 @@ def handle_sync_push_command(args):
         remote = getattr(args, 'remote', None) or sync_config.get('remote', 'origin')
         output_format = getattr(args, 'output', 'json')
         dry_run = getattr(args, 'dry_run', False)
-        verbose = getattr(args, 'verbose', False)
+        getattr(args, 'verbose', False)
         force = getattr(args, 'force', False)
 
         # Check if sync is enabled
@@ -526,7 +526,7 @@ def handle_sync_pull_command(args):
         remote = getattr(args, 'remote', None) or sync_config.get('remote', 'origin')
         output_format = getattr(args, 'output', 'json')
         rebuild = getattr(args, 'rebuild', False)
-        verbose = getattr(args, 'verbose', False)
+        getattr(args, 'verbose', False)
         force = getattr(args, 'force', False)
 
         # Check if sync is enabled

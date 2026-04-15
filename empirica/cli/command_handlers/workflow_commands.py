@@ -677,7 +677,7 @@ def handle_preflight_submit_command(args):
                             """, (ai_id, project_id))
                             recent_scores = [r[0] for r in cursor.fetchall()]
                             if len(recent_scores) >= 3:
-                                avg = sum(recent_scores) / len(recent_scores)
+                                sum(recent_scores) / len(recent_scores)
                                 # Trend: compare first half vs second half
                                 mid = len(recent_scores) // 2
                                 recent_half = sum(recent_scores[:mid]) / mid
@@ -859,7 +859,6 @@ def _compute_check_decision(confidence: float, drift: float, unknowns_count: int
 
     Returns (decision, strength, reasoning, suggestions).
     """
-    suggestions = []
     if confidence >= 0.70:
         if drift > 0.3 or unknowns_count > 5:
             return ("proceed", "moderate",
@@ -935,7 +934,7 @@ def handle_check_command(args):
             # For first CHECK, baseline = current
             current_vectors = baseline_vectors
             drift = 0.0
-            deltas = {k: 0.0 for k in baseline_vectors.keys() if isinstance(baseline_vectors.get(k), (int, float))}
+            deltas = {k: 0.0 for k in baseline_vectors if isinstance(baseline_vectors.get(k), (int, float))}
         else:
             current_checkpoint = checkpoints[0]
             current_vectors = current_checkpoint.get('vectors', {})
@@ -980,7 +979,7 @@ def handle_check_command(args):
         # 5. Generate evidence-based suggestion
         findings_count = len(findings)
         unknowns_count = len(unknowns)
-        completion = current_vectors.get('completion', 0.0)
+        current_vectors.get('completion', 0.0)
         uncertainty = current_vectors.get('uncertainty', 0.5)
 
         # Calculate confidence (use explicit if provided, else derive from uncertainty)
@@ -1107,13 +1106,13 @@ def handle_check_submit_command(args):
             vectors = config_data.get('vectors')
             decision = config_data.get('decision')
             reasoning = config_data.get('reasoning', '')
-            approach = config_data.get('approach', reasoning)
+            config_data.get('approach', reasoning)
         else:
             session_id = args.session_id
             vectors = parse_json_safely(args.vectors) if isinstance(args.vectors, str) else args.vectors
             decision = args.decision
             reasoning = args.reasoning
-            approach = getattr(args, 'approach', reasoning)
+            getattr(args, 'approach', reasoning)
             output_format = getattr(args, 'output', 'human')
         cycle = getattr(args, 'cycle', 1)
 
@@ -1244,8 +1243,8 @@ def handle_check_submit_command(args):
             _corrections = load_grounded_corrections()
         except Exception:
             _corrections = {}
-        corrected_know = know + _corrections.get('know', 0.0)
-        corrected_uncertainty = uncertainty + _corrections.get('uncertainty', 0.0)
+        know + _corrections.get('know', 0.0)
+        uncertainty + _corrections.get('uncertainty', 0.0)
 
         # Dynamic thresholds from Brier score calibration
         # Miscalibration RAISES thresholds (compensates for unreliable self-assessment)
@@ -1558,7 +1557,6 @@ def handle_check_submit_command(args):
 
             # AUTO-CHECKPOINT: Create git checkpoint if uncertainty > 0.5 (risky decision)
             # This preserves context if AI needs to investigate further
-            auto_checkpoint_created = False
             if uncertainty > 0.5:
                 try:
                     import subprocess
@@ -1581,7 +1579,6 @@ def handle_check_submit_command(args):
                         capture_output=True,
                         timeout=10
                     )
-                    auto_checkpoint_created = True
                 except Exception as e:
                     # Auto-checkpoint failure is not fatal, but log it
                     logger.warning(f"Auto-checkpoint after CHECK (uncertainty > 0.5) failed (non-fatal): {e}")
@@ -1589,7 +1586,6 @@ def handle_check_submit_command(args):
             # EPISTEMIC SNAPSHOTS: Capture CHECK phase vectors for calibration analysis
             # Added 2026-01-21 to provide CHECK data for vector_trajectories analysis
             # Previously only POSTFLIGHT was captured, missing CHECK as intermediate data point
-            snapshot_created = False
             snapshot_id = None
             try:
                 from empirica.data.epistemic_snapshot import ContextSummary
@@ -1621,7 +1617,6 @@ def handle_check_submit_command(args):
                 # Save to epistemic_snapshots table
                 snapshot_provider.save_snapshot(snapshot)
                 snapshot_id = snapshot.snapshot_id
-                snapshot_created = True
 
                 logger.debug(f"Created CHECK epistemic snapshot {snapshot_id} for session {session_id}")
 
@@ -1921,13 +1916,13 @@ def _extract_all_vectors(vectors):
     """
     Extract all numeric values from vectors dict, handling nested structures.
     Flattens nested dicts to extract individual vector values.
-    
+
     Args:
         vectors: Dict containing vector data (simple or nested)
-    
+
     Returns:
         Dict with all vector names mapped to numeric values
-    
+
     Example:
         Input: {"engagement": 0.85, "foundation": {"know": 0.75, "do": 0.80}}
         Output: {"engagement": 0.85, "know": 0.75, "do": 0.80}

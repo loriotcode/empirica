@@ -55,7 +55,7 @@ def _get_checkpoint_profile_thresholds():
 def handle_checkpoint_create_command(args):
     """
     Create git checkpoint for session
-    
+
     Usage:
         empirica checkpoint-create --session-id abc123 --phase PREFLIGHT --round 1
     """
@@ -128,7 +128,7 @@ def handle_checkpoint_create_command(args):
 def handle_checkpoint_load_command(args):
     """
     Load latest checkpoint for session
-    
+
     Usage:
         empirica checkpoint-load --session-id abc123
         empirica checkpoint-load --session-id abc123 --phase PREFLIGHT
@@ -139,7 +139,7 @@ def handle_checkpoint_load_command(args):
         session_id = args.session_id
         max_age = args.max_age if hasattr(args, 'max_age') else 24
         phase = args.phase if hasattr(args, 'phase') else None
-        format_type = args.format if hasattr(args, 'format') else 'table'
+        args.format if hasattr(args, 'format') else 'table'
 
         git_logger = GitEnhancedReflexLogger(
             session_id=session_id,
@@ -212,7 +212,7 @@ def handle_checkpoint_load_command(args):
 def handle_checkpoint_list_command(args):
     """
     List checkpoints for session
-    
+
     Usage:
         empirica checkpoint-list --session-id abc123
         empirica checkpoint-list --session-id abc123 --limit 5
@@ -287,7 +287,7 @@ def handle_checkpoint_list_command(args):
 def handle_checkpoint_diff_command(args):
     """
     Show vector differences from last checkpoint
-    
+
     Usage:
         empirica checkpoint-diff --session-id abc123
         empirica checkpoint-diff --session-id abc123 --threshold 0.15
@@ -297,7 +297,7 @@ def handle_checkpoint_diff_command(args):
 
         session_id = args.session_id
         thresholds = _get_checkpoint_profile_thresholds()
-        threshold = args.threshold if hasattr(args, 'threshold') else thresholds['diff_threshold']
+        args.threshold if hasattr(args, 'threshold') else thresholds['diff_threshold']
         output_format = getattr(args, 'output', 'default')
 
         git_logger = GitEnhancedReflexLogger(
@@ -369,7 +369,7 @@ def handle_checkpoint_diff_command(args):
 def handle_efficiency_report_command(args):
     """
     Generate token efficiency report
-    
+
     Usage:
         empirica efficiency-report --session-id abc123
         empirica efficiency-report --session-id abc123 --format json

@@ -12,7 +12,7 @@ Philosophy:
 
 Usage:
     from empirica.config.goal_scope_loader import get_scope_recommendations
-    
+
     # Get recommendations based on epistemic state
     recommendations = get_scope_recommendations(
         epistemic_vectors={
@@ -22,11 +22,11 @@ Usage:
             ...
         }
     )
-    
+
     # AI can then set scope based on recommendations
     scope_vector = ScopeVector(
         breadth=recommendations['breadth'],
-        duration=recommendations['duration'], 
+        duration=recommendations['duration'],
         coordination=recommendations['coordination']
     )
 
@@ -39,7 +39,7 @@ Architecture:
 import copy
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 class GoalScopeLoader:
     """
     Goal scope recommendation engine based on epistemic vectors.
-    
+
     Design:
     - Loads scope recommendations from goal_scopes.yaml
     - Maps epistemic patterns to scope vectors
@@ -60,10 +60,10 @@ class GoalScopeLoader:
     def __init__(self, config_path: Path | None = None):
         """
         Initialize goal scope loader.
-        
+
         Args:
             config_path: Optional path to goal_scopes.yaml
-        
+
         Note: Use get_instance() for singleton pattern
         """
         if config_path is None:
@@ -127,14 +127,14 @@ class GoalScopeLoader:
     ) -> dict[str, Any] | None:
         """
         Get scope recommendations based on epistemic vector pattern.
-        
+
         Args:
             epistemic_vectors: Current epistemic assessment (13 vectors)
             context: Additional context (task type, user priority, etc.)
-            
+
         Returns:
             Dictionary with scope recommendation or None if no match
-        
+
         Example:
             >>> vectors = {'know': 0.85, 'uncertainty': 0.3, 'clarity': 0.80}
             >>> recommendations = loader.get_scope_recommendations(vectors)
@@ -194,11 +194,11 @@ class GoalScopeLoader:
     ) -> float:
         """
         Calculate how well current epistemic state matches a pattern.
-        
+
         Args:
             epistemic_vectors: Current epistemic values
             pattern: Pattern definition with min/max constraints
-            
+
         Returns:
             Match score (0.0-1.0)
         """
@@ -293,10 +293,10 @@ class GoalScopeLoader:
     def validate_scope_coherence(self, scope_vector: dict[str, float]) -> dict[str, Any]:
         """
         Validate scope vector coherence and provide warnings.
-        
+
         Args:
             scope_vector: {'breadth': float, 'duration': float, 'coordination': float}
-            
+
         Returns:
             Validation results with warnings and suggestions
         """
@@ -359,13 +359,13 @@ def get_scope_recommendations(
 ) -> dict[str, Any] | None:
     """
     Get scope recommendations based on epistemic state.
-    
+
     Convenience function that creates and uses a GoalScopeLoader.
-    
+
     Args:
         epistemic_vectors: Current epistemic assessment (13 vectors)
         context: Optional context for adjustments
-        
+
     Returns:
         Scope recommendation dictionary or None
     """
@@ -376,12 +376,12 @@ def get_scope_recommendations(
 def validate_scope_coherence(scope_vector: dict[str, float]) -> dict[str, Any]:
     """
     Validate scope vector coherence.
-    
+
     Convenience function.
-    
+
     Args:
         scope_vector: {'breadth': float, 'duration': float, 'coordination': float}
-        
+
     Returns:
         Validation results
     """

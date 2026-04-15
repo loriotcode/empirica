@@ -16,7 +16,7 @@ import logging
 import os
 import subprocess
 from datetime import UTC, datetime
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class CheckpointManager:
     """
     Manages automatic git checkpoints for CASCADE phases
-    
+
     Design:
     - Detects git repo automatically
     - Creates checkpoints in git notes (refs/notes/empirica/checkpoints)
@@ -35,7 +35,7 @@ class CheckpointManager:
     def __init__(self, workspace_root: str | None = None):
         """
         Initialize checkpoint manager
-        
+
         Args:
             workspace_root: Root directory (defaults to cwd)
         """
@@ -113,7 +113,7 @@ class CheckpointManager:
     ) -> str | None:
         """
         Automatically create checkpoint if conditions met
-        
+
         Args:
             session_id: Session identifier
             ai_id: AI identifier
@@ -122,7 +122,7 @@ class CheckpointManager:
             round_num: Round number within phase
             metadata: Additional metadata
             no_git_flag: User disabled git
-            
+
         Returns:
             str: Checkpoint hash if created, None if skipped
         """
@@ -158,7 +158,7 @@ class CheckpointManager:
     ) -> str:
         """
         Create compressed checkpoint in git notes
-        
+
         Format (compressed for ~85% token reduction):
         {
             "session_id": "abc123",
@@ -219,12 +219,12 @@ class CheckpointManager:
     ) -> dict[str, Any] | None:
         """
         Load checkpoint from git notes
-        
+
         Args:
             session_id: Filter by session
             ai_id: Filter by AI
             commit_hash: Load specific commit
-            
+
         Returns:
             Dict: Checkpoint data or None if not found
         """
@@ -362,10 +362,10 @@ def auto_checkpoint(
 ) -> str | None:
     """
     Convenience function for automatic checkpoint creation
-    
+
     Usage in CASCADE commands:
         from empirica.core.canonical.empirica_git import auto_checkpoint
-        
+
         auto_checkpoint(
             session_id=session_id,
             ai_id=args.ai_id,

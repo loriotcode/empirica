@@ -6,7 +6,6 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 from .base import BaseRepository
 
@@ -138,7 +137,7 @@ class SessionRepository(BaseRepository):
             instance_id = R.instance_id()
 
         session_id = str(uuid.uuid4())
-        cursor = self._execute("""
+        self._execute("""
             INSERT INTO sessions (
                 session_id, ai_id, user_id, start_time, components_loaded,
                 subject, bootstrap_level, instance_id, parent_session_id

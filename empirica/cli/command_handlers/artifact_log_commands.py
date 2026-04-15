@@ -8,7 +8,6 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 from empirica.utils.session_resolver import InstanceResolver as R
 
@@ -496,6 +495,7 @@ def _embed_finding_qdrant(project_id, finding_id, finding, session_id,
         return False
     try:
         from datetime import datetime
+
         from empirica.core.qdrant.vector_store import embed_single_memory_item
         return embed_single_memory_item(
             project_id=project_id, item_id=finding_id, text=finding,
@@ -513,6 +513,7 @@ def _ingest_finding_eidetic(project_id, finding_id, finding, subject, impact, se
         return None
     try:
         import hashlib
+
         from empirica.core.qdrant.vector_store import confirm_eidetic_fact, embed_eidetic
         content_hash = hashlib.md5(finding.encode()).hexdigest()
         if confirm_eidetic_fact(project_id, content_hash, session_id):
@@ -1811,6 +1812,7 @@ def handle_mistake_log_command(args):
         if project_id and mistake_id:
             try:
                 from datetime import datetime
+
                 from empirica.core.qdrant.vector_store import embed_single_memory_item
                 embedded = embed_single_memory_item(
                     project_id=project_id, item_id=mistake_id,

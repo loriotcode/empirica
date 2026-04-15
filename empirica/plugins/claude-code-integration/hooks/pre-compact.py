@@ -14,15 +14,15 @@ Writes a UNIFIED breadcrumbs git note combining task context + epistemic state.
 """
 
 import json
-import sys
-import subprocess
 import os
-from pathlib import Path
+import subprocess
+import sys
 from datetime import datetime
+from pathlib import Path
+
 # Import shared utilities from plugin lib
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from project_resolver import get_instance_id, _get_instance_suffix, find_project_root  # noqa: E402
-
+from project_resolver import _get_instance_suffix, find_project_root, get_instance_id
 
 # Patterns that indicate a message is system-injected, not human input
 _SKIP_PATTERNS = [
@@ -313,7 +313,8 @@ def main():
     try:
         sys.path.insert(0, str(Path.home() / 'empirical-ai' / 'empirica'))
         from empirica.core.context_budget import (
-            ContextBudgetManager, load_thresholds_from_config,
+            ContextBudgetManager,
+            load_thresholds_from_config,
         )
 
         thresholds = load_thresholds_from_config()
@@ -348,12 +349,12 @@ def main():
         if suffix:
             tx_path = project_root / '.empirica' / f'active_transaction{suffix}.json'
             if tx_path.exists():
-                with open(tx_path, 'r') as f:
+                with open(tx_path) as f:
                     active_transaction = json.load(f)
             # Also capture hook counters (separate file since v1.8.4)
             counters_path = project_root / '.empirica' / f'hook_counters{suffix}.json'
             if counters_path.exists():
-                with open(counters_path, 'r') as f:
+                with open(counters_path) as f:
                     hook_counters = json.load(f)
         else:
             # Fallback: scan for any active transaction file
@@ -361,7 +362,7 @@ def main():
             if tx_files:
                 # Use most recently modified
                 tx_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-                with open(tx_files[0], 'r') as f:
+                with open(tx_files[0]) as f:
                     active_transaction = json.load(f)
     except Exception:
         pass  # Transaction capture is non-fatal
@@ -472,17 +473,15 @@ def main():
             )
 
             # Restore stashed work (working directory back to pre-snapshot state)
-            stash_restored = False
             if stash_created:
                 try:
-                    pop_result = subprocess.run(
+                    subprocess.run(
                         ['git', 'stash', 'pop'],
                         cwd=os.getcwd(),
                         capture_output=True,
                         text=True,
                         timeout=10
                     )
-                    stash_restored = pop_result.returncode == 0
                 except Exception:
                     pass  # Stash pop failure is non-fatal; user can manually pop
 

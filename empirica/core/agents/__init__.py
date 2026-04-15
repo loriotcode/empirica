@@ -20,8 +20,8 @@ from .epistemic_agent import (
 __all__ = [
     'EpistemicAgentConfig',
     'EpistemicAgentResult',
-    'spawn_epistemic_agent',
     'aggregate_agent_results',
     'format_agent_prompt',
     'parse_postflight',
+    'spawn_epistemic_agent',
 ]

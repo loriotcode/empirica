@@ -1558,7 +1558,7 @@ def _print_staleness_output(result: dict, verbose: bool):
 def _print_staleness_item_v2(item: dict):
     """Print a single staleness item (v2 format for deterministic mode)."""
     issue_type = item.get("type", "unknown")
-    severity = item.get("severity", "medium")
+    item.get("severity", "medium")
     doc_path = item.get("doc_path", "")
     item_name = item.get("item", "")
     category = item.get("category", "")
@@ -1707,7 +1707,6 @@ def _print_human_output(result: dict, categories: list[FeatureCoverage], verbose
     print("-" * 50)
 
     for cat in categories:
-        status = "✅" if cat.coverage >= 0.70 else "⚠️" if cat.coverage >= 0.40 else "❌"
         print(f"   {cat.moon} {cat.name}: {cat.coverage*100:.0f}% ({cat.documented}/{cat.total})")
 
         if verbose and cat.undocumented:
@@ -2057,7 +2056,7 @@ class DocsExplainAgent:
 
         # Find related topics
         related = []
-        for alias_key in self.TOPIC_ALIASES.keys():
+        for alias_key in self.TOPIC_ALIASES:
             if alias_key not in search_text.lower():
                 # Check if any source mentions this topic
                 for _, path, content in top_docs[:3]:

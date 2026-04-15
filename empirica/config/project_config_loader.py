@@ -7,7 +7,7 @@ and path mappings for context filtering.
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -124,10 +124,10 @@ class ProjectConfig:
     def get_subject_for_path(self, current_path: str) -> str | None:
         """
         Detect subject from current working directory.
-        
+
         Args:
             current_path: Current working directory
-            
+
         Returns:
             subject_id if matched, None otherwise
         """
@@ -212,11 +212,11 @@ def get_current_subject(project_config: ProjectConfig | None = None,
                        current_path: Path | None = None) -> str | None:
     """
     Get current subject based on working directory.
-    
+
     Args:
         project_config: Project configuration (loads if None)
         current_path: Current working directory (uses cwd if None)
-        
+
     Returns:
         subject_id if detected, None otherwise
     """

@@ -61,7 +61,7 @@ class CouplingAnalyzer:
         try:
             content = module_path.read_text()
             tree = ast.parse(content)
-        except (SyntaxError, FileNotFoundError) as e:
+        except (SyntaxError, FileNotFoundError):
             return metrics
 
         # Extract imports (efferent coupling)

@@ -3,7 +3,6 @@ import hashlib
 import json
 import subprocess
 import time
-from typing import Optional
 
 from .base import BaseRepository
 
