@@ -37,9 +37,9 @@ class GoalDataRepository(BaseRepository):
                 unique.append(item)
         return unique
 
-    def create_goal(self, session_id: str, objective: str, scope_breadth: float = None,
-                   scope_duration: float = None, scope_coordination: float = None,
-                   beads_issue_id: str = None, status: str = 'in_progress') -> str:
+    def create_goal(self, session_id: str, objective: str, scope_breadth: float | None = None,
+                   scope_duration: float | None = None, scope_coordination: float | None = None,
+                   beads_issue_id: str | None = None, status: str = 'in_progress') -> str:
         """Create a new goal for this session
 
         Args:
@@ -364,7 +364,7 @@ class GoalDataRepository(BaseRepository):
         self.commit()
         return count
 
-    def get_stale_goals(self, session_id: str = None, project_id: str = None) -> list[dict]:
+    def get_stale_goals(self, session_id: str | None = None, project_id: str | None = None) -> list[dict]:
         """Get stale goals for a session or project
 
         Args:
@@ -407,7 +407,7 @@ class GoalDataRepository(BaseRepository):
 
         return stale_goals
 
-    def activate_goal(self, goal_id: str, transaction_id: str = None) -> bool:
+    def activate_goal(self, goal_id: str, transaction_id: str | None = None) -> bool:
         """Activate a planned goal — set status to in_progress and link to transaction.
 
         Args:

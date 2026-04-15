@@ -1815,7 +1815,7 @@ def _extract_numeric_value(value):
         if 'score' in value:
             return float(value['score'])
         # Fallback: try to get any numeric value
-        for k, v in value.items():
+        for _k, v in value.items():
             if isinstance(v, (int, float)):
                 return float(v)
     return None
@@ -1844,7 +1844,7 @@ def _extract_numeric_value(value):
         if 'value' in value:
             return float(value['value'])
         # Try to find any numeric value in nested structure
-        for k, v in value.items():
+        for _k, v in value.items():
             if isinstance(v, (int, float)):
                 return float(v)
             elif isinstance(v, str) and v.replace('.', '').replace('-', '').isdigit():

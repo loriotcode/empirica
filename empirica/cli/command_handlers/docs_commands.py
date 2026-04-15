@@ -1347,7 +1347,7 @@ class EpistemicDocsAgent:
 
         # Conceptual docs -> audio overviews
         epistemic_docs = []
-        for group, files in doc_groups.items():
+        for _group, files in doc_groups.items():
             epistemic_docs.extend([f for f in files if "epistemic" in f.lower() or "vector" in f.lower()])
         if epistemic_docs:
             suggestions["audio_overviews"].append({
@@ -1450,7 +1450,7 @@ def handle_docs_assess(args) -> int:
         return 1
 
 
-def _generate_summary(result: dict, categories: list, project_root: Path = None) -> dict:
+def _generate_summary(result: dict, categories: list, project_root: Path | None = None) -> dict:
     """Generate lightweight summary (~50 tokens) for bootstrap context."""
     overall = result["overall"]
     epistemic = result["epistemic_assessment"]
@@ -1958,7 +1958,7 @@ class DocsExplainAgent:
         scored_sections.sort(reverse=True)
         return [(h, b) for _, h, b in scored_sections[:max_sections]]
 
-    def explain(self, topic: str = None, question: str = None, audience: str = "all") -> dict[str, Any]:
+    def explain(self, topic: str | None = None, question: str | None = None, audience: str = "all") -> dict[str, Any]:
         """
         Get focused explanation of an Empirica topic.
 

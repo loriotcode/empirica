@@ -401,7 +401,7 @@ def apply_calibration_to_vectors(vectors: dict[str, float],
     return calibrated
 
 
-def export_calibration_to_breadcrumbs(ai_id: str, db, git_root: str = None) -> bool:
+def export_calibration_to_breadcrumbs(ai_id: str, db, git_root: str | None = None) -> bool:
     """
     Export calibration data to .breadcrumbs.yaml for instant session-start availability.
 
@@ -548,7 +548,7 @@ learning_trajectory:
         return False
 
 
-def load_bias_corrections(git_root: str = None) -> dict[str, float]:
+def load_bias_corrections(git_root: str | None = None) -> dict[str, float]:
     """
     Load bias corrections from .breadcrumbs.yaml calibration cache.
 
@@ -612,7 +612,7 @@ def load_bias_corrections(git_root: str = None) -> dict[str, float]:
         return {}
 
 
-def load_grounded_corrections(git_root: str = None) -> dict[str, float]:
+def load_grounded_corrections(git_root: str | None = None) -> dict[str, float]:
     """
     Load GROUNDED bias corrections from .breadcrumbs.yaml.
 

@@ -287,7 +287,7 @@ def _investigate_directory(dir_path: str, verbose: bool = False) -> dict:
         return {"error": str(e), "type": "directory"}
 
 
-def _investigate_concept(concept: str, context: str = None, verbose: bool = False) -> dict:
+def _investigate_concept(concept: str, context: str | None = None, verbose: bool = False) -> dict:
     """Investigate a concept or abstract idea"""
     try:
         # NOTE: EpistemicAssessor moved to empirica-sentinel repo

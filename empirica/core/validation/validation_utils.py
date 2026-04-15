@@ -50,7 +50,7 @@ def get_git_diff_summary(since_preflight: bool = False) -> dict[str, any]:
         for line in lines:
             if '+' in line or '-' in line:
                 parts = line.split()
-                for i, part in enumerate(parts):
+                for _i, part in enumerate(parts):
                     if '+' in part:
                         try:
                             total_additions += int(part.replace('+', ''))

@@ -25,7 +25,7 @@ from ..cli_utils import handle_cli_error, parse_json_safely
 logger = logging.getLogger(__name__)
 
 
-def _check_for_similar_goals(objective: str, session_id: str = None, threshold: float = 0.85) -> list:
+def _check_for_similar_goals(objective: str, session_id: str | None = None, threshold: float = 0.85) -> list:
     """Check for similar existing goals using text matching and semantic search.
 
     Args:
@@ -338,7 +338,7 @@ def handle_goals_create_command(args):
 
         # Create real SuccessCriterion objects
         success_criteria_objects = []
-        for i, criteria in enumerate(success_criteria_list):
+        for _i, criteria in enumerate(success_criteria_list):
             if isinstance(criteria, dict):
                 success_criteria_objects.append(SuccessCriterion(
                     id=str(uuid.uuid4()),

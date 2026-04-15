@@ -19,13 +19,13 @@ def embed_eidetic(
     fact_id: str,
     content: str,
     fact_type: str = "fact",
-    domain: str = None,
+    domain: str | None = None,
     confidence: float = 0.5,
     confirmation_count: int = 1,
-    source_sessions: list[str] = None,
-    source_findings: list[str] = None,
-    tags: list[str] = None,
-    timestamp: str = None,
+    source_sessions: list[str] | None = None,
+    source_findings: list[str] | None = None,
+    tags: list[str] | None = None,
+    timestamp: str | None = None,
 ) -> bool:
     """
     Embed an eidetic memory entry (stable fact with confidence).
@@ -86,8 +86,8 @@ def embed_eidetic(
 def search_eidetic(
     project_id: str,
     query: str,
-    fact_type: str = None,
-    domain: str = None,
+    fact_type: str | None = None,
+    domain: str | None = None,
     min_confidence: float = 0.0,
     limit: int = 5,
 ) -> list[dict]:

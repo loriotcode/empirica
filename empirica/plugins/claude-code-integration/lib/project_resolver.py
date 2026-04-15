@@ -71,17 +71,17 @@ class InstanceResolver:
             return self._canonical.instance_suffix()
         return _get_instance_suffix()
 
-    def project_path(self, claude_session_id: str = None) -> str | None:
+    def project_path(self, claude_session_id: str | None = None) -> str | None:
         if self._canonical:
             return self._canonical.project_path(claude_session_id)
         return get_active_project_path(claude_session_id)
 
-    def session_id(self, claude_session_id: str = None) -> str | None:
+    def session_id(self, claude_session_id: str | None = None) -> str | None:
         if self._canonical:
             return self._canonical.session_id(claude_session_id)
         return get_active_session_id(claude_session_id)
 
-    def transaction_read(self, claude_session_id: str = None) -> dict | None:
+    def transaction_read(self, claude_session_id: str | None = None) -> dict | None:
         if self._canonical:
             return self._canonical.transaction_read(claude_session_id)
         # No local fallback for transaction read — hooks should use canonical
@@ -228,7 +228,7 @@ def detect_environment() -> dict:
     }
 
 
-def get_active_project_path(claude_session_id: str = None) -> str | None:
+def get_active_project_path(claude_session_id: str | None = None) -> str | None:
     """
     Get the active project path for the current instance.
 
@@ -287,7 +287,7 @@ def get_active_project_path(claude_session_id: str = None) -> str | None:
     return None
 
 
-def get_active_session_id(claude_session_id: str = None) -> str | None:
+def get_active_session_id(claude_session_id: str | None = None) -> str | None:
     """
     Get the active Empirica session ID for the current instance.
 

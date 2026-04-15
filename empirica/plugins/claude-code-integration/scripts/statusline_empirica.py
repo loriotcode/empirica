@@ -423,7 +423,7 @@ def calculate_phase_composite(vectors: dict, phase: str) -> float:
     return sum(values) / len(values) if values else 0.0
 
 
-def determine_work_phase(phase: str, gate_decision: str = None) -> str:
+def determine_work_phase(phase: str, gate_decision: str | None = None) -> str:
     """Determine if AI is in noetic (investigating) or praxic (acting) mode.
 
     Logic:
@@ -443,7 +443,7 @@ def determine_work_phase(phase: str, gate_decision: str = None) -> str:
     return 'noetic'
 
 
-def format_phase_state(phase: str, work_phase: str, composite: float, gate_decision: str = None) -> str:
+def format_phase_state(phase: str, work_phase: str, composite: float, gate_decision: str | None = None) -> str:
     """Format transaction phase + work state as compact indicator.
 
     Examples: PRE 🔍65% | CHK 🔍82%→ | CHK ⚙65%… | POST ⚙92% Δ ✓

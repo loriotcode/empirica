@@ -25,7 +25,7 @@ def _get_yaml():
     return _yaml
 
 
-def find_ecosystem_manifest(start_path: str = None) -> Path | None:
+def find_ecosystem_manifest(start_path: str | None = None) -> Path | None:
     """Find ecosystem.yaml by walking up from start_path or cwd.
 
     Search order:
@@ -53,7 +53,7 @@ def find_ecosystem_manifest(start_path: str = None) -> Path | None:
     return None
 
 
-def load_manifest(manifest_path: str = None) -> dict:
+def load_manifest(manifest_path: str | None = None) -> dict:
     """Load and parse ecosystem.yaml.
 
     Returns the raw parsed YAML dict.
@@ -281,7 +281,7 @@ class EcosystemGraph:
         """Get ecosystem summary statistics."""
         roles = {}
         types = {}
-        for name, config in self.projects.items():
+        for _name, config in self.projects.items():
             role = config.get('role', 'unknown')
             ptype = config.get('type', 'unknown')
             roles[role] = roles.get(role, 0) + 1
@@ -303,7 +303,7 @@ class EcosystemGraph:
         }
 
 
-def load_ecosystem(manifest_path: str = None) -> EcosystemGraph:
+def load_ecosystem(manifest_path: str | None = None) -> EcosystemGraph:
     """Convenience: load manifest and return EcosystemGraph."""
     manifest = load_manifest(manifest_path)
     return EcosystemGraph(manifest)

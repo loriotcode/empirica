@@ -540,7 +540,7 @@ def create_epistemic_agent_prompt(
     session_id: str,
     task: str,
     persona_id: str = "general",
-    parent_context: str = None
+    parent_context: str | None = None
 ) -> tuple[str, str]:
     """
     Create prompt for spawning via Claude Code Task tool.

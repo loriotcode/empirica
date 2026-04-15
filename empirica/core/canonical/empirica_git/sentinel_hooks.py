@@ -338,7 +338,7 @@ class SentinelHooks:
         cls,
         checkpoint_data: dict[str, Any],
         blocking: bool = False,
-        turtle: bool = None  # None = use class default, True/False = override
+        turtle: bool | None = None  # None = use class default, True/False = override
     ) -> SentinelDecision | None:
         """
         Evaluate checkpoint with Sentinel

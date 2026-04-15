@@ -37,7 +37,7 @@ def get_actual_cli_commands() -> set[str]:
     return commands
 
 
-def extract_documented_commands(docs_dir: Path = None) -> dict[str, list[tuple[str, int]]]:
+def extract_documented_commands(docs_dir: Path | None = None) -> dict[str, list[tuple[str, int]]]:
     """
     Extract all commands referenced in documentation
 

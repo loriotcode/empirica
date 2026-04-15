@@ -1027,8 +1027,8 @@ class SessionDatabase:
     # Goal and Subtask Management (for decision quality + continuity + audit)
     # =========================================================================
 
-    def create_goal(self, session_id: str, objective: str, scope_breadth: float = None,
-                   scope_duration: float = None, scope_coordination: float = None) -> str:
+    def create_goal(self, session_id: str, objective: str, scope_breadth: float | None = None,
+                   scope_duration: float | None = None, scope_coordination: float | None = None) -> str:
         """Create a new goal for this session (delegates to GoalRepository)
 
         Args:
@@ -1732,10 +1732,10 @@ class SessionDatabase:
         self,
         project_id: str,
         mode: str = "session_start",
-        project_root: str = None,
+        project_root: str | None = None,
         check_integrity: bool = False,
-        task_description: str = None,
-        epistemic_state: dict[str, float] = None,
+        task_description: str | None = None,
+        epistemic_state: dict[str, float] | None = None,
         context_to_inject: bool = False,
         subject: str | None = None,
         session_id: str | None = None,

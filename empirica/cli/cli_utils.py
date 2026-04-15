@@ -181,7 +181,7 @@ def handle_cli_error(error: Exception, command: str, verbose: bool = False, sess
             safe_print(f"⚠️  Auto-capture failed: {capture_error}")
 
 
-def parse_json_safely(json_string: str | None, default: dict = None) -> dict[str, Any]:
+def parse_json_safely(json_string: str | None, default: dict | None = None) -> dict[str, Any]:
     """Safely parse JSON string with fallback and escape sequence repair"""
     if not json_string:
         return default or {}

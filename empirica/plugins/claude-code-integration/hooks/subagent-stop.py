@@ -233,7 +233,7 @@ def extract_findings_from_transcript(transcript_path: str) -> dict:
 
 
 def rollup_to_parent(parent_session_id: str, agent_name: str, extracted: dict,
-                     subagent_data: dict = None):
+                     subagent_data: dict | None = None):
     """Log extracted findings/unknowns to parent session via epistemic rollup gate.
 
     Uses EpistemicRollupGate to score and filter findings before logging.

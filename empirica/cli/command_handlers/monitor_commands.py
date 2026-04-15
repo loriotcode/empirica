@@ -48,7 +48,7 @@ class UsageMonitor:
         >>> summary = mon.get_summary()
     """
 
-    def __init__(self, stats_file: Path = None):
+    def __init__(self, stats_file: Path | None = None):
         """
         Initialize UsageMonitor.
 
@@ -615,7 +615,7 @@ def handle_assess_state_command(args):
         handle_cli_error(e, "Assess State", getattr(args, 'verbose', False))
 
 
-def _display_turtle_stack(vectors: dict, session_id: str = None, prompt: str = None):
+def _display_turtle_stack(vectors: dict, session_id: str | None = None, prompt: str | None = None):
     """
     Display recursive grounding stack trace (the Noetic Handshake).
 
@@ -813,9 +813,7 @@ def _resolve_current_vectors(db, session_id=None) -> tuple:
             pass
 
     if not vectors:
-        vectors = {k: 0.5 for k in ['know', 'do', 'context', 'clarity', 'coherence', 'signal',
-                                      'density', 'engagement', 'state', 'change', 'completion',
-                                      'impact', 'uncertainty']}
+        vectors = dict.fromkeys(['know', 'do', 'context', 'clarity', 'coherence', 'signal', 'density', 'engagement', 'state', 'change', 'completion', 'impact', 'uncertainty'], 0.5)
     return vectors, project_id
 
 

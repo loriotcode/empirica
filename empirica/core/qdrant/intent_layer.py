@@ -25,13 +25,13 @@ def embed_assumption(
     assumption: str,
     confidence: float = 0.5,
     status: str = "unverified",
-    resolution_finding_id: str = None,
+    resolution_finding_id: str | None = None,
     entity_type: str = "project",
-    entity_id: str = None,
-    session_id: str = None,
-    transaction_id: str = None,
-    domain: str = None,
-    timestamp: float = None,
+    entity_id: str | None = None,
+    session_id: str | None = None,
+    transaction_id: str | None = None,
+    domain: str | None = None,
+    timestamp: float | None = None,
 ) -> bool:
     """Embed an assumption (unverified belief) for semantic search.
 
@@ -96,14 +96,14 @@ def embed_decision(
     decision_id: str,
     choice: str,
     rationale: str,
-    alternatives: str = None,
-    confidence_at_decision: float = None,
+    alternatives: str | None = None,
+    confidence_at_decision: float | None = None,
     reversibility: str = "committal",
     entity_type: str = "project",
-    entity_id: str = None,
-    session_id: str = None,
-    transaction_id: str = None,
-    timestamp: float = None,
+    entity_id: str | None = None,
+    session_id: str | None = None,
+    transaction_id: str | None = None,
+    timestamp: float | None = None,
 ) -> bool:
     """Embed a decision (recorded choice point) for semantic search.
 
@@ -170,13 +170,13 @@ def embed_intent_edge(
     confidence_at_crossing: float,
     reversibility: str = "exploratory",
     cascade_phase: str = "check",
-    reasoning: str = None,
-    vectors_snapshot: dict = None,
+    reasoning: str | None = None,
+    vectors_snapshot: dict | None = None,
     entity_type: str = "project",
-    entity_id: str = None,
-    session_id: str = None,
-    transaction_id: str = None,
-    timestamp: float = None,
+    entity_id: str | None = None,
+    session_id: str | None = None,
+    transaction_id: str | None = None,
+    timestamp: float | None = None,
 ) -> bool:
     """Embed an IntentEdge (provenance graph: noetic↔praxic transform).
 
@@ -243,8 +243,8 @@ def embed_intent_edge(
 def search_assumptions(
     project_id: str,
     query: str,
-    status: str = None,
-    entity_type: str = None,
+    status: str | None = None,
+    entity_type: str | None = None,
     min_urgency: float = 0.0,
     limit: int = 5,
 ) -> list[dict]:
@@ -319,8 +319,8 @@ def search_assumptions(
 def search_decisions(
     project_id: str,
     query: str,
-    reversibility: str = None,
-    entity_type: str = None,
+    reversibility: str | None = None,
+    entity_type: str | None = None,
     limit: int = 5,
 ) -> list[dict]:
     """Search decisions by semantic similarity with optional filters."""
@@ -381,8 +381,8 @@ def search_decisions(
 def search_intents(
     project_id: str,
     query: str,
-    direction: str = None,
-    cascade_phase: str = None,
+    direction: str | None = None,
+    cascade_phase: str | None = None,
     limit: int = 5,
 ) -> list[dict]:
     """Search IntentEdges by semantic similarity with optional filters."""

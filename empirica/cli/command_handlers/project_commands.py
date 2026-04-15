@@ -184,7 +184,7 @@ def get_workspace_projects() -> list[dict[str, Any]]:
 
 
 
-def _update_active_work(project_path: str, folder_name: str, empirica_session_id: str = None, claude_session_id: str = None) -> bool:
+def _update_active_work(project_path: str, folder_name: str, empirica_session_id: str | None = None, claude_session_id: str | None = None) -> bool:
     """
     Update active_work markers AND TTY session for cross-project continuity.
 

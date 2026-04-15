@@ -82,7 +82,7 @@ def archive_stale_plans() -> list:
     return archived
 
 
-def create_session_and_bootstrap(ai_id: str, project_id: str = None) -> dict:
+def create_session_and_bootstrap(ai_id: str, project_id: str | None = None) -> dict:
     """
     Create session + run bootstrap in sequence.
 

@@ -76,7 +76,7 @@ class InstanceResolver:
     # --- Project Resolution ---
 
     @staticmethod
-    def project_path(claude_session_id: str = None) -> 'str | None':
+    def project_path(claude_session_id: str | None = None) -> 'str | None':
         """Resolve the active project path.
 
         Priority: instance_projects > active_work_{uuid} > active_work.json
@@ -87,7 +87,7 @@ class InstanceResolver:
     # --- Session Resolution ---
 
     @staticmethod
-    def session_id(claude_session_id: str = None) -> 'str | None':
+    def session_id(claude_session_id: str | None = None) -> 'str | None':
         """Resolve the active Empirica session ID.
 
         Priority: transaction > active_work_{uuid} > instance_projects >
@@ -96,46 +96,46 @@ class InstanceResolver:
         return get_active_empirica_session_id(claude_session_id)
 
     @staticmethod
-    def resolve_session(session_id_or_alias: str, ai_id: str = None) -> str:
+    def resolve_session(session_id_or_alias: str, ai_id: str | None = None) -> str:
         """Resolve a partial session ID, alias, or 'latest' to full UUID."""
         return resolve_session_id(session_id_or_alias, ai_id)
 
     @staticmethod
-    def latest_session_id(ai_id: str = None, active_only: bool = False) -> 'str | None':
+    def latest_session_id(ai_id: str | None = None, active_only: bool = False) -> 'str | None':
         """Get the most recent session ID, optionally filtered by ai_id."""
         return get_latest_session_id(ai_id, active_only)
 
     # --- Context ---
 
     @staticmethod
-    def context(claude_session_id: str = None) -> dict:
+    def context(claude_session_id: str | None = None) -> dict:
         """Get the full active context (project_path, session_id, instance_id, etc.)."""
         return get_active_context(claude_session_id)
 
     @staticmethod
-    def engagement(claude_session_id: str = None) -> 'str | None':
+    def engagement(claude_session_id: str | None = None) -> 'str | None':
         """Get the active engagement ID."""
         return get_active_engagement(claude_session_id)
 
     # --- Transaction Lifecycle ---
 
     @staticmethod
-    def transaction_id(claude_session_id: str = None) -> 'str | None':
+    def transaction_id(claude_session_id: str | None = None) -> 'str | None':
         """Read just the active transaction ID."""
         return read_active_transaction(claude_session_id)
 
     @staticmethod
-    def transaction_read(claude_session_id: str = None) -> 'dict | None':
+    def transaction_read(claude_session_id: str | None = None) -> 'dict | None':
         """Read the full active transaction state from filesystem."""
         return read_active_transaction_full(claude_session_id)
 
     @staticmethod
     def transaction_write(
         transaction_id: str,
-        session_id: str = None,
-        preflight_timestamp: float = None,
+        session_id: str | None = None,
+        preflight_timestamp: float | None = None,
         status: str = "open",
-        project_path: str = None
+        project_path: str | None = None
     ) -> None:
         """Write (create or update) the active transaction file."""
         write_active_transaction(
@@ -147,29 +147,29 @@ class InstanceResolver:
         )
 
     @staticmethod
-    def transaction_clear(claude_session_id: str = None) -> None:
+    def transaction_clear(claude_session_id: str | None = None) -> None:
         """Delete the active transaction file."""
         clear_active_transaction(claude_session_id)
 
     @staticmethod
-    def transaction_increment(claude_session_id: str = None) -> 'dict | None':
+    def transaction_increment(claude_session_id: str | None = None) -> 'dict | None':
         """Increment the tool call counter in the active transaction."""
         return increment_transaction_tool_count(claude_session_id)
 
     # --- Hook Counters (separate from transaction lifecycle) ---
 
     @staticmethod
-    def counters_read(claude_session_id: str = None) -> 'dict | None':
+    def counters_read(claude_session_id: str | None = None) -> 'dict | None':
         """Read the hook counters file."""
         return read_hook_counters(claude_session_id)
 
     @staticmethod
-    def counters_write(data: dict, claude_session_id: str = None) -> bool:
+    def counters_write(data: dict, claude_session_id: str | None = None) -> bool:
         """Atomically write the hook counters file."""
         return write_hook_counters(data, claude_session_id)
 
     @staticmethod
-    def counters_clear(claude_session_id: str = None) -> None:
+    def counters_clear(claude_session_id: str | None = None) -> None:
         """Delete the hook counters file."""
         clear_hook_counters(claude_session_id)
 
@@ -187,9 +187,9 @@ class InstanceResolver:
 
     @staticmethod
     def tty_write(
-        claude_session_id: str = None,
-        empirica_session_id: str = None,
-        project_path: str = None
+        claude_session_id: str | None = None,
+        empirica_session_id: str | None = None,
+        project_path: str | None = None
     ) -> bool:
         """Write session mapping to TTY + instance_projects files."""
         return write_tty_session(
@@ -218,7 +218,7 @@ class InstanceResolver:
         return cleanup_stale_instance_projects()
 
     @staticmethod
-    def cleanup_stale_files(current_claude_session_id: str = None) -> int:
+    def cleanup_stale_files(current_claude_session_id: str | None = None) -> int:
         """Remove stale active_work, instance_projects, and active_session files."""
         return cleanup_stale_active_work_files(current_claude_session_id)
 
@@ -359,9 +359,9 @@ def get_tty_session(warn_if_stale: bool = True) -> dict[str, Any] | None:
 
 
 def write_tty_session(
-    claude_session_id: str = None,
-    empirica_session_id: str = None,
-    project_path: str = None
+    claude_session_id: str | None = None,
+    empirica_session_id: str | None = None,
+    project_path: str | None = None
 ) -> bool:
     """Write session mapping to TTY-keyed file for CLI commands to read.
 
@@ -459,7 +459,7 @@ def get_claude_session_id() -> str | None:
     return session.get('claude_session_id') if session else None
 
 
-def validate_tty_session(session: dict[str, Any] = None) -> dict[str, Any]:
+def validate_tty_session(session: dict[str, Any] | None = None) -> dict[str, Any]:
     """Validate a TTY session for staleness and warn if issues detected.
 
     Checks:
@@ -875,7 +875,7 @@ def _get_instance_suffix() -> str:
 
 
 
-def get_active_project_path(claude_session_id: str = None) -> 'str | None':
+def get_active_project_path(claude_session_id: str | None = None) -> 'str | None':
     """Get the active project path for the current instance.
 
     CANONICAL function for project resolution. All components should use this
@@ -973,10 +973,10 @@ def get_active_project_path(claude_session_id: str = None) -> 'str | None':
 
 def write_active_transaction(
     transaction_id: str,
-    session_id: str = None,
-    preflight_timestamp: float = None,
+    session_id: str | None = None,
+    preflight_timestamp: float | None = None,
     status: str = "open",
-    project_path: str = None
+    project_path: str | None = None
 ) -> None:
     """Atomically write the active transaction state to JSON file.
 
@@ -1038,7 +1038,7 @@ def write_active_transaction(
         raise
 
 
-def increment_transaction_tool_count(claude_session_id: str = None) -> dict | None:
+def increment_transaction_tool_count(claude_session_id: str | None = None) -> dict | None:
     """Atomically increment tool_call_count in the active transaction file.
 
     Called by Sentinel on every PreToolUse (both noetic and praxic) to track
@@ -1091,7 +1091,7 @@ def increment_transaction_tool_count(claude_session_id: str = None) -> dict | No
 
 
 def _find_transaction_file(empirica_dir: 'Path', suffix: str,
-                           session_id: str = None) -> 'Path | None':
+                           session_id: str | None = None) -> 'Path | None':
     """Find the active transaction file, with suffix-mismatch fallback.
 
     Primary: Look for the exact file matching the current instance suffix.
@@ -1145,7 +1145,7 @@ def _find_transaction_file(empirica_dir: 'Path', suffix: str,
     return None
 
 
-def read_active_transaction_full(claude_session_id: str = None) -> dict | None:
+def read_active_transaction_full(claude_session_id: str | None = None) -> dict | None:
     """Read the full active transaction data from the tracking file.
 
     Returns the complete transaction dict including:
@@ -1197,7 +1197,7 @@ def read_active_transaction_full(claude_session_id: str = None) -> dict | None:
     return None
 
 
-def read_active_transaction(claude_session_id: str = None) -> str | None:
+def read_active_transaction(claude_session_id: str | None = None) -> str | None:
     """Read the active transaction ID from the tracking file. Returns None if no active transaction.
 
     For full transaction data including session_id, use read_active_transaction_full().
@@ -1208,7 +1208,7 @@ def read_active_transaction(claude_session_id: str = None) -> str | None:
     return None
 
 
-def set_active_engagement(engagement_id: str, claude_session_id: str = None) -> bool:
+def set_active_engagement(engagement_id: str, claude_session_id: str | None = None) -> bool:
     """Set the active engagement on the current transaction file.
 
     When set, artifact logging (finding-log, decision-log, etc.) auto-inherits
@@ -1258,7 +1258,7 @@ def set_active_engagement(engagement_id: str, claude_session_id: str = None) -> 
         return False
 
 
-def get_active_engagement(claude_session_id: str = None) -> str | None:
+def get_active_engagement(claude_session_id: str | None = None) -> str | None:
     """Read active_engagement from the current transaction file.
 
     Returns engagement ID or None if no engagement is focused.
@@ -1269,7 +1269,7 @@ def get_active_engagement(claude_session_id: str = None) -> str | None:
     return None
 
 
-def _validate_session_in_db(session_id: str, project_path: str = None) -> bool:
+def _validate_session_in_db(session_id: str, project_path: str | None = None) -> bool:
     """Check if a session_id exists in the sessions table.
 
     Prevents stale session IDs (surviving compaction) from propagating
@@ -1417,7 +1417,7 @@ def _find_session_for_project(project_path: str) -> str | None:
         return None
 
 
-def get_active_empirica_session_id(claude_session_id: str = None) -> str | None:
+def get_active_empirica_session_id(claude_session_id: str | None = None) -> str | None:
     """Get the active Empirica session ID for CLI commands.
 
     CANONICAL function for session_id resolution. CLI commands should use this
@@ -1550,7 +1550,7 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> str | None:
     return None
 
 
-def clear_active_transaction(claude_session_id: str = None) -> None:
+def clear_active_transaction(claude_session_id: str | None = None) -> None:
     """Remove the active transaction tracking file (called on POSTFLIGHT).
 
     Uses get_active_project_path() to find correct project, NOT CWD.
@@ -1578,7 +1578,7 @@ def clear_active_transaction(claude_session_id: str = None) -> None:
             pass
 
 
-def _hook_counters_path(project_path: str = None, suffix: str = None) -> 'Path':
+def _hook_counters_path(project_path: str | None = None, suffix: str | None = None) -> 'Path':
     """Compute the path to the hook counters file.
 
     Co-located with the transaction file — same directory, same suffix.
@@ -1592,7 +1592,7 @@ def _hook_counters_path(project_path: str = None, suffix: str = None) -> 'Path':
     return Path.home() / '.empirica' / f'hook_counters{suffix}.json'
 
 
-def read_hook_counters(claude_session_id: str = None) -> dict | None:
+def read_hook_counters(claude_session_id: str | None = None) -> dict | None:
     """Read the hook counters file. Returns None if it doesn't exist."""
     project_path = get_active_project_path(claude_session_id)
     path = _hook_counters_path(project_path)
@@ -1605,7 +1605,7 @@ def read_hook_counters(claude_session_id: str = None) -> dict | None:
         return None
 
 
-def write_hook_counters(data: dict, claude_session_id: str = None) -> bool:
+def write_hook_counters(data: dict, claude_session_id: str | None = None) -> bool:
     """Atomically write the hook counters file.
 
     Called by hooks (sentinel, context-shift-tracker, subagent-stop).
@@ -1631,7 +1631,7 @@ def write_hook_counters(data: dict, claude_session_id: str = None) -> bool:
         return False
 
 
-def clear_hook_counters(claude_session_id: str = None) -> None:
+def clear_hook_counters(claude_session_id: str | None = None) -> None:
     """Delete the hook counters file (called by POSTFLIGHT after reading)."""
     project_path = get_active_project_path(claude_session_id)
     path = _hook_counters_path(project_path)
@@ -1700,7 +1700,7 @@ def cleanup_stale_instance_projects() -> int:
     return removed
 
 
-def cleanup_stale_active_work_files(current_claude_session_id: str = None) -> int:
+def cleanup_stale_active_work_files(current_claude_session_id: str | None = None) -> int:
     """Remove active_work_{uuid}.json files for ended sessions.
 
     Runs at session-init startup. Checks the DB for each file's session:
@@ -1755,7 +1755,7 @@ def cleanup_stale_active_work_files(current_claude_session_id: str = None) -> in
             except Exception:
                 continue
 
-    def _is_session_ended(session_id: str, project_path: str = None) -> bool:
+    def _is_session_ended(session_id: str, project_path: str | None = None) -> bool:
         """Check if a session has end_time set in the DB."""
         if not session_id:
             return False
@@ -1857,7 +1857,7 @@ def cleanup_stale_active_work_files(current_claude_session_id: str = None) -> in
 # Unified Context Resolver
 # ============================================================================
 
-def get_active_context(claude_session_id: str = None) -> dict:
+def get_active_context(claude_session_id: str | None = None) -> dict:
     """Get the complete active epistemic context.
 
     CANONICAL function for getting the full context. All components should
@@ -1958,8 +1958,8 @@ def get_active_context(claude_session_id: str = None) -> dict:
 
 def update_active_context(
     claude_session_id: str,
-    empirica_session_id: str = None,
-    project_path: str = None,
+    empirica_session_id: str | None = None,
+    project_path: str | None = None,
     **extra_fields
 ) -> bool:
     """Update the active_work file with new context values.

@@ -743,7 +743,7 @@ def _render_cascades(cascades):
             "",
         ])
 
-        for i, entry in enumerate(entries):
+        for _i, entry in enumerate(entries):
             decision = entry.get("decision", "?")
             payload = entry.get("data", {})
             ts = payload.get("timestamp", "")
@@ -1047,7 +1047,7 @@ def generate_artifacts(workspace_root, output_dir=None, verbose=False):
     # Tasks (subtasks) — index by goal_id
     raw_tasks = _read_all_notes(workspace, "tasks")
     tasks_by_goal = {}
-    for tid, tdata in raw_tasks:
+    for _tid, tdata in raw_tasks:
         gid = tdata.get("goal_id", "")
         tasks_by_goal.setdefault(gid, []).append(tdata)
 

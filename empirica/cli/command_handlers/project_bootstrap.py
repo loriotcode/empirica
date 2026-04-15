@@ -30,7 +30,7 @@ def handle_project_bootstrap_command(args):
         output_format = getattr(args, 'output', 'human')
         project_id = getattr(args, 'project_id', None)
 
-        def _error_output(error_msg: str, hint: str = None):
+        def _error_output(error_msg: str, hint: str | None = None):
             """Output error in appropriate format"""
             if output_format == 'json':
                 result = {'ok': False, 'error': error_msg}

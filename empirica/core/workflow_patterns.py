@@ -543,7 +543,7 @@ def format_suggestions_human(suggestions: list[WorkflowSuggestion], limit: int =
         return "Not enough data for suggestions yet. Need 3+ transactions with traces."
 
     lines = [f"Workflow Suggestions ({len(suggestions)} found):\n"]
-    for i, s in enumerate(suggestions[:limit]):
+    for _i, s in enumerate(suggestions[:limit]):
         icon = {"investigation": "🔍", "verification": "✓", "artifact": "📝", "timing": "⏱"}.get(s.category, "💡")
         lines.append(f"  {icon} {s.suggestion}")
         lines.append(f"     Confidence: {s.confidence:.0%} | Evidence: {s.evidence}")

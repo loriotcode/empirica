@@ -653,7 +653,7 @@ def _try_increment_tool_count(claude_session_id: str | None = None,
             elif tool_name == 'Bash' and tool_input:
                 cmd = tool_input.get('command', '')
                 target = cmd.split()[0] if cmd else ''  # First word of command
-            elif tool_name == 'Grep' and tool_input or tool_name == 'Glob' and tool_input:
+            elif (tool_name == 'Grep' and tool_input) or (tool_name == 'Glob' and tool_input):
                 target = tool_input.get('pattern', '')[:30]
             phase = 'n' if _is_noetic else 'p'
             trace = counters.get('tool_trace', [])
@@ -1299,7 +1299,7 @@ def _classify_rsync(command: str) -> bool:
     non_option_args = []
     skip_next = False
 
-    for i, part in enumerate(parts[1:], 1):
+    for _i, part in enumerate(parts[1:], 1):
         if skip_next:
             skip_next = False
             continue
@@ -1463,7 +1463,7 @@ def _is_praxic_remote_command(command: str) -> bool:
     return True
 
 
-def _confidence_gate_remote(claude_session_id: str = None) -> str:
+def _confidence_gate_remote(claude_session_id: str | None = None) -> str:
     """Apply ConfidenceGate threshold check using latest vectors.
 
     Reads the most recent PREFLIGHT or CHECK vectors from the session DB.
