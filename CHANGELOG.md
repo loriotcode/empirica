@@ -5,6 +5,42 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.3] - 2026-04-15
+
+### Changed
+- **Behavioral feedback refactor**: PREFLIGHT `previous_transaction_feedback` now shows
+  artifact gaps, commit discipline, and skill/command suggestions instead of vector-level
+  overestimate/underestimate tendencies. Brier score surfaces as rolling trend
+  (improving/stable/widening), not per-transaction number.
+- **Belief framing**: Vectors are "beliefs about epistemic state" not performance scores.
+  Services "inform" beliefs, not "correct" them. Updated across all AI-facing prompts,
+  skills, end-user docs, developer docs, and reference docs (37 files total).
+- **Transaction discipline**: 5 rules encoded in transaction skill and system prompts —
+  goal-per-transaction, commit-per-subtask, artifact breadth, close-before-POSTFLIGHT,
+  subtask-task visibility.
+- **Pre-compact vectors**: Only included in compact guidance when carrying an open
+  transaction through compaction. Closed sessions get "run fresh PREFLIGHT" instead.
+
+### Added
+- **Goal lifecycle**: `planned` status for goals logged but not yet started.
+  `goals-create --status planned` creates backlog items excluded from metrics.
+- **Migration 038**: Converts stale/blocked goals to in_progress. Goal lifecycle
+  simplified to planned/in_progress/completed.
+- **Planned goals workflow**: New documentation section in SESSION_GOAL_WORKFLOW.md
+  showing the collaborative catalog-then-execute pattern.
+- **Skill/command routing**: Behavioral feedback suggests specific actions —
+  `/epistemic-transaction` for artifact gaps, `unknown-list` for unresolved unknowns,
+  `goals-create` for goalless state.
+
+### Fixed
+- **Completion grounding bias**: Triage metrics denominator now scoped to transaction-
+  relevant goals (created/completed/linked in this transaction), not all historical goals.
+  Fixes 1/18 ratio bug when 17 old goals existed.
+- **Planned goal exclusion**: `planned` goals excluded from completion metrics,
+  prose collector ratios, and sentinel goalless detection.
+- **NameError in behavioral feedback**: `missing` variable scoped correctly when
+  `artifact_counts` is empty.
+
 ## [1.8.2] - 2026-04-13
 
 ### Added — Provenance Graph
