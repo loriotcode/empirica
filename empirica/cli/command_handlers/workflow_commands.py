@@ -605,10 +605,9 @@ def handle_preflight_submit_command(args):
 
                         # Artifact breadth gaps → actionable discipline
                         artifact_counts = retro.get('artifact_counts', {})
-                        if artifact_counts:
-                            missing = [k for k, v in artifact_counts.items() if v == 0]
-                            if missing:
-                                previous_transaction_feedback["artifact_gaps"] = missing
+                        missing = [k for k, v in artifact_counts.items() if v == 0] if artifact_counts else []
+                        if missing:
+                            previous_transaction_feedback["artifact_gaps"] = missing
 
                         # Breadth note (narrow logging pattern)
                         if retro.get('breadth_note'):
