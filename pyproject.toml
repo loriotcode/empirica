@@ -232,7 +232,8 @@ section-order = ["future", "standard-library", "third-party", "first-party", "lo
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = ["S101"]  # allow assert in tests
 "tests/**/*.py" = ["S101"]  # allow assert in nested tests
-"__init__.py" = ["F401"]  # allow unused imports in __init__
+"__init__.py" = ["F401", "E402"]  # allow unused imports and late imports in __init__
+"empirica/cli/cli_core.py" = ["F405"]  # star import from command_handlers __init__ (all exports defined in __all__)
 "empirica/plugins/**/*.py" = ["S108"]  # hooks use temp paths intentionally
 "scripts/*.py" = ["S108"]  # scripts use temp paths
 
