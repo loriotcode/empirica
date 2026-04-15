@@ -121,3 +121,7 @@ empirica-outreach/
 .empirica/active_session
 .breadcrumbs.yaml
 specs/
+
+# Claude Code local config
+.claude/
+.claude-backup/
