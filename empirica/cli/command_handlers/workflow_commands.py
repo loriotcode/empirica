@@ -2593,6 +2593,12 @@ def handle_postflight_submit_command(args):
                     postflight_tool_trace = counters.get('tool_trace', [])
 
                     # Close transaction (workflow-owned write)
+                    # Preserve enrichment fields — transaction_write does a full overwrite
+                    # with only base fields. Save enrichment before, re-inject after.
+                    _enrichment_keys = ('domain', 'criticality', 'work_type', 'work_context',
+                                        'cascade_profile', 'predicted_check_outcomes')
+                    _saved_enrichment = {k: tx_data[k] for k in _enrichment_keys if tx_data.get(k)}
+
                     R.transaction_write(
                         transaction_id=postflight_transaction_id,
                         session_id=tx_data.get('session_id'),
@@ -2600,6 +2606,19 @@ def handle_postflight_submit_command(args):
                         status="closed",
                         project_path=tx_data.get('project_path') or resolved_project_path
                     )
+
+                    # Re-inject enrichment fields after close
+                    if _saved_enrichment:
+                        try:
+                            _closed_tx = R.transaction_read() or {}
+                            _closed_tx.update(_saved_enrichment)
+                            _tx_suffix = R.instance_suffix()
+                            _tx_proj = _closed_tx.get('project_path', resolved_project_path)
+                            _tx_path = Path(_tx_proj) / '.empirica' / f'active_transaction{_tx_suffix}.json'
+                            with open(_tx_path, 'w') as f:
+                                _json.dump(_closed_tx, f, indent=2)
+                        except Exception as e:
+                            logger.warning(f"Failed to preserve enrichment on close: {e}")
                     # Delete hook counters file — data captured above
                     R.counters_clear()
             except Exception as e:
