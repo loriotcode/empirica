@@ -420,10 +420,13 @@ def handle_preflight_submit_command(args):
                                 tx_d['cascade_profile'] = selected_profile
                                 with open(tx_file, 'w') as f:
                                     _json.dump(tx_d, f, indent=2)
+                                logger.debug(f"Transaction enriched: work_type={work_type}, domain={domain}, criticality={criticality}")
                                 if selected_profile != 'default':
                                     logger.info(f"Cascade profile: {selected_profile} (from work_type={work_type}, work_context={work_context})")
-                        except Exception:
-                            pass  # Non-fatal
+                            else:
+                                logger.warning(f"Transaction file not found for enrichment: {tx_file}")
+                        except Exception as e:
+                            logger.warning(f"Transaction enrichment failed: {e}")
 
                     # CRITICAL: Update active context with the session_id used by PREFLIGHT
                     # This ensures sentinel reads the SAME session_id that PREFLIGHT wrote to
