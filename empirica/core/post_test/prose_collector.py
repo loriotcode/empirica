@@ -17,7 +17,6 @@ Activated via evidence_profile: "prose" in project.yaml or --evidence-profile fl
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 from .collector import EvidenceItem, EvidenceQuality
 

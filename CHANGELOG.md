@@ -5,6 +5,17 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.4] - 2026-04-15
+
+### Fixed
+- **Compliance pipeline**: Domain/criticality enrichment was destroyed on every
+  POSTFLIGHT transaction close (R.transaction_write overwrites with base fields only).
+  Compliance checks never fired despite being correctly configured. Now preserves
+  enrichment fields across close.
+- **Silent error surfacing**: Compliance loop and PREFLIGHT domain injection errors
+  now logged with warnings instead of silently swallowed by except-pass.
+- **Ruff auto-fix**: 15 lint issues fixed in session-changed files.
+
 ## [1.8.3] - 2026-04-15
 
 ### Changed

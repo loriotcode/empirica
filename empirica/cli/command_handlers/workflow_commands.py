@@ -505,7 +505,9 @@ def handle_preflight_submit_command(args):
             try:
                 from empirica.core.bus_persistence import wire_persistent_observers
                 from empirica.core.epistemic_bus import (
-                    EpistemicEvent, EventTypes, get_global_bus,
+                    EpistemicEvent,
+                    EventTypes,
+                    get_global_bus,
                 )
                 wire_persistent_observers(session_id=session_id)
                 bus = get_global_bus()
@@ -802,7 +804,7 @@ def handle_preflight_submit_command(args):
             result = {
                 "ok": False,
                 "session_id": session_id,
-                "message": f"Failed to save PREFLIGHT assessment: {str(e)}",
+                "message": f"Failed to save PREFLIGHT assessment: {e!s}",
                 "vectors_submitted": 0,
                 "persisted": False,
                 "error": str(e)
@@ -893,7 +895,6 @@ def handle_check_command(args):
     - Reasoning for suggestion
     """
     try:
-        import os
         import sys
         import time
 
@@ -1463,7 +1464,9 @@ def handle_check_submit_command(args):
             try:
                 from empirica.core.bus_persistence import wire_persistent_observers
                 from empirica.core.epistemic_bus import (
-                    EpistemicEvent, EventTypes, get_global_bus,
+                    EpistemicEvent,
+                    EventTypes,
+                    get_global_bus,
                 )
                 wire_persistent_observers(session_id=session_id)
                 bus = get_global_bus()
@@ -1816,7 +1819,7 @@ def handle_check_submit_command(args):
             result = {
                 "ok": False,
                 "session_id": session_id,
-                "message": f"Failed to save CHECK assessment: {str(e)}",
+                "message": f"Failed to save CHECK assessment: {e!s}",
                 "persisted": False,
                 "error": str(e)
             }
@@ -1994,7 +1997,9 @@ def _run_postflight_storage_pipeline(
     try:
         if grounded_verification and grounded_verification.get('evidence_count', 0) > 0:
             from empirica.core.qdrant.vector_store import (
-                _check_qdrant_available, embed_calibration_trajectory, embed_grounded_verification,
+                _check_qdrant_available,
+                embed_calibration_trajectory,
+                embed_grounded_verification,
             )
             if _check_qdrant_available():
                 grounded_vectors = {}
@@ -2134,7 +2139,10 @@ def _run_postflight_storage_pipeline(
     # 7. Decay triggers + global sync
     try:
         from empirica.core.qdrant.vector_store import (
-            _check_qdrant_available, apply_staleness_signal, auto_sync_session_to_global, update_assumption_urgency,
+            _check_qdrant_available,
+            apply_staleness_signal,
+            auto_sync_session_to_global,
+            update_assumption_urgency,
         )
         if _check_qdrant_available():
             try:
@@ -2335,7 +2343,6 @@ def handle_postflight_submit_command(args):
     try:
         import os
         import sys
-        import time
         import uuid
 
         from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
@@ -2540,7 +2547,6 @@ def handle_postflight_submit_command(args):
             postflight_work_context = None
             try:
                 import json as _json
-                import time
                 from pathlib import Path
 
                 # Read current transaction with instance suffix (multi-instance isolation)
@@ -2677,7 +2683,9 @@ def handle_postflight_submit_command(args):
             try:
                 from empirica.core.bus_persistence import wire_persistent_observers
                 from empirica.core.epistemic_bus import (
-                    EpistemicEvent, EventTypes, get_global_bus,
+                    EpistemicEvent,
+                    EventTypes,
+                    get_global_bus,
                 )
                 wire_persistent_observers(session_id=session_id)
                 bus = get_global_bus()
@@ -2792,8 +2800,8 @@ def handle_postflight_submit_command(args):
             compliance_result = None
             compliance_error = None
             try:
-                from empirica.core.post_test.compliance_loop import run_compliance_checks
                 from empirica.config.service_registry import ServiceRegistry
+                from empirica.core.post_test.compliance_loop import run_compliance_checks
                 if not ServiceRegistry.list_all():
                     ServiceRegistry.load_builtins()
                 # Read domain/criticality from transaction file
@@ -2930,8 +2938,8 @@ def handle_postflight_submit_command(args):
                 _cortex_url = os.environ.get('CORTEX_REMOTE_URL', '')
                 _cortex_key = os.environ.get('CORTEX_API_KEY', '')
                 if _cortex_url and _cortex_key and result.get('ok'):
-                    import urllib.request
                     import urllib.error
+                    import urllib.request
 
                     # Resolve project UUID
                     _sync_pid = ""
@@ -3022,7 +3030,7 @@ def handle_postflight_submit_command(args):
             result = {
                 "ok": False,
                 "session_id": session_id,
-                "message": f"Failed to save POSTFLIGHT assessment: {str(e)}",
+                "message": f"Failed to save POSTFLIGHT assessment: {e!s}",
                 "persisted": False,
                 "error": str(e)
             }
