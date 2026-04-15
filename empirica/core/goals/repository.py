@@ -334,11 +334,12 @@ class GoalRepository:
             import time
             timestamp = time.time() if is_completed else None
 
+            status = 'completed' if is_completed else 'in_progress'
             self.db.conn.execute("""
-                UPDATE goals 
-                SET is_completed = ?, completed_timestamp = ?
+                UPDATE goals
+                SET is_completed = ?, completed_timestamp = ?, status = ?
                 WHERE id = ?
-            """, (is_completed, timestamp, goal_id))
+            """, (is_completed, timestamp, status, goal_id))
 
             # Also update the goal_data JSON
             goal = self.get_goal(goal_id)
