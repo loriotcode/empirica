@@ -264,44 +264,10 @@ def format_execution_time(start_time: float, end_time: float | None = None) -> s
         return f"{duration:.3f}s"
 
 
-def validate_confidence_threshold(threshold: float) -> bool:
-    """Validate confidence threshold is in valid range"""
-    return 0.0 <= threshold <= 1.0
-
-
 def print_header(title: str, emoji: str = "🎯") -> None:
     """Print a formatted header for CLI sections"""
     safe_print(f"\n{emoji} {title}")
     safe_print("=" * (len(title) + 3))
-
-
-def print_separator(char: str = "-", length: int = 50) -> None:
-    """Print a separator line"""
-    safe_print(char * length)
-
-
-def format_component_list(components: list[dict[str, Any]], show_details: bool = False) -> str:
-    """Format component list for display"""
-    if not components:
-        return "No components available"
-
-    output = []
-    working_count = sum(1 for c in components if c.get('status') == 'working')
-    total_count = len(components)
-
-    output.append(f"📊 Component Status: {working_count}/{total_count} working")
-
-    if show_details:
-        output.append("\n📋 Component Details:")
-        for component in components:
-            status_emoji = "✅" if component.get('status') == 'working' else "❌"
-            name = component.get('name', 'Unknown')
-            output.append(f"   {status_emoji} {name}")
-
-            if component.get('error') and component.get('status') != 'working':
-                output.append(f"      Error: {component['error']}")
-
-    return "\n".join(output)
 
 
 def print_project_context(quiet: bool = False, verbose: bool = False) -> dict[str, str] | None:

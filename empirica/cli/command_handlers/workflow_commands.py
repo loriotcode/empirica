@@ -66,53 +66,6 @@ def _get_db_for_session(session_id: str):
         return SessionDatabase()
 
 
-def _get_open_counts_for_cache(session_id: str) -> tuple:
-    """
-    Get open goals and unknowns counts for statusline cache.
-
-    Returns:
-        (open_goals, open_unknowns, goal_linked_unknowns) tuple
-    """
-    try:
-        db = _get_db_for_session(session_id)
-        cursor = db.conn.cursor()
-
-        # Get project_id from session
-        cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
-        row = cursor.fetchone()
-        project_id = row[0] if row else None
-
-        if not project_id:
-            db.close()
-            return (0, 0, 0)
-
-        # Count open goals for this project
-        cursor.execute("""
-            SELECT COUNT(*) FROM goals
-            WHERE is_completed = 0 AND project_id = ?
-        """, (project_id,))
-        open_goals = cursor.fetchone()[0] or 0
-
-        # Count unresolved unknowns for this project
-        cursor.execute("""
-            SELECT COUNT(*) FROM project_unknowns
-            WHERE is_resolved = 0 AND project_id = ?
-        """, (project_id,))
-        open_unknowns = cursor.fetchone()[0] or 0
-
-        # Count goal-linked unknowns (blockers)
-        cursor.execute("""
-            SELECT COUNT(*) FROM project_unknowns
-            WHERE is_resolved = 0 AND goal_id IS NOT NULL AND project_id = ?
-        """, (project_id,))
-        goal_linked_unknowns = cursor.fetchone()[0] or 0
-
-        db.close()
-        return (open_goals, open_unknowns, goal_linked_unknowns)
-    except Exception:
-        return (0, 0, 0)
-
-
 def _check_bootstrap_status(session_id: str) -> dict:
     """
     Check if project-bootstrap has been run for this session.

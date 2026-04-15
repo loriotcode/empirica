@@ -31,12 +31,6 @@ TEST_AI_PATTERNS = [
 MIN_SESSION_DURATION = 300  # 5 minutes
 
 
-def get_db_path() -> Path:
-    """Get the sessions database path via unified context resolver."""
-    from empirica.config.path_resolver import get_session_db_path
-    return get_session_db_path()
-
-
 def get_ref_docs_path() -> Path:
     """Get the ref-docs directory for pre-compact snapshots via unified context resolver."""
     try:
@@ -222,7 +216,8 @@ def analyze_compact_events(
     - recovery: Delta from post-preflight to post-check
     - net_loss: Delta from pre to post-check (permanent loss)
     """
-    db_path = get_db_path()
+    from empirica.config.path_resolver import get_session_db_path
+    db_path = get_session_db_path()
     ref_docs_path = get_ref_docs_path()
 
     snapshots = load_pre_compact_snapshots(ref_docs_path)
@@ -478,49 +473,3 @@ def handle_compact_analysis(args: argparse.Namespace) -> dict:
         return {'ok': False, 'error': f"Analysis failed: {e}"}
 
 
-def add_compact_analysis_parser(subparsers) -> None:
-    """Add compact-analysis command to CLI."""
-    parser = subparsers.add_parser(
-        'compact-analysis',
-        help='Analyze epistemic loss during memory compaction',
-        description="""
-Retroactively analyze pre-compact snapshots vs post-compact assessments
-to measure knowledge loss and recovery during Claude Code memory compaction.
-
-Data Quality Filtering (default):
-- Excludes test sessions (ai_id: test*, *-test, storage-*)
-- Requires sessions with actual work evidence (findings/unknowns)
-- Filters rapid-fire sessions (< 5 min duration)
-
-Use --include-tests to see all data including test sessions.
-        """
-    )
-
-    parser.add_argument(
-        '--include-tests',
-        action='store_true',
-        help='Include test sessions in analysis (normally filtered)'
-    )
-
-    parser.add_argument(
-        '--min-findings',
-        type=int,
-        default=0,
-        help='Minimum findings count to include session (default: 0)'
-    )
-
-    parser.add_argument(
-        '--limit',
-        type=int,
-        default=20,
-        help='Maximum number of compact events to analyze (default: 20)'
-    )
-
-    parser.add_argument(
-        '--output',
-        choices=['human', 'json'],
-        default='human',
-        help='Output format (default: human)'
-    )
-
-    parser.set_defaults(func=handle_compact_analysis)

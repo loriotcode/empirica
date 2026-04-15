@@ -126,13 +126,6 @@ def _get_remote_url(remote: str = 'origin') -> str | None:
     return None
 
 
-def _is_public_repo() -> bool | None:
-    """Try to detect if repo is public (best effort, may return None)"""
-    # This is a heuristic - we can't truly know without API calls
-    # For now, return None (unknown) and rely on user config
-    return None
-
-
 def _list_remotes() -> dict[str, str]:
     """List all git remotes and their URLs"""
     try:

@@ -66,14 +66,6 @@ def _format_date_short(ts):
     return full[:10] if len(full) >= 10 else full
 
 
-def _impact_bar(impact):
-    """Render impact as a visual bar."""
-    if impact is None:
-        return ""
-    n = int(float(impact) * 10)
-    return "\u2588" * n + "\u2591" * (10 - n) + f" {float(impact):.1f}"
-
-
 def _truncate(text, length=100):
     """Truncate text with ellipsis."""
     if not text:
