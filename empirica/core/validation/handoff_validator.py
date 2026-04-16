@@ -13,6 +13,7 @@ Phase 3 Component: Ensures multi-AI coordination coherence
 """
 
 import logging
+from typing import Any
 
 from .validation_utils import get_git_diff_summary
 
@@ -35,9 +36,9 @@ class HandoffValidator:
 
     def validate_handoff(
         self,
-        checkpoint_data: dict[str, any],
+        checkpoint_data: dict[str, Any],
         previous_ai_id: str = "unknown"
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """
         Before I trust previous AI's work, verify it makes sense.
 
@@ -116,7 +117,7 @@ class HandoffValidator:
             "ai_id": self.ai_id
         }
 
-    def _check_claim_vs_reality(self, checkpoint_data: dict[str, any]) -> dict[str, any]:
+    def _check_claim_vs_reality(self, checkpoint_data: dict[str, Any]) -> dict[str, Any]:
         """
         Did they do what they claimed?
 
@@ -168,8 +169,8 @@ class HandoffValidator:
     def _check_findings_credibility(
         self,
         findings: list[dict],
-        checkpoint_data: dict[str, any]
-    ) -> dict[str, any]:
+        checkpoint_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Are findings credible given their assessment?
 
@@ -225,7 +226,7 @@ class HandoffValidator:
         self,
         unknowns: list[dict],
         findings: list[dict]
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """
         Do the remaining unknowns make sense?
 
@@ -273,10 +274,10 @@ class HandoffValidator:
 
     def _check_overall_coherence(
         self,
-        checkpoint_data: dict[str, any],
+        checkpoint_data: dict[str, Any],
         findings: list[dict],
         unknowns: list[dict]
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """
         Does the overall checkpoint hang together coherently?
 

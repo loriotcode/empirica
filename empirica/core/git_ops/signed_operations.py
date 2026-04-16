@@ -27,7 +27,7 @@ import subprocess
 # Import GitPython - handle naming conflict with empirica.core.git package
 # We import git commands but need to be careful of the package name conflict
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime  # type: ignore[reportAttributeAccessIssue]
 from pathlib import Path
 from typing import Any
 

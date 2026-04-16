@@ -13,6 +13,7 @@ Phase 3 Component: Makes handoffs coherent through mutual understanding
 """
 
 import logging
+from typing import Any
 
 from .validation_utils import calculate_understanding_ratio, estimate_rehydration_boost
 
@@ -35,9 +36,9 @@ class EpistemicRehydration:
 
     def rehydrate_from_checkpoint(
         self,
-        checkpoint_data: dict[str, any],
+        checkpoint_data: dict[str, Any],
         my_knowledge_assessment: dict[str, float]
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """
         I'm resuming from a checkpoint. What should I understand before starting?
 
@@ -192,7 +193,7 @@ class EpistemicRehydration:
 
     def calculate_adjusted_preflight(
         self,
-        checkpoint_data: dict[str, any],
+        checkpoint_data: dict[str, Any],
         my_base_assessment: dict[str, float]
     ) -> dict[str, float]:
         """

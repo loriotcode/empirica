@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ TIME_GAP_THRESHOLDS = {
 }
 
 
-def compute_time_gap_info(last_session_timestamp: float | None = None) -> dict[str, any]:
+def compute_time_gap_info(last_session_timestamp: float | None = None) -> dict[str, Any]:
     """
     Compute time gap information since last session.
 
@@ -244,6 +245,85 @@ def _compute_adaptive_limits(vectors: dict | None, base_limit: int) -> dict[str,
     }
 
 
+def _enrich_memory_types(result, project_id, task_context, limits, include_eidetic, include_episodic):
+    """Enrich with eidetic facts, episodic narratives, and global dead-ends."""
+    if include_eidetic:
+        try:
+            from .vector_store import search_eidetic
+            result["eidetic_facts"] = [
+                {"content": e.get("content", ""), "confidence": e.get("confidence", 0.5),
+                 "domain": e.get("domain"), "confirmation_count": e.get("confirmation_count", 1), "score": e.get("score", 0.0)}
+                for e in search_eidetic(project_id, task_context, min_confidence=0.5, limit=limits["eidetic"])]
+        except Exception as e:
+            logger.debug(f"Eidetic retrieval failed: {e}"); result["eidetic_facts"] = []
+    if include_episodic:
+        try:
+            from .vector_store import search_episodic
+            result["episodic_narratives"] = [
+                {"narrative": ep.get("narrative", ""), "outcome": ep.get("outcome"),
+                 "learning_delta": ep.get("learning_delta", {}), "recency_weight": ep.get("recency_weight", 1.0), "score": ep.get("score", 0.0)}
+                for ep in search_episodic(project_id, task_context, limit=limits["episodic"], apply_recency_decay=True)]
+        except Exception as e:
+            logger.debug(f"Episodic retrieval failed: {e}"); result["episodic_narratives"] = []
+    try:
+        from .vector_store import search_global_dead_ends
+        raw = search_global_dead_ends(f"Approach for: {task_context}", limit=limits["global_dead_ends"])
+        if raw:
+            result["global_dead_ends"] = [{"approach": g.get("approach", g.get("text", "")), "why_failed": g.get("why_failed", ""),
+                "project": g.get("project_name", "other project"), "score": g.get("score", 0.0)} for g in raw]
+    except Exception as e:
+        logger.debug(f"Global dead-ends retrieval failed: {e}")
+
+
+def _enrich_knowledge_graph(result, project_id, task_context, threshold, limits,
+                            include_goals, include_assumptions, include_decisions, include_related_docs):
+    """Enrich with goals, assumptions, decisions, and docs."""
+    if include_goals:
+        try:
+            from .vector_store import search_goals
+            raw = search_goals(project_id, task_context, include_subtasks=True, limit=limits["goals"])
+            if raw:
+                result["related_goals"] = [{"objective": g.get("objective") or g.get("description", ""), "status": g.get("status", ""),
+                    "type": g.get("type", "goal"), "goal_id": g.get("goal_id", ""), "score": g.get("score", 0.0)} for g in raw]
+        except Exception as e:
+            logger.debug(f"Goals retrieval failed: {e}")
+    if include_assumptions:
+        try:
+            from .vector_store import search_assumptions
+            raw = search_assumptions(project_id, task_context, status="unverified", limit=limits["assumptions"])
+            if raw:
+                result["unverified_assumptions"] = [{"assumption": a.get("assumption", ""), "confidence": a.get("confidence", 0.5),
+                    "urgency_signal": a.get("urgency_signal", 0.0), "domain": a.get("domain"), "score": a.get("score", 0.0)} for a in raw]
+        except Exception as e:
+            logger.debug(f"Assumptions retrieval failed: {e}")
+    if include_decisions:
+        try:
+            from .vector_store import search_decisions
+            raw = search_decisions(project_id, task_context, limit=limits["decisions"])
+            if raw:
+                result["prior_decisions"] = [{"choice": d.get("choice", ""), "rationale": d.get("rationale", ""),
+                    "reversibility": d.get("reversibility", ""), "confidence_at_decision": d.get("confidence_at_decision", 0.5),
+                    "score": d.get("score", 0.0)} for d in raw]
+        except Exception as e:
+            logger.debug(f"Decisions retrieval failed: {e}")
+    if include_related_docs:
+        try:
+            raw = _search_related_docs(project_id, task_context, limit=limits["docs"], min_score=threshold)
+            result["related_docs"] = [{"doc_path": d.get("doc_path", ""), "description": d.get("description", ""),
+                "doc_type": d.get("doc_type", ""), "tags": d.get("tags", []), "score": d.get("score", 0.0)} for d in raw]
+        except Exception as e:
+            logger.debug(f"Related docs retrieval failed: {e}"); result["related_docs"] = []
+
+
+def _enrich_task_patterns(result, project_id, task_context, threshold, limits,
+                          include_eidetic, include_episodic, include_related_docs,
+                          include_goals, include_assumptions, include_decisions):
+    """Enrich task patterns with optional retrieval types."""
+    _enrich_memory_types(result, project_id, task_context, limits, include_eidetic, include_episodic)
+    _enrich_knowledge_graph(result, project_id, task_context, threshold, limits,
+                            include_goals, include_assumptions, include_decisions, include_related_docs)
+
+
 def retrieve_task_patterns(
     project_id: str,
     task_context: str,
@@ -257,7 +337,7 @@ def retrieve_task_patterns(
     include_assumptions: bool = False,
     include_decisions: bool = False,
     vectors: dict | None = None,
-) -> dict[str, any]:
+) -> dict[str, Any]:
     """
     PREFLIGHT hook: Retrieve relevant patterns for a task (Noetic RAG).
 
@@ -362,170 +442,50 @@ def retrieve_task_patterns(
         "time_gap": time_gap_info,
     }
 
-    # Optional: Include eidetic facts (stable facts with confidence)
-    if include_eidetic:
+    # Enrich with optional retrieval types
+    _enrich_task_patterns(result, project_id, task_context, threshold, limits,
+        include_eidetic, include_episodic, include_related_docs,
+        include_goals, include_assumptions, include_decisions)
+    return result
+
+
+def _enrich_check_warnings(warnings, project_id, current_approach, threshold, limit,
+                           include_findings, include_eidetic, include_goals, include_assumptions):
+    """Enrich CHECK warnings with optional findings, eidetic, goals, and assumptions."""
+    if include_findings and current_approach:
+        try:
+            raw = _search_memory_by_type(project_id, current_approach, "finding", limit, threshold)
+            if raw:
+                warnings["related_findings"] = [{"finding": f.get("text", ""), "impact": f.get("impact", 0.5), "score": f.get("score", 0.0)} for f in raw]
+        except Exception as e:
+            logger.debug(f"CHECK findings retrieval failed: {e}")
+    if include_eidetic and current_approach:
         try:
             from .vector_store import search_eidetic
-            eidetic_raw = search_eidetic(
-                project_id,
-                task_context,
-                min_confidence=0.5,
-                limit=limits["eidetic"]
-            )
-            result["eidetic_facts"] = [
-                {
-                    "content": e.get("content", ""),
-                    "confidence": e.get("confidence", 0.5),
-                    "domain": e.get("domain"),
-                    "confirmation_count": e.get("confirmation_count", 1),
-                    "score": e.get("score", 0.0)
-                }
-                for e in eidetic_raw
-            ]
+            raw = search_eidetic(project_id, current_approach, min_confidence=0.5, limit=limit)
+            if raw:
+                warnings["eidetic_context"] = [{"content": e.get("content", ""), "confidence": e.get("confidence", 0.5),
+                    "domain": e.get("domain"), "score": e.get("score", 0.0)} for e in raw]
         except Exception as e:
-            logger.debug(f"Eidetic retrieval failed: {e}")
-            result["eidetic_facts"] = []
-
-    # Optional: Include episodic narratives (session arcs with recency decay)
-    if include_episodic:
-        try:
-            from .vector_store import search_episodic
-            episodic_raw = search_episodic(
-                project_id,
-                task_context,
-                limit=limits["episodic"],
-                apply_recency_decay=True
-            )
-            result["episodic_narratives"] = [
-                {
-                    "narrative": ep.get("narrative", ""),
-                    "outcome": ep.get("outcome"),
-                    "learning_delta": ep.get("learning_delta", {}),
-                    "recency_weight": ep.get("recency_weight", 1.0),
-                    "score": ep.get("score", 0.0)
-                }
-                for ep in episodic_raw
-            ]
-        except Exception as e:
-            logger.debug(f"Episodic retrieval failed: {e}")
-            result["episodic_narratives"] = []
-
-    # Cross-project patterns: global dead-ends (avoid repeating mistakes from other projects)
-    try:
-        from .vector_store import search_global_dead_ends
-        global_dead_ends_raw = search_global_dead_ends(
-            f"Approach for: {task_context}",
-            limit=limits["global_dead_ends"]
-        )
-        if global_dead_ends_raw:
-            result["global_dead_ends"] = [
-                {
-                    "approach": g.get("approach", g.get("text", "")),
-                    "why_failed": g.get("why_failed", ""),
-                    "project": g.get("project_name", "other project"),
-                    "score": g.get("score", 0.0)
-                }
-                for g in global_dead_ends_raw
-            ]
-    except Exception as e:
-        logger.debug(f"Global dead-ends retrieval failed: {e}")
-
-    # Noetic RAG: Goals related to this task context
+            logger.debug(f"CHECK eidetic retrieval failed: {e}")
     if include_goals:
         try:
             from .vector_store import search_goals
-            goals_raw = search_goals(
-                project_id,
-                task_context,
-                include_subtasks=True,
-                limit=limits["goals"]
-            )
-            if goals_raw:
-                result["related_goals"] = [
-                    {
-                        "objective": g.get("objective") or g.get("description", ""),
-                        "status": g.get("status", ""),
-                        "type": g.get("type", "goal"),
-                        "goal_id": g.get("goal_id", ""),
-                        "score": g.get("score", 0.0)
-                    }
-                    for g in goals_raw
-                ]
+            raw = search_goals(project_id, current_approach or "current work", status="in_progress", include_subtasks=True, limit=limit)
+            if raw:
+                warnings["active_goals"] = [{"objective": g.get("objective") or g.get("description", ""), "status": g.get("status", ""),
+                    "type": g.get("type", "goal"), "score": g.get("score", 0.0)} for g in raw]
         except Exception as e:
-            logger.debug(f"Goals retrieval failed: {e}")
-
-    # Noetic RAG: Unverified assumptions — "What are you assuming here?"
+            logger.debug(f"CHECK goals retrieval failed: {e}")
     if include_assumptions:
         try:
             from .vector_store import search_assumptions
-            assumptions_raw = search_assumptions(
-                project_id,
-                task_context,
-                status="unverified",
-                limit=limits["assumptions"]
-            )
-            if assumptions_raw:
-                result["unverified_assumptions"] = [
-                    {
-                        "assumption": a.get("assumption", ""),
-                        "confidence": a.get("confidence", 0.5),
-                        "urgency_signal": a.get("urgency_signal", 0.0),
-                        "domain": a.get("domain"),
-                        "score": a.get("score", 0.0)
-                    }
-                    for a in assumptions_raw
-                ]
+            raw = search_assumptions(project_id, current_approach or "current approach", status="unverified", limit=limit)
+            if raw:
+                warnings["unverified_assumptions"] = [{"assumption": a.get("assumption", ""), "confidence": a.get("confidence", 0.5),
+                    "urgency_signal": a.get("urgency_signal", 0.0), "score": a.get("score", 0.0)} for a in raw]
         except Exception as e:
-            logger.debug(f"Assumptions retrieval failed: {e}")
-
-    # Noetic RAG: Prior decisions — "What was already decided about this?"
-    if include_decisions:
-        try:
-            from .vector_store import search_decisions
-            decisions_raw = search_decisions(
-                project_id,
-                task_context,
-                limit=limits["decisions"]
-            )
-            if decisions_raw:
-                result["prior_decisions"] = [
-                    {
-                        "choice": d.get("choice", ""),
-                        "rationale": d.get("rationale", ""),
-                        "reversibility": d.get("reversibility", ""),
-                        "confidence_at_decision": d.get("confidence_at_decision", 0.5),
-                        "score": d.get("score", 0.0)
-                    }
-                    for d in decisions_raw
-                ]
-        except Exception as e:
-            logger.debug(f"Decisions retrieval failed: {e}")
-
-    # Optional: Include related reference docs (cross-reference with retrieved memory)
-    if include_related_docs:
-        try:
-            # Search docs collection using the task context
-            related_raw = _search_related_docs(
-                project_id,
-                task_context,
-                limit=limits["docs"],
-                min_score=threshold
-            )
-            result["related_docs"] = [
-                {
-                    "doc_path": d.get("doc_path", ""),
-                    "description": d.get("description", ""),
-                    "doc_type": d.get("doc_type", ""),
-                    "tags": d.get("tags", []),
-                    "score": d.get("score", 0.0)
-                }
-                for d in related_raw
-            ]
-        except Exception as e:
-            logger.debug(f"Related docs retrieval failed: {e}")
-            result["related_docs"] = []
-
-    return result
+            logger.debug(f"CHECK assumptions retrieval failed: {e}")
 
 
 def check_against_patterns(
@@ -538,7 +498,7 @@ def check_against_patterns(
     include_eidetic: bool = False,
     include_goals: bool = False,
     include_assumptions: bool = False,
-) -> dict[str, any]:
+) -> dict[str, Any]:
     """
     CHECK hook: Validate current approach against known patterns (Noetic RAG).
 
@@ -610,87 +570,9 @@ def check_against_patterns(
     # The Sentinel uses this data internally for threshold inflation (dynamic_thresholds.py)
     # but does not expose specifics to the AI.
 
-    # Noetic RAG: Related findings as additional context
-    if include_findings and current_approach:
-        try:
-            findings_raw = _search_memory_by_type(
-                project_id, current_approach, "finding", limit, threshold
-            )
-            if findings_raw:
-                warnings["related_findings"] = [
-                    {
-                        "finding": f.get("text", ""),
-                        "impact": f.get("impact", 0.5),
-                        "score": f.get("score", 0.0)
-                    }
-                    for f in findings_raw
-                ]
-        except Exception as e:
-            logger.debug(f"CHECK findings retrieval failed: {e}")
-
-    # Noetic RAG: Eidetic facts — stable knowledge relevant to approach
-    if include_eidetic and current_approach:
-        try:
-            from .vector_store import search_eidetic
-            eidetic_raw = search_eidetic(
-                project_id, current_approach, min_confidence=0.5, limit=limit
-            )
-            if eidetic_raw:
-                warnings["eidetic_context"] = [
-                    {
-                        "content": e.get("content", ""),
-                        "confidence": e.get("confidence", 0.5),
-                        "domain": e.get("domain"),
-                        "score": e.get("score", 0.0)
-                    }
-                    for e in eidetic_raw
-                ]
-        except Exception as e:
-            logger.debug(f"CHECK eidetic retrieval failed: {e}")
-
-    # Noetic RAG: Active goals — alignment check
-    if include_goals:
-        try:
-            from .vector_store import search_goals
-            goals_raw = search_goals(
-                project_id, current_approach or "current work",
-                status="in_progress", include_subtasks=True, limit=limit
-            )
-            if goals_raw:
-                warnings["active_goals"] = [
-                    {
-                        "objective": g.get("objective") or g.get("description", ""),
-                        "status": g.get("status", ""),
-                        "type": g.get("type", "goal"),
-                        "score": g.get("score", 0.0)
-                    }
-                    for g in goals_raw
-                ]
-        except Exception as e:
-            logger.debug(f"CHECK goals retrieval failed: {e}")
-
-    # Noetic RAG: Unverified assumptions — risk signal at CHECK gate
-    # Per spec §4.1, CHECK is where intent crystallizes. Unverified assumptions
-    # related to the current approach inform the proceed/investigate decision.
-    if include_assumptions:
-        try:
-            from .vector_store import search_assumptions
-            assumptions_raw = search_assumptions(
-                project_id, current_approach or "current approach",
-                status="unverified", limit=limit
-            )
-            if assumptions_raw:
-                warnings["unverified_assumptions"] = [
-                    {
-                        "assumption": a.get("assumption", ""),
-                        "confidence": a.get("confidence", 0.5),
-                        "urgency_signal": a.get("urgency_signal", 0.0),
-                        "score": a.get("score", 0.0)
-                    }
-                    for a in assumptions_raw
-                ]
-        except Exception as e:
-            logger.debug(f"CHECK assumptions retrieval failed: {e}")
+    # Enrich with optional retrieval types
+    _enrich_check_warnings(warnings, project_id, current_approach, threshold, limit,
+                           include_findings, include_eidetic, include_goals, include_assumptions)
 
     # Set has_warnings flag
     warnings["has_warnings"] = (

@@ -7,11 +7,12 @@ and semantic understanding validation.
 
 import logging
 import subprocess
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def get_git_diff_summary(since_preflight: bool = False) -> dict[str, any]:
+def get_git_diff_summary(since_preflight: bool = False) -> dict[str, Any]:
     """
     Get summary of git changes since last checkpoint.
 
@@ -93,7 +94,7 @@ def get_git_diff_summary(since_preflight: bool = False) -> dict[str, any]:
 def analyze_epistemic_trajectory(
     preflight_vectors: dict[str, float],
     postflight_vectors: dict[str, float]
-) -> dict[str, any]:
+) -> dict[str, Any]:
     """
     Analyze if epistemic trajectory is coherent.
 
@@ -160,7 +161,7 @@ def analyze_epistemic_trajectory(
     }
 
 
-def understand_finding(finding: dict[str, any], my_knowledge: dict[str, float]) -> bool:
+def understand_finding(finding: dict[str, Any], my_knowledge: dict[str, float]) -> bool:
     """
     Estimate if I (next AI) can understand a previous AI's finding.
 

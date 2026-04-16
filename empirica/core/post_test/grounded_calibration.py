@@ -484,6 +484,93 @@ class GroundedCalibrationManager:
 
         return adjustments
 
+    def _build_grounded_yaml(self, ai_id, beliefs, adjustments, divergence, total_evidence, coverage,
+                             phase_weights, holistic_calibration_score, holistic_gaps, insights):
+        """Build the YAML block for grounded calibration export."""
+        timestamp = datetime.now().isoformat()
+        lines = [
+            "\n# Grounded calibration (auto-updated by Empirica post-test verification)\n",
+            "# NOTE: These scores are drift indicators from deterministic proxies, not\n",
+            "# ground truth. They detect systematic bias patterns over time but cannot\n",
+            "# fully measure holistic epistemic state. Use alongside self-assessment,\n",
+            "# not as a replacement. See dual-track calibration philosophy in docs.\n",
+            "grounded_calibration:\n",
+            f'  last_updated: "{timestamp}"\n', f"  ai_id: {ai_id}\n",
+            f"  observations: {total_evidence}\n", f"  grounded_coverage: {coverage:.2f}\n",
+        ]
+        if divergence:
+            lines.append("  divergence:\n")
+            for vector, data in sorted(divergence.items(), key=lambda x: abs(x[1]['gap']), reverse=True):
+                sign = '+' if data['gap'] >= 0 else ''
+                lines.append(f"    {vector}: {sign}{data['gap']:.2f}\n")
+        lines.append(f"  ungrounded: [{', '.join(sorted(UNGROUNDABLE_VECTORS))}]\n")
+        if adjustments:
+            lines.append("  grounded_bias_corrections:\n")
+            for vector, adj in sorted(adjustments.items(), key=lambda x: abs(x[1]), reverse=True):
+                sign = '+' if adj >= 0 else ''
+                lines.append(f"    {vector}: {sign}{adj:.2f}\n")
+        if phase_weights:
+            lines.append("  phase_weights:\n")
+            lines.append(f"    noetic: {phase_weights.get('noetic', 0.5)}\n")
+            lines.append(f"    praxic: {phase_weights.get('praxic', 0.5)}\n")
+            lines.append(f"    source: {phase_weights.get('source', 'unknown')}\n")
+        if holistic_calibration_score is not None:
+            lines.append(f"  holistic_calibration_score: {holistic_calibration_score:.4f}\n")
+        if holistic_gaps:
+            lines.append("  holistic_gaps:\n")
+            for vector, gap in sorted(holistic_gaps.items(), key=lambda x: abs(x[1]), reverse=True):
+                sign = '+' if gap >= 0 else ''
+                lines.append(f"    {vector}: {sign}{gap:.4f}\n")
+        if insights:
+            lines.append("  insights:\n")
+            for insight in insights[:5]:
+                _get = (lambda k, _i=insight: _i.get(k, '')) if isinstance(insight, dict) else (lambda k, _i=insight: getattr(_i, k, ''))
+                lines.append(f"    - vector: {_get('vector')}\n")
+                lines.append(f"      phase: {_get('phase')}\n")
+                lines.append(f"      pattern: {_get('pattern')}\n")
+                sev = _get('severity')
+                lines.append(f"      severity: {sev:.2f}\n" if isinstance(sev, (int, float)) else f"      severity: {sev}\n")
+                lines.append(f"      description: \"{_get('description')}\"\n")
+                lines.append(f"      suggestion: \"{_get('suggestion')}\"\n")
+        return ''.join(lines)
+
+    @staticmethod
+    def _replace_yaml_section(breadcrumbs_path, yaml_block):
+        """Replace or append the grounded_calibration section in breadcrumbs file."""
+        import os
+        try:
+            existing_lines = []
+            if os.path.exists(breadcrumbs_path):
+                with open(breadcrumbs_path) as f:
+                    existing_lines = f.readlines()
+            section_start = -1
+            section_end = -1
+            in_section = False
+            for i, line in enumerate(existing_lines):
+                if '# Grounded calibration' in line and section_start == -1:
+                    section_start = i
+                elif line.strip().startswith('grounded_calibration:'):
+                    if section_start == -1:
+                        section_start = i
+                    in_section = True
+                elif in_section and line.strip() and not line.startswith(' ') and not line.startswith('\t'):
+                    section_end = i
+                    break
+            if in_section and section_end == -1:
+                section_end = len(existing_lines)
+            if section_start >= 0:
+                new_lines = existing_lines[:section_start] + [yaml_block] + existing_lines[section_end:]
+            elif existing_lines:
+                new_lines = existing_lines + [yaml_block]
+            else:
+                new_lines = [yaml_block]
+            with open(breadcrumbs_path, 'w') as f:
+                f.writelines(new_lines)
+            return True
+        except Exception as e:
+            logger.debug(f"Failed to export grounded calibration: {e}")
+            return False
+
     def export_grounded_calibration(
         self,
         ai_id: str,
@@ -537,124 +624,10 @@ class GroundedCalibrationManager:
             [v for v in self.TRACKED_VECTORS if v not in UNGROUNDABLE_VECTORS]
         )
 
-        # Build YAML
-        timestamp = datetime.now().isoformat()
-        lines = [
-            "\n# Grounded calibration (auto-updated by Empirica post-test verification)\n",
-            "# NOTE: These scores are drift indicators from deterministic proxies, not\n",
-            "# ground truth. They detect systematic bias patterns over time but cannot\n",
-            "# fully measure holistic epistemic state. Use alongside self-assessment,\n",
-            "# not as a replacement. See dual-track calibration philosophy in docs.\n",
-            "grounded_calibration:\n",
-            f'  last_updated: "{timestamp}"\n',
-            f"  ai_id: {ai_id}\n",
-            f"  observations: {total_evidence}\n",
-            f"  grounded_coverage: {coverage:.2f}\n",
-        ]
-
-        # Divergence section (grounded vs self-referential)
-        if divergence:
-            lines.append("  divergence:\n")
-            sorted_div = sorted(
-                divergence.items(),
-                key=lambda x: abs(x[1]['gap']),
-                reverse=True,
-            )
-            for vector, data in sorted_div:
-                sign = '+' if data['gap'] >= 0 else ''
-                lines.append(f"    {vector}: {sign}{data['gap']:.2f}\n")
-
-        # Ungrounded vectors
-        lines.append(
-            f"  ungrounded: [{', '.join(sorted(UNGROUNDABLE_VECTORS))}]\n"
-        )
-
-        # Grounded bias corrections
-        if adjustments:
-            lines.append("  grounded_bias_corrections:\n")
-            sorted_adj = sorted(
-                adjustments.items(),
-                key=lambda x: abs(x[1]),
-                reverse=True,
-            )
-            for vector, adj in sorted_adj:
-                sign = '+' if adj >= 0 else ''
-                lines.append(f"    {vector}: {sign}{adj:.2f}\n")
-
-        # Phase-weighted holistic calibration
-        if phase_weights:
-            lines.append("  phase_weights:\n")
-            lines.append(f"    noetic: {phase_weights.get('noetic', 0.5)}\n")
-            lines.append(f"    praxic: {phase_weights.get('praxic', 0.5)}\n")
-            lines.append(f"    source: {phase_weights.get('source', 'unknown')}\n")
-        if holistic_calibration_score is not None:
-            lines.append(f"  holistic_calibration_score: {holistic_calibration_score:.4f}\n")
-        if holistic_gaps:
-            lines.append("  holistic_gaps:\n")
-            sorted_hg = sorted(holistic_gaps.items(), key=lambda x: abs(x[1]), reverse=True)
-            for vector, gap in sorted_hg:
-                sign = '+' if gap >= 0 else ''
-                lines.append(f"    {vector}: {sign}{gap:.4f}\n")
-
-        # Calibration insights (feedback loop for method improvement)
-        if insights:
-            lines.append("  insights:\n")
-            for insight in insights[:5]:  # Cap at 5 most relevant
-                # Handle both CalibrationInsight objects and dicts
-                _get = (lambda k, _i=insight: _i.get(k, '')) if isinstance(insight, dict) else (lambda k, _i=insight: getattr(_i, k, ''))
-                lines.append(f"    - vector: {_get('vector')}\n")
-                lines.append(f"      phase: {_get('phase')}\n")
-                lines.append(f"      pattern: {_get('pattern')}\n")
-                sev = _get('severity')
-                lines.append(f"      severity: {sev:.2f}\n" if isinstance(sev, (int, float)) else f"      severity: {sev}\n")
-                lines.append(f"      description: \"{_get('description')}\"\n")
-                lines.append(f"      suggestion: \"{_get('suggestion')}\"\n")
-
-        yaml_block = ''.join(lines)
-
-        # Read existing file, find/replace grounded_calibration section
-        try:
-            existing_lines = []
-            if os.path.exists(breadcrumbs_path):
-                with open(breadcrumbs_path) as f:
-                    existing_lines = f.readlines()
-
-            section_start = -1
-            section_end = -1
-            in_section = False
-
-            for i, line in enumerate(existing_lines):
-                if '# Grounded calibration' in line and section_start == -1:
-                    section_start = i
-                elif line.strip().startswith('grounded_calibration:'):
-                    if section_start == -1:
-                        section_start = i
-                    in_section = True
-                elif in_section and line.strip() and not line.startswith(' ') and not line.startswith('\t'):
-                    section_end = i
-                    break
-
-            if in_section and section_end == -1:
-                section_end = len(existing_lines)
-
-            if section_start >= 0:
-                new_lines = (
-                    existing_lines[:section_start]
-                    + [yaml_block]
-                    + existing_lines[section_end:]
-                )
-            elif existing_lines:
-                new_lines = existing_lines + [yaml_block]
-            else:
-                new_lines = [yaml_block]
-
-            with open(breadcrumbs_path, 'w') as f:
-                f.writelines(new_lines)
-
-            return True
-        except Exception as e:
-            logger.debug(f"Failed to export grounded calibration: {e}")
-            return False
+        yaml_block = self._build_grounded_yaml(
+            ai_id, beliefs, adjustments, divergence, total_evidence, coverage,
+            phase_weights, holistic_calibration_score, holistic_gaps, insights)
+        return self._replace_yaml_section(breadcrumbs_path, yaml_block)
 
 
 def _run_single_phase_verification(
@@ -884,6 +857,24 @@ def _compute_phase_weights(
     return {'noetic': round(noetic_w, 4), 'praxic': round(praxic_w, 4), 'source': 'tool_classification'}
 
 
+def _compute_holistic_calibration(results: dict, phase_weights: dict) -> tuple:
+    """Compute holistic calibration score and gaps from grounded phase results."""
+    grounded_results = {p: r for p, r in results.items() if r.get('calibration_status', 'grounded') == 'grounded'}
+    if len(grounded_results) >= 2 and 'noetic' in grounded_results and 'praxic' in grounded_results:
+        nw, pw = phase_weights['noetic'], phase_weights['praxic']
+        score = round(nw * (grounded_results['noetic'].get('calibration_score') or 0) +
+                       pw * (grounded_results['praxic'].get('calibration_score') or 0), 4)
+        noetic_gaps = grounded_results['noetic'].get('gaps', {}) or {}
+        praxic_gaps = grounded_results['praxic'].get('gaps', {}) or {}
+        gaps = {v: round(nw * noetic_gaps.get(v, 0) + pw * praxic_gaps.get(v, 0), 4)
+                for v in set(noetic_gaps) | set(praxic_gaps)}
+        return score, gaps
+    elif len(grounded_results) == 1:
+        only = next(iter(grounded_results.values()))
+        return (only.get('calibration_score') or 0), (only.get('gaps', {}) or {})
+    return None, {}
+
+
 def run_grounded_verification(
     session_id: str,
     postflight_vectors: dict[str, float],
@@ -922,15 +913,9 @@ def run_grounded_verification(
             preflight_ts = phase_boundary.get("preflight_timestamp")
             noetic_only = phase_boundary.get("noetic_only", False)
 
-            # Noetic vectors: delta from PREFLIGHT to CHECK
-            phase_boundary.get("preflight_vectors") or {}
-            check_vectors = phase_boundary.get("proceed_check_vectors") or {}
-
             # Noetic self-assessment = CHECK vectors (what AI claimed at CHECK)
-            noetic_self = {}
-            for k, v in check_vectors.items():
-                if v is not None:
-                    noetic_self[k] = v
+            check_vectors = phase_boundary.get("proceed_check_vectors") or {}
+            noetic_self = {k: v for k, v in check_vectors.items() if v is not None}
 
             # Extract phase-specific Tier 2 weights
             noetic_weights = (per_vector_weights or {}).get('noetic')
@@ -1011,39 +996,7 @@ def run_grounded_verification(
 
         # Phase-weighted holistic calibration
         phase_weights = _compute_phase_weights(phase_tool_counts, phase_boundary, results)
-        holistic_calibration_score = None
-        holistic_gaps = {}
-
-        # Filter to only grounded phases before computing holistic — non-grounded
-        # phases (insufficient_evidence, ungrounded_remote_ops, ungrounded_release)
-        # have calibration_score=None and gaps={} by design.
-        grounded_results = {
-            phase: r for phase, r in results.items()
-            if r.get('calibration_status', 'grounded') == 'grounded'
-        }
-
-        if len(grounded_results) >= 2 and 'noetic' in grounded_results and 'praxic' in grounded_results:
-            nw = phase_weights['noetic']
-            pw = phase_weights['praxic']
-            n_score = grounded_results['noetic'].get('calibration_score') or 0
-            p_score = grounded_results['praxic'].get('calibration_score') or 0
-            holistic_calibration_score = round(nw * n_score + pw * p_score, 4)
-
-            # Weighted gaps per vector (strip phase prefix for holistic view)
-            noetic_gaps = grounded_results['noetic'].get('gaps', {}) or {}
-            praxic_gaps = grounded_results['praxic'].get('gaps', {}) or {}
-            all_vectors = set(noetic_gaps.keys()) | set(praxic_gaps.keys())
-            for v in all_vectors:
-                n_gap = noetic_gaps.get(v, 0)
-                p_gap = praxic_gaps.get(v, 0)
-                holistic_gaps[v] = round(nw * n_gap + pw * p_gap, 4)
-        elif len(grounded_results) == 1:
-            # Single grounded phase (the other may be non-grounded or missing)
-            only_result = next(iter(grounded_results.values()))
-            holistic_calibration_score = only_result.get('calibration_score') or 0
-            holistic_gaps = only_result.get('gaps', {}) or {}
-        # else: zero grounded phases → holistic_calibration_score stays None
-        # and holistic_gaps stays empty. The AI's self-assessment stands.
+        holistic_calibration_score, holistic_gaps = _compute_holistic_calibration(results, phase_weights)
 
         # Calibration insights: analyze recent verifications for systemic patterns
         calibration_insights = []

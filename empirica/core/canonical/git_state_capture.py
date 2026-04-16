@@ -118,7 +118,7 @@ class GitStateCapture:
 
     def _get_commits_since_last_checkpoint(
         self,
-        get_last_checkpoint_fn: callable
+        get_last_checkpoint_fn: Any  # callable
     ) -> list[dict[str, Any]]:
         """
         Get commits made since last checkpoint.

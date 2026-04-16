@@ -27,7 +27,7 @@ import logging
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime  # type: ignore[reportAttributeAccessIssue]
 from enum import Enum
 from typing import Any, ClassVar
 

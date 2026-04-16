@@ -219,6 +219,64 @@ def _count_local_notes() -> dict[str, int]:
     return counts
 
 
+
+
+def _handle_sync_config_command_helper(key, output_format, sync_config, value):
+    """Extracted from handle_sync_config_command to reduce complexity."""
+    if key and value is not None:
+        valid_keys = ['enabled', 'remote', 'visibility', 'provider', 'code_remote', 'notes_remote']
+        if key not in valid_keys:
+            result = {
+                "ok": False,
+                "error": f"Unknown config key: {key}",
+                "valid_keys": valid_keys
+            }
+            print(json.dumps(result, indent=2))
+            return 1
+
+        # Parse boolean values
+        if key == 'enabled':
+            value = value.lower() in ('true', '1', 'yes', 'on')
+
+        # Validate visibility
+        if key == 'visibility' and value not in ('public', 'private'):
+            result = {
+                "ok": False,
+                "error": f"visibility must be 'public' or 'private', got '{value}'"
+            }
+            print(json.dumps(result, indent=2))
+            return 1
+
+        # Validate provider
+        if key == 'provider' and value not in ('github', 'gitlab', 'forgejo', 'gitea', 'bitbucket', 'auto', 'other'):
+            result = {
+                "ok": False,
+                "error": "provider must be one of: github, gitlab, forgejo, gitea, bitbucket, auto, other"
+            }
+            print(json.dumps(result, indent=2))
+            return 1
+
+        # Update and save
+        sync_config[key] = value
+        if _save_sync_config(sync_config):
+            result = {
+                "ok": True,
+                "message": f"Set sync.{key} = {value}",
+                "config": sync_config
+            }
+        else:
+            result = {
+                "ok": False,
+                "error": "Failed to save config"
+            }
+
+        if output_format == 'json':
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"✅ Set sync.{key} = {value}")
+
+        return 0 if result['ok'] else 1
+
 def handle_sync_config_command(args):
     """Handle sync config command - show/set sync configuration"""
     try:
@@ -230,59 +288,7 @@ def handle_sync_config_command(args):
         sync_config = _load_sync_config()
 
         # If setting a value
-        if key and value is not None:
-            valid_keys = ['enabled', 'remote', 'visibility', 'provider', 'code_remote', 'notes_remote']
-            if key not in valid_keys:
-                result = {
-                    "ok": False,
-                    "error": f"Unknown config key: {key}",
-                    "valid_keys": valid_keys
-                }
-                print(json.dumps(result, indent=2))
-                return 1
-
-            # Parse boolean values
-            if key == 'enabled':
-                value = value.lower() in ('true', '1', 'yes', 'on')
-
-            # Validate visibility
-            if key == 'visibility' and value not in ('public', 'private'):
-                result = {
-                    "ok": False,
-                    "error": f"visibility must be 'public' or 'private', got '{value}'"
-                }
-                print(json.dumps(result, indent=2))
-                return 1
-
-            # Validate provider
-            if key == 'provider' and value not in ('github', 'gitlab', 'forgejo', 'gitea', 'bitbucket', 'auto', 'other'):
-                result = {
-                    "ok": False,
-                    "error": "provider must be one of: github, gitlab, forgejo, gitea, bitbucket, auto, other"
-                }
-                print(json.dumps(result, indent=2))
-                return 1
-
-            # Update and save
-            sync_config[key] = value
-            if _save_sync_config(sync_config):
-                result = {
-                    "ok": True,
-                    "message": f"Set sync.{key} = {value}",
-                    "config": sync_config
-                }
-            else:
-                result = {
-                    "ok": False,
-                    "error": "Failed to save config"
-                }
-
-            if output_format == 'json':
-                print(json.dumps(result, indent=2))
-            else:
-                print(f"✅ Set sync.{key} = {value}")
-
-            return 0 if result['ok'] else 1
+        _handle_sync_config_command_helper(key, output_format, sync_config, value)
 
         # Show config (with optional key filter)
         if key:
@@ -359,6 +365,23 @@ def handle_sync_config_command(args):
         handle_cli_error(e, "Sync config", getattr(args, 'verbose', False))
         return 1
 
+
+
+
+def _handle_sync_push_command_helper(errors, output_format, push_results, remote, result, success):
+    """Extracted from handle_sync_push_command to reduce complexity."""
+    if output_format == 'json':
+        print(json.dumps(result, indent=2))
+    else:
+        if success:
+            print(f"✅ Pushed epistemic notes to {remote}")
+            for ref, ok in push_results.items():
+                status = "✓" if ok else "✗"
+                print(f"   {status} {ref}")
+        else:
+            print(f"❌ Push failed to {remote}")
+            for err in errors:
+                print(f"   Error: {err}")
 
 def handle_sync_push_command(args):
     """Handle sync push command - push all epistemic notes to remote"""
@@ -489,18 +512,7 @@ def handle_sync_push_command(args):
             "message": f"Pushed epistemic notes to {remote}" if success else "Push failed"
         }
 
-        if output_format == 'json':
-            print(json.dumps(result, indent=2))
-        else:
-            if success:
-                print(f"✅ Pushed epistemic notes to {remote}")
-                for ref, ok in push_results.items():
-                    status = "✓" if ok else "✗"
-                    print(f"   {status} {ref}")
-            else:
-                print(f"❌ Push failed to {remote}")
-                for err in errors:
-                    print(f"   Error: {err}")
+        _handle_sync_push_command_helper(errors, output_format, push_results, remote, result, success)
 
         return 0 if success else 1
 
@@ -508,6 +520,27 @@ def handle_sync_push_command(args):
         handle_cli_error(e, "Sync push", getattr(args, 'verbose', False))
         return 1
 
+
+
+
+def _handle_sync_pull_command_helper(changes, errors, output_format, rebuild, remote, result, success):
+    """Extracted from handle_sync_pull_command to reduce complexity."""
+    if output_format == 'json':
+        print(json.dumps(result, indent=2))
+    else:
+        if success:
+            print(f"✅ Pulled epistemic notes from {remote}")
+            if changes:
+                for ref, change in changes.items():
+                    print(f"   {ref}: {change['before']} → {change['after']} ({change['delta']:+d})")
+            else:
+                print("   No changes (already up to date)")
+            if rebuild and 'rebuild' in result:
+                print("   🔄 Rebuilt SQLite from notes")
+        else:
+            print(f"❌ Pull failed from {remote}")
+            for err in errors:
+                print(f"   Error: {err}")
 
 def handle_sync_pull_command(args):
     """Handle sync pull command - pull all epistemic notes from remote"""
@@ -611,22 +644,7 @@ def handle_sync_pull_command(args):
             rebuild_result = _rebuild_from_notes()
             result['rebuild'] = rebuild_result
 
-        if output_format == 'json':
-            print(json.dumps(result, indent=2))
-        else:
-            if success:
-                print(f"✅ Pulled epistemic notes from {remote}")
-                if changes:
-                    for ref, change in changes.items():
-                        print(f"   {ref}: {change['before']} → {change['after']} ({change['delta']:+d})")
-                else:
-                    print("   No changes (already up to date)")
-                if rebuild and 'rebuild' in result:
-                    print("   🔄 Rebuilt SQLite from notes")
-            else:
-                print(f"❌ Pull failed from {remote}")
-                for err in errors:
-                    print(f"   Error: {err}")
+        _handle_sync_pull_command_helper(changes, errors, output_format, rebuild, remote, result, success)
 
         return 0 if success else 1
 

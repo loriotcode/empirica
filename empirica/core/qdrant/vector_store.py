@@ -1,3 +1,4 @@
+# pyright: reportUnusedImport=false
 """
 Qdrant vector store for Empirica projects — backward-compatible re-export shim.
 

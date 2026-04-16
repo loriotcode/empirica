@@ -1417,6 +1417,48 @@ def _find_session_for_project(project_path: str) -> str | None:
         return None
 
 
+def _try_session_source(data: dict, source_name: str, project_path_hint: str | None = None) -> tuple:
+    """Try to validate a session_id from a data source. Returns (session_id_or_None, project_path_or_None)."""
+    session_id = data.get('empirica_session_id')
+    project_path = data.get('project_path') or project_path_hint
+    if session_id:
+        if _validate_session_in_db(session_id, project_path=project_path):
+            logger.debug(f"get_active_empirica_session_id: from {source_name}: {session_id[:8]}...")
+            return session_id, project_path
+        else:
+            logger.warning(f"get_active_empirica_session_id: stale session in {source_name}: {session_id[:8]}...")
+    return None, project_path
+
+
+def _collect_session_sources(claude_session_id: str | None) -> list[tuple]:
+    """Build ordered list of (data_dict, source_name) for session resolution."""
+    from pathlib import Path
+    sources = []
+    if claude_session_id:
+        aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
+        if aw_file.exists():
+            data = _read_json_file_safe(aw_file)
+            if data:
+                sources.append((data, "active_work"))
+    instance_id = get_instance_id()
+    if instance_id:
+        inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
+        if inst_file.exists():
+            data = _read_json_file_safe(inst_file)
+            if data:
+                sources.append((data, "instance_projects"))
+    tty_session = get_tty_session()
+    if tty_session:
+        sources.append((tty_session, "tty_session"))
+    if is_headless():
+        generic_work = Path.home() / '.empirica' / 'active_work.json'
+        if generic_work.exists():
+            data = _read_json_file_safe(generic_work)
+            if data:
+                sources.append((data, "active_work.json (headless)"))
+    return sources
+
+
 def get_active_empirica_session_id(claude_session_id: str | None = None) -> str | None:
     """Get the active Empirica session ID for CLI commands.
 
@@ -1462,82 +1504,13 @@ def get_active_empirica_session_id(claude_session_id: str | None = None) -> str 
             else:
                 logger.warning(f"get_active_empirica_session_id: stale session in transaction: {session_id[:8]}...")
 
-    # Priority 2: active_work file
-    if claude_session_id:
-        from pathlib import Path
-        active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
-        if active_work_file.exists():
-            try:
-                with open(active_work_file) as f:
-                    data = json.load(f)
-                    session_id = data.get('empirica_session_id')
-                    project_path_for_fallback = data.get('project_path')
-                    if session_id:
-                        if _validate_session_in_db(session_id, project_path=project_path_for_fallback):
-                            logger.debug(f"get_active_empirica_session_id: from active_work: {session_id[:8]}...")
-                            return session_id
-                        else:
-                            logger.warning(f"get_active_empirica_session_id: stale session in active_work: {session_id[:8]}...")
-            except Exception:
-                pass
-
-    # Priority 3: instance_projects (TMUX-based)
-    instance_id = get_instance_id()
-    if instance_id:
-        from pathlib import Path
-        instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
-        if instance_file.exists():
-            try:
-                with open(instance_file) as f:
-                    data = json.load(f)
-                    session_id = data.get('empirica_session_id')
-                    inst_project_path = data.get('project_path')
-                    if not project_path_for_fallback:
-                        project_path_for_fallback = inst_project_path
-                    if session_id:
-                        if _validate_session_in_db(session_id, project_path=inst_project_path or project_path_for_fallback):
-                            logger.debug(f"get_active_empirica_session_id: from instance_projects: {session_id[:8]}...")
-                            return session_id
-                        else:
-                            logger.warning(f"get_active_empirica_session_id: stale session in instance_projects: {session_id[:8]}...")
-            except Exception:
-                pass
-
-    # Priority 4: TTY session (written by session-create, project-switch)
-    tty_session = get_tty_session()
-    if tty_session:
-        session_id = tty_session.get('empirica_session_id')
-        if session_id:
-            tty_project_path = tty_session.get('project_path')
-            if not project_path_for_fallback:
-                project_path_for_fallback = tty_project_path
-            if _validate_session_in_db(session_id, project_path=tty_project_path or project_path_for_fallback):
-                logger.debug(f"get_active_empirica_session_id: from tty_session: {session_id[:8]}...")
-                return session_id
-            else:
-                logger.warning(f"get_active_empirica_session_id: stale session in tty_session: {session_id[:8]}...")
-
-    # Priority 5: Generic active_work.json — HEADLESS MODE ONLY
-    # In interactive mode, P1-P4 cover all cases. The generic file would return
-    # stale data from a different terminal/session.
-    from pathlib import Path
-    if is_headless():
-        generic_work = Path.home() / '.empirica' / 'active_work.json'
-        if generic_work.exists():
-            try:
-                with open(generic_work) as f:
-                    data = json.load(f)
-                    session_id = data.get('empirica_session_id')
-                    if not project_path_for_fallback:
-                        project_path_for_fallback = data.get('project_path')
-                    if session_id:
-                        if _validate_session_in_db(session_id, project_path=project_path_for_fallback):
-                            logger.debug(f"get_active_empirica_session_id: from active_work.json (headless): {session_id[:8]}...")
-                            return session_id
-                        else:
-                            logger.warning(f"get_active_empirica_session_id: stale session in active_work.json: {session_id[:8]}...")
-            except Exception:
-                pass
+    # Priorities 2-5: file-based sources
+    for data, source_name in _collect_session_sources(claude_session_id):
+        sid, pp = _try_session_source(data, source_name, project_path_for_fallback)
+        if pp and not project_path_for_fallback:
+            project_path_for_fallback = pp
+        if sid:
+            return sid
 
     # Fallback: all sources returned stale session_ids — try to find valid session for project
     if project_path_for_fallback:
@@ -1899,6 +1872,25 @@ def cleanup_stale_active_work_files(current_claude_session_id: str | None = None
 # Unified Context Resolver
 # ============================================================================
 
+def _read_json_file_safe(path) -> dict | None:
+    """Read a JSON file, returning None on any error."""
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _supplement_context(context: dict, data: dict, include_claude_session: bool = False) -> None:
+    """Fill missing context fields from a data source dict (non-destructive)."""
+    if not context['project_path']:
+        context['project_path'] = data.get('project_path')
+    if not context['empirica_session_id']:
+        context['empirica_session_id'] = data.get('empirica_session_id')
+    if include_claude_session and not context['claude_session_id']:
+        context['claude_session_id'] = data.get('claude_session_id')
+
+
 def get_active_context(claude_session_id: str | None = None) -> dict:
     """Get the complete active epistemic context.
 
@@ -1956,44 +1948,25 @@ def get_active_context(claude_session_id: str | None = None) -> dict:
     if context['instance_id'] and (not context['empirica_session_id'] or not context['project_path']):
         instance_file = Path.home() / '.empirica' / 'instance_projects' / f"{context['instance_id']}.json"
         if instance_file.exists():
-            try:
-                with open(instance_file) as f:
-                    data = json.load(f)
-                    if not context['project_path']:
-                        context['project_path'] = data.get('project_path')
-                    if not context['empirica_session_id']:
-                        context['empirica_session_id'] = data.get('empirica_session_id')
-                    if not context['claude_session_id']:
-                        context['claude_session_id'] = data.get('claude_session_id')
-                    logger.debug("get_active_context: supplemented from instance_projects (P1)")
-            except Exception:
-                pass
+            data = _read_json_file_safe(instance_file)
+            if data:
+                _supplement_context(context, data, include_claude_session=True)
+                logger.debug("get_active_context: supplemented from instance_projects (P1)")
 
     # Priority 2: Active work file by Claude session_id
     if claude_session_id and (not context['empirica_session_id'] or not context['project_path']):
         active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if active_work_file.exists():
-            try:
-                with open(active_work_file) as f:
-                    data = json.load(f)
-                    if not context['project_path']:
-                        context['project_path'] = data.get('project_path')
-                    if not context['empirica_session_id']:
-                        context['empirica_session_id'] = data.get('empirica_session_id')
-                    logger.debug("get_active_context: supplemented from active_work (P2)")
-            except Exception:
-                pass
+            data = _read_json_file_safe(active_work_file)
+            if data:
+                _supplement_context(context, data)
+                logger.debug("get_active_context: supplemented from active_work (P2)")
 
     # Priority 3: TTY session (fallback - may be stale after project-switch)
     if not context['empirica_session_id'] or not context['project_path']:
         tty_session = get_tty_session(warn_if_stale=False)
         if tty_session:
-            if not context['claude_session_id']:
-                context['claude_session_id'] = tty_session.get('claude_session_id')
-            if not context['empirica_session_id']:
-                context['empirica_session_id'] = tty_session.get('empirica_session_id')
-            if not context['project_path']:
-                context['project_path'] = tty_session.get('project_path')
+            _supplement_context(context, tty_session, include_claude_session=True)
 
     return context
 
@@ -2354,6 +2327,22 @@ def _read_json_file(path: Path) -> dict | None:
     return None
 
 
+def _check_tx_file_for_project(tx_file: Path, proj_path: Path, best_mtime: float) -> tuple:
+    """Check a transaction file. Returns (project_path, mtime) or (None, best_mtime)."""
+    try:
+        mtime = tx_file.stat().st_mtime
+        if mtime <= best_mtime:
+            return None, best_mtime
+        tx_data = _read_json_file(tx_file)
+        if tx_data and tx_data.get('status') == 'open':
+            tx_project = tx_data.get('project_path', str(proj_path))
+            if has_valid_db(Path(tx_project)):
+                return Path(tx_project), mtime
+    except Exception:
+        pass
+    return None, best_mtime
+
+
 def _scan_workspace_for_project(instance_id: str | None) -> Path | None:
     """Scan registered projects in workspace.db for one with an open transaction."""
     import sqlite3 as _sqlite3
@@ -2382,30 +2371,17 @@ def _scan_workspace_for_project(instance_id: str | None) -> Path | None:
 
         tx_file = empirica_dir / f'active_transaction{suffix}.json'
         if tx_file.exists():
-            try:
-                mtime = tx_file.stat().st_mtime
-                tx_data = _read_json_file(tx_file)
-                if tx_data and tx_data.get('status') == 'open':
-                    tx_project = tx_data.get('project_path', str(proj_path))
-                    if has_valid_db(Path(tx_project)) and mtime > best_mtime:
-                        best_match = Path(tx_project)
-                        best_mtime = mtime
-            except Exception:
-                pass
+            result, best_mtime = _check_tx_file_for_project(tx_file, proj_path, best_mtime)
+            if result:
+                best_match = result
 
         try:
             for tx_candidate in empirica_dir.glob('active_transaction*.json'):
                 if tx_candidate == tx_file:
                     continue
-                mtime = tx_candidate.stat().st_mtime
-                if mtime <= best_mtime:
-                    continue
-                tx_data = _read_json_file(tx_candidate)
-                if tx_data and tx_data.get('status') == 'open':
-                    tx_project = tx_data.get('project_path', str(proj_path))
-                    if has_valid_db(Path(tx_project)):
-                        best_match = Path(tx_project)
-                        best_mtime = mtime
+                result, best_mtime = _check_tx_file_for_project(tx_candidate, proj_path, best_mtime)
+                if result:
+                    best_match = result
         except Exception:
             pass
 
@@ -2463,6 +2439,38 @@ def detect_environment() -> dict:
     }
 
 
+def _find_project_from_open_transaction(claude_session_id, instance_id, suffix):
+    """Check candidate paths for an open transaction file."""
+    candidate_paths = set()
+    if claude_session_id:
+        data = _read_json_file(Path.home() / '.empirica' / f'active_work_{claude_session_id}.json')
+        if data and data.get('project_path'): candidate_paths.add(data['project_path'])
+    if instance_id:
+        data = _read_json_file(Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json')
+        if data and data.get('project_path'): candidate_paths.add(data['project_path'])
+    for cpath in candidate_paths:
+        tx_data = _read_json_file(Path(cpath) / '.empirica' / f'active_transaction{suffix}.json')
+        if tx_data and tx_data.get('status') == 'open':
+            tx_project = tx_data.get('project_path', cpath)
+            if has_valid_db(Path(tx_project)): return Path(tx_project)
+    return None
+
+
+def _find_project_from_state_files(claude_session_id, instance_id):
+    """Check instance_projects and active_work files for a valid project root."""
+    if instance_id:
+        data = _read_json_file(Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json')
+        if data and data.get('project_path'):
+            p = Path(data['project_path'])
+            if has_valid_db(p): return p
+    if claude_session_id:
+        data = _read_json_file(Path.home() / '.empirica' / f'active_work_{claude_session_id}.json')
+        if data and data.get('project_path'):
+            p = Path(data['project_path'])
+            if has_valid_db(p): return p
+    return None
+
+
 def find_project_root(
     claude_session_id: str | None = None,
     *,
@@ -2496,44 +2504,14 @@ def find_project_root(
                 return Path(project_path)
 
     # Priority 2: Open transaction file
-    candidate_paths = set()
-
-    if claude_session_id:
-        aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
-        data = _read_json_file(aw_file)
-        if data and data.get('project_path'):
-            candidate_paths.add(data['project_path'])
-
-    if instance_id:
-        ip_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
-        data = _read_json_file(ip_file)
-        if data and data.get('project_path'):
-            candidate_paths.add(data['project_path'])
-
-    for cpath in candidate_paths:
-        tx_file = Path(cpath) / '.empirica' / f'active_transaction{suffix}.json'
-        tx_data = _read_json_file(tx_file)
-        if tx_data and tx_data.get('status') == 'open':
-            tx_project = tx_data.get('project_path', cpath)
-            if has_valid_db(Path(tx_project)):
-                return Path(tx_project)
+    tx_result = _find_project_from_open_transaction(claude_session_id, instance_id, suffix)
+    if tx_result:
+        return tx_result
 
     # Priority 3-4: instance_projects then active_work
-    if instance_id:
-        ip_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
-        data = _read_json_file(ip_file)
-        if data and data.get('project_path'):
-            p = Path(data['project_path'])
-            if has_valid_db(p):
-                return p
-
-    if claude_session_id:
-        aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
-        data = _read_json_file(aw_file)
-        if data and data.get('project_path'):
-            p = Path(data['project_path'])
-            if has_valid_db(p):
-                return p
+    state_result = _find_project_from_state_files(claude_session_id, instance_id)
+    if state_result:
+        return state_result
 
     # Priority 5: Workspace scan
     if allow_workspace_scan:

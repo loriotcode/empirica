@@ -1436,6 +1436,40 @@ class SessionDatabase:
             logger.debug(f"Error getting git status: {e}")
             return None
 
+    @staticmethod
+    def _analyze_py_file_imports(py_file, root_path, package_prefixes, reverse_graph, external_deps, entry_points):
+        """Analyze a single Python file for imports and entry points."""
+        import ast
+        try:
+            file_content = py_file.read_text(errors='replace')
+            tree = ast.parse(file_content)
+        except (SyntaxError, UnicodeDecodeError):
+            return
+        try:
+            rel_parts = list(py_file.relative_to(root_path).parts)
+            if rel_parts[-1] == "__init__.py": rel_parts = rel_parts[:-1]
+            else: rel_parts[-1] = rel_parts[-1].replace(".py", "")
+            module_name = ".".join(rel_parts)
+        except ValueError:
+            return
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    top = alias.name.split('.')[0]
+                    if top in package_prefixes: reverse_graph[alias.name].add(module_name)
+                    else: external_deps.add(top)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                top = node.module.split('.')[0]
+                if top in package_prefixes: reverse_graph[node.module].add(module_name)
+                elif node.level == 0: external_deps.add(top)
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.If) and isinstance(node.test, ast.Compare) and len(node.test.comparators) == 1):
+                left = node.test.left
+                comp = node.test.comparators[0]
+                if isinstance(left, ast.Name) and left.id == '__name__' and isinstance(comp, ast.Constant) and comp.value == '__main__':
+                    entry_points.append(module_name)
+                    break
+
     def _generate_dependency_summary(self, project_root: str) -> dict | None:
         """Generate lightweight dependency summary using AST import analysis.
 
@@ -1451,7 +1485,6 @@ class SessionDatabase:
           - entry_points: CLI/main modules
           - module_count: Total .py files analyzed
         """
-        import ast
         import json
         import time
         from collections import defaultdict
@@ -1501,52 +1534,7 @@ class SessionDatabase:
             module_count += 1
             all_module_basenames.add(py_file.stem)
 
-            try:
-                content = py_file.read_text(errors='replace')
-                tree = ast.parse(content)
-            except (SyntaxError, UnicodeDecodeError):
-                continue
-
-            # Convert path to module name
-            try:
-                rel_parts = list(py_file.relative_to(root_path).parts)
-                if rel_parts[-1] == "__init__.py":
-                    rel_parts = rel_parts[:-1]
-                else:
-                    rel_parts[-1] = rel_parts[-1].replace(".py", "")
-                module_name = ".".join(rel_parts)
-            except ValueError:
-                continue
-
-            # Extract imports
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Import):
-                    for alias in node.names:
-                        top = alias.name.split('.')[0]
-                        if top in package_prefixes:
-                            reverse_graph[alias.name].add(module_name)
-                        else:
-                            external_deps.add(top)
-                elif isinstance(node, ast.ImportFrom):
-                    if node.module:
-                        top = node.module.split('.')[0]
-                        if top in package_prefixes:
-                            reverse_graph[node.module].add(module_name)
-                        elif node.level == 0:
-                            # Only count absolute from-imports as external
-                            # (relative imports like "from .foo import bar" are internal)
-                            external_deps.add(top)
-
-            # Detect entry points
-            for node in ast.walk(tree):
-                if (isinstance(node, ast.If) and isinstance(node.test, ast.Compare)
-                        and len(node.test.comparators) == 1):
-                    left = node.test.left
-                    comp = node.test.comparators[0]
-                    if (isinstance(left, ast.Name) and left.id == '__name__'
-                            and isinstance(comp, ast.Constant) and comp.value == '__main__'):
-                        entry_points.append(module_name)
-                        break
+            self._analyze_py_file_imports(py_file, root_path, package_prefixes, reverse_graph, external_deps, entry_points)
 
         # Build hotspots (top 10 by importer count)
         hotspots = sorted(
@@ -2102,6 +2090,33 @@ class SessionDatabase:
         except Exception as e:
             return {"error": str(e)}
 
+    @staticmethod
+    def _resolve_auto_depth(breadcrumbs: dict) -> str:
+        """Resolve 'auto' depth by computing drift from pre-compact snapshot."""
+        try:
+            import json
+            from pathlib import Path
+            ref_docs_dir = Path.cwd() / ".empirica" / "ref-docs"
+            snapshots = sorted(ref_docs_dir.glob("pre_summary_*.json"), reverse=True)
+            if snapshots and breadcrumbs.get('live_state'):
+                with open(snapshots[0]) as f:
+                    pre_snapshot = json.load(f)
+                pre_vectors = pre_snapshot.get('checkpoint', {}).get('vectors', {})
+                post_vectors = breadcrumbs['live_state'].get('vectors', {})
+                drift, count = 0.0, 0
+                for key in ['know', 'uncertainty', 'engagement', 'impact', 'completion']:
+                    if key in pre_vectors and key in post_vectors:
+                        if pre_vectors[key] is not None and post_vectors[key] is not None:
+                            drift += abs(pre_vectors[key] - post_vectors[key])
+                            count += 1
+                drift = drift / count if count > 0 else 0.0
+                if drift > 0.3: return "full"
+                elif drift > 0.1: return "moderate"
+                else: return "minimal"
+        except Exception:
+            pass
+        return "moderate"
+
     def _apply_depth_filter(self, breadcrumbs: dict, depth: str, trigger: str | None) -> dict:
         """
         Apply adaptive depth filtering to breadcrumbs based on drift or explicit depth.
@@ -2119,40 +2134,7 @@ class SessionDatabase:
         - Limit active_goals (often stale accumulation)
         """
         if depth == "auto" and trigger == "post_compact":
-            # Calculate drift from pre-snapshot to current
-            try:
-                import json
-                from pathlib import Path
-                ref_docs_dir = Path.cwd() / ".empirica" / "ref-docs"
-                snapshots = sorted(ref_docs_dir.glob("pre_summary_*.json"), reverse=True)
-
-                if snapshots and breadcrumbs.get('live_state'):
-                    with open(snapshots[0]) as f:
-                        pre_snapshot = json.load(f)
-
-                    pre_vectors = pre_snapshot.get('checkpoint', {}).get('vectors', {})
-                    post_vectors = breadcrumbs['live_state'].get('vectors', {})
-
-                    # Calculate drift (simple average of vector changes)
-                    drift = 0.0
-                    count = 0
-                    for key in ['know', 'uncertainty', 'engagement', 'impact', 'completion']:
-                        if key in pre_vectors and key in post_vectors:
-                            if pre_vectors[key] is not None and post_vectors[key] is not None:
-                                drift += abs(pre_vectors[key] - post_vectors[key])
-                                count += 1
-
-                    drift = drift / count if count > 0 else 0.0
-
-                    # Choose depth based on drift
-                    if drift > 0.3:
-                        depth = "full"
-                    elif drift > 0.1:
-                        depth = "moderate"
-                    else:
-                        depth = "minimal"
-            except Exception:
-                depth = "moderate"  # Fallback to moderate on error
+            depth = self._resolve_auto_depth(breadcrumbs)
 
         # Shared slimming helpers for depth filtering
         def _slim_finding(f: dict) -> dict:

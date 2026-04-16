@@ -25,7 +25,7 @@ The payload is canonicalized (deterministic JSON) and signed with Ed25519.
 import hashlib
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime  # type: ignore[reportAttributeAccessIssue]
 from typing import Any
 
 from .ai_identity import AIIdentity

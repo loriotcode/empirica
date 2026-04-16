@@ -27,7 +27,7 @@ import base64
 import json
 import logging
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime  # type: ignore[reportAttributeAccessIssue]
 from pathlib import Path
 from typing import Any
 

@@ -25,6 +25,51 @@ from ..cli_utils import handle_cli_error, parse_json_safely
 logger = logging.getLogger(__name__)
 
 
+
+
+def _check_for_similar_goals_helper(cursor, db, objective, session_id, similar, threshold):
+    """Extracted from _check_for_similar_goals to reduce complexity."""
+    if not similar:
+        try:
+            # Auto-detect project ID from session
+            project_id = None
+            try:
+                from empirica.data.session_database import SessionDatabase
+                db = SessionDatabase()
+                cursor = db.conn.execute(
+                    "SELECT project_id FROM sessions WHERE session_id = ?",
+                    (session_id,)
+                )
+                row = cursor.fetchone()
+                if row:
+                    project_id = row[0]
+                db.close()
+            except Exception:
+                pass
+
+            if project_id:
+                result = subprocess.run(
+                    ['empirica', 'goals-search', objective[:100],
+                     '--project-id', project_id, '--status', 'in_progress',
+                     '--limit', '3', '--threshold', str(threshold), '--output', 'json'],
+                    capture_output=True, text=True, timeout=10,
+                    cwd=os.getcwd()
+                )
+                if result.returncode == 0:
+                    search_result = json.loads(result.stdout)
+                    for goal in search_result.get('results', []):
+                        score = goal.get('score', 0)
+                        if score >= threshold:
+                            similar.append({
+                                'goal_id': goal.get('id'),
+                                'objective': goal.get('objective'),
+                                'session_id': goal.get('session_id'),
+                                'match_type': 'semantic',
+                                'score': score
+                            })
+        except Exception as e:
+            logger.debug(f"Semantic duplicate check failed: {e}")
+
 def _check_for_similar_goals(objective: str, session_id: str | None = None, threshold: float = 0.85) -> list:
     """Check for similar existing goals using text matching and semantic search.
 
@@ -85,46 +130,7 @@ def _check_for_similar_goals(objective: str, session_id: str | None = None, thre
         logger.debug(f"Database duplicate check failed: {e}")
 
     # Strategy 2: Semantic search via Qdrant (if available)
-    if not similar:
-        try:
-            # Auto-detect project ID from session
-            project_id = None
-            try:
-                from empirica.data.session_database import SessionDatabase
-                db = SessionDatabase()
-                cursor = db.conn.execute(
-                    "SELECT project_id FROM sessions WHERE session_id = ?",
-                    (session_id,)
-                )
-                row = cursor.fetchone()
-                if row:
-                    project_id = row[0]
-                db.close()
-            except Exception:
-                pass
-
-            if project_id:
-                result = subprocess.run(
-                    ['empirica', 'goals-search', objective[:100],
-                     '--project-id', project_id, '--status', 'in_progress',
-                     '--limit', '3', '--threshold', str(threshold), '--output', 'json'],
-                    capture_output=True, text=True, timeout=10,
-                    cwd=os.getcwd()
-                )
-                if result.returncode == 0:
-                    search_result = json.loads(result.stdout)
-                    for goal in search_result.get('results', []):
-                        score = goal.get('score', 0)
-                        if score >= threshold:
-                            similar.append({
-                                'goal_id': goal.get('id'),
-                                'objective': goal.get('objective'),
-                                'session_id': goal.get('session_id'),
-                                'match_type': 'semantic',
-                                'score': score
-                            })
-        except Exception as e:
-            logger.debug(f"Semantic duplicate check failed: {e}")
+    _check_for_similar_goals_helper(cursor, db, objective, session_id, similar, threshold)
 
     # Deduplicate by goal_id
     seen = set()
@@ -549,7 +555,7 @@ def handle_goals_create_command(args):
                 session_id, is_cross_project, target_project_id, config_data, args))
 
         # Stage 5: Post-creation integrations and result building
-        use_beads = getattr(args, 'use_beads', False) or (config_data and config_data.get('use_beads', False))
+        use_beads = getattr(args, 'use_beads', False) or (config_data and config_data.get('use_beads', False))  # type: ignore[reportAttributeAccessIssue]
         beads_issue_id = None
 
         if success:
@@ -1014,6 +1020,31 @@ def handle_goals_progress_command(args):
         handle_cli_error(e, "Get goal progress", getattr(args, 'verbose', False))
 
 
+
+
+def _handle_goals_list_command_helper(cursor, project_id, session_id):
+    """Extracted from handle_goals_list_command to reduce complexity."""
+    if not project_id:
+        # Priority 1: From session_id if provided
+        if session_id:
+            cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
+            row = cursor.fetchone()
+            if row and row[0]:
+                project_id = row[0]
+
+        # Priority 2: From unified context resolver (transaction → active_work)
+        if not project_id:
+            try:
+                context = R.context()
+                ctx_session = context.get('empirica_session_id')
+                if ctx_session:
+                    cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (ctx_session,))
+                    row = cursor.fetchone()
+                    if row and row[0]:
+                        project_id = row[0]
+            except Exception:
+                pass
+
 def handle_goals_list_command(args):
     """Handle goals-list command - list goals with optional filters
 
@@ -1042,26 +1073,7 @@ def handle_goals_list_command(args):
         cursor = db.conn.cursor()
 
         # GOALS ARE PROJECT-SCOPED: Auto-derive project_id from context if not provided
-        if not project_id:
-            # Priority 1: From session_id if provided
-            if session_id:
-                cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
-                row = cursor.fetchone()
-                if row and row[0]:
-                    project_id = row[0]
-
-            # Priority 2: From unified context resolver (transaction → active_work)
-            if not project_id:
-                try:
-                    context = R.context()
-                    ctx_session = context.get('empirica_session_id')
-                    if ctx_session:
-                        cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (ctx_session,))
-                        row = cursor.fetchone()
-                        if row and row[0]:
-                            project_id = row[0]
-                except Exception:
-                    pass
+        _handle_goals_list_command_helper(cursor, project_id, session_id)
 
         # Build query based on filters
         base_query = """
@@ -1684,6 +1696,108 @@ def handle_goals_refresh_command(args):
 
 # --- Merged from goals_ready_command.py ---
 
+
+
+def _handle_goals_ready_command_helper(beads_ready, cursor, db, max_uncertainty, min_confidence, ready_work, session_id):
+    """Extracted from handle_goals_ready_command to reduce complexity."""
+    for beads_issue in beads_ready:
+        beads_id = beads_issue.get('id')
+
+        # Find Empirica goal with this beads_issue_id
+        cursor = db.conn.execute("""
+            SELECT id, objective, scope, status
+            FROM goals
+            WHERE beads_issue_id = ? AND session_id = ?
+        """, (beads_id, session_id))
+
+        goal_row = cursor.fetchone()
+
+        if not goal_row:
+            # BEADS issue not linked to Empirica goal
+            continue
+
+        goal_id = goal_row[0]
+        objective = goal_row[1]
+        scope_json = goal_row[2]
+        status = goal_row[3]
+
+        # Parse scope
+        scope = json.loads(scope_json) if scope_json else {}
+
+        # Get epistemic state from latest CHECK or PREFLIGHT
+        cursor = db.conn.execute("""
+            SELECT phase, engagement, know, do, context, clarity, coherence,
+                   signal, density, state, change, completion, impact, uncertainty
+            FROM reflexes
+            WHERE session_id = ?
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """, (session_id,))
+
+        reflex_row = cursor.fetchone()
+
+        epistemic_ready = True
+        last_confidence = None
+        last_uncertainty = None
+        why_not_ready = None
+
+        if reflex_row:
+            # Build vectors dict from individual columns
+            vectors = {
+                'engagement': reflex_row[1],
+                'know': reflex_row[2],
+                'do': reflex_row[3],
+                'context': reflex_row[4],
+                'clarity': reflex_row[5],
+                'coherence': reflex_row[6],
+                'signal': reflex_row[7],
+                'density': reflex_row[8],
+                'state': reflex_row[9],
+                'change': reflex_row[10],
+                'completion': reflex_row[11],
+                'impact': reflex_row[12],
+                'uncertainty': reflex_row[13]
+            }
+            reflex_row[0]
+
+            # Extract epistemic state
+            last_confidence = vectors.get('know', 0.5)
+            last_uncertainty = vectors.get('uncertainty', 0.5)
+
+            # Check epistemic readiness
+            if last_confidence < min_confidence:
+                epistemic_ready = False
+                why_not_ready = f"Confidence too low ({last_confidence:.2f} < {min_confidence})"
+
+            if last_uncertainty > max_uncertainty:
+                epistemic_ready = False
+                why_not_ready = f"Uncertainty too high ({last_uncertainty:.2f} > {max_uncertainty})"
+        else:
+            # No epistemic data available - assume not ready
+            epistemic_ready = False
+            why_not_ready = "No PREFLIGHT/CHECK data available"
+
+        # Build ready work item
+        ready_item = {
+            "goal_id": goal_id,
+            "beads_issue_id": beads_id,
+            "objective": objective,
+            "priority": beads_issue.get('priority', 2),
+            "no_blockers": True,  # BEADS already filtered for this
+            "epistemic_ready": epistemic_ready,
+            "last_check_confidence": last_confidence,
+            "preflight_uncertainty": last_uncertainty,
+            "scope": scope,
+            "status": status
+        }
+
+        if epistemic_ready:
+            ready_item["why_ready"] = "High confidence, low uncertainty, no blockers"
+        else:
+            ready_item["why_not_ready"] = why_not_ready
+
+        ready_work.append(ready_item)
+
 def handle_goals_ready_command(args):
     """Query BEADS ready work + filter by Empirica epistemic criteria
 
@@ -1775,103 +1889,7 @@ def handle_goals_ready_command(args):
             return 0
 
         # Map BEADS issues to Empirica goals
-        for beads_issue in beads_ready:
-            beads_id = beads_issue.get('id')
-
-            # Find Empirica goal with this beads_issue_id
-            cursor = db.conn.execute("""
-                SELECT id, objective, scope, status
-                FROM goals
-                WHERE beads_issue_id = ? AND session_id = ?
-            """, (beads_id, session_id))
-
-            goal_row = cursor.fetchone()
-
-            if not goal_row:
-                # BEADS issue not linked to Empirica goal
-                continue
-
-            goal_id = goal_row[0]
-            objective = goal_row[1]
-            scope_json = goal_row[2]
-            status = goal_row[3]
-
-            # Parse scope
-            scope = json.loads(scope_json) if scope_json else {}
-
-            # Get epistemic state from latest CHECK or PREFLIGHT
-            cursor = db.conn.execute("""
-                SELECT phase, engagement, know, do, context, clarity, coherence,
-                       signal, density, state, change, completion, impact, uncertainty
-                FROM reflexes
-                WHERE session_id = ?
-                ORDER BY timestamp DESC
-                LIMIT 1
-            """, (session_id,))
-
-            reflex_row = cursor.fetchone()
-
-            epistemic_ready = True
-            last_confidence = None
-            last_uncertainty = None
-            why_not_ready = None
-
-            if reflex_row:
-                # Build vectors dict from individual columns
-                vectors = {
-                    'engagement': reflex_row[1],
-                    'know': reflex_row[2],
-                    'do': reflex_row[3],
-                    'context': reflex_row[4],
-                    'clarity': reflex_row[5],
-                    'coherence': reflex_row[6],
-                    'signal': reflex_row[7],
-                    'density': reflex_row[8],
-                    'state': reflex_row[9],
-                    'change': reflex_row[10],
-                    'completion': reflex_row[11],
-                    'impact': reflex_row[12],
-                    'uncertainty': reflex_row[13]
-                }
-                reflex_row[0]
-
-                # Extract epistemic state
-                last_confidence = vectors.get('know', 0.5)
-                last_uncertainty = vectors.get('uncertainty', 0.5)
-
-                # Check epistemic readiness
-                if last_confidence < min_confidence:
-                    epistemic_ready = False
-                    why_not_ready = f"Confidence too low ({last_confidence:.2f} < {min_confidence})"
-
-                if last_uncertainty > max_uncertainty:
-                    epistemic_ready = False
-                    why_not_ready = f"Uncertainty too high ({last_uncertainty:.2f} > {max_uncertainty})"
-            else:
-                # No epistemic data available - assume not ready
-                epistemic_ready = False
-                why_not_ready = "No PREFLIGHT/CHECK data available"
-
-            # Build ready work item
-            ready_item = {
-                "goal_id": goal_id,
-                "beads_issue_id": beads_id,
-                "objective": objective,
-                "priority": beads_issue.get('priority', 2),
-                "no_blockers": True,  # BEADS already filtered for this
-                "epistemic_ready": epistemic_ready,
-                "last_check_confidence": last_confidence,
-                "preflight_uncertainty": last_uncertainty,
-                "scope": scope,
-                "status": status
-            }
-
-            if epistemic_ready:
-                ready_item["why_ready"] = "High confidence, low uncertainty, no blockers"
-            else:
-                ready_item["why_not_ready"] = why_not_ready
-
-            ready_work.append(ready_item)
+        _handle_goals_ready_command_helper(beads_ready, cursor, db, max_uncertainty, min_confidence, ready_work, session_id)
 
         # Filter to only epistemically-ready items
         epistemically_ready_work = [item for item in ready_work if item["epistemic_ready"]]
@@ -1924,6 +1942,67 @@ def handle_goals_ready_command(args):
 
 
 # --- Merged from goal_claim_command.py ---
+
+
+
+def _handle_goals_claim_command_helper(ai_id, beads_issue_id, create_branch, goal_id, result, session_id):
+    """Extracted from handle_goals_claim_command to reduce complexity."""
+    if create_branch:
+        try:
+            # Generate branch name
+            if beads_issue_id:
+                branch_name = f"epistemic/reasoning/issue-{beads_issue_id}"
+            else:
+                branch_name = f"epistemic/reasoning/goal-{goal_id[:8]}"
+
+            # Check if branch already exists
+            check_result = subprocess.run(
+                ["git", "rev-parse", "--verify", branch_name],
+                capture_output=True,
+                text=True
+            )
+
+            if check_result.returncode == 0:
+                # Branch exists, just checkout
+                subprocess.run(
+                    ["git", "checkout", branch_name],
+                    check=True,
+                    capture_output=True
+                )
+                result["branch_action"] = "checked_out_existing"
+            else:
+                # Create new branch
+                subprocess.run(
+                    ["git", "checkout", "-b", branch_name],
+                    check=True,
+                    capture_output=True
+                )
+                result["branch_action"] = "created_new"
+
+            result["branch_name"] = branch_name
+            result["branch_created"] = True
+
+            # Add branch mapping
+            try:
+                branch_mapping = get_branch_mapping()
+                branch_mapping.add_mapping(
+                    branch_name=branch_name,
+                    goal_id=goal_id,
+                    beads_issue_id=beads_issue_id,
+                    ai_id=ai_id,
+                    session_id=session_id
+                )
+                result["branch_mapping_saved"] = True
+            except Exception as e:
+                logger.warning(f"Failed to save branch mapping: {e}")
+                result["branch_mapping_saved"] = False
+
+        except subprocess.CalledProcessError as e:
+            result["branch_created"] = False
+            result["branch_error"] = str(e)
+    else:
+        result["branch_created"] = False
+        result["branch_skipped"] = True
 
 def handle_goals_claim_command(args):
     """Handle goals-claim command - Claim goal and create git branch"""
@@ -2003,68 +2082,13 @@ def handle_goals_claim_command(args):
                 result["beads_status_updated"] = False
 
         # Create git branch
-        if create_branch:
-            try:
-                # Generate branch name
-                if beads_issue_id:
-                    branch_name = f"epistemic/reasoning/issue-{beads_issue_id}"
-                else:
-                    branch_name = f"epistemic/reasoning/goal-{goal_id[:8]}"
-
-                # Check if branch already exists
-                check_result = subprocess.run(
-                    ["git", "rev-parse", "--verify", branch_name],
-                    capture_output=True,
-                    text=True
-                )
-
-                if check_result.returncode == 0:
-                    # Branch exists, just checkout
-                    subprocess.run(
-                        ["git", "checkout", branch_name],
-                        check=True,
-                        capture_output=True
-                    )
-                    result["branch_action"] = "checked_out_existing"
-                else:
-                    # Create new branch
-                    subprocess.run(
-                        ["git", "checkout", "-b", branch_name],
-                        check=True,
-                        capture_output=True
-                    )
-                    result["branch_action"] = "created_new"
-
-                result["branch_name"] = branch_name
-                result["branch_created"] = True
-
-                # Add branch mapping
-                try:
-                    branch_mapping = get_branch_mapping()
-                    branch_mapping.add_mapping(
-                        branch_name=branch_name,
-                        goal_id=goal_id,
-                        beads_issue_id=beads_issue_id,
-                        ai_id=ai_id,
-                        session_id=session_id
-                    )
-                    result["branch_mapping_saved"] = True
-                except Exception as e:
-                    logger.warning(f"Failed to save branch mapping: {e}")
-                    result["branch_mapping_saved"] = False
-
-            except subprocess.CalledProcessError as e:
-                result["branch_created"] = False
-                result["branch_error"] = str(e)
-        else:
-            result["branch_created"] = False
-            result["branch_skipped"] = True
+        _handle_goals_claim_command_helper(ai_id, beads_issue_id, create_branch, goal_id, result, session_id)
 
         # Run PREFLIGHT if requested
         if run_preflight:
             try:
                 # Import preflight command
-                from .cascade_commands import handle_preflight_command
+                from .cascade_commands import handle_preflight_command  # type: ignore[reportMissingImports]
 
                 # Create mock args for preflight
                 class MockArgs:
@@ -2078,7 +2102,7 @@ def handle_goals_claim_command(args):
                         self.output = 'json'
 
                 preflight_args = MockArgs(
-                    session_id=goal.session_id,
+                    session_id=goal.session_id,  # type: ignore[reportAttributeAccessIssue]
                     prompt=f"Starting work on goal: {goal.objective}"
                 )
 
@@ -2183,7 +2207,7 @@ def _gc_mark_completed(goal_id):
 def _gc_run_postflight(goal, result):
     """Run POSTFLIGHT if requested. Mutates result dict."""
     try:
-        from .cascade_commands import handle_postflight_command
+        from .cascade_commands import handle_postflight_command  # type: ignore[reportMissingImports]
 
         class MockArgs:
             """Mock arguments for calling postflight handler."""

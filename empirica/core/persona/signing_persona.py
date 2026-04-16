@@ -27,7 +27,7 @@ Design:
 import json
 import logging
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime  # type: ignore[reportAttributeAccessIssue]
 from typing import Any
 
 from empirica.core.identity.ai_identity import AIIdentity
