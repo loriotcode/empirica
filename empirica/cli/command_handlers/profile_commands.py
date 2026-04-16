@@ -162,6 +162,30 @@ def _rebuild_qdrant() -> dict[str, Any]:
         return {'ok': False, 'error': str(e)}
 
 
+def _print_sync_pretty(result, import_result, remote, import_only, do_push, do_qdrant):
+    """Print human-readable sync result."""
+    summary = result.get('summary', {})
+    if result['ok']:
+        print("✅ Profile sync complete")
+        if not import_only:
+            print(f"   Fetched from: {remote}")
+        print(f"   Imported: {summary.get('imported', 0)} new artifacts")
+        print(f"   Skipped: {summary.get('skipped', 0)} (already in SQLite)")
+        print(f"   Total in notes: {summary.get('total_notes', 0)}")
+        stats = import_result.get('stats', {})
+        for artifact_type in ['findings', 'unknowns', 'dead_ends', 'mistakes', 'goals']:
+            type_stats = stats.get(artifact_type, {})
+            if type_stats.get('total', 0) > 0:
+                print(f"     {artifact_type}: {type_stats['imported']} new / {type_stats['total']} total")
+        if do_push:
+            print(f"   Pushed to: {remote}")
+        if do_qdrant:
+            qdrant_ok = result.get('qdrant', {}).get('ok', False)
+            print(f"   Qdrant: {'rebuilt' if qdrant_ok else 'failed'}")
+    else:
+        print(f"❌ Profile sync failed: {result.get('error', 'Unknown error')}")
+
+
 def handle_profile_sync_command(args):
     """Handle profile-sync command — full sync pipeline."""
     try:
@@ -174,20 +198,12 @@ def handle_profile_sync_command(args):
         force = getattr(args, 'force', False)
 
         if not sync_config.get('enabled', True) and not force and not import_only:
-            result = {
-                "ok": False,
-                "error": "Sync is disabled in config",
-                "hint": "Run 'empirica sync-config enabled true' to enable, or use --force"
-            }
-            print(json.dumps(result, indent=2))
+            print(json.dumps({"ok": False, "error": "Sync is disabled in config",
+                              "hint": "Run 'empirica sync-config enabled true' to enable, or use --force"}, indent=2))
             return 1
 
-        result = {
-            "ok": True,
-            "pipeline": [],
-        }
+        result = {"ok": True, "pipeline": []}
 
-        # Step 1: Fetch notes from remote (unless import-only)
         if not import_only:
             fetch_result = _fetch_notes(remote)
             result['fetch'] = fetch_result
@@ -198,16 +214,13 @@ def handle_profile_sync_command(args):
                 print(json.dumps(result, indent=2, default=str))
                 return 1
 
-        # Step 2: Import notes to SQLite (idempotent via ProfileImporter)
         import_result = _import_notes_to_sqlite()
         result['import'] = import_result
         result['pipeline'].append('import')
-
         if not import_result['ok']:
             result['ok'] = False
             result['error'] = 'Import failed'
 
-        # Step 3: Push notes to remote (if requested)
         if do_push and result['ok']:
             push_result = _push_notes(remote)
             result['push'] = push_result
@@ -215,7 +228,6 @@ def handle_profile_sync_command(args):
             if not push_result['ok']:
                 result['push_warning'] = 'Push had errors but import succeeded'
 
-        # Step 4: Rebuild Qdrant (if requested)
         if do_qdrant and result['ok']:
             qdrant_result = _rebuild_qdrant()
             result['qdrant'] = qdrant_result
@@ -223,7 +235,6 @@ def handle_profile_sync_command(args):
             if not qdrant_result['ok']:
                 result['qdrant_warning'] = 'Qdrant rebuild failed but import succeeded'
 
-        # Summary
         summary = import_result.get('stats', {}).get('_summary', {})
         result['summary'] = {
             'imported': summary.get('imported', 0),
@@ -234,26 +245,7 @@ def handle_profile_sync_command(args):
         if output_format == 'json':
             print(json.dumps(result, indent=2, default=str))
         else:
-            if result['ok']:
-                print("✅ Profile sync complete")
-                if not import_only:
-                    print(f"   Fetched from: {remote}")
-                print(f"   Imported: {summary.get('imported', 0)} new artifacts")
-                print(f"   Skipped: {summary.get('skipped', 0)} (already in SQLite)")
-                print(f"   Total in notes: {summary.get('total', 0)}")
-                # Per-type breakdown
-                stats = import_result.get('stats', {})
-                for artifact_type in ['findings', 'unknowns', 'dead_ends', 'mistakes', 'goals']:
-                    type_stats = stats.get(artifact_type, {})
-                    if type_stats.get('total', 0) > 0:
-                        print(f"     {artifact_type}: {type_stats['imported']} new / {type_stats['total']} total")
-                if do_push:
-                    print(f"   Pushed to: {remote}")
-                if do_qdrant:
-                    qdrant_ok = result.get('qdrant', {}).get('ok', False)
-                    print(f"   Qdrant: {'rebuilt' if qdrant_ok else 'failed'}")
-            else:
-                print(f"❌ Profile sync failed: {result.get('error', 'Unknown error')}")
+            _print_sync_pretty(result, import_result, remote, import_only, do_push, do_qdrant)
 
         return 0 if result['ok'] else 1
 
@@ -347,16 +339,47 @@ def _prune_artifact(db, artifact_id: str, artifact_type: str, reason: str) -> di
         return {'ok': False, 'error': str(e)}
 
 
-def _apply_prune_rule(db, rule: str, older_than_days: int | None = None,
-                      dry_run: bool = False) -> dict[str, Any]:
-    """Apply a mechanical pruning rule.
-
-    Returns dict with 'ok', 'count', and 'pruned'/'candidates' keys.
-    """
-    cursor = db.conn.cursor()
+def _prune_find_low_confidence_imports(cursor, age_cutoff):
+    """Find low-confidence transcript-imported artifacts for pruning."""
     candidates = []
+    confidence_threshold = 0.6
+    for table, artifact_type, text_col, data_col in [
+        ('project_findings', 'finding', 'finding', 'finding_data'),
+        ('project_unknowns', 'unknown', 'unknown', 'unknown_data'),
+        ('project_dead_ends', 'dead_end', 'approach', 'dead_end_data'),
+        ('mistakes_made', 'mistake', 'mistake', 'mistake_data'),
+    ]:
+        try:
+            query = f"""
+                SELECT id, {text_col}, {data_col} FROM {table}
+                WHERE {data_col} LIKE '%"extraction_confidence"%'
+            """
+            params = []
+            if age_cutoff:
+                query += " AND created_timestamp < ?"
+                params.append(age_cutoff)
+            cursor.execute(query, params)
+            for row in cursor.fetchall():
+                try:
+                    data = json.loads(row[2]) if row[2] else {}
+                    conf = data.get('extraction_confidence', 1.0)
+                    if conf < confidence_threshold:
+                        candidates.append({
+                            'id': row[0], 'type': artifact_type,
+                            'summary': str(row[1])[:200],
+                            'reason': f'Low confidence transcript import ({conf:.2f} < {confidence_threshold}) (low-confidence-imports rule)',
+                        })
+                except (json.JSONDecodeError, TypeError):
+                    pass
+        except Exception:
+            pass
+    return candidates
+
+
+def _prune_find_candidates(cursor, rule, age_cutoff):
+    """Find prune candidates for a given rule. Returns list of candidate dicts."""
     now = time.time()
-    age_cutoff = now - (older_than_days * 86400) if older_than_days else None
+    candidates = []
 
     if rule == 'stale-resolved-unknowns':
         query = "SELECT id, unknown, resolved_timestamp FROM project_unknowns WHERE is_resolved = 1"
@@ -366,11 +389,8 @@ def _apply_prune_rule(db, rule: str, older_than_days: int | None = None,
             params.append(age_cutoff)
         cursor.execute(query, params)
         for row in cursor.fetchall():
-            candidates.append({
-                'id': row[0], 'type': 'unknown',
-                'summary': str(row[1])[:200],
-                'reason': 'Resolved unknown (stale-resolved-unknowns rule)',
-            })
+            candidates.append({'id': row[0], 'type': 'unknown', 'summary': str(row[1])[:200],
+                               'reason': 'Resolved unknown (stale-resolved-unknowns rule)'})
 
     elif rule == 'low-impact-findings':
         query = "SELECT id, finding, impact FROM project_findings WHERE impact < 0.3"
@@ -380,27 +400,17 @@ def _apply_prune_rule(db, rule: str, older_than_days: int | None = None,
             params.append(age_cutoff)
         cursor.execute(query, params)
         for row in cursor.fetchall():
-            candidates.append({
-                'id': row[0], 'type': 'finding',
-                'summary': str(row[1])[:200],
-                'reason': f'Low impact ({row[2]}) finding (low-impact-findings rule)',
-            })
+            candidates.append({'id': row[0], 'type': 'finding', 'summary': str(row[1])[:200],
+                               'reason': f'Low impact ({row[2]}) finding (low-impact-findings rule)'})
 
     elif rule == 'old-dead-ends':
-        threshold = age_cutoff or (now - 90 * 86400)  # default 90 days
-        cursor.execute(
-            "SELECT id, approach FROM project_dead_ends WHERE created_timestamp < ?",
-            (threshold,)
-        )
+        threshold = age_cutoff or (now - 90 * 86400)
+        cursor.execute("SELECT id, approach FROM project_dead_ends WHERE created_timestamp < ?", (threshold,))
         for row in cursor.fetchall():
-            candidates.append({
-                'id': row[0], 'type': 'dead_end',
-                'summary': str(row[1])[:200],
-                'reason': 'Old dead end (old-dead-ends rule)',
-            })
+            candidates.append({'id': row[0], 'type': 'dead_end', 'summary': str(row[1])[:200],
+                               'reason': 'Old dead end (old-dead-ends rule)'})
 
     elif rule == 'test-transactions':
-        # Prune findings/unknowns from very short sessions (likely test runs)
         cursor.execute("""
             SELECT pf.id, pf.finding, pf.session_id
             FROM project_findings pf
@@ -408,76 +418,41 @@ def _apply_prune_rule(db, rule: str, older_than_days: int | None = None,
             WHERE s.ai_id = 'test' OR s.ai_id LIKE 'test-%'
         """)
         for row in cursor.fetchall():
-            candidates.append({
-                'id': row[0], 'type': 'finding',
-                'summary': str(row[1])[:200],
-                'reason': 'Test session artifact (test-transactions rule)',
-            })
+            candidates.append({'id': row[0], 'type': 'finding', 'summary': str(row[1])[:200],
+                               'reason': 'Test session artifact (test-transactions rule)'})
 
     elif rule == 'low-confidence-imports':
-        # Prune transcript-imported artifacts with low extraction confidence
-        confidence_threshold = 0.6  # prune anything below this
-        for table, artifact_type, text_col, data_col in [
-            ('project_findings', 'finding', 'finding', 'finding_data'),
-            ('project_unknowns', 'unknown', 'unknown', 'unknown_data'),
-            ('project_dead_ends', 'dead_end', 'approach', 'dead_end_data'),
-            ('mistakes_made', 'mistake', 'mistake', 'mistake_data'),
-        ]:
-            try:
-                query = f"""
-                    SELECT id, {text_col}, {data_col} FROM {table}
-                    WHERE {data_col} LIKE '%"extraction_confidence"%'
-                """
-                params = []
-                if age_cutoff:
-                    query += " AND created_timestamp < ?"
-                    params.append(age_cutoff)
-                cursor.execute(query, params)
-                for row in cursor.fetchall():
-                    try:
-                        data = json.loads(row[2]) if row[2] else {}
-                        conf = data.get('extraction_confidence', 1.0)
-                        if conf < confidence_threshold:
-                            candidates.append({
-                                'id': row[0], 'type': artifact_type,
-                                'summary': str(row[1])[:200],
-                                'reason': f'Low confidence transcript import ({conf:.2f} < {confidence_threshold}) (low-confidence-imports rule)',
-                            })
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-            except Exception:
-                pass
+        candidates = _prune_find_low_confidence_imports(cursor, age_cutoff)
 
-    elif rule == 'falsified-assumptions':
-        # This would need an assumptions table — skip for now if not available
+    return candidates
+
+
+def _apply_prune_rule(db, rule: str, older_than_days: int | None = None,
+                      dry_run: bool = False) -> dict[str, Any]:
+    """Apply a mechanical pruning rule.
+
+    Returns dict with 'ok', 'count', and 'pruned'/'candidates' keys.
+    """
+    if rule == 'falsified-assumptions':
         return {'ok': True, 'candidates': [], 'note': 'Assumptions table not yet supported for pruning'}
 
-    if dry_run:
-        return {
-            'ok': True,
-            'dry_run': True,
-            'candidates': candidates,
-            'count': len(candidates),
-        }
+    cursor = db.conn.cursor()
+    age_cutoff = (time.time() - (older_than_days * 86400)) if older_than_days else None
+    candidates = _prune_find_candidates(cursor, rule, age_cutoff)
 
-    # Actually prune
+    if dry_run:
+        return {'ok': True, 'dry_run': True, 'candidates': candidates, 'count': len(candidates)}
+
     pruned = []
     errors = []
     for candidate in candidates:
-        result = _prune_artifact(
-            db, candidate['id'], candidate['type'], candidate['reason']
-        )
+        result = _prune_artifact(db, candidate['id'], candidate['type'], candidate['reason'])
         if result['ok']:
             pruned.append(result)
         else:
             errors.append(result)
 
-    return {
-        'ok': len(errors) == 0,
-        'pruned': pruned,
-        'errors': errors,
-        'count': len(pruned),
-    }
+    return {'ok': len(errors) == 0, 'pruned': pruned, 'errors': errors, 'count': len(pruned)}
 
 
 def handle_profile_prune_command(args):
@@ -665,6 +640,103 @@ def _get_calibration_summary(workspace) -> dict:
     return calibration
 
 
+def _get_transcript_import_stats() -> dict:
+    """Get transcript import statistics from SQLite."""
+    import_stats = {'total': 0, 'by_source': {}, 'by_type': {}}
+    try:
+        from empirica.data.session_database import SessionDatabase as _DB2
+        db2 = _DB2()
+        try:
+            c2 = db2.conn.cursor()
+            for table, artifact_type, data_col in [
+                ('project_findings', 'findings', 'finding_data'),
+                ('project_unknowns', 'unknowns', 'unknown_data'),
+                ('project_dead_ends', 'dead_ends', 'dead_end_data'),
+                ('mistakes_made', 'mistakes', 'mistake_data'),
+            ]:
+                try:
+                    c2.execute(f"""
+                        SELECT {data_col} FROM {table}
+                        WHERE {data_col} LIKE '%"extraction_confidence"%'
+                    """)
+                    for row in c2.fetchall():
+                        try:
+                            data = json.loads(row[0]) if row[0] else {}
+                            source = data.get('source', 'unknown')
+                            import_stats['total'] += 1
+                            import_stats['by_source'][source] = import_stats['by_source'].get(source, 0) + 1
+                            import_stats['by_type'][artifact_type] = import_stats['by_type'].get(artifact_type, 0) + 1
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+                except Exception:
+                    pass
+        finally:
+            db2.close()
+    except Exception:
+        pass
+    return import_stats
+
+
+def _detect_notes_sqlite_drift(artifact_counts, notes_counts):
+    """Detect drift between git notes and SQLite artifact counts."""
+    drift = {}
+    for artifact_type in ['findings', 'unknowns', 'dead_ends', 'mistakes', 'goals']:
+        notes_count = notes_counts.get(artifact_type, 0)
+        sqlite_count = artifact_counts.get(artifact_type, 0)
+        if notes_count > 0 and sqlite_count >= 0:
+            diff = notes_count - sqlite_count
+            if diff != 0:
+                drift[artifact_type] = {'notes': notes_count, 'sqlite': sqlite_count, 'delta': diff}
+    return drift
+
+
+def _print_profile_status_pretty(artifact_counts, notes_counts, import_stats, drift,
+                                  sync_config, remote, sync_available, calibration):
+    """Print human-readable profile status output."""
+    print("📊 Epistemic Profile Status")
+    print("=" * 50)
+
+    total_sqlite = sum(v for v in artifact_counts.values() if isinstance(v, int) and v > 0)
+    total_notes = sum(notes_counts.values())
+    print(f"\n  Artifacts (SQLite): {total_sqlite}")
+    for name, count in artifact_counts.items():
+        if count > 0 and name not in ('unknowns_resolved', 'sessions', 'snapshots'):
+            print(f"    {name}: {count}")
+    if artifact_counts.get('unknowns_resolved', 0) > 0:
+        print(f"    unknowns (resolved): {artifact_counts['unknowns_resolved']}")
+    print(f"    sessions: {artifact_counts.get('sessions', 0)}")
+    print(f"    snapshots: {artifact_counts.get('snapshots', 0)}")
+
+    print(f"\n  Artifacts (Git Notes): {total_notes}")
+    for name, count in notes_counts.items():
+        if count > 0:
+            print(f"    {name}: {count}")
+
+    if import_stats['total'] > 0:
+        print(f"\n  Transcript Imports: {import_stats['total']}")
+        for src, count in import_stats['by_source'].items():
+            print(f"    source={src}: {count}")
+        for atype, count in import_stats['by_type'].items():
+            print(f"    {atype}: {count}")
+
+    if drift:
+        print("\n  ⚠️  Drift detected (notes - sqlite):")
+        for artifact_type, info in drift.items():
+            print(f"    {artifact_type}: {info['delta']:+d} (notes={info['notes']}, sqlite={info['sqlite']})")
+        print("    Run 'empirica profile-sync --import-only' to reconcile")
+
+    print(f"\n  Sync: {'enabled' if sync_config.get('enabled') else 'disabled'}, "
+          f"remote={remote} ({'configured' if sync_available else 'NOT configured'})")
+
+    if calibration:
+        print("\n  Calibration:")
+        if 'observations' in calibration:
+            print(f"    Self-referential observations: {calibration['observations']}")
+        if 'grounded_score' in calibration:
+            print(f"    Grounded score: {calibration.get('grounded_score', 'N/A')}")
+            print(f"    Grounded coverage: {calibration.get('grounded_coverage', 'N/A')}")
+
+
 def handle_profile_status_command(args):
     """Handle profile-status command — unified profile view."""
     try:
@@ -677,121 +749,23 @@ def handle_profile_status_command(args):
         notes_counts = _get_git_notes_counts(workspace)
         sync_available = _check_sync_available(workspace, remote)
         calibration = _get_calibration_summary(workspace)
-
-        # Transcript import stats
-        import_stats = {'total': 0, 'by_source': {}, 'by_type': {}}
-        try:
-            from empirica.data.session_database import SessionDatabase as _DB2
-            db2 = _DB2()
-            try:
-                c2 = db2.conn.cursor()
-                for table, artifact_type, data_col in [
-                    ('project_findings', 'findings', 'finding_data'),
-                    ('project_unknowns', 'unknowns', 'unknown_data'),
-                    ('project_dead_ends', 'dead_ends', 'dead_end_data'),
-                    ('mistakes_made', 'mistakes', 'mistake_data'),
-                ]:
-                    try:
-                        c2.execute(f"""
-                            SELECT {data_col} FROM {table}
-                            WHERE {data_col} LIKE '%"extraction_confidence"%'
-                        """)
-                        for row in c2.fetchall():
-                            try:
-                                data = json.loads(row[0]) if row[0] else {}
-                                source = data.get('source', 'unknown')
-                                import_stats['total'] += 1
-                                import_stats['by_source'][source] = import_stats['by_source'].get(source, 0) + 1
-                                import_stats['by_type'][artifact_type] = import_stats['by_type'].get(artifact_type, 0) + 1
-                            except (json.JSONDecodeError, TypeError):
-                                pass
-                    except Exception:
-                        pass
-            finally:
-                db2.close()
-        except Exception:
-            pass
-
-        # Drift detection: notes vs SQLite
-        drift = {}
-        for artifact_type in ['findings', 'unknowns', 'dead_ends', 'mistakes', 'goals']:
-            notes_count = notes_counts.get(artifact_type, 0)
-            sqlite_count = artifact_counts.get(artifact_type, 0)
-            if notes_count > 0 and sqlite_count >= 0:
-                diff = notes_count - sqlite_count
-                if diff != 0:
-                    drift[artifact_type] = {
-                        'notes': notes_count,
-                        'sqlite': sqlite_count,
-                        'delta': diff,
-                    }
+        import_stats = _get_transcript_import_stats()
+        drift = _detect_notes_sqlite_drift(artifact_counts, notes_counts)
 
         result = {
             "ok": True,
-            "artifacts": {
-                "sqlite": artifact_counts,
-                "git_notes": notes_counts,
-            },
+            "artifacts": {"sqlite": artifact_counts, "git_notes": notes_counts},
             "transcript_imports": import_stats if import_stats['total'] > 0 else None,
             "drift": drift if drift else None,
-            "sync": {
-                "remote": remote,
-                "available": sync_available,
-                "enabled": sync_config.get('enabled', True),
-            },
+            "sync": {"remote": remote, "available": sync_available, "enabled": sync_config.get('enabled', True)},
             "calibration": calibration if calibration else None,
         }
 
         if output_format == 'json':
             print(json.dumps(result, indent=2, default=str))
         else:
-            print("📊 Epistemic Profile Status")
-            print("=" * 50)
-
-            # Artifact counts
-            total_sqlite = sum(v for v in artifact_counts.values() if isinstance(v, int) and v > 0)
-            total_notes = sum(notes_counts.values())
-            print(f"\n  Artifacts (SQLite): {total_sqlite}")
-            for name, count in artifact_counts.items():
-                if count > 0 and name not in ('unknowns_resolved', 'sessions', 'snapshots'):
-                    print(f"    {name}: {count}")
-            if artifact_counts.get('unknowns_resolved', 0) > 0:
-                print(f"    unknowns (resolved): {artifact_counts['unknowns_resolved']}")
-            print(f"    sessions: {artifact_counts.get('sessions', 0)}")
-            print(f"    snapshots: {artifact_counts.get('snapshots', 0)}")
-
-            print(f"\n  Artifacts (Git Notes): {total_notes}")
-            for name, count in notes_counts.items():
-                if count > 0:
-                    print(f"    {name}: {count}")
-
-            # Transcript imports
-            if import_stats['total'] > 0:
-                print(f"\n  Transcript Imports: {import_stats['total']}")
-                for src, count in import_stats['by_source'].items():
-                    print(f"    source={src}: {count}")
-                for atype, count in import_stats['by_type'].items():
-                    print(f"    {atype}: {count}")
-
-            # Drift
-            if drift:
-                print("\n  ⚠️  Drift detected (notes - sqlite):")
-                for artifact_type, info in drift.items():
-                    print(f"    {artifact_type}: {info['delta']:+d} (notes={info['notes']}, sqlite={info['sqlite']})")
-                print("    Run 'empirica profile-sync --import-only' to reconcile")
-
-            # Sync
-            print(f"\n  Sync: {'enabled' if sync_config.get('enabled') else 'disabled'}, "
-                  f"remote={remote} ({'configured' if sync_available else 'NOT configured'})")
-
-            # Calibration
-            if calibration:
-                print("\n  Calibration:")
-                if 'observations' in calibration:
-                    print(f"    Self-referential observations: {calibration['observations']}")
-                if 'grounded_score' in calibration:
-                    print(f"    Grounded score: {calibration.get('grounded_score', 'N/A')}")
-                    print(f"    Grounded coverage: {calibration.get('grounded_coverage', 'N/A')}")
+            _print_profile_status_pretty(artifact_counts, notes_counts, import_stats, drift,
+                                          sync_config, remote, sync_available, calibration)
 
         return 0
 
@@ -904,6 +878,104 @@ def _import_from_claude_ai(ClaudeAIParser, ArtifactExtractor,
     return all_results, sessions_scanned
 
 
+def _store_extracted_artifacts(all_results):
+    """Store extracted artifacts into SQLite. Returns dict of stored counts per type."""
+    import uuid as uuid_mod
+
+    from empirica.data.session_database import SessionDatabase
+    from empirica.utils.session_resolver import get_active_project_id
+
+    db = SessionDatabase()
+    project_id = get_active_project_id()
+    stored = {'findings': 0, 'unknowns': 0, 'dead_ends': 0, 'mistakes': 0}
+
+    try:
+        cursor = db.conn.cursor()
+        now_ts = datetime.now(timezone.utc).timestamp()
+
+        for result in all_results:
+            for finding in result.findings:
+                try:
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO project_findings
+                        (id, project_id, session_id, finding, created_timestamp,
+                         finding_data, impact)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        str(uuid_mod.uuid4()), project_id, result.session_id,
+                        finding.finding, now_ts,
+                        json.dumps({'finding': finding.finding, 'source': result.source,
+                                    'extraction_confidence': finding.confidence,
+                                    'source_turn': finding.source_turn}),
+                        finding.impact,
+                    ))
+                    if cursor.rowcount > 0:
+                        stored['findings'] += 1
+                except Exception as e:
+                    logger.debug(f"Failed to store finding: {e}")
+
+            for unknown in result.unknowns:
+                try:
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO project_unknowns
+                        (id, project_id, session_id, unknown, is_resolved,
+                         created_timestamp, unknown_data, impact)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        str(uuid_mod.uuid4()), project_id, result.session_id,
+                        unknown.unknown, False, now_ts,
+                        json.dumps({'unknown': unknown.unknown, 'source': result.source,
+                                    'extraction_confidence': unknown.confidence}),
+                        0.5,
+                    ))
+                    if cursor.rowcount > 0:
+                        stored['unknowns'] += 1
+                except Exception as e:
+                    logger.debug(f"Failed to store unknown: {e}")
+
+            for dead_end in result.dead_ends:
+                try:
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO project_dead_ends
+                        (id, project_id, session_id, approach, why_failed,
+                         created_timestamp, dead_end_data)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        str(uuid_mod.uuid4()), project_id, result.session_id,
+                        dead_end.approach, dead_end.why_failed, now_ts,
+                        json.dumps({'source': result.source,
+                                    'extraction_confidence': dead_end.confidence}),
+                    ))
+                    if cursor.rowcount > 0:
+                        stored['dead_ends'] += 1
+                except Exception as e:
+                    logger.debug(f"Failed to store dead end: {e}")
+
+            for mistake in result.mistakes:
+                try:
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO mistakes_made
+                        (id, project_id, session_id, mistake, why_wrong,
+                         prevention, created_timestamp, mistake_data)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        str(uuid_mod.uuid4()), project_id, result.session_id,
+                        mistake.mistake, mistake.why_wrong, mistake.prevention, now_ts,
+                        json.dumps({'source': result.source,
+                                    'extraction_confidence': mistake.confidence}),
+                    ))
+                    if cursor.rowcount > 0:
+                        stored['mistakes'] += 1
+                except Exception as e:
+                    logger.debug(f"Failed to store mistake: {e}")
+
+        db.conn.commit()
+    finally:
+        db.close()
+
+    return stored
+
+
 def handle_profile_import_command(args):
     """Handle profile-import command — mine AI transcripts for epistemic artifacts."""
     try:
@@ -962,134 +1034,12 @@ def handle_profile_import_command(args):
                 print(f"ℹ️  {msg}")
             return 0
 
-        import uuid as uuid_mod
-
-        from empirica.data.session_database import SessionDatabase
-        from empirica.utils.session_resolver import get_active_project_id
-
-        db = SessionDatabase()
-        project_id = get_active_project_id()
-        stored = {'findings': 0, 'unknowns': 0, 'dead_ends': 0, 'mistakes': 0}
-
-        try:
-            cursor = db.conn.cursor()
-            now_ts = datetime.now(timezone.utc).timestamp()
-
-            for result in all_results:
-                for finding in result.findings:
-                    try:
-                        cursor.execute("""
-                            INSERT OR IGNORE INTO project_findings
-                            (id, project_id, session_id, finding, created_timestamp,
-                             finding_data, impact)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            str(uuid_mod.uuid4()),
-                            project_id,
-                            result.session_id,
-                            finding.finding,
-                            now_ts,
-                            json.dumps({
-                                'finding': finding.finding,
-                                'source': result.source,
-                                'extraction_confidence': finding.confidence,
-                                'source_turn': finding.source_turn,
-                            }),
-                            finding.impact,
-                        ))
-                        if cursor.rowcount > 0:
-                            stored['findings'] += 1
-                    except Exception as e:
-                        logger.debug(f"Failed to store finding: {e}")
-
-                for unknown in result.unknowns:
-                    try:
-                        cursor.execute("""
-                            INSERT OR IGNORE INTO project_unknowns
-                            (id, project_id, session_id, unknown, is_resolved,
-                             created_timestamp, unknown_data, impact)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            str(uuid_mod.uuid4()),
-                            project_id,
-                            result.session_id,
-                            unknown.unknown,
-                            False,
-                            now_ts,
-                            json.dumps({
-                                'unknown': unknown.unknown,
-                                'source': result.source,
-                                'extraction_confidence': unknown.confidence,
-                            }),
-                            0.5,
-                        ))
-                        if cursor.rowcount > 0:
-                            stored['unknowns'] += 1
-                    except Exception as e:
-                        logger.debug(f"Failed to store unknown: {e}")
-
-                for dead_end in result.dead_ends:
-                    try:
-                        cursor.execute("""
-                            INSERT OR IGNORE INTO project_dead_ends
-                            (id, project_id, session_id, approach, why_failed,
-                             created_timestamp, dead_end_data)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            str(uuid_mod.uuid4()),
-                            project_id,
-                            result.session_id,
-                            dead_end.approach,
-                            dead_end.why_failed,
-                            now_ts,
-                            json.dumps({
-                                'source': result.source,
-                                'extraction_confidence': dead_end.confidence,
-                            }),
-                        ))
-                        if cursor.rowcount > 0:
-                            stored['dead_ends'] += 1
-                    except Exception as e:
-                        logger.debug(f"Failed to store dead end: {e}")
-
-                for mistake in result.mistakes:
-                    try:
-                        cursor.execute("""
-                            INSERT OR IGNORE INTO mistakes_made
-                            (id, project_id, session_id, mistake, why_wrong,
-                             prevention, created_timestamp, mistake_data)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            str(uuid_mod.uuid4()),
-                            project_id,
-                            result.session_id,
-                            mistake.mistake,
-                            mistake.why_wrong,
-                            mistake.prevention,
-                            now_ts,
-                            json.dumps({
-                                'source': result.source,
-                                'extraction_confidence': mistake.confidence,
-                            }),
-                        ))
-                        if cursor.rowcount > 0:
-                            stored['mistakes'] += 1
-                    except Exception as e:
-                        logger.debug(f"Failed to store mistake: {e}")
-
-            db.conn.commit()
-        finally:
-            db.close()
-
+        stored = _store_extracted_artifacts(all_results)
         total_stored = sum(stored.values())
         report = {
-            "ok": True,
-            "source": source,
-            "sessions_scanned": sessions_scanned,
-            "artifacts_found": total_artifacts,
-            "artifacts_stored": stored,
-            "total_stored": total_stored,
-            "duplicates_skipped": total_artifacts - total_stored,
+            "ok": True, "source": source, "sessions_scanned": sessions_scanned,
+            "artifacts_found": total_artifacts, "artifacts_stored": stored,
+            "total_stored": total_stored, "duplicates_skipped": total_artifacts - total_stored,
         }
 
         if output_format == 'json':
