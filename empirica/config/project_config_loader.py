@@ -197,8 +197,8 @@ def load_project_config(project_root: Path | None = None) -> ProjectConfig | Non
             db_project_id = R.project_id_from_db(project_root)
             if db_project_id:
                 config_data['project_id'] = db_project_id
-        except Exception:
-            pass  # Keep yaml project_id as fallback
+        except Exception:  # noqa: S110 — keep yaml project_id as fallback if DB unavailable
+            pass
 
         logger.info(f"Loaded project config: {config_data.get('name', 'Unknown')}")
         return ProjectConfig(config_data)

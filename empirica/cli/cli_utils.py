@@ -157,7 +157,7 @@ def handle_cli_error(error: Exception, command: str, verbose: bool = False, sess
                     else:
                         session_id = None
                     db.close()
-                except Exception:
+                except Exception:  # noqa: S110 — best-effort session DB lookup for error capture
                     pass
 
             # Initialize service if we have a session_id
@@ -307,7 +307,7 @@ def print_project_context(quiet: bool = False, verbose: bool = False) -> dict[st
             project_path = context.get('project_path')
             if project_path:
                 git_root = Path(project_path)
-        except Exception:
+        except Exception:  # noqa: S110 — best-effort context resolution; CWD fallback below
             pass
 
         # Fallback: CWD-based git root detection

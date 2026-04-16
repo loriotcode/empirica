@@ -556,7 +556,7 @@ def handle_profile_prune_command(args):
                 else:
                     result = _prune_artifact(db, artifact_id, artifact_type, reason or "Manual prune")
             else:
-                assert rule is not None  # guaranteed by earlier check
+                assert rule is not None  # noqa: S101 — guaranteed by earlier check
                 result = _apply_prune_rule(db, rule, older_than, dry_run)
         finally:
             db.close()

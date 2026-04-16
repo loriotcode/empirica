@@ -54,12 +54,12 @@ def get_git_diff_summary(since_preflight: bool = False) -> dict[str, any]:
                     if '+' in part:
                         try:
                             total_additions += int(part.replace('+', ''))
-                        except Exception:
+                        except Exception:  # noqa: S110 — non-numeric diff stat; skip
                             pass
                     if '-' in part:
                         try:
                             total_deletions += int(part.replace('-', ''))
-                        except Exception:
+                        except Exception:  # noqa: S110 — non-numeric diff stat; skip
                             pass
 
         # Estimate scope

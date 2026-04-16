@@ -76,7 +76,7 @@ class RetryPolicy:
         if self.jitter:
             import random
             jitter_amount = delay * 0.2
-            delay += random.uniform(-jitter_amount, jitter_amount)
+            delay += random.uniform(-jitter_amount, jitter_amount)  # noqa: S311 — jitter for retry backoff, not security
 
         return max(0.001, delay)  # Ensure non-negative
 

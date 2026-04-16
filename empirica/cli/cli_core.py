@@ -18,7 +18,7 @@ import sys
 import time
 
 from .cli_utils import handle_cli_error
-from .command_handlers import *
+from .command_handlers import *  # noqa: F403 — re-exports all command handlers by design
 from .command_handlers.domain_commands import (
     handle_domain_list_command,
     handle_domain_resolve_command,

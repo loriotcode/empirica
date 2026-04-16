@@ -39,7 +39,7 @@ _lib_path = Path(__file__).parent.parent / 'lib'
 if str(_lib_path) not in sys.path:
     sys.path.insert(0, str(_lib_path))
 
-from project_resolver import detect_environment, get_active_project_path, get_instance_id
+from project_resolver import detect_environment, get_active_project_path, get_instance_id  # noqa: E402, I001 — after sys.path setup
 
 # Noetic tools - read/investigate/search - always allowed (whitelist)
 NOETIC_TOOLS = {
@@ -144,7 +144,7 @@ DANGEROUS_SHELL_OPERATORS = (
 )
 
 # Safe redirection patterns (stderr suppression, etc.)
-import re
+import re  # noqa: E402 — grouped with related patterns below
 
 SAFE_REDIRECT_PATTERN = re.compile(r'2>/dev/null|2>&1|>/dev/null|2>\s*/dev/null')
 
@@ -404,11 +404,7 @@ def is_safe_empirica_command(command: str) -> bool:
             return True
 
     # Tier 2: State-changing - allowed (these enable the workflow)
-    for prefix in EMPIRICA_TIER2_PREFIXES:
-        if cmd.startswith(prefix):
-            return True
-
-    return False
+    return any(cmd.startswith(prefix) for prefix in EMPIRICA_TIER2_PREFIXES)
 
 
 def is_toggle_command(command: str) -> str | None:
@@ -764,7 +760,7 @@ def find_empirica_package() -> Path | None:
     """
     # Check if already importable (pip installed)
     try:
-        import empirica.config.path_resolver  # type: ignore[import-not-found]
+        import empirica.config.path_resolver  # noqa: F401 — availability check; type: ignore[import-not-found]
         return None  # Already available, no path needed
     except ImportError:
         pass
@@ -982,12 +978,7 @@ def is_safe_sqlite_command(command: str) -> bool:
 
     # Safe SQL operations (read-only)
     safe_sql = ('SELECT', 'PRAGMA', 'EXPLAIN', 'ANALYZE')
-    for sql in safe_sql:
-        if query.startswith(sql):
-            return True
-
-    # Everything else is potentially write (INSERT, UPDATE, DELETE, etc.)
-    return False
+    return any(query.startswith(sql) for sql in safe_sql)
 
 
 def is_safe_python_command(command: str) -> bool:
@@ -1039,12 +1030,8 @@ def is_safe_python_command(command: str) -> bool:
         "EXEC(", "EVAL(", "__IMPORT__(",
     )
 
-    for pattern in write_patterns:
-        if pattern in code_upper:
-            return False
-
     # Allow: anything that's not writing is investigation
-    return True
+    return all(pattern not in code_upper for pattern in write_patterns)
 
 
 def is_safe_remote_command(command: str) -> bool:

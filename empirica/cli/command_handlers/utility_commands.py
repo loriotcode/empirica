@@ -162,7 +162,7 @@ def handle_qdrant_status_command(args):
                 "total_collections": len(info),
                 "total_points": total_points,
                 "empty_collections": empty_count,
-                "projects": {pid: colls for pid, colls in projects.items()},
+                "projects": dict(projects.items()),
                 "global_collections": globals_list,
             }, indent=2))
         else:

@@ -38,13 +38,13 @@ logger = logging.getLogger(__name__)
 
 # Import canonical structures
 try:
-    from canonical.reflex_frame import Action, EpistemicAssessment, VectorState
+    from canonical.reflex_frame import Action, EpistemicAssessment, VectorState  # noqa: F401, I001 — availability check for CANONICAL_AVAILABLE
     CANONICAL_AVAILABLE = True
 except ImportError:
     CANONICAL_AVAILABLE = False
 
 # Import formatters
-from .formatters import generate_context_markdown
+from .formatters import generate_context_markdown  # noqa: E402 — after conditional canonical import
 
 
 class SessionDatabase:

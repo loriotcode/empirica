@@ -24,7 +24,7 @@ _lib_path = Path(__file__).parent.parent / 'lib'
 if str(_lib_path) not in sys.path:
     sys.path.insert(0, str(_lib_path))
 
-from project_resolver import _get_instance_suffix, get_instance_id
+from project_resolver import _get_instance_suffix, get_instance_id  # noqa: E402 — after sys.path setup
 
 
 def _find_transaction_file(claude_session_id: 'str | None' = None) -> 'Path | None':

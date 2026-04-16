@@ -1081,8 +1081,8 @@ def _try_get_qdrant_client():
             with urllib.request.urlopen(req, timeout=1) as resp:
                 if resp.status == 200:
                     return QdrantClient(url=default_url)
-        except Exception:
-            pass  # Server not available
+        except Exception:  # noqa: S110 — Qdrant server may not be running; graceful fallback
+            pass
 
         logger.debug("Qdrant server not available for lessons storage")
         return None

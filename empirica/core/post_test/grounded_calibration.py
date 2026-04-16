@@ -601,7 +601,7 @@ class GroundedCalibrationManager:
             lines.append("  insights:\n")
             for insight in insights[:5]:  # Cap at 5 most relevant
                 # Handle both CalibrationInsight objects and dicts
-                _get = (lambda k: insight.get(k, '')) if isinstance(insight, dict) else (lambda k: getattr(insight, k, ''))
+                _get = (lambda k, _i=insight: _i.get(k, '')) if isinstance(insight, dict) else (lambda k, _i=insight: getattr(_i, k, ''))
                 lines.append(f"    - vector: {_get('vector')}\n")
                 lines.append(f"      phase: {_get('phase')}\n")
                 lines.append(f"      pattern: {_get('pattern')}\n")
@@ -777,8 +777,8 @@ def _run_single_phase_verification(
             )
             breadth_factor = categories_covered / 4.0  # 1 cat = 0.25, 2 = 0.50, etc.
             effective_coverage = (covered_weight / total_weight) * breadth_factor
-    except Exception:
-        pass  # Fall back to raw coverage
+    except Exception:  # noqa: S110 — breadth weighting is optional; raw coverage fallback
+        pass
 
     # Coverage threshold gate. If grounded_coverage is below the threshold,
     # the bundle had items but they didn't ground enough vectors to produce

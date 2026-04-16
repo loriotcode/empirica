@@ -33,7 +33,7 @@ def _check_qdrant_available() -> bool:
         return False
 
     try:
-        from qdrant_client import QdrantClient
+        from qdrant_client import QdrantClient  # noqa: F401 — availability check
         _qdrant_available = True
         return True
     except ImportError:

@@ -29,8 +29,8 @@ from pathlib import Path
 EMPIRICA_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(EMPIRICA_ROOT))
 
-from empirica.core.signaling import format_vectors_compact
-from empirica.data.session_database import SessionDatabase
+from empirica.core.signaling import format_vectors_compact  # noqa: E402 — after sys.path setup
+from empirica.data.session_database import SessionDatabase  # noqa: E402 — after sys.path setup
 
 
 # ANSI color codes
@@ -1002,7 +1002,7 @@ def format_statusline(
     # Threshold indicator (user-facing only — AI doesn't see this)
     threshold_str = ""
     if threshold_info:
-        know_t, unc_t, t_color = threshold_info
+        know_t, _, t_color = threshold_info
         threshold_str = f" {format_threshold(know_t, t_color)}"
 
     parts = [f"{Colors.GREEN}[{label}]{Colors.RESET} {conf_str}{threshold_str}"]

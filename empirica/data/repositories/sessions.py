@@ -497,7 +497,7 @@ class SessionRepository(BaseRepository):
         assessments = {}
         cascade_tasks = {}
         for row in cursor.fetchall():
-            phase, vectors_json, cascade_id, timestamp = row
+            phase, vectors_json, cascade_id, _ = row
             if vectors_json:
                 # Convert phase to the expected key format
                 key = f"{phase.lower()}_vectors"

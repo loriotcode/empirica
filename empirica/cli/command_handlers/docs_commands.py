@@ -86,7 +86,7 @@ def _auto_detect_project_config(project_root: Path) -> ProjectConfig:
             scripts = data.get("project", {}).get("scripts", {})
             if scripts:
                 # Take the first script entry
-                script_name, entry_spec = next(iter(scripts.items()))
+                _, entry_spec = next(iter(scripts.items()))
                 # entry_spec looks like "empirica.cli.cli_core:main"
                 if ":" in entry_spec:
                     cli_module, cli_entry = entry_spec.rsplit(":", 1)
@@ -2059,7 +2059,7 @@ class DocsExplainAgent:
         for alias_key in self.TOPIC_ALIASES:
             if alias_key not in search_text.lower():
                 # Check if any source mentions this topic
-                for _, path, content in top_docs[:3]:
+                for _, _path, content in top_docs[:3]:
                     if any(kw in content.lower() for kw in self.TOPIC_ALIASES[alias_key][:2]):
                         related.append(alias_key)
                         break

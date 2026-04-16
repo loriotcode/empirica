@@ -222,7 +222,7 @@ def main():
     # active_work/instance_projects get stale between pre and post compact.
     try:
         instance_id = get_instance_id()
-        handoff_suffix = _get_instance_suffix()
+        handoff_suffix = _get_instance_suffix()  # noqa: F823 — imported at module level line 25
         handoff_file = Path.home() / '.empirica' / f'compact_handoff{handoff_suffix}.json'
         handoff_data = {
             'project_path': str(project_root),

@@ -1531,7 +1531,7 @@ def handle_calibration_report_command(args):
         filtered_trajectories = 0
 
         for row in rows:
-            trajectory_id, session_id, row_ai_id, end_vectors_json, pattern, created_at = row
+            _, _, _, end_vectors_json, _, created_at = row
 
             try:
                 end_vectors = json.loads(end_vectors_json)
@@ -1658,7 +1658,7 @@ def handle_calibration_report_command(args):
             "weeks_analyzed": weeks,
             "date_range": f"{cutoff_str} to {datetime.now().strftime('%Y-%m-%d')}",
             "ai_id_filter": ai_id if ai_id else "all",
-            "learning_trajectory": {v: d for v, d in sorted_vectors}
+            "learning_trajectory": dict(sorted_vectors)
         }
 
         # Identify key issues

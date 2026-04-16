@@ -45,7 +45,7 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
         if not session:
             raise ValueError(f"Session {session_id} not found")
 
-        ai_id, start_time, end_time, bootstrap_level, total_cascades = session
+        ai_id, start_time, end_time, _, _ = session
 
         # 2. Get all cascades for this session
         cursor.execute("""

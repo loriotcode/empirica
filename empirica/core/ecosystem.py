@@ -111,7 +111,7 @@ class EcosystemGraph:
             if isinstance(deps, list):
                 for dep in deps:
                     if isinstance(dep, dict):
-                        dep_name = list(dep.keys())[0]
+                        dep_name = next(iter(dep.keys()))
                     else:
                         dep_name = dep
                     self._depends_on[name].add(dep_name)
@@ -124,7 +124,7 @@ class EcosystemGraph:
             if isinstance(opt_deps, list):
                 for dep in opt_deps:
                     if isinstance(dep, dict):
-                        dep_name = list(dep.keys())[0]
+                        dep_name = next(iter(dep.keys()))
                     else:
                         dep_name = dep
                     # Don't add to hard deps, but track reverse edge

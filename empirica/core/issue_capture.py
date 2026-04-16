@@ -699,8 +699,7 @@ def install_auto_capture_hooks(service: AutoIssueCaptureService) -> None:
                     category=IssueCategory.ERROR,
                     exc_info=exc_value
                 )
-            except Exception:
-                # Don't let capture errors break exception handling
+            except Exception:  # noqa: S110 — capture errors must not break exception handling
                 pass
 
         # Always call original hook

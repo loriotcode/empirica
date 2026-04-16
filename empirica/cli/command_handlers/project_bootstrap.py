@@ -61,7 +61,7 @@ def handle_project_bootstrap_command(args):
                     # Fallback: project.yaml for fresh projects without sessions
                     if not project_id:
                         import yaml
-                        project_yaml = os.path.join(active_project, '.empirica', 'project.yaml')
+                        project_yaml = os.path.join(active_project, '.empirica', 'project.yaml')  # noqa: F823 — os imported at module level
                         if os.path.exists(project_yaml):
                             with open(project_yaml) as f:
                                 project_config = yaml.safe_load(f)

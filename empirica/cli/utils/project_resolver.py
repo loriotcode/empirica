@@ -55,7 +55,7 @@ def get_current_git_repo() -> str | None:
         )
         if result.returncode == 0:
             return normalize_git_url(result.stdout.strip())
-    except Exception:
+    except Exception:  # noqa: S110 — git remote URL lookup is best-effort
         pass
     return None
 
@@ -143,7 +143,7 @@ def resolve_project_id(project_id_or_name: str, db=None) -> str:
                 project_info = R.resolve_workspace_project(project_id_or_name)
                 if project_info:
                     resolved_id = project_info.get('project_id') or project_info.get('id')
-            except Exception:
+            except Exception:  # noqa: S110 — workspace resolver fallback; error printed below
                 pass
 
         if not resolved_id:

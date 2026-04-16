@@ -1365,7 +1365,6 @@ def handle_decision_log_command(args):
     finally:
         if db is not None:
             db.close()
-        return None
 
 
 def handle_refdoc_add_command(args):

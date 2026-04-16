@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 # Ensure realtime directory exists
-REALTIME_DIR = Path("/tmp/empirica_realtime")
+REALTIME_DIR = Path("/tmp/empirica_realtime")  # noqa: S108 — ephemeral IPC dir for tmux panels
 REALTIME_DIR.mkdir(exist_ok=True)
 
 class EmpiricaActionHooks:
@@ -448,6 +448,6 @@ def trigger_pane_update(pane_name: str):
         # Suppress stderr to avoid "can't find session" messages when tmux session doesn't exist
         subprocess.run(['tmux', 'send-keys', '-t', pane, 'C-l'], check=False, capture_output=True)
 
-    except Exception:
-        pass  # Silent fail if tmux not available
+    except Exception:  # noqa: S110 — tmux pane refresh is best-effort; silent fail OK
+        pass
 

@@ -362,7 +362,7 @@ def _find_session_for_commit(commit_sha: str, repo_path: str) -> dict | None:
                     phase_priority = {"POSTFLIGHT": 0, "CHECK": 1, "PREFLIGHT": 2}
                     assessments.sort(key=lambda x: phase_priority.get(x["phase"], 99))
                     return assessments[0]
-    except Exception:
+    except Exception:  # noqa: S110 — best-effort assessment lookup; None fallback is correct
         pass
 
     return None

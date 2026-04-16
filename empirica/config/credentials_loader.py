@@ -26,7 +26,7 @@ except ImportError:
     YAML_AVAILABLE = False
     logger.warning("PyYAML not installed, YAML support disabled. Install with: pip install pyyaml")
 
-import json
+import json  # noqa: E402 — intentionally after conditional yaml import
 
 
 class CredentialsLoader:

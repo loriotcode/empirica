@@ -272,7 +272,7 @@ class GoalDataRepository(BaseRepository):
         unknowns_by_goal = {}
 
         for row in cursor.fetchall():
-            goal_id, objective, subtask_id, subtask_data_json = row
+            goal_id, objective, _, subtask_data_json = row
 
             if goal_id not in unknowns_by_goal:
                 unknowns_by_goal[goal_id] = {

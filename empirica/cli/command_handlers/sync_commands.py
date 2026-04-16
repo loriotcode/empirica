@@ -851,7 +851,7 @@ def _rebuild_from_notes() -> dict[str, Any]:
         # Phase 1: Insert breadcrumbs (already discovered in Phase 0)
         # Note: psycopg2 requires rollback after failed queries before next query
         # Goal IDs are set only if the goal was successfully inserted in Phase 0
-        inserted_all_goal_ids = inserted_goal_ids | {gid for gid in orphan_goal_ids}
+        inserted_all_goal_ids = inserted_goal_ids | set(orphan_goal_ids)
 
         # Phase 1: Insert breadcrumbs using table-driven approach
         _REBUILD_HANDLERS = [

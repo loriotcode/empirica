@@ -314,7 +314,7 @@ class ProfileLoader:
 
         # Default profile
         default_name = self.config.get('profile_selection', {}).get('default', 'balanced')
-        return self.profiles.get(default_name, list(self.profiles.values())[0])
+        return self.profiles.get(default_name, next(iter(self.profiles.values())))
 
     def list_profiles(self) -> list[str]:
         """List available profile names"""

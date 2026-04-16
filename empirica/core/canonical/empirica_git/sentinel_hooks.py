@@ -566,7 +566,7 @@ def default_epistemic_evaluator(checkpoint_data: dict[str, Any]) -> SentinelDeci
     engagement = vectors.get('engagement', 0.7)
 
     # Load thresholds: dynamic (Brier-inflated) first, MCO/static fallback
-    min_know, max_uncertainty = _load_evaluator_thresholds()
+    _, max_uncertainty = _load_evaluator_thresholds()
 
     # Escalate if engagement too low
     if engagement < 0.5:

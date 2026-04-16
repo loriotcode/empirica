@@ -202,7 +202,7 @@ class GitHandoffStorage:
 
             if result.returncode == 0:
                 return result.stdout.strip()
-        except Exception:
+        except Exception:  # noqa: S110 — git subprocess may fail; None fallback is correct
             pass
 
         return None

@@ -124,7 +124,7 @@ class DatabaseAdapter(ABC):
         if row is None:
             return False
         # Row is a dict — get the first value
-        return list(row.values())[0] > 0
+        return next(iter(row.values())) > 0
 
     def table_exists(self, table: str) -> bool:
         """Check if a table exists (dialect-aware)"""
@@ -142,7 +142,7 @@ class DatabaseAdapter(ABC):
         row = self.fetchone()
         if row is None:
             return False
-        return list(row.values())[0] > 0
+        return next(iter(row.values())) > 0
 
 
 class SQLiteAdapter(DatabaseAdapter):

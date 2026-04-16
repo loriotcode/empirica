@@ -243,7 +243,7 @@ def restore_memory(harness_cwd_project: Path, *, _force_replace: bool = False) -
         except Exception:
             pass
         return {
-            "ok": False if not _force_replace else True,
+            "ok": bool(_force_replace),
             "action": "broken",
             "message": f"Backup dir missing for {harness_cwd_project} — manifest cleared",
         }

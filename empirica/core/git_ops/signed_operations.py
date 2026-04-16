@@ -50,7 +50,7 @@ finally:
     if _empirica_git_module is not None:
         sys.modules['empirica.core.git'] = _empirica_git_module
 
-from empirica.core.persona.signing_persona import SigningPersona
+from empirica.core.persona.signing_persona import SigningPersona  # noqa: E402 — after sys.modules guard
 
 logger = logging.getLogger(__name__)
 

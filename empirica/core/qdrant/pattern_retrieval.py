@@ -142,7 +142,7 @@ def _search_memory_by_type(
         return [
             {
                 "score": getattr(r, 'score', 0.0) or 0.0,
-                **{k: v for k, v in (r.payload or {}).items()}
+                **(r.payload or {})
             }
             for r in results.points
             if (getattr(r, 'score', 0.0) or 0.0) >= min_score

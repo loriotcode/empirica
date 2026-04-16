@@ -195,8 +195,8 @@ def _store_artifacts(artifacts: list[ArtifactPayload]) -> dict:
                 if existing:
                     duplicates_skipped += 1
                     continue
-            except Exception:
-                pass  # Table may not have this column, proceed with insert
+            except Exception:  # noqa: S110 — table schema may lack column; proceed with insert
+                pass
 
         try:
             if atype == "finding":

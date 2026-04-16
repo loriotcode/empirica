@@ -152,7 +152,7 @@ class EpistemicReleaseAgent:
 
         if len(unique_pkg_versions) == 1:
             status = AssessmentStatus.PASS
-            message = f"Package version consistent: {list(unique_pkg_versions)[0]}"
+            message = f"Package version consistent: {next(iter(unique_pkg_versions))}"
         elif len(unique_pkg_versions) == 0:
             status = AssessmentStatus.FAIL
             message = "No version found in package files"

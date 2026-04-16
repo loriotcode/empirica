@@ -475,7 +475,7 @@ class ParallelOrchestrator:
             )
             if persona:
                 return persona.persona_id
-        except Exception:
+        except Exception:  # noqa: S110 — persona lookup optional; static fallback below
             pass
         return f"{domain}_expert"
 

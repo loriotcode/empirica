@@ -197,7 +197,7 @@ class PersonaManager:
             if 'focus_domains' not in epi or not isinstance(epi.get('focus_domains'), list) or len(epi.get('focus_domains')) == 0:
                 epi['focus_domains'] = ['general']
             profile_dict['epistemic_config'] = epi
-        except Exception:
+        except Exception:  # noqa: S110 — best-effort profile normalization; validate below
             pass
 
         # Validate
