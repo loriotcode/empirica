@@ -876,6 +876,8 @@ EOF
 
 **Key principle:** Your PREFLIGHT should reflect knowledge AFTER reading the bootstrap context above.
 This makes the PREFLIGHT→POSTFLIGHT delta meaningful.
+
+**Shell env (run if needed for manual CLI):** `export EMPIRICA_SESSION_ID={new_session_id}`
 """
 
     # Fallback: Hook couldn't create session, AI needs to do full sequence
@@ -1262,6 +1264,9 @@ def _print_user_message(pre_vectors: dict, dynamic_context: dict, potential_drif
    Active Goals: {goals_count}
    Recent Findings: {findings_count}
    Open Unknowns: {unknowns_count}
+
+🔧 Shell env var (if needed for manual CLI):
+   export EMPIRICA_SESSION_ID={new_session_id}
 
 🎯 ACTION REQUIRED:
    Run PREFLIGHT with your ACTUAL knowledge state (after reading loaded context):
