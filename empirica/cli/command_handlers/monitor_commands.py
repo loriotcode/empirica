@@ -1402,21 +1402,312 @@ def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str,
             print("   Hint: Run POSTFLIGHT sessions to collect evidence")
 
 
+_VECTOR_EXPECTED = {
+    'engagement': 1.0, 'know': 1.0, 'do': 1.0, 'context': 1.0,
+    'clarity': 1.0, 'coherence': 1.0, 'signal': 1.0, 'density': 1.0,
+    'state': 1.0, 'change': 1.0, 'completion': 1.0, 'impact': 1.0,
+    'uncertainty': 0.0  # Special: should be 0, not 1
+}
+
+
+def _fetch_trajectory_rows(weeks, include_tests):
+    """Fetch vector trajectory rows from the sessions database.
+
+    Returns (rows, cutoff_str) or raises if no DB found.
+    """
+    import json
+    import sqlite3
+    from datetime import datetime, timedelta
+
+    from empirica.config.path_resolver import get_session_db_path
+
+    db_path = str(get_session_db_path())
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cutoff_date = datetime.now() - timedelta(weeks=weeks)
+    cutoff_str = cutoff_date.strftime('%Y-%m-%d')
+
+    test_filter = "" if include_tests else """
+        AND (ai_id IS NULL OR (
+            ai_id NOT LIKE 'test%'
+            AND ai_id NOT LIKE '%%-test'
+            AND ai_id NOT LIKE 'storage-%%'
+        ))
+    """
+
+    query = f"""
+        SELECT trajectory_id, session_id, ai_id, end_vectors, pattern, created_at
+        FROM vector_trajectories
+        WHERE end_vectors IS NOT NULL
+            AND pattern != 'unknown'
+            AND created_at >= ?
+            {test_filter}
+        ORDER BY created_at DESC
+    """
+
+    cursor.execute(query, (cutoff_str,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows, cutoff_str
+
+
+def _collect_vector_data(rows):
+    """Parse trajectory rows into per-vector and per-week data.
+
+    Returns (vector_data, weekly_data, valid_trajectories, filtered_trajectories).
+    """
+    import json
+    from collections import defaultdict
+    from datetime import datetime
+
+    vector_data = defaultdict(list)
+    weekly_data = defaultdict(lambda: defaultdict(list))
+    valid_trajectories = 0
+    filtered_trajectories = 0
+
+    for row in rows:
+        _, _, _, end_vectors_json, _, created_at = row
+
+        try:
+            end_vectors = json.loads(end_vectors_json)
+        except json.JSONDecodeError:
+            continue
+
+        values = list(end_vectors.values())
+        if values and all(v == 0.5 for v in values):
+            filtered_trajectories += 1
+            continue
+
+        valid_trajectories += 1
+
+        try:
+            dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            week_key = dt.strftime('%Y-W%W')
+        except Exception:
+            week_key = 'unknown'
+
+        for vector_name, value in end_vectors.items():
+            if vector_name in _VECTOR_EXPECTED and isinstance(value, (int, float)):
+                vector_data[vector_name].append(value)
+                weekly_data[week_key][vector_name].append(value)
+
+    return vector_data, weekly_data, valid_trajectories, filtered_trajectories
+
+
+def _compute_trajectory_metrics(vector_data, weekly_data, min_samples):
+    """Calculate per-vector learning trajectory metrics.
+
+    Returns dict mapping vector_name -> metrics dict.
+    """
+    trajectory = {}
+    for vector_name, expected in _VECTOR_EXPECTED.items():
+        values = vector_data.get(vector_name, [])
+        if not values:
+            continue
+
+        count = len(values)
+        mean = sum(values) / count
+
+        if expected == 1.0:
+            correction = expected - mean
+        else:
+            correction = -mean
+
+        variance = sum((v - mean) ** 2 for v in values) / count if count > 1 else 0
+        std_dev = variance ** 0.5
+        std_error = std_dev / (count ** 0.5) if count > 0 else 0
+
+        trend = _compute_trend(weekly_data, vector_name)
+
+        if count >= min_samples:
+            confidence = "high"
+        elif count >= min_samples // 2:
+            confidence = "medium"
+        else:
+            confidence = "low"
+
+        trajectory[vector_name] = {
+            "correction": round(correction, 2),
+            "end_mean": round(mean, 2),
+            "expected": expected,
+            "count": count,
+            "std_error": round(std_error, 3),
+            "trend": trend,
+            "confidence": confidence
+        }
+    return trajectory
+
+
+def _compute_trend(weekly_data, vector_name):
+    """Determine trend direction from weekly data for a given vector."""
+    weeks_list = sorted(weekly_data.keys())
+    if len(weeks_list) < 2:
+        return "→ stable"
+
+    early_weeks = weeks_list[:len(weeks_list)//2]
+    late_weeks = weeks_list[len(weeks_list)//2:]
+
+    early_values = []
+    late_values = []
+    for w in early_weeks:
+        early_values.extend(weekly_data[w].get(vector_name, []))
+    for w in late_weeks:
+        late_values.extend(weekly_data[w].get(vector_name, []))
+
+    early_mean = sum(early_values) / len(early_values) if early_values else 0
+    late_mean = sum(late_values) / len(late_values) if late_values else 0
+
+    delta = late_mean - early_mean
+    if delta > 0.05:
+        return "↑ improving"
+    elif delta < -0.05:
+        return "↓ declining"
+    return "→ stable"
+
+
+def _identify_key_issues(sorted_vectors):
+    """Identify vectors with |correction| >= 0.15."""
+    key_issues = []
+    for vector_name, data in sorted_vectors:
+        if abs(data['correction']) >= 0.15:
+            if vector_name == 'uncertainty':
+                meaning = "Residual doubt (should be ~0)"
+            elif data['correction'] > 0:
+                meaning = f"Underestimate {vector_name}"
+            else:
+                meaning = f"Overestimate {vector_name}"
+            key_issues.append({
+                "vector": vector_name,
+                "correction": data['correction'],
+                "meaning": meaning
+            })
+    return key_issues
+
+
+def _correction_meaning(vector_name, correction):
+    """Return human-readable meaning for a correction value."""
+    if vector_name == 'uncertainty':
+        return "Residual doubt (should be ~0)"
+    elif abs(correction) < 0.08:
+        return "Well calibrated"
+    elif correction > 0:
+        return f"Underestimate {vector_name}"
+    else:
+        return f"Overestimate {vector_name}"
+
+
+def _format_correction_str(correction):
+    """Format correction with sign and optional bold for markdown."""
+    corr_str = f"+{correction:.2f}" if correction >= 0 else f"{correction:.2f}"
+    if abs(correction) >= 0.15:
+        corr_str = f"**{corr_str}**"
+    return corr_str
+
+
+def _print_markdown_table(sorted_vectors, valid_trajectories, weeks):
+    """Print markdown-formatted learning trajectory table."""
+    print(f"## Learning Trajectory ({valid_trajectories} trajectories over {weeks} weeks)")
+    print()
+    print("*PREFLIGHT→POSTFLIGHT deltas. NOT calibration (use grounded evidence for that).*")
+    print()
+    print("| Vector | Correction | End Mean | Trend | Meaning |")
+    print("|--------|------------|----------|-------|---------|")
+
+    for vector_name, data in sorted_vectors:
+        corr_str = _format_correction_str(data['correction'])
+        meaning = _correction_meaning(vector_name, data['correction'])
+        print(f"| {vector_name} | {corr_str} | {data['end_mean']:.2f} | {data['trend']} | {meaning} |")
+
+    print()
+    print("**Apply corrections:** ADD the correction to your self-assessment.")
+    print("**Readiness gate:** uncertainty <= 0.35 (meta uncertainty)")
+
+
+def _print_human_trajectory(result, sorted_vectors, key_issues, filtered_trajectories,
+                             valid_trajectories, weeks, weekly_data, verbose, update_prompt):
+    """Print human-readable learning trajectory output."""
+    print("=" * 70)
+    print("📊 LEARNING TRAJECTORY (PREFLIGHT→POSTFLIGHT)")
+    print("=" * 70)
+    print("NOTE: This is learning data, NOT calibration. For grounded calibration,")
+    print("      run: empirica calibration-report (without --learning-trajectory)")
+    print()
+    print(f"Data source: vector_trajectories ({valid_trajectories} trajectories)")
+    print(f"Period: {result['date_range']} ({weeks} weeks)")
+    if filtered_trajectories:
+        print(f"Filtered: {filtered_trajectories} placeholder sessions excluded")
+    print()
+
+    if key_issues:
+        print("🎯 KEY PATTERNS (|delta| >= 0.15):")
+        for issue in key_issues:
+            sign = "+" if issue['correction'] >= 0 else ""
+            print(f"   {issue['vector']}: {sign}{issue['correction']:.2f} - {issue['meaning']}")
+        print()
+
+    print("📈 PER-VECTOR LEARNING DELTAS:")
+    print("-" * 70)
+    print(f"{'Vector':<15} {'Correction':>10} {'End Mean':>10} {'Samples':>8} {'Trend':>15}")
+    print("-" * 70)
+
+    for vector_name, data in sorted_vectors:
+        correction = data['correction']
+        sign = "+" if correction >= 0 else ""
+        prefix = "⚠️ " if abs(correction) >= 0.15 else "   "
+        print(f"{prefix}{vector_name:<12} {sign}{correction:>8.2f} {data['end_mean']:>10.2f} {data['count']:>8} {data['trend']:>15}")
+
+    print("-" * 70)
+    print()
+    print("📋 READINESS GATE:")
+    print("   uncertainty <= 0.35 (meta uncertainty, after bias correction)")
+    print("   Apply: ADD corrections to your self-assessment")
+    print()
+
+    if verbose:
+        print("📊 WEEKLY TREND DATA:")
+        weeks_list = sorted(weekly_data.keys())
+        for week in weeks_list[-4:]:
+            week_vectors = weekly_data[week]
+            if week_vectors:
+                know_vals = week_vectors.get('know', [])
+                unc_vals = week_vectors.get('uncertainty', [])
+                know_mean = sum(know_vals) / len(know_vals) if know_vals else 0
+                unc_mean = sum(unc_vals) / len(unc_vals) if unc_vals else 0
+                print(f"   {week}: know={know_mean:.2f}, uncertainty={unc_mean:.2f} (n={len(know_vals)})")
+
+    if update_prompt:
+        print()
+        print("=" * 70)
+        print("📝 COPY-PASTE FOR SYSTEM PROMPT:")
+        print("=" * 70)
+        print()
+        print("| Vector | Correction | End Mean | Trend | Meaning |")
+        print("|--------|------------|----------|-------|---------|")
+        for vector_name, data in sorted_vectors:
+            corr_str = _format_correction_str(data['correction'])
+            meaning = _correction_meaning(vector_name, data['correction'])
+            print(f"| {vector_name} | {corr_str} | {data['end_mean']:.2f} | {data['trend']} | {meaning} |")
+
+    print()
+    print("=" * 70)
+    print()
+    print("Note: This shows learning trajectory (PREFLIGHT→POSTFLIGHT deltas).")
+    print("      For actual calibration (grounded evidence), run without --learning-trajectory.")
+
+
 def handle_calibration_report_command(args):
     """Handle calibration-report command.
 
-    Default: Shows grounded calibration (POSTFLIGHT → POST-TEST evidence comparison).
+    Default: Shows grounded calibration (POSTFLIGHT -> POST-TEST evidence comparison).
     This is real calibration - measuring accuracy of self-assessment against reality.
 
-    Use --learning-trajectory to see PREFLIGHT→POSTFLIGHT deltas (learning, not calibration).
+    Use --learning-trajectory to see PREFLIGHT->POSTFLIGHT deltas (learning, not calibration).
     """
     try:
         import json
-        import sqlite3
-        from collections import defaultdict
-        from datetime import datetime, timedelta
+        from datetime import datetime
 
-        # Get arguments
         ai_id = getattr(args, 'ai_id', None) or 'claude-code'
         weeks = getattr(args, 'weeks', 8)
         include_tests = getattr(args, 'include_tests', False)
@@ -1425,72 +1716,24 @@ def handle_calibration_report_command(args):
         update_prompt = getattr(args, 'update_prompt', False)
         verbose = getattr(args, 'verbose', False)
 
-        # Check mode: grounded (default) vs learning-trajectory vs list-disputes vs brier
         show_learning_trajectory = getattr(args, 'learning_trajectory', False)
         show_trajectory_trend = getattr(args, 'trajectory', False)
         list_disputes = getattr(args, 'list_disputes', False)
         show_brier = getattr(args, 'brier', False)
 
-        # --list-disputes: show all disputes
         if list_disputes:
             return _show_disputes(output_format)
-
-        # --brier: show Brier score decomposition per phase
         if show_brier:
             return _show_brier_profile(args, ai_id, output_format)
-
-        # DEFAULT: Show grounded calibration (the real calibration)
         if not show_learning_trajectory:
             return _show_grounded_calibration(args, ai_id, weeks, output_format, show_trajectory_trend)
 
-        # LEGACY: Show learning trajectory (PREFLIGHT→POSTFLIGHT deltas)
-        # This is NOT calibration - it's learning data
-
-        # Find the sessions database via unified context resolver
-        from empirica.config.path_resolver import get_session_db_path
+        # LEGACY: Show learning trajectory (PREFLIGHT->POSTFLIGHT deltas)
         try:
-            db_path = str(get_session_db_path())
+            rows, cutoff_str = _fetch_trajectory_rows(weeks, include_tests)
         except FileNotFoundError:
-            result = {"ok": False, "error": "No sessions database found"}
-            print(json.dumps(result, indent=2))
+            print(json.dumps({"ok": False, "error": "No sessions database found"}, indent=2))
             return
-
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        # Calculate date range
-        cutoff_date = datetime.now() - timedelta(weeks=weeks)
-        cutoff_str = cutoff_date.strftime('%Y-%m-%d')
-
-        # Query vector_trajectories for end vectors
-        # Filter out test sessions unless include_tests is True
-        test_filter = "" if include_tests else """
-            AND (ai_id IS NULL OR (
-                ai_id NOT LIKE 'test%'
-                AND ai_id NOT LIKE '%%-test'
-                AND ai_id NOT LIKE 'storage-%%'
-            ))
-        """
-
-        query = f"""
-            SELECT
-                trajectory_id,
-                session_id,
-                ai_id,
-                end_vectors,
-                pattern,
-                created_at
-            FROM vector_trajectories
-            WHERE end_vectors IS NOT NULL
-                AND pattern != 'unknown'
-                AND created_at >= ?
-                {test_filter}
-            ORDER BY created_at DESC
-        """
-
-        cursor.execute(query, (cutoff_str,))
-        rows = cursor.fetchall()
-        conn.close()
 
         if not rows:
             result = {
@@ -1504,61 +1747,8 @@ def handle_calibration_report_command(args):
                 print(f"❌ No calibration data found in last {weeks} weeks")
             return
 
-        # Define vectors and their expected values
-        # Most vectors should end at 1.0 (full capability)
-        # uncertainty should end at 0.0 (no remaining doubt)
-        vector_expected = {
-            'engagement': 1.0,
-            'know': 1.0,
-            'do': 1.0,
-            'context': 1.0,
-            'clarity': 1.0,
-            'coherence': 1.0,
-            'signal': 1.0,
-            'density': 1.0,
-            'state': 1.0,
-            'change': 1.0,
-            'completion': 1.0,
-            'impact': 1.0,
-            'uncertainty': 0.0  # Special: should be 0, not 1
-        }
-
-        # Collect all end vectors
-        vector_data = defaultdict(list)
-        weekly_data = defaultdict(lambda: defaultdict(list))
-
-        valid_trajectories = 0
-        filtered_trajectories = 0
-
-        for row in rows:
-            _, _, _, end_vectors_json, _, created_at = row
-
-            try:
-                end_vectors = json.loads(end_vectors_json)
-            except json.JSONDecodeError:
-                continue
-
-            # Filter out 0.5 default values (placeholder data)
-            # A session with all 0.5 values is likely a test/placeholder
-            values = list(end_vectors.values())
-            if values and all(v == 0.5 for v in values):
-                filtered_trajectories += 1
-                continue
-
-            valid_trajectories += 1
-
-            # Parse week from created_at
-            try:
-                dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                week_key = dt.strftime('%Y-W%W')
-            except Exception:
-                week_key = 'unknown'
-
-            # Collect per-vector data
-            for vector_name, value in end_vectors.items():
-                if vector_name in vector_expected and isinstance(value, (int, float)):
-                    vector_data[vector_name].append(value)
-                    weekly_data[week_key][vector_name].append(value)
+        vector_data, weekly_data, valid_trajectories, filtered_trajectories = \
+            _collect_vector_data(rows)
 
         if valid_trajectories == 0:
             result = {
@@ -1573,81 +1763,18 @@ def handle_calibration_report_command(args):
                 print(f"❌ No valid calibration data (filtered {filtered_trajectories} placeholder sessions)")
             return
 
-        # Calculate learning trajectory metrics (PREFLIGHT→POSTFLIGHT deltas)
-        trajectory = {}
-        for vector_name, expected in vector_expected.items():
-            values = vector_data.get(vector_name, [])
-            if not values:
-                continue
+        trajectory = _compute_trajectory_metrics(vector_data, weekly_data, min_samples)
 
-            count = len(values)
-            mean = sum(values) / count
-
-            # Gap from expected (correction to ADD to self-assessment)
-            # If expected is 1.0 and mean is 0.8, correction is +0.2
-            # If expected is 0.0 (uncertainty) and mean is 0.2, correction is -0.2
-            if expected == 1.0:
-                correction = expected - mean
-            else:  # uncertainty (expected = 0.0)
-                correction = -mean  # Negative means reduce uncertainty
-
-            # Calculate variance and std error
-            variance = sum((v - mean) ** 2 for v in values) / count if count > 1 else 0
-            std_dev = variance ** 0.5
-            std_error = std_dev / (count ** 0.5) if count > 0 else 0
-
-            # Determine trend from weekly data
-            weeks_list = sorted(weekly_data.keys())
-            if len(weeks_list) >= 2:
-                early_weeks = weeks_list[:len(weeks_list)//2]
-                late_weeks = weeks_list[len(weeks_list)//2:]
-
-                early_values = []
-                late_values = []
-                for w in early_weeks:
-                    early_values.extend(weekly_data[w].get(vector_name, []))
-                for w in late_weeks:
-                    late_values.extend(weekly_data[w].get(vector_name, []))
-
-                early_mean = sum(early_values) / len(early_values) if early_values else 0
-                late_mean = sum(late_values) / len(late_values) if late_values else 0
-
-                delta = late_mean - early_mean
-                if delta > 0.05:
-                    trend = "↑ improving"
-                elif delta < -0.05:
-                    trend = "↓ declining"
-                else:
-                    trend = "→ stable"
-            else:
-                trend = "→ stable"
-
-            # Confidence based on sample size
-            if count >= min_samples:
-                confidence = "high"
-            elif count >= min_samples // 2:
-                confidence = "medium"
-            else:
-                confidence = "low"
-
-            trajectory[vector_name] = {
-                "correction": round(correction, 2),
-                "end_mean": round(mean, 2),
-                "expected": expected,
-                "count": count,
-                "std_error": round(std_error, 3),
-                "trend": trend,
-                "confidence": confidence
-            }
-
-        # Sort by absolute correction (biggest issues first)
         sorted_vectors = sorted(
             trajectory.items(),
             key=lambda x: abs(x[1]['correction']),
             reverse=True
         )
 
-        # Build result
+        key_issues = _identify_key_issues(sorted_vectors)
+
+        know_data = trajectory.get('know', {})
+        uncertainty_data = trajectory.get('uncertainty', {})
         result = {
             "ok": True,
             "type": "learning_trajectory",
@@ -1658,168 +1785,25 @@ def handle_calibration_report_command(args):
             "weeks_analyzed": weeks,
             "date_range": f"{cutoff_str} to {datetime.now().strftime('%Y-%m-%d')}",
             "ai_id_filter": ai_id if ai_id else "all",
-            "learning_trajectory": dict(sorted_vectors)
+            "learning_trajectory": dict(sorted_vectors),
+            "key_issues": key_issues,
+            "readiness_gate": {
+                "threshold": "uncertainty <= 0.35 (meta uncertainty gate)",
+                "know_correction": know_data.get('correction', 0),
+                "uncertainty_correction": uncertainty_data.get('correction', 0),
+                "note": "Apply corrections: ADD to self-assessment"
+            }
         }
 
-        # Identify key issues
-        key_issues = []
-        for vector_name, data in sorted_vectors:
-            if abs(data['correction']) >= 0.15:
-                if vector_name == 'uncertainty':
-                    meaning = "Residual doubt (should be ~0)"
-                elif data['correction'] > 0:
-                    meaning = f"Underestimate {vector_name}"
-                else:
-                    meaning = f"Overestimate {vector_name}"
-                key_issues.append({
-                    "vector": vector_name,
-                    "correction": data['correction'],
-                    "meaning": meaning
-                })
-
-        result["key_issues"] = key_issues
-
-        # Readiness gate info
-        know_data = trajectory.get('know', {})
-        uncertainty_data = trajectory.get('uncertainty', {})
-        result["readiness_gate"] = {
-            "threshold": "uncertainty <= 0.35 (meta uncertainty gate)",
-            "know_correction": know_data.get('correction', 0),
-            "uncertainty_correction": uncertainty_data.get('correction', 0),
-            "note": "Apply corrections: ADD to self-assessment"
-        }
-
-        # Output
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         elif output_format == 'markdown' or update_prompt:
-            # Generate markdown table for system prompt
-            print(f"## Learning Trajectory ({valid_trajectories} trajectories over {weeks} weeks)")
-            print()
-            print("*PREFLIGHT→POSTFLIGHT deltas. NOT calibration (use grounded evidence for that).*")
-            print()
-            print("| Vector | Correction | End Mean | Trend | Meaning |")
-            print("|--------|------------|----------|-------|---------|")
-
-            for vector_name, data in sorted_vectors:
-                correction = data['correction']
-                # Format correction with sign
-                if correction >= 0:
-                    corr_str = f"+{correction:.2f}"
-                else:
-                    corr_str = f"{correction:.2f}"
-
-                # Bold significant corrections
-                if abs(correction) >= 0.15:
-                    corr_str = f"**{corr_str}**"
-
-                # Meaning
-                if vector_name == 'uncertainty':
-                    meaning = "Residual doubt (should be ~0)"
-                elif abs(correction) < 0.08:
-                    meaning = "Well calibrated"
-                elif correction > 0:
-                    meaning = f"Underestimate {vector_name}"
-                else:
-                    meaning = f"Overestimate {vector_name}"
-
-                print(f"| {vector_name} | {corr_str} | {data['end_mean']:.2f} | {data['trend']} | {meaning} |")
-
-            print()
-            print("**Apply corrections:** ADD the correction to your self-assessment.")
-            print("**Readiness gate:** uncertainty <= 0.35 (meta uncertainty)")
+            _print_markdown_table(sorted_vectors, valid_trajectories, weeks)
         else:
-            # Human-readable output
-            print("=" * 70)
-            print("📊 LEARNING TRAJECTORY (PREFLIGHT→POSTFLIGHT)")
-            print("=" * 70)
-            print("NOTE: This is learning data, NOT calibration. For grounded calibration,")
-            print("      run: empirica calibration-report (without --learning-trajectory)")
-            print()
-            print(f"Data source: vector_trajectories ({valid_trajectories} trajectories)")
-            print(f"Period: {result['date_range']} ({weeks} weeks)")
-            if filtered_trajectories:
-                print(f"Filtered: {filtered_trajectories} placeholder sessions excluded")
-            print()
-
-            if key_issues:
-                print("🎯 KEY PATTERNS (|delta| >= 0.15):")
-                for issue in key_issues:
-                    sign = "+" if issue['correction'] >= 0 else ""
-                    print(f"   {issue['vector']}: {sign}{issue['correction']:.2f} - {issue['meaning']}")
-                print()
-
-            print("📈 PER-VECTOR LEARNING DELTAS:")
-            print("-" * 70)
-            print(f"{'Vector':<15} {'Correction':>10} {'End Mean':>10} {'Samples':>8} {'Trend':>15}")
-            print("-" * 70)
-
-            for vector_name, data in sorted_vectors:
-                correction = data['correction']
-                sign = "+" if correction >= 0 else ""
-
-                # Highlight significant corrections
-                if abs(correction) >= 0.15:
-                    prefix = "⚠️ "
-                else:
-                    prefix = "   "
-
-                print(f"{prefix}{vector_name:<12} {sign}{correction:>8.2f} {data['end_mean']:>10.2f} {data['count']:>8} {data['trend']:>15}")
-
-            print("-" * 70)
-            print()
-            print("📋 READINESS GATE:")
-            print("   uncertainty <= 0.35 (meta uncertainty, after bias correction)")
-            print("   Apply: ADD corrections to your self-assessment")
-            print()
-
-            if verbose:
-                print("📊 WEEKLY TREND DATA:")
-                weeks_list = sorted(weekly_data.keys())
-                for week in weeks_list[-4:]:  # Last 4 weeks
-                    week_vectors = weekly_data[week]
-                    if week_vectors:
-                        know_vals = week_vectors.get('know', [])
-                        unc_vals = week_vectors.get('uncertainty', [])
-                        know_mean = sum(know_vals) / len(know_vals) if know_vals else 0
-                        unc_mean = sum(unc_vals) / len(unc_vals) if unc_vals else 0
-                        print(f"   {week}: know={know_mean:.2f}, uncertainty={unc_mean:.2f} (n={len(know_vals)})")
-
-            if update_prompt:
-                print()
-                print("=" * 70)
-                print("📝 COPY-PASTE FOR SYSTEM PROMPT:")
-                print("=" * 70)
-                print()
-                print("| Vector | Correction | End Mean | Trend | Meaning |")
-                print("|--------|------------|----------|-------|---------|")
-
-                for vector_name, data in sorted_vectors:
-                    correction = data['correction']
-                    if correction >= 0:
-                        corr_str = f"+{correction:.2f}"
-                    else:
-                        corr_str = f"{correction:.2f}"
-
-                    if abs(correction) >= 0.15:
-                        corr_str = f"**{corr_str}**"
-
-                    if vector_name == 'uncertainty':
-                        meaning = "Residual doubt (should be ~0)"
-                    elif abs(correction) < 0.08:
-                        meaning = "Well calibrated"
-                    elif correction > 0:
-                        meaning = f"Underestimate {vector_name}"
-                    else:
-                        meaning = f"Overestimate {vector_name}"
-
-                    print(f"| {vector_name} | {corr_str} | {data['end_mean']:.2f} | {data['trend']} | {meaning} |")
-
-            print()
-            print("=" * 70)
-            print()
-            print("Note: This shows learning trajectory (PREFLIGHT→POSTFLIGHT deltas).")
-            print("      For actual calibration (grounded evidence), run without --learning-trajectory.")
+            _print_human_trajectory(
+                result, sorted_vectors, key_issues, filtered_trajectories,
+                valid_trajectories, weeks, weekly_data, verbose, update_prompt
+            )
 
     except Exception as e:
         handle_cli_error(e, "Calibration Report", getattr(args, 'verbose', False))
