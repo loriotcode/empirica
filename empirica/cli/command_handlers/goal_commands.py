@@ -186,101 +186,348 @@ def _link_goal_to_beads(args, config_data, goal, objective,
         return None
 
 
+def _parse_goal_config(args):
+    """Parse goal config from file/stdin or legacy CLI flags.
+
+    Returns:
+        dict with keys: session_id, objective, scope_breadth, scope_duration,
+        scope_coordination, success_criteria_list, estimated_complexity,
+        constraints, metadata, output_format, config_data
+    """
+    import os
+
+    config_data = None
+    if hasattr(args, 'config') and args.config:
+        if args.config == '-':
+            config_data = parse_json_safely(sys.stdin.read())
+        else:
+            if not os.path.exists(args.config):
+                print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
+                sys.exit(1)
+            with open(args.config) as f:
+                config_data = parse_json_safely(f.read())
+
+    if config_data:
+        session_id = config_data.get('session_id')
+        objective = config_data.get('objective')
+
+        scope_config = config_data.get('scope', {})
+        if isinstance(scope_config, dict):
+            scope_breadth = scope_config.get('breadth', 0.3)
+            scope_duration = scope_config.get('duration', 0.2)
+            scope_coordination = scope_config.get('coordination', 0.1)
+        else:
+            scope_breadth = 0.3
+            scope_duration = 0.2
+            scope_coordination = 0.1
+
+        success_criteria_list = config_data.get('success_criteria', [])
+        estimated_complexity = config_data.get('estimated_complexity')
+        constraints = config_data.get('constraints')
+        metadata = config_data.get('metadata')
+        output_format = 'json'
+    else:
+        session_id = args.session_id
+        objective = args.objective
+        scope_breadth = float(args.scope_breadth) if hasattr(args, 'scope_breadth') and args.scope_breadth else 0.3
+        scope_duration = float(args.scope_duration) if hasattr(args, 'scope_duration') and args.scope_duration else 0.2
+        scope_coordination = float(args.scope_coordination) if hasattr(args, 'scope_coordination') and args.scope_coordination else 0.1
+        estimated_complexity = getattr(args, 'estimated_complexity', None)
+        constraints = parse_json_safely(args.constraints) if args.constraints else None
+        metadata = parse_json_safely(args.metadata) if args.metadata else None
+        output_format = getattr(args, 'output', 'json')
+
+        success_criteria_list = _parse_legacy_success_criteria(args)
+
+    return {
+        'session_id': session_id,
+        'objective': objective,
+        'scope_breadth': scope_breadth,
+        'scope_duration': scope_duration,
+        'scope_coordination': scope_coordination,
+        'success_criteria_list': success_criteria_list,
+        'estimated_complexity': estimated_complexity,
+        'constraints': constraints,
+        'metadata': metadata,
+        'output_format': output_format,
+        'config_data': config_data,
+    }
+
+
+def _parse_legacy_success_criteria(args):
+    """Parse success criteria from legacy CLI flags (file, stdin, or inline).
+
+    Returns:
+        list of success criteria strings/dicts
+    """
+    import os
+
+    success_criteria_list = []
+    if hasattr(args, 'success_criteria_file') and args.success_criteria_file:
+        if not os.path.exists(args.success_criteria_file):
+            print(f"❌ Error: File not found: {args.success_criteria_file}", file=sys.stderr)
+            sys.exit(1)
+        with open(args.success_criteria_file) as f:
+            success_criteria_list = parse_json_safely(f.read())
+    elif hasattr(args, 'success_criteria') and args.success_criteria:
+        if args.success_criteria == '-':
+            success_criteria_list = parse_json_safely(sys.stdin.read())
+        elif args.success_criteria.strip().startswith('['):
+            success_criteria_list = parse_json_safely(args.success_criteria)
+        else:
+            success_criteria_list = [args.success_criteria]
+
+    if isinstance(success_criteria_list, str):
+        success_criteria_list = [success_criteria_list]
+
+    return success_criteria_list
+
+
+def _resolve_goal_session(session_id, config_data, args):
+    """Resolve session_id, target_project_id, and validate required fields.
+
+    Returns:
+        (session_id, target_project_id, is_cross_project)
+    Exits on validation failure.
+    """
+    target_project_id = None
+    if config_data:
+        target_project_id = config_data.get('project_id')
+    elif hasattr(args, 'project_id') and args.project_id:
+        target_project_id = args.project_id
+
+    if not session_id:
+        session_id = R.session_id()
+
+    is_cross_project = bool(target_project_id)
+    if not session_id and is_cross_project:
+        session_id = "cross-project"
+
+    return session_id, target_project_id, is_cross_project
+
+
+def _check_goal_duplicates(objective, session_id, output_format, args, config_data):
+    """Check for duplicate goals (unless --force). Exits if duplicates found."""
+    force_create = getattr(args, 'force', False) or (config_data and config_data.get('force', False))
+    if not force_create:
+        similar_goals = _check_for_similar_goals(objective, session_id)
+        if similar_goals:
+            if output_format == 'json':
+                print(json.dumps({
+                    "ok": False,
+                    "error": "Similar goal(s) already exist",
+                    "similar_goals": similar_goals,
+                    "hint": "Use --force to create anyway, or use goals-refresh to resume a stale goal",
+                    "objective": objective
+                }))
+            else:
+                print("⚠️  Similar goal(s) found:")
+                for sg in similar_goals:
+                    print(f"   - {sg['objective'][:60]}... (score: {sg.get('score', 'N/A')})")
+                print("\n   Use --force to create anyway")
+            sys.exit(1)
+
+
+def _build_and_save_goal(objective, success_criteria_list, scope_breadth, scope_duration,
+                         scope_coordination, estimated_complexity, constraints, metadata,
+                         session_id, is_cross_project, target_project_id, config_data, args):
+    """Build Goal object and save to database.
+
+    Returns:
+        (goal, goal_repo, success_criteria_objects, scope, success, target_project_id)
+    """
+    import uuid
+
+    from empirica.core.goals.repository import GoalRepository
+    from empirica.core.goals.types import Goal, ScopeVector, SuccessCriterion
+
+    scope = ScopeVector(
+        breadth=scope_breadth,
+        duration=scope_duration,
+        coordination=scope_coordination
+    )
+
+    if not success_criteria_list:
+        success_criteria_list = ["Goal completion achieved"]
+
+    # Resolve cross-project DB path
+    goal_repo_db_path = None
+    if is_cross_project and target_project_id:
+        from empirica.cli.command_handlers.artifact_log_commands import _get_db_for_project
+        cross_db = _get_db_for_project(target_project_id)
+        if cross_db:
+            resolved_pid = cross_db.resolve_project_id(target_project_id)
+            if resolved_pid:
+                target_project_id = resolved_pid
+                goal_repo_db_path = cross_db.db_path
+            cross_db.close()
+    goal_repo = GoalRepository(db_path=goal_repo_db_path)
+
+    # Create SuccessCriterion objects
+    success_criteria_objects = []
+    for criteria in success_criteria_list:
+        success_criteria_objects.append(SuccessCriterion(
+            id=str(uuid.uuid4()),
+            description=str(criteria),
+            validation_method="completion",
+            is_required=True,
+            is_met=False
+        ))
+
+    # Create Goal object
+    goal = Goal.create(
+        objective=objective,
+        success_criteria=success_criteria_objects,
+        scope=scope,
+        estimated_complexity=estimated_complexity,
+        constraints=constraints,
+        metadata=metadata
+    )
+
+    # Auto-derive transaction_id
+    transaction_id = None
+    try:
+        transaction_id = R.transaction_id()
+    except Exception:
+        pass
+
+    success = goal_repo.save_goal(goal, session_id, transaction_id=transaction_id)
+
+    # Set initial status
+    initial_status = 'in_progress'
+    if config_data:
+        initial_status = config_data.get('status', 'in_progress')
+    elif hasattr(args, 'status') and args.status:
+        initial_status = args.status
+    if initial_status == 'planned' and success:
+        goal_repo.db.conn.execute(
+            "UPDATE goals SET status = 'planned' WHERE id = ?", (goal.id,))
+        goal_repo.db.conn.commit()
+
+    return goal, goal_repo, success_criteria_objects, scope, success, target_project_id
+
+
+def _goal_post_create_integrations(goal, session_id, objective, scope, success_criteria_objects,
+                                   scope_breadth, scope_duration, scope_coordination,
+                                   estimated_complexity, constraints, metadata,
+                                   args, config_data, output_format, result):
+    """Run post-creation integrations: BEADS, git notes, Qdrant. Mutates result dict."""
+    # BEADS
+    beads_issue_id = _link_goal_to_beads(
+        args, config_data, goal, objective,
+        scope_breadth, scope_duration, output_format)
+    result["beads_issue_id"] = beads_issue_id
+
+    # CHECK recommendation for high-scope goals
+    if scope_breadth >= 0.6 or scope_duration >= 0.5:
+        result["check_recommendation"] = {
+            "type": "check_recommendation",
+            "reason": "high_scope",
+            "message": "High-scope goal: Consider running CHECK after initial investigation",
+            "scope_trigger": {
+                "breadth": scope_breadth if scope_breadth >= 0.6 else None,
+                "duration": scope_duration if scope_duration >= 0.5 else None
+            },
+            "suggested_timing": "after 1-2 subtasks or 30+ minutes",
+            "command": f"empirica check --session-id {session_id}"
+        }
+
+    # Git notes storage
+    try:
+        from empirica.core.canonical.empirica_git import GitGoalStore
+
+        ai_id = getattr(args, 'ai_id', 'empirica_cli')
+        goal_store = GitGoalStore()
+        goal_data = {
+            'objective': objective,
+            'scope': scope.to_dict(),
+            'success_criteria': [sc.description for sc in success_criteria_objects],
+            'estimated_complexity': estimated_complexity,
+            'constraints': constraints,
+            'metadata': metadata
+        }
+        goal_store.store_goal(
+            goal_id=goal.id, session_id=session_id,
+            ai_id=ai_id, goal_data=goal_data
+        )
+        logger.debug(f"Goal {goal.id[:8]} stored in git notes for cross-AI discovery")
+    except Exception as e:
+        logger.debug(f"Git goal storage skipped: {e}")
+
+    # Qdrant embedding
+    try:
+        from empirica.core.qdrant.vector_store import embed_goal
+        from empirica.data.session_database import SessionDatabase as GoalDB
+
+        goal_db = GoalDB()
+        cursor = goal_db.conn.cursor()
+        cursor.execute("SELECT project_id, ai_id FROM sessions WHERE session_id = ?", (session_id,))
+        row = cursor.fetchone()
+        goal_db.close()
+
+        if row and row[0]:
+            project_id = row[0]
+            ai_id = row[1] or getattr(args, 'ai_id', 'empirica_cli')
+            qdrant_embedded = embed_goal(
+                project_id=project_id, goal_id=goal.id,
+                objective=objective, session_id=session_id, ai_id=ai_id,
+                scope_breadth=scope_breadth, scope_duration=scope_duration,
+                scope_coordination=scope_coordination,
+                estimated_complexity=estimated_complexity,
+                success_criteria=[sc.description for sc in success_criteria_objects],
+                status="in_progress", timestamp=goal.created_timestamp,
+            )
+            if qdrant_embedded:
+                result['qdrant_embedded'] = True
+    except Exception as e:
+        logger.debug(f"Goal Qdrant embedding skipped: {e}")
+
+    return beads_issue_id
+
+
+def _format_goal_output(output_format, result, objective, scope, estimated_complexity,
+                        beads_issue_id, use_beads):
+    """Format and print goal creation output."""
+    if output_format == 'json':
+        print(json.dumps(result, indent=2))
+        if result['ok'] and not beads_issue_id and not use_beads:
+            print("\n💡 Tip: Add --use-beads flag to track this goal in BEADS issue tracker", file=sys.stderr)
+    else:
+        if result['ok']:
+            print("✅ Goal created successfully")
+            print(f"   Goal ID: {result['goal_id']}")
+            print(f"   Objective: {objective[:80]}..." if len(objective) > 80 else f"   Objective: {objective}")
+            print(f"   Scope: breadth={scope.breadth}, duration={scope.duration}, coordination={scope.coordination}")
+            if estimated_complexity:
+                print(f"   Complexity: {estimated_complexity:.2f}")
+            if beads_issue_id:
+                print(f"   BEADS Issue: {beads_issue_id}")
+            elif not use_beads:
+                print("\n💡 Tip: Add --use-beads flag to track goals in BEADS issue tracker")
+        else:
+            print(f"❌ {result.get('message', 'Failed to create goal')}")
+
+
 def handle_goals_create_command(args):
     """Handle goals-create command - AI-first with legacy flag support"""
     try:
-        import os
-        import uuid
+        # Stage 1: Parse config
+        cfg = _parse_goal_config(args)
+        session_id = cfg['session_id']
+        objective = cfg['objective']
+        scope_breadth = cfg['scope_breadth']
+        scope_duration = cfg['scope_duration']
+        scope_coordination = cfg['scope_coordination']
+        success_criteria_list = cfg['success_criteria_list']
+        estimated_complexity = cfg['estimated_complexity']
+        constraints = cfg['constraints']
+        metadata = cfg['metadata']
+        output_format = cfg['output_format']
+        config_data = cfg['config_data']
 
-        from empirica.core.goals.repository import GoalRepository
-        from empirica.core.goals.types import Goal, ScopeVector, SuccessCriterion
-
-        # AI-FIRST MODE: Check if config file provided as positional argument
-        config_data = None
-        if hasattr(args, 'config') and args.config:
-            # Read config from file or stdin
-            if args.config == '-':
-                # Read from stdin (sys imported at module level)
-                config_data = parse_json_safely(sys.stdin.read())
-            else:
-                # Read from file
-                if not os.path.exists(args.config):
-                    print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
-                    sys.exit(1)
-                with open(args.config) as f:
-                    config_data = parse_json_safely(f.read())
-
-        # Extract parameters from config or fall back to legacy flags
-        if config_data:
-            # AI-FIRST MODE: Use config file
-            session_id = config_data.get('session_id')  # Optional - auto-derives from transaction
-            objective = config_data.get('objective')
-
-            # Parse scope from config (nested or flat)
-            scope_config = config_data.get('scope', {})
-            if isinstance(scope_config, dict):
-                scope_breadth = scope_config.get('breadth', 0.3)
-                scope_duration = scope_config.get('duration', 0.2)
-                scope_coordination = scope_config.get('coordination', 0.1)
-            else:
-                scope_breadth = 0.3
-                scope_duration = 0.2
-                scope_coordination = 0.1
-
-            success_criteria_list = config_data.get('success_criteria', [])
-            estimated_complexity = config_data.get('estimated_complexity')
-            constraints = config_data.get('constraints')
-            metadata = config_data.get('metadata')
-            output_format = 'json'  # AI-first always uses JSON output
-
-        else:
-            # LEGACY MODE: Use CLI flags
-            session_id = args.session_id
-            objective = args.objective
-            scope_breadth = float(args.scope_breadth) if hasattr(args, 'scope_breadth') and args.scope_breadth else 0.3
-            scope_duration = float(args.scope_duration) if hasattr(args, 'scope_duration') and args.scope_duration else 0.2
-            scope_coordination = float(args.scope_coordination) if hasattr(args, 'scope_coordination') and args.scope_coordination else 0.1
-            estimated_complexity = getattr(args, 'estimated_complexity', None)
-            constraints = parse_json_safely(args.constraints) if args.constraints else None
-            metadata = parse_json_safely(args.metadata) if args.metadata else None
-            output_format = getattr(args, 'output', 'json')  # Default to JSON (AI-first)
-
-            # LEGACY: Handle success_criteria from flags (file, stdin, or inline)
-            success_criteria_list = []
-            if hasattr(args, 'success_criteria_file') and args.success_criteria_file:
-                if not os.path.exists(args.success_criteria_file):
-                    print(f"❌ Error: File not found: {args.success_criteria_file}", file=sys.stderr)
-                    sys.exit(1)
-                with open(args.success_criteria_file) as f:
-                    success_criteria_list = parse_json_safely(f.read())
-            elif hasattr(args, 'success_criteria') and args.success_criteria:
-                if args.success_criteria == '-':
-                    # sys imported at module level
-                    success_criteria_list = parse_json_safely(sys.stdin.read())
-                elif args.success_criteria.strip().startswith('['):
-                    success_criteria_list = parse_json_safely(args.success_criteria)
-                else:
-                    success_criteria_list = [args.success_criteria]
-
-            # Safety check
-            if isinstance(success_criteria_list, str):
-                success_criteria_list = [success_criteria_list]
-
-        # Cross-project goal creation
-        target_project_id = None
-        if config_data:
-            target_project_id = config_data.get('project_id')
-        elif hasattr(args, 'project_id') and args.project_id:
-            target_project_id = args.project_id
-
-        # UNIFIED: Auto-derive session_id if not provided (works for both modes)
-        if not session_id:
-            session_id = R.session_id()
-
-        # Cross-project writes don't require an active transaction
-        is_cross_project = bool(target_project_id)
-        if not session_id and is_cross_project:
-            session_id = "cross-project"
+        # Stage 2: Resolve session and project
+        session_id, target_project_id, is_cross_project = _resolve_goal_session(
+            session_id, config_data, args)
 
         # Validate required fields
         if not session_id or not objective:
@@ -291,109 +538,21 @@ def handle_goals_create_command(args):
             }))
             sys.exit(1)
 
-        # Build scope vector (works for both modes)
-        scope = ScopeVector(
-            breadth=scope_breadth,
-            duration=scope_duration,
-            coordination=scope_coordination
-        )
+        # Stage 3: Duplicate detection
+        _check_goal_duplicates(objective, session_id, output_format, args, config_data)
 
-        # Fuzzy duplicate detection (unless --force is used)
-        force_create = getattr(args, 'force', False) or (config_data and config_data.get('force', False))
-        if not force_create:
-            similar_goals = _check_for_similar_goals(objective, session_id)
-            if similar_goals:
-                if output_format == 'json':
-                    print(json.dumps({
-                        "ok": False,
-                        "error": "Similar goal(s) already exist",
-                        "similar_goals": similar_goals,
-                        "hint": "Use --force to create anyway, or use goals-refresh to resume a stale goal",
-                        "objective": objective
-                    }))
-                else:
-                    print("⚠️  Similar goal(s) found:")
-                    for sg in similar_goals:
-                        print(f"   - {sg['objective'][:60]}... (score: {sg.get('score', 'N/A')})")
-                    print("\n   Use --force to create anyway")
-                sys.exit(1)
+        # Stage 4: Build and save goal
+        goal, goal_repo, success_criteria_objects, scope, success, target_project_id = (
+            _build_and_save_goal(
+                objective, success_criteria_list, scope_breadth, scope_duration,
+                scope_coordination, estimated_complexity, constraints, metadata,
+                session_id, is_cross_project, target_project_id, config_data, args))
 
-        # Validate success criteria (make it optional now)
-        if not success_criteria_list:
-            # Make a default success criterion if none provided
-            success_criteria_list = ["Goal completion achieved"]
-
-        # Use the actual Goal repository — target project's DB if cross-project
-        goal_repo_db_path = None
-        if is_cross_project and target_project_id:
-            from empirica.cli.command_handlers.artifact_log_commands import _get_db_for_project
-            cross_db = _get_db_for_project(target_project_id)
-            if cross_db:
-                resolved_pid = cross_db.resolve_project_id(target_project_id)
-                if resolved_pid:
-                    target_project_id = resolved_pid
-                    goal_repo_db_path = cross_db.db_path
-                cross_db.close()
-        goal_repo = GoalRepository(db_path=goal_repo_db_path)
-
-        # Create real SuccessCriterion objects
-        success_criteria_objects = []
-        for _i, criteria in enumerate(success_criteria_list):
-            if isinstance(criteria, dict):
-                success_criteria_objects.append(SuccessCriterion(
-                    id=str(uuid.uuid4()),
-                    description=str(criteria),
-                    validation_method="completion",
-                    is_required=True,
-                    is_met=False
-                ))
-            else:
-                success_criteria_objects.append(SuccessCriterion(
-                    id=str(uuid.uuid4()),
-                    description=str(criteria),
-                    validation_method="completion",
-                    is_required=True,
-                    is_met=False
-                ))
-
-        # Create real Goal object
-        goal = Goal.create(
-            objective=objective,
-            success_criteria=success_criteria_objects,
-            scope=scope,
-            estimated_complexity=estimated_complexity,
-            constraints=constraints,
-            metadata=metadata
-        )
-
-        # Auto-derive active transaction_id for epistemic linkage
-        transaction_id = None
-        try:
-            transaction_id = R.transaction_id()
-        except Exception:
-            pass
-
-        # Save to database with transaction linkage
-        success = goal_repo.save_goal(goal, session_id, transaction_id=transaction_id)
-
-        # Set initial status (planned or in_progress)
-        initial_status = 'in_progress'
-        if config_data:
-            initial_status = config_data.get('status', 'in_progress')
-        elif hasattr(args, 'status') and args.status:
-            initial_status = args.status
-        if initial_status == 'planned' and success:
-            goal_repo.db.conn.execute(
-                "UPDATE goals SET status = 'planned' WHERE id = ?", (goal.id,))
-            goal_repo.db.conn.commit()
+        # Stage 5: Post-creation integrations and result building
+        use_beads = getattr(args, 'use_beads', False) or (config_data and config_data.get('use_beads', False))
+        beads_issue_id = None
 
         if success:
-            # BEADS Integration (Optional)
-            use_beads = getattr(args, 'use_beads', False) or (config_data and config_data.get('use_beads', False))
-            beads_issue_id = _link_goal_to_beads(
-                args, config_data, goal, objective,
-                scope_breadth, scope_duration, output_format)
-
             result = {
                 "ok": True,
                 "goal_id": goal.id,
@@ -402,85 +561,12 @@ def handle_goals_create_command(args):
                 "objective": objective,
                 "scope": scope.to_dict(),
                 "timestamp": goal.created_timestamp,
-                "beads_issue_id": beads_issue_id  # Include BEADS link in response
             }
-
-            # ===== SMART CHECK PROMPT: Scope-Based =====
-            # Show CHECK recommendation for high-scope goals
-            if scope_breadth >= 0.6 or scope_duration >= 0.5:
-                check_prompt = {
-                    "type": "check_recommendation",
-                    "reason": "high_scope",
-                    "message": "💡 High-scope goal: Consider running CHECK after initial investigation",
-                    "scope_trigger": {
-                        "breadth": scope_breadth if scope_breadth >= 0.6 else None,
-                        "duration": scope_duration if scope_duration >= 0.5 else None
-                    },
-                    "suggested_timing": "after 1-2 subtasks or 30+ minutes",
-                    "command": f"empirica check --session-id {session_id}"
-                }
-                result["check_recommendation"] = check_prompt
-
-            # Store goal in git notes for cross-AI discovery (Phase 1: Git Automation)
-            try:
-                from empirica.core.canonical.empirica_git import GitGoalStore
-
-                ai_id = getattr(args, 'ai_id', 'empirica_cli')
-                goal_store = GitGoalStore()
-                goal_data = {
-                    'objective': objective,
-                    'scope': scope.to_dict(),
-                    'success_criteria': [sc.description for sc in success_criteria_objects],
-                    'estimated_complexity': estimated_complexity,
-                    'constraints': constraints,
-                    'metadata': metadata
-                }
-
-                goal_store.store_goal(
-                    goal_id=goal.id,
-                    session_id=session_id,
-                    ai_id=ai_id,
-                    goal_data=goal_data
-                )
-                logger.debug(f"Goal {goal.id[:8]} stored in git notes for cross-AI discovery")
-            except Exception as e:
-                # Safe degradation - don't fail goal creation if git storage fails
-                logger.debug(f"Git goal storage skipped: {e}")
-
-            # Qdrant embedding for semantic search (safe degradation)
-            qdrant_embedded = False
-            try:
-                from empirica.core.qdrant.vector_store import embed_goal
-                from empirica.data.session_database import SessionDatabase as GoalDB
-
-                # Get project_id from session
-                goal_db = GoalDB()
-                cursor = goal_db.conn.cursor()
-                cursor.execute("SELECT project_id, ai_id FROM sessions WHERE session_id = ?", (session_id,))
-                row = cursor.fetchone()
-                goal_db.close()
-
-                if row and row[0]:
-                    project_id = row[0]
-                    ai_id = row[1] or getattr(args, 'ai_id', 'empirica_cli')
-                    qdrant_embedded = embed_goal(
-                        project_id=project_id,
-                        goal_id=goal.id,
-                        objective=objective,
-                        session_id=session_id,
-                        ai_id=ai_id,
-                        scope_breadth=scope_breadth,
-                        scope_duration=scope_duration,
-                        scope_coordination=scope_coordination,
-                        estimated_complexity=estimated_complexity,
-                        success_criteria=[sc.description for sc in success_criteria_objects],
-                        status="in_progress",
-                        timestamp=goal.created_timestamp,
-                    )
-                    if qdrant_embedded:
-                        result['qdrant_embedded'] = True
-            except Exception as e:
-                logger.debug(f"Goal Qdrant embedding skipped: {e}")
+            beads_issue_id = _goal_post_create_integrations(
+                goal, session_id, objective, scope, success_criteria_objects,
+                scope_breadth, scope_duration, scope_coordination,
+                estimated_complexity, constraints, metadata,
+                args, config_data, output_format, result)
         else:
             result = {
                 "ok": False,
@@ -491,31 +577,11 @@ def handle_goals_create_command(args):
                 "scope": scope.to_dict()
             }
 
-        # Format output (AI-first = JSON by default)
-        if output_format == 'json':
-            print(json.dumps(result, indent=2))
-            # Add helpful hint if BEADS not used (only in JSON mode for parsability)
-            if result['ok'] and not beads_issue_id and not use_beads:
-                import sys as _sys
-                print("\n💡 Tip: Add --use-beads flag to track this goal in BEADS issue tracker", file=_sys.stderr)
-        else:
-            # Human-readable output (legacy)
-            if result['ok']:
-                print("✅ Goal created successfully")
-                print(f"   Goal ID: {result['goal_id']}")
-                print(f"   Objective: {objective[:80]}..." if len(objective) > 80 else f"   Objective: {objective}")
-                print(f"   Scope: breadth={scope.breadth}, duration={scope.duration}, coordination={scope.coordination}")
-                if estimated_complexity:
-                    print(f"   Complexity: {estimated_complexity:.2f}")
-                if beads_issue_id:
-                    print(f"   BEADS Issue: {beads_issue_id}")
-                elif not use_beads:
-                    print("\n💡 Tip: Add --use-beads flag to track goals in BEADS issue tracker")
-            else:
-                print(f"❌ {result.get('message', 'Failed to create goal')}")
+        # Stage 6: Format output
+        _format_goal_output(output_format, result, objective, scope,
+                            estimated_complexity, beads_issue_id, use_beads)
 
         goal_repo.close()
-        # Return None to avoid exit code issues and duplicate output
         return None
 
     except Exception as e:
