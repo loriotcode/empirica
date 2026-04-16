@@ -125,3 +125,4 @@ specs/
 # Claude Code local config
 .claude/
 .claude-backup/
+claude-safe
