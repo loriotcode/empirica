@@ -930,33 +930,7 @@ class EpistemicDocsAgent:
                 })
 
         # === Check 3: Orphaned doc references ===
-        # Check if docs reference CLI commands that no longer exist
-        for doc_file in doc_files:
-            try:
-                content = doc_file.read_text()
-                rel_path = str(doc_file.relative_to(docs_dir))
-
-                # Look for empirica command patterns in docs
-                cmd_pattern = r'empirica\s+([a-z]+-[a-z-]+)'  # Require hyphen to be a command
-                doc_cmds = set(re.findall(cmd_pattern, content))
-
-                for doc_cmd in doc_cmds:
-                    # Skip common words and invalid patterns
-                    if doc_cmd in {'the', 'a', 'an', 'to', 'is', 'and', 'or', 'empirica'}:
-                        continue
-                    if not re.match(r'^[a-z]+-[a-z-]+$', doc_cmd):  # Must have at least one hyphen
-                        continue
-                    if doc_cmd not in cli_commands and len(doc_cmd) > 5:
-                        issues.append({
-                            "type": "orphaned_reference",
-                            "severity": "high",
-                            "doc_path": rel_path,
-                            "item": f"empirica {doc_cmd}",
-                            "category": "Removed CLI command",
-                            "suggestion": f"Remove or update reference to 'empirica {doc_cmd}' - command no longer exists"
-                        })
-            except Exception:
-                continue
+        self._check_orphaned_references(doc_files, docs_dir, cli_commands, issues)
 
         # === Check 4: Git activity gap ===
         activity_gaps = self._check_git_activity_gaps(docs_dir, lookback_days)
@@ -1022,6 +996,37 @@ class EpistemicDocsAgent:
             },
             "note": "For deep semantic analysis, use: empirica agent-spawn --task 'Analyze <doc> for staleness'"
         }
+
+    def _check_orphaned_references(
+        self, doc_files: list, docs_dir: Path, cli_commands: set, issues: list
+    ) -> None:
+        """Check if docs reference CLI commands that no longer exist."""
+        for doc_file in doc_files:
+            try:
+                content = doc_file.read_text()
+                rel_path = str(doc_file.relative_to(docs_dir))
+
+                # Look for empirica command patterns in docs
+                cmd_pattern = r'empirica\s+([a-z]+-[a-z-]+)'  # Require hyphen to be a command
+                doc_cmds = set(re.findall(cmd_pattern, content))
+
+                for doc_cmd in doc_cmds:
+                    # Skip common words and invalid patterns
+                    if doc_cmd in {'the', 'a', 'an', 'to', 'is', 'and', 'or', 'empirica'}:
+                        continue
+                    if not re.match(r'^[a-z]+-[a-z-]+$', doc_cmd):  # Must have at least one hyphen
+                        continue
+                    if doc_cmd not in cli_commands and len(doc_cmd) > 5:
+                        issues.append({
+                            "type": "orphaned_reference",
+                            "severity": "high",
+                            "doc_path": rel_path,
+                            "item": f"empirica {doc_cmd}",
+                            "category": "Removed CLI command",
+                            "suggestion": f"Remove or update reference to 'empirica {doc_cmd}' - command no longer exists"
+                        })
+            except Exception:
+                continue
 
     def _check_git_activity_gaps(self, docs_dir: Path, lookback_days: int) -> list[dict]:
         """Check for docs that haven't been updated despite related code changes."""
@@ -1720,39 +1725,46 @@ def _print_human_output(result: dict, categories: list[FeatureCoverage], verbose
             print(f"   • {rec}")
 
     # NotebookLM suggestions
-    nlm = result.get("notebooklm_suggestions", {})
-    if any(nlm.get(k) for k in ["slide_decks", "infographics", "audio_overviews", "study_guides"]):
-        print("\n📽️  NotebookLM Content Suggestions:")
-        print("-" * 50)
-
-        if nlm.get("slide_decks"):
-            print("\n   🎴 Slide Decks:")
-            for deck in nlm["slide_decks"]:
-                aud = f"[{deck.get('audience', 'all')}]"
-                fmt = deck.get('format', '')
-                print(f"      • {deck['topic']} {aud} ({fmt})")
-                if verbose:
-                    for src in deck.get("sources", [])[:3]:
-                        print(f"         └─ {src}")
-
-        if nlm.get("infographics"):
-            print("\n   📊 Infographics:")
-            for info in nlm["infographics"]:
-                rec = "⭐" if info.get("recommended") else ""
-                print(f"      • {info['topic']} [{info.get('audience', 'all')}] {rec}")
-
-        if nlm.get("audio_overviews"):
-            print("\n   🎧 Audio Overviews:")
-            for audio in nlm["audio_overviews"]:
-                fmt = audio.get('format', 'deep_dive')
-                print(f"      • {audio['topic']} [{audio.get('audience', 'all')}] ({fmt})")
-
-        if nlm.get("study_guides"):
-            print("\n   📖 Study Guides:")
-            for guide in nlm["study_guides"]:
-                print(f"      • {guide['topic']} [{guide.get('audience', 'all')}]")
+    _print_notebooklm_suggestions(result, verbose)
 
     print("\n" + "=" * 60)
+
+
+def _print_notebooklm_suggestions(result: dict, verbose: bool):
+    """Print NotebookLM content suggestions section."""
+    nlm = result.get("notebooklm_suggestions", {})
+    if not any(nlm.get(k) for k in ["slide_decks", "infographics", "audio_overviews", "study_guides"]):
+        return
+
+    print("\n📽️  NotebookLM Content Suggestions:")
+    print("-" * 50)
+
+    if nlm.get("slide_decks"):
+        print("\n   🎴 Slide Decks:")
+        for deck in nlm["slide_decks"]:
+            aud = f"[{deck.get('audience', 'all')}]"
+            fmt = deck.get('format', '')
+            print(f"      • {deck['topic']} {aud} ({fmt})")
+            if verbose:
+                for src in deck.get("sources", [])[:3]:
+                    print(f"         └─ {src}")
+
+    if nlm.get("infographics"):
+        print("\n   📊 Infographics:")
+        for info in nlm["infographics"]:
+            rec = "⭐" if info.get("recommended") else ""
+            print(f"      • {info['topic']} [{info.get('audience', 'all')}] {rec}")
+
+    if nlm.get("audio_overviews"):
+        print("\n   🎧 Audio Overviews:")
+        for audio in nlm["audio_overviews"]:
+            fmt = audio.get('format', 'deep_dive')
+            print(f"      • {audio['topic']} [{audio.get('audience', 'all')}] ({fmt})")
+
+    if nlm.get("study_guides"):
+        print("\n   📖 Study Guides:")
+        for guide in nlm["study_guides"]:
+            print(f"      • {guide['topic']} [{guide.get('audience', 'all')}]")
 
 
 # =============================================================================
@@ -1958,6 +1970,39 @@ class DocsExplainAgent:
         scored_sections.sort(reverse=True)
         return [(h, b) for _, h, b in scored_sections[:max_sections]]
 
+    def _search_docs(self, search_text: str, docs: dict) -> tuple[list, str]:
+        """Search docs using semantic search first, falling back to keyword matching.
+
+        Returns (scored_docs, search_mode) where scored_docs is a list of
+        (score, path, content) tuples and search_mode is 'semantic' or 'keyword'.
+        """
+        search_mode = "keyword"
+        scored_docs = []
+
+        # Try Qdrant semantic search first
+        semantic_results = self._semantic_search(search_text, limit=5)
+        if semantic_results:
+            search_mode = "semantic"
+            for result in semantic_results:
+                doc_path = result.get("doc_path")
+                if doc_path and doc_path in docs:
+                    score = result.get("score", 0.5) * 2.0
+                    scored_docs.append((score, doc_path, docs[doc_path]))
+
+        # Fall back to keyword search if semantic search unavailable or returned nothing
+        if not scored_docs:
+            search_mode = "keyword"
+            keywords = self._expand_topic(search_text)
+
+            for path, content in docs.items():
+                score = self._score_doc(content, keywords)
+                if score > 0.1:
+                    scored_docs.append((score, path, content))
+
+            scored_docs.sort(reverse=True)
+
+        return scored_docs, search_mode
+
     def explain(self, topic: str | None = None, question: str | None = None, audience: str = "all") -> dict[str, Any]:
         """
         Get focused explanation of an Empirica topic.
@@ -1982,32 +2027,7 @@ class DocsExplainAgent:
             }
 
         search_text = topic or question or ""
-        search_mode = "keyword"  # Track which mode was used
-        scored_docs = []
-
-        # Try Qdrant semantic search first
-        semantic_results = self._semantic_search(search_text, limit=5)
-        if semantic_results:
-            search_mode = "semantic"
-            # Use semantic results, but need to load content from disk
-            for result in semantic_results:
-                doc_path = result.get("doc_path")
-                if doc_path and doc_path in docs:
-                    # Convert Qdrant score (0-1) to our scoring scale
-                    score = result.get("score", 0.5) * 2.0  # Scale to comparable range
-                    scored_docs.append((score, doc_path, docs[doc_path]))
-
-        # Fall back to keyword search if semantic search unavailable or returned nothing
-        if not scored_docs:
-            search_mode = "keyword"
-            keywords = self._expand_topic(search_text)
-
-            for path, content in docs.items():
-                score = self._score_doc(content, keywords)
-                if score > 0.1:  # Minimum relevance threshold
-                    scored_docs.append((score, path, content))
-
-            scored_docs.sort(reverse=True)
+        scored_docs, search_mode = self._search_docs(search_text, docs)
 
         if not scored_docs:
             return {

@@ -483,6 +483,63 @@ def handle_mco_load_command(args):
         handle_cli_error(e, "MCO Load", getattr(args, 'verbose', False))
 
 
+def _load_checkpoint_vectors(session_id: str | None, verbose: bool) -> tuple[dict, dict]:
+    """Load last checkpoint vectors for a session, trying git notes then reflexes table.
+
+    Returns (vectors, checkpoint_data) tuple. Both empty dicts if no data found.
+    """
+    vectors: dict = {}
+    checkpoint_data: dict = {}
+
+    if not session_id:
+        return vectors, checkpoint_data
+
+    # Try git notes first (canonical source)
+    try:
+        from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
+        git_logger = GitEnhancedReflexLogger(session_id=session_id, enable_git_notes=True)
+        checkpoints = git_logger.list_checkpoints(limit=1)
+
+        if checkpoints and checkpoints[0] is not None:
+            checkpoint_data = checkpoints[0]
+            vectors = checkpoint_data.get('vectors', {}) or {}
+    except Exception as e:
+        if verbose:
+            logger.warning(f"Could not load checkpoint from git notes: {e}")
+
+    # Fallback to reflexes table if git notes empty
+    if not vectors:
+        try:
+            from empirica.data.session_database import SessionDatabase
+            db = SessionDatabase()
+            cursor = db.conn.cursor()
+            cursor.execute("""
+                SELECT engagement, know, do, context, clarity, coherence,
+                       signal, density, state, change, completion, impact, uncertainty
+                FROM reflexes
+                WHERE session_id = ?
+                ORDER BY timestamp DESC LIMIT 1
+            """, (session_id,))
+            row = cursor.fetchone()
+            db.close()
+
+            if row:
+                vectors = {
+                    'engagement': row[0], 'know': row[1], 'do': row[2],
+                    'context': row[3], 'clarity': row[4], 'coherence': row[5],
+                    'signal': row[6], 'density': row[7], 'state': row[8],
+                    'change': row[9], 'completion': row[10], 'impact': row[11],
+                    'uncertainty': row[12]
+                }
+                vectors = {k: v for k, v in vectors.items() if v is not None}
+                checkpoint_data = {'vectors': vectors, 'source': 'reflexes_table'}
+        except Exception as e:
+            if verbose:
+                logger.warning(f"Could not load checkpoint from reflexes: {e}")
+
+    return vectors, checkpoint_data
+
+
 def handle_assess_state_command(args):
     """
     Capture sessionless epistemic state (fresh measurement without session context).
@@ -520,53 +577,7 @@ def handle_assess_state_command(args):
             print("=" * 70)
 
         # If session_id provided, load last checkpoint as reference
-        vectors = {}
-        checkpoint_data = {}
-
-        if session_id:
-            # Try git notes first (canonical source)
-            try:
-                from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
-                git_logger = GitEnhancedReflexLogger(session_id=session_id, enable_git_notes=True)
-                checkpoints = git_logger.list_checkpoints(limit=1)
-
-                if checkpoints and checkpoints[0] is not None:
-                    checkpoint_data = checkpoints[0]
-                    vectors = checkpoint_data.get('vectors', {}) or {}
-            except Exception as e:
-                if verbose:
-                    logger.warning(f"Could not load checkpoint from git notes: {e}")
-
-            # Fallback to reflexes table if git notes empty
-            if not vectors:
-                try:
-                    from empirica.data.session_database import SessionDatabase
-                    db = SessionDatabase()
-                    cursor = db.conn.cursor()
-                    cursor.execute("""
-                        SELECT engagement, know, do, context, clarity, coherence,
-                               signal, density, state, change, completion, impact, uncertainty
-                        FROM reflexes
-                        WHERE session_id = ?
-                        ORDER BY timestamp DESC LIMIT 1
-                    """, (session_id,))
-                    row = cursor.fetchone()
-                    db.close()
-
-                    if row:
-                        vectors = {
-                            'engagement': row[0], 'know': row[1], 'do': row[2],
-                            'context': row[3], 'clarity': row[4], 'coherence': row[5],
-                            'signal': row[6], 'density': row[7], 'state': row[8],
-                            'change': row[9], 'completion': row[10], 'impact': row[11],
-                            'uncertainty': row[12]
-                        }
-                        # Filter None values
-                        vectors = {k: v for k, v in vectors.items() if v is not None}
-                        checkpoint_data = {'vectors': vectors, 'source': 'reflexes_table'}
-                except Exception as e:
-                    if verbose:
-                        logger.warning(f"Could not load checkpoint from reflexes: {e}")
+        vectors, checkpoint_data = _load_checkpoint_vectors(session_id, verbose)
 
         # Capture fresh state
         # In production, this would call into an LLM or use cached epistemic state
@@ -817,6 +828,118 @@ def _resolve_current_vectors(db, session_id=None) -> tuple:
     return vectors, project_id
 
 
+def _calculate_trajectory_paths(
+    layer0_score: float, layer1_score: float, layer2_score: float, layer3_score: float,
+    overall_grounding: float, unknowns_count: int, sentinel_status: str | None,
+) -> list[dict]:
+    """Calculate viability of each epistemic path based on grounding scores.
+
+    Returns sorted list of path dicts (most viable first).
+    """
+    paths = []
+
+    # PRAXIC path - can we execute?
+    praxic_confidence = min(layer1_score, layer2_score, layer3_score)
+    praxic_viable = praxic_confidence >= 0.70 and unknowns_count <= 3
+    praxic_blockers = []
+    if layer1_score < 0.70:
+        praxic_blockers.append(f"NOETIC GRASP too low ({layer1_score:.2f})")
+    if layer2_score < 0.70:
+        praxic_blockers.append(f"PRAXIC PATH unclear ({layer2_score:.2f})")
+    if unknowns_count > 3:
+        praxic_blockers.append(f"{unknowns_count} unknowns blocking")
+    paths.append({
+        'name': 'PRAXIC',
+        'icon': '🟢' if praxic_viable else '🟡' if praxic_confidence >= 0.50 else '🔴',
+        'confidence': praxic_confidence,
+        'viable': praxic_viable,
+        'description': 'Execute with confidence. Grounding supports action.',
+        'blockers': praxic_blockers,
+        'action': 'Enter praxic phase, implement the planned changes'
+    })
+
+    # NOETIC-SHALLOW path - quick investigation
+    noetic_shallow_confidence = (layer0_score + layer1_score) / 2
+    noetic_shallow_viable = 0.50 <= overall_grounding < 0.70 or (unknowns_count > 0 and unknowns_count <= 5)
+    paths.append({
+        'name': 'NOETIC-SHALLOW',
+        'icon': '🟢' if noetic_shallow_viable else '🟡',
+        'confidence': noetic_shallow_confidence,
+        'viable': noetic_shallow_viable,
+        'description': 'Quick targeted investigation. Address specific unknowns.',
+        'blockers': [] if noetic_shallow_viable else ['Grounding too low for shallow investigation'],
+        'action': f'Investigate {min(unknowns_count, 3)} unknowns, then re-CHECK'
+    })
+
+    # NOETIC-DEEP path - thorough investigation
+    noetic_deep_confidence = layer0_score
+    noetic_deep_viable = overall_grounding < 0.50 or unknowns_count > 5
+    paths.append({
+        'name': 'NOETIC-DEEP',
+        'icon': '🟢' if noetic_deep_viable else '🟡',
+        'confidence': noetic_deep_confidence,
+        'viable': noetic_deep_viable,
+        'description': 'Thorough investigation required. Many unknowns or low grounding.',
+        'blockers': [] if noetic_deep_viable else ['Grounding sufficient for shallower path'],
+        'action': 'Deep exploration, log findings, resolve unknowns before proceeding'
+    })
+
+    # SCOPE-EXPAND path - broaden task scope
+    scope_expand_confidence = overall_grounding * (1 - (unknowns_count / 10)) if unknowns_count <= 10 else 0
+    scope_expand_viable = overall_grounding >= 0.75 and unknowns_count <= 2 and scope_expand_confidence is not None
+    scope_blockers = []
+    if overall_grounding < 0.75:
+        scope_blockers.append(f"Grounding ({overall_grounding:.2f}) < 0.75 threshold")
+    if unknowns_count > 2:
+        scope_blockers.append(f"{unknowns_count} unknowns would expand further")
+    paths.append({
+        'name': 'SCOPE-EXPAND',
+        'icon': '🟢' if scope_expand_viable else '🔴',
+        'confidence': max(0, scope_expand_confidence),
+        'viable': scope_expand_viable,
+        'description': 'Broaden task scope. Current grounding supports expansion.',
+        'blockers': scope_blockers,
+        'action': 'Add subtasks or related goals, then re-baseline with PREFLIGHT'
+    })
+
+    # HANDOFF path - transfer to different AI
+    handoff_confidence = 1 - overall_grounding
+    handoff_viable = overall_grounding < 0.40 or (sentinel_status and sentinel_status in ['forming', 'dark'])
+    paths.append({
+        'name': 'HANDOFF',
+        'icon': '🟡' if handoff_viable else '⚪',
+        'confidence': handoff_confidence,
+        'viable': handoff_viable,
+        'description': 'Transfer to different AI/session. Observer stability questionable.',
+        'blockers': [] if handoff_viable else ['Observer stable enough to continue'],
+        'action': 'Create handoff artifact, transfer context to fresh session/AI'
+    })
+
+    # HALT path - stop and seek guidance
+    halt_confidence = 1 - min(layer3_score, overall_grounding)
+    halt_viable = layer3_score < 0.30 or overall_grounding < 0.25
+    paths.append({
+        'name': 'HALT',
+        'icon': '🔴' if halt_viable else '⚪',
+        'confidence': halt_confidence,
+        'viable': halt_viable,
+        'description': 'Stop and seek human guidance. Critical grounding issues.',
+        'blockers': [] if halt_viable else ['No critical issues detected'],
+        'action': 'Escalate to human, do not proceed without guidance'
+    })
+
+    # Ensure all paths have valid viable values (defensive)
+    for p in paths:
+        if p['viable'] is None:
+            p['viable'] = False
+        if p['confidence'] is None:
+            p['confidence'] = 0.0
+
+    # Sort paths by viability first, then confidence (descending)
+    paths.sort(key=lambda p: (-int(bool(p['viable'])), -p['confidence']))
+    return paths
+
+
 def handle_trajectory_project_command(args):
     """
     Project viable epistemic paths forward based on current grounding.
@@ -904,108 +1027,10 @@ def handle_trajectory_project_command(args):
             sentinel_moon = turtle_result.get('moon')
 
         # Calculate path viabilities
-        paths = []
-
-        # PRAXIC path - can we execute?
-        praxic_confidence = min(layer1_score, layer2_score, layer3_score)
-        praxic_viable = praxic_confidence >= 0.70 and unknowns_count <= 3
-        praxic_blockers = []
-        if layer1_score < 0.70:
-            praxic_blockers.append(f"NOETIC GRASP too low ({layer1_score:.2f})")
-        if layer2_score < 0.70:
-            praxic_blockers.append(f"PRAXIC PATH unclear ({layer2_score:.2f})")
-        if unknowns_count > 3:
-            praxic_blockers.append(f"{unknowns_count} unknowns blocking")
-
-        paths.append({
-            'name': 'PRAXIC',
-            'icon': '🟢' if praxic_viable else '🟡' if praxic_confidence >= 0.50 else '🔴',
-            'confidence': praxic_confidence,
-            'viable': praxic_viable,
-            'description': 'Execute with confidence. Grounding supports action.',
-            'blockers': praxic_blockers,
-            'action': 'Enter praxic phase, implement the planned changes'
-        })
-
-        # NOETIC-SHALLOW path - quick investigation
-        noetic_shallow_confidence = (layer0_score + layer1_score) / 2
-        noetic_shallow_viable = 0.50 <= overall_grounding < 0.70 or (unknowns_count > 0 and unknowns_count <= 5)
-        paths.append({
-            'name': 'NOETIC-SHALLOW',
-            'icon': '🟢' if noetic_shallow_viable else '🟡',
-            'confidence': noetic_shallow_confidence,
-            'viable': noetic_shallow_viable,
-            'description': 'Quick targeted investigation. Address specific unknowns.',
-            'blockers': [] if noetic_shallow_viable else ['Grounding too low for shallow investigation'],
-            'action': f'Investigate {min(unknowns_count, 3)} unknowns, then re-CHECK'
-        })
-
-        # NOETIC-DEEP path - thorough investigation
-        noetic_deep_confidence = layer0_score  # Only need USER INTENT to start deep investigation
-        noetic_deep_viable = overall_grounding < 0.50 or unknowns_count > 5
-        paths.append({
-            'name': 'NOETIC-DEEP',
-            'icon': '🟢' if noetic_deep_viable else '🟡',
-            'confidence': noetic_deep_confidence,
-            'viable': noetic_deep_viable,
-            'description': 'Thorough investigation required. Many unknowns or low grounding.',
-            'blockers': [] if noetic_deep_viable else ['Grounding sufficient for shallower path'],
-            'action': 'Deep exploration, log findings, resolve unknowns before proceeding'
-        })
-
-        # SCOPE-EXPAND path - broaden task scope
-        scope_expand_confidence = overall_grounding * (1 - (unknowns_count / 10)) if unknowns_count <= 10 else 0
-        scope_expand_viable = overall_grounding >= 0.75 and unknowns_count <= 2 and scope_expand_confidence is not None
-        scope_blockers = []
-        if overall_grounding < 0.75:
-            scope_blockers.append(f"Grounding ({overall_grounding:.2f}) < 0.75 threshold")
-        if unknowns_count > 2:
-            scope_blockers.append(f"{unknowns_count} unknowns would expand further")
-        paths.append({
-            'name': 'SCOPE-EXPAND',
-            'icon': '🟢' if scope_expand_viable else '🔴',
-            'confidence': max(0, scope_expand_confidence),
-            'viable': scope_expand_viable,
-            'description': 'Broaden task scope. Current grounding supports expansion.',
-            'blockers': scope_blockers,
-            'action': 'Add subtasks or related goals, then re-baseline with PREFLIGHT'
-        })
-
-        # HANDOFF path - transfer to different AI
-        handoff_confidence = 1 - overall_grounding  # Inverse - more confident to handoff when grounding low
-        handoff_viable = overall_grounding < 0.40 or (sentinel_status and sentinel_status in ['forming', 'dark'])
-        paths.append({
-            'name': 'HANDOFF',
-            'icon': '🟡' if handoff_viable else '⚪',
-            'confidence': handoff_confidence,
-            'viable': handoff_viable,
-            'description': 'Transfer to different AI/session. Observer stability questionable.',
-            'blockers': [] if handoff_viable else ['Observer stable enough to continue'],
-            'action': 'Create handoff artifact, transfer context to fresh session/AI'
-        })
-
-        # HALT path - stop and seek guidance
-        halt_confidence = 1 - min(layer3_score, overall_grounding)  # High when safety/grounding low
-        halt_viable = layer3_score < 0.30 or overall_grounding < 0.25
-        paths.append({
-            'name': 'HALT',
-            'icon': '🔴' if halt_viable else '⚪',
-            'confidence': halt_confidence,
-            'viable': halt_viable,
-            'description': 'Stop and seek human guidance. Critical grounding issues.',
-            'blockers': [] if halt_viable else ['No critical issues detected'],
-            'action': 'Escalate to human, do not proceed without guidance'
-        })
-
-        # Ensure all paths have valid viable values (defensive)
-        for p in paths:
-            if p['viable'] is None:
-                p['viable'] = False
-            if p['confidence'] is None:
-                p['confidence'] = 0.0
-
-        # Sort paths by viability first, then confidence (descending)
-        paths.sort(key=lambda p: (-int(bool(p['viable'])), -p['confidence']))
+        paths = _calculate_trajectory_paths(
+            layer0_score, layer1_score, layer2_score, layer3_score,
+            overall_grounding, unknowns_count, sentinel_status
+        )
 
         # Determine recommendation
         recommendation = paths[0]['name']
@@ -1259,6 +1284,74 @@ def _show_brier_profile(args, ai_id: str, output_format: str):
             print("Hint: Run POSTFLIGHT sessions to collect calibration data")
 
 
+def _print_grounded_calibration_human(
+    total_grounded_evidence: int, open_disputes: dict, divergence: dict, grounded_adjustments: dict
+) -> None:
+    """Print human-readable grounded calibration report."""
+    print("=" * 70)
+    print("🔬 CALIBRATION REPORT (grounded evidence)")
+    print("=" * 70)
+    print()
+    print("Compares POSTFLIGHT self-assessment against objective evidence")
+    print("(test results, git metrics, artifact counts, goal completion)")
+    print()
+    print(f"Total evidence observations: {total_grounded_evidence}")
+    if open_disputes:
+        print(f"Open disputes: {len(open_disputes)} vector(s)")
+    print()
+
+    if divergence:
+        print("📊 CALIBRATION (self-assessment vs evidence):")
+        print("-" * 70)
+        print(f"{'Vector':<15} {'Self-Assessed':>12} {'Grounded':>10} {'Gap':>8} {'Evidence':>10}")
+        print("-" * 70)
+
+        sorted_div = sorted(
+            divergence.items(),
+            key=lambda x: abs(x[1]['gap']),
+            reverse=True,
+        )
+        for vector, data in sorted_div:
+            gap = data['gap']
+            sign = "+" if gap >= 0 else ""
+            disputed = vector in open_disputes
+            prefix = "⚖️ " if disputed else ("⚠️ " if abs(gap) >= 0.15 else "   ")
+            suffix = " [DISPUTED]" if disputed else ""
+            print(
+                f"{prefix}{vector:<12} "
+                f"{data['self_referential_mean']:>12.2f} "
+                f"{data['grounded_mean']:>10.2f} "
+                f"{sign}{gap:>7.2f} "
+                f"{data['grounded_evidence']:>10}"
+                f"{suffix}"
+            )
+        print("-" * 70)
+
+        # Show dispute details
+        if open_disputes:
+            print()
+            print("⚖️  OPEN DISPUTES (measurement artifacts flagged by AI):")
+            for vector, dispute in open_disputes.items():
+                print(f"   {vector}: reported={dispute['reported']:.2f}, "
+                      f"expected={dispute['expected']:.2f} — {dispute['reason']}")
+            print("   (Disputed vectors have reduced weight in Bayesian updates)")
+    else:
+        print("   No grounded data yet. Run POSTFLIGHT sessions to collect evidence.")
+
+    if grounded_adjustments:
+        print()
+        print("📋 BIAS CORRECTIONS (apply to self-assessment):")
+        for vector, adj in sorted(
+            grounded_adjustments.items(),
+            key=lambda x: abs(x[1]),
+            reverse=True,
+        ):
+            sign = "+" if adj >= 0 else ""
+            disputed = " [DISPUTED]" if vector in open_disputes else ""
+            print(f"   {vector}: {sign}{adj:.2f}{disputed}")
+    print()
+
+
 def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str, show_trajectory: bool):
     """Show grounded calibration (POSTFLIGHT → POST-TEST evidence comparison).
 
@@ -1300,68 +1393,9 @@ def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str,
                 }
             print(json.dumps(result, indent=2))
         else:
-            print("=" * 70)
-            print("🔬 CALIBRATION REPORT (grounded evidence)")
-            print("=" * 70)
-            print()
-            print("Compares POSTFLIGHT self-assessment against objective evidence")
-            print("(test results, git metrics, artifact counts, goal completion)")
-            print()
-            print(f"Total evidence observations: {total_grounded_evidence}")
-            if open_disputes:
-                print(f"Open disputes: {len(open_disputes)} vector(s)")
-            print()
-
-            if divergence:
-                print("📊 CALIBRATION (self-assessment vs evidence):")
-                print("-" * 70)
-                print(f"{'Vector':<15} {'Self-Assessed':>12} {'Grounded':>10} {'Gap':>8} {'Evidence':>10}")
-                print("-" * 70)
-
-                sorted_div = sorted(
-                    divergence.items(),
-                    key=lambda x: abs(x[1]['gap']),
-                    reverse=True,
-                )
-                for vector, data in sorted_div:
-                    gap = data['gap']
-                    sign = "+" if gap >= 0 else ""
-                    disputed = vector in open_disputes
-                    prefix = "⚖️ " if disputed else ("⚠️ " if abs(gap) >= 0.15 else "   ")
-                    suffix = " [DISPUTED]" if disputed else ""
-                    print(
-                        f"{prefix}{vector:<12} "
-                        f"{data['self_referential_mean']:>12.2f} "
-                        f"{data['grounded_mean']:>10.2f} "
-                        f"{sign}{gap:>7.2f} "
-                        f"{data['grounded_evidence']:>10}"
-                        f"{suffix}"
-                    )
-                print("-" * 70)
-
-                # Show dispute details
-                if open_disputes:
-                    print()
-                    print("⚖️  OPEN DISPUTES (measurement artifacts flagged by AI):")
-                    for vector, dispute in open_disputes.items():
-                        print(f"   {vector}: reported={dispute['reported']:.2f}, "
-                              f"expected={dispute['expected']:.2f} — {dispute['reason']}")
-                    print("   (Disputed vectors have reduced weight in Bayesian updates)")
-            else:
-                print("   No grounded data yet. Run POSTFLIGHT sessions to collect evidence.")
-
-            if grounded_adjustments:
-                print()
-                print("📋 BIAS CORRECTIONS (apply to self-assessment):")
-                for vector, adj in sorted(
-                    grounded_adjustments.items(),
-                    key=lambda x: abs(x[1]),
-                    reverse=True,
-                ):
-                    sign = "+" if adj >= 0 else ""
-                    disputed = " [DISPUTED]" if vector in open_disputes else ""
-                    print(f"   {vector}: {sign}{adj:.2f}{disputed}")
-            print()
+            _print_grounded_calibration_human(
+                total_grounded_evidence, open_disputes, divergence, grounded_adjustments
+            )
 
         # Optional trajectory trend
         if show_trajectory:
