@@ -682,6 +682,177 @@ def handle_sync_status_command(args):
         return 1
 
 
+def _rebuild_collect_ids(all_items_lists):
+    """Collect unique project_ids, session_ids, goal_ids from all breadcrumbs."""
+    project_ids = set()
+    session_ids = set()
+    goal_ids_needed = set()
+    for items in all_items_lists:
+        for item in items:
+            pid = item.get('project_id')
+            sid = item.get('session_id')
+            gid = item.get('goal_id')
+            if pid:
+                project_ids.add(pid)
+            if sid:
+                session_ids.add(sid)
+            if gid:
+                goal_ids_needed.add(gid)
+    return project_ids, session_ids, goal_ids_needed
+
+
+def _rebuild_ensure_projects(db, project_ids, now, rebuilt):
+    """Create stub project records to satisfy FK constraints."""
+    import json as _json
+
+    for pid in project_ids:
+        try:
+            db.adapter.execute(
+                "INSERT INTO projects (id, name, description, created_timestamp, project_data) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (pid, f"project-{pid[:8]}", "Rebuilt from git notes", now, _json.dumps({"rebuilt": True}))
+            )
+            db.adapter.commit()
+            rebuilt['projects'] += 1
+        except Exception:
+            db.adapter.conn.rollback() if hasattr(db.adapter, 'conn') else None
+
+
+def _rebuild_ensure_sessions(db, session_ids, all_items_lists, rebuilt):
+    """Create stub session records to satisfy FK constraints."""
+    from datetime import datetime
+
+    for sid in session_ids:
+        try:
+            pid = None
+            for items in all_items_lists:
+                for item in items:
+                    if item.get('session_id') == sid and item.get('project_id'):
+                        pid = item.get('project_id')
+                        break
+                if pid:
+                    break
+
+            now_ts = datetime.utcnow().isoformat()
+            db.adapter.execute(
+                "INSERT INTO sessions (session_id, ai_id, start_time, "
+                "components_loaded, project_id) VALUES (?, ?, ?, ?, ?)",
+                (sid, "rebuilt", now_ts, 0, pid)
+            )
+            db.adapter.commit()
+            rebuilt['sessions'] += 1
+        except Exception:
+            try:
+                db.adapter.conn.rollback()
+            except Exception:
+                pass
+
+
+def _rebuild_ensure_goals(db, now, rebuilt):
+    """Insert goals from git notes. Returns set of inserted goal IDs."""
+    import json as _json
+
+    from empirica.core.canonical.empirica_git.goal_store import GitGoalStore
+
+    goal_store = GitGoalStore()
+    goals = goal_store.discover_goals()
+    for g in goals:
+        try:
+            gid = g.get('goal_id')
+            gsid = g.get('session_id', '')
+            gdata = g.get('goal_data', {})
+            db.adapter.execute(
+                "INSERT INTO goals (id, session_id, objective, scope, estimated_complexity, "
+                "created_timestamp, goal_data, status, project_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    gid, gsid,
+                    gdata.get('objective', 'Rebuilt from notes'),
+                    _json.dumps(gdata.get('scope', {})),
+                    gdata.get('estimated_complexity'),
+                    now,
+                    _json.dumps(gdata),
+                    gdata.get('status', 'in_progress'),
+                    gdata.get('project_id')
+                )
+            )
+            db.adapter.commit()
+            rebuilt['goals'] += 1
+        except Exception:
+            try:
+                db.adapter.conn.rollback()
+            except Exception:
+                pass
+
+    return goals, {g.get('goal_id') for g in goals}
+
+
+def _rebuild_ensure_orphan_goals(db, orphan_goal_ids, all_items_lists, now, rebuilt):
+    """Create stub goal records for goal IDs referenced by breadcrumbs but not in git notes."""
+    import json as _json
+
+    for gid in orphan_goal_ids:
+        try:
+            gsid = ''
+            for items in all_items_lists:
+                for item in items:
+                    if item.get('goal_id') == gid and item.get('session_id'):
+                        gsid = item.get('session_id')
+                        break
+                if gsid:
+                    break
+            db.adapter.execute(
+                "INSERT INTO goals (id, session_id, objective, scope, "
+                "created_timestamp, goal_data) VALUES (?, ?, ?, ?, ?, ?)",
+                (gid, gsid, "Rebuilt stub (orphaned ref)", "{}", now,
+                 _json.dumps({"rebuilt": True, "orphan": True}))
+            )
+            db.adapter.commit()
+            rebuilt['goals'] += 1
+        except Exception:
+            try:
+                db.adapter.conn.rollback()
+            except Exception:
+                pass
+
+
+def _rebuild_insert_breadcrumbs(db, findings, unknowns, dead_ends, mistakes,
+                                valid_goal_ids, rebuilt):
+    """Insert breadcrumb records using table-driven approach."""
+    handlers = [
+        ('findings', findings, lambda db, item, vg: db.log_finding(
+            project_id=item.get('project_id'), session_id=item.get('session_id'),
+            finding=item.get('finding'), subject=item.get('subject'), impact=item.get('impact'),
+            goal_id=item.get('goal_id') if item.get('goal_id') in vg else None,
+            subtask_id=None)),
+        ('unknowns', unknowns, lambda db, item, vg: db.log_unknown(
+            project_id=item.get('project_id'), session_id=item.get('session_id'),
+            unknown=item.get('unknown'), subtask_id=None,
+            goal_id=item.get('goal_id') if item.get('goal_id') in vg else None)),
+        ('dead_ends', dead_ends, lambda db, item, vg: db.log_dead_end(
+            project_id=item.get('project_id'), session_id=item.get('session_id'),
+            approach=item.get('approach'), why_failed=item.get('why_failed'), subtask_id=None,
+            goal_id=item.get('goal_id') if item.get('goal_id') in vg else None)),
+        ('mistakes', mistakes, lambda db, item, vg: db.log_mistake(
+            session_id=item.get('session_id'), project_id=item.get('project_id'),
+            mistake=item.get('mistake'), why_wrong=item.get('why_wrong'),
+            prevention=item.get('prevention'), cost_estimate=item.get('cost_estimate'),
+            root_cause_vector=item.get('root_cause_vector'),
+            goal_id=item.get('goal_id') if item.get('goal_id') in vg else None)),
+    ]
+    for key, items, handler in handlers:
+        for item in items:
+            try:
+                handler(db, item, valid_goal_ids)
+                rebuilt[key] += 1
+            except Exception as e:
+                logger.debug(f"{key} rebuild skip: {e}")
+                try:
+                    db.adapter.conn.rollback()
+                except Exception:
+                    pass
+
+
 def _rebuild_from_notes() -> dict[str, Any]:
     """
     Rebuild database from git notes.
@@ -701,20 +872,16 @@ def _rebuild_from_notes() -> dict[str, Any]:
     }
 
     try:
-        import json
         import time
 
         from empirica.core.canonical.empirica_git.dead_end_store import GitDeadEndStore
         from empirica.core.canonical.empirica_git.finding_store import GitFindingStore
-        from empirica.core.canonical.empirica_git.goal_store import GitGoalStore
         from empirica.core.canonical.empirica_git.mistake_store import GitMistakeStore
         from empirica.core.canonical.empirica_git.unknown_store import GitUnknownStore
         from empirica.data.session_database import SessionDatabase
 
         db = SessionDatabase()
 
-        # Phase 0: Collect all referenced project_ids and session_ids
-        # then create stub records to satisfy FK constraints
         finding_store = GitFindingStore()
         unknown_store = GitUnknownStore()
         dead_end_store = GitDeadEndStore()
@@ -725,167 +892,28 @@ def _rebuild_from_notes() -> dict[str, Any]:
         dead_ends = dead_end_store.discover_dead_ends()
         mistakes = mistake_store.discover_mistakes()
 
-        # Collect unique project_ids, session_ids, goal_ids from all breadcrumbs
-        project_ids = set()
-        session_ids = set()
-        goal_ids_needed = set()
-        for items in [findings, unknowns, dead_ends, mistakes]:
-            for item in items:
-                pid = item.get('project_id')
-                sid = item.get('session_id')
-                gid = item.get('goal_id')
-                if pid:
-                    project_ids.add(pid)
-                if sid:
-                    session_ids.add(sid)
-                if gid:
-                    goal_ids_needed.add(gid)
+        all_items_lists = [findings, unknowns, dead_ends, mistakes]
 
-        # Ensure projects exist (stub records)
+        # Phase 0: Collect IDs and create stub records for FK constraints
+        project_ids, session_ids, goal_ids_needed = _rebuild_collect_ids(all_items_lists)
+
         now = time.time()
-        for pid in project_ids:
-            try:
-                db.adapter.execute(
-                    "INSERT INTO projects (id, name, description, created_timestamp, project_data) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (pid, f"project-{pid[:8]}", "Rebuilt from git notes", now, json.dumps({"rebuilt": True}))
-                )
-                db.adapter.commit()
-                rebuilt['projects'] += 1
-            except Exception:
-                # Already exists or other constraint - OK for rebuild
-                db.adapter.conn.rollback() if hasattr(db.adapter, 'conn') else None
+        _rebuild_ensure_projects(db, project_ids, now, rebuilt)
+        _rebuild_ensure_sessions(db, session_ids, all_items_lists, rebuilt)
+        goals, inserted_goal_ids = _rebuild_ensure_goals(db, now, rebuilt)
 
-        # Ensure sessions exist (stub records)
-        for sid in session_ids:
-            try:
-                pid = None
-                # Find which project this session belongs to
-                for items in [findings, unknowns, dead_ends, mistakes]:
-                    for item in items:
-                        if item.get('session_id') == sid and item.get('project_id'):
-                            pid = item.get('project_id')
-                            break
-                    if pid:
-                        break
-
-                from datetime import datetime
-                now_ts = datetime.utcnow().isoformat()
-                db.adapter.execute(
-                    "INSERT INTO sessions (session_id, ai_id, start_time, "
-                    "components_loaded, project_id) VALUES (?, ?, ?, ?, ?)",
-                    (sid, "rebuilt", now_ts, 0, pid)
-                )
-                db.adapter.commit()
-                rebuilt['sessions'] += 1
-            except Exception:
-                try:
-                    db.adapter.conn.rollback()
-                except Exception:
-                    pass
-
-        # Ensure goals exist (from git notes)
-        goal_store = GitGoalStore()
-        goals = goal_store.discover_goals()
-        for g in goals:
-            try:
-                gid = g.get('goal_id')
-                gsid = g.get('session_id', '')
-                gdata = g.get('goal_data', {})
-                db.adapter.execute(
-                    "INSERT INTO goals (id, session_id, objective, scope, estimated_complexity, "
-                    "created_timestamp, goal_data, status, project_id) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        gid, gsid,
-                        gdata.get('objective', 'Rebuilt from notes'),
-                        json.dumps(gdata.get('scope', {})),
-                        gdata.get('estimated_complexity'),
-                        now,
-                        json.dumps(gdata),
-                        gdata.get('status', 'in_progress'),
-                        gdata.get('project_id')
-                    )
-                )
-                db.adapter.commit()
-                rebuilt['goals'] += 1
-            except Exception:
-                try:
-                    db.adapter.conn.rollback()
-                except Exception:
-                    pass
-
-        # Ensure any goal_ids referenced by breadcrumbs also exist as stubs
-        inserted_goal_ids = {g.get('goal_id') for g in goals}
         orphan_goal_ids = goal_ids_needed - inserted_goal_ids
-        for gid in orphan_goal_ids:
-            try:
-                # Pick a session_id from the breadcrumbs that reference this goal
-                gsid = ''
-                for items in [findings, unknowns, dead_ends, mistakes]:
-                    for item in items:
-                        if item.get('goal_id') == gid and item.get('session_id'):
-                            gsid = item.get('session_id')
-                            break
-                    if gsid:
-                        break
-                db.adapter.execute(
-                    "INSERT INTO goals (id, session_id, objective, scope, "
-                    "created_timestamp, goal_data) VALUES (?, ?, ?, ?, ?, ?)",
-                    (gid, gsid, "Rebuilt stub (orphaned ref)", "{}", now,
-                     json.dumps({"rebuilt": True, "orphan": True}))
-                )
-                db.adapter.commit()
-                rebuilt['goals'] += 1
-            except Exception:
-                try:
-                    db.adapter.conn.rollback()
-                except Exception:
-                    pass
+        _rebuild_ensure_orphan_goals(db, orphan_goal_ids, all_items_lists, now, rebuilt)
 
         logger.info(
             f"Rebuild Phase 0: {rebuilt['projects']} projects, "
             f"{rebuilt['sessions']} sessions, {rebuilt['goals']} goals"
         )
 
-        # Phase 1: Insert breadcrumbs (already discovered in Phase 0)
-        # Note: psycopg2 requires rollback after failed queries before next query
-        # Goal IDs are set only if the goal was successfully inserted in Phase 0
+        # Phase 1: Insert breadcrumbs
         inserted_all_goal_ids = inserted_goal_ids | set(orphan_goal_ids)
-
-        # Phase 1: Insert breadcrumbs using table-driven approach
-        _REBUILD_HANDLERS = [
-            ('findings', findings, lambda db, item, valid_gids: db.log_finding(
-                project_id=item.get('project_id'), session_id=item.get('session_id'),
-                finding=item.get('finding'), subject=item.get('subject'), impact=item.get('impact'),
-                goal_id=item.get('goal_id') if item.get('goal_id') in valid_gids else None,
-                subtask_id=None)),
-            ('unknowns', unknowns, lambda db, item, valid_gids: db.log_unknown(
-                project_id=item.get('project_id'), session_id=item.get('session_id'),
-                unknown=item.get('unknown'), subtask_id=None,
-                goal_id=item.get('goal_id') if item.get('goal_id') in valid_gids else None)),
-            ('dead_ends', dead_ends, lambda db, item, valid_gids: db.log_dead_end(
-                project_id=item.get('project_id'), session_id=item.get('session_id'),
-                approach=item.get('approach'), why_failed=item.get('why_failed'), subtask_id=None,
-                goal_id=item.get('goal_id') if item.get('goal_id') in valid_gids else None)),
-            ('mistakes', mistakes, lambda db, item, valid_gids: db.log_mistake(
-                session_id=item.get('session_id'), project_id=item.get('project_id'),
-                mistake=item.get('mistake'), why_wrong=item.get('why_wrong'),
-                prevention=item.get('prevention'), cost_estimate=item.get('cost_estimate'),
-                root_cause_vector=item.get('root_cause_vector'),
-                goal_id=item.get('goal_id') if item.get('goal_id') in valid_gids else None)),
-        ]
-        for key, items, handler in _REBUILD_HANDLERS:
-            for item in items:
-                try:
-                    handler(db, item, inserted_all_goal_ids)
-                    rebuilt[key] += 1
-                except Exception as e:
-                    logger.debug(f"{key} rebuild skip: {e}")
-                    try:
-                        db.adapter.conn.rollback()
-                    except Exception:
-                        pass
+        _rebuild_insert_breadcrumbs(db, findings, unknowns, dead_ends, mistakes,
+                                    inserted_all_goal_ids, rebuilt)
 
         db.close()
 
