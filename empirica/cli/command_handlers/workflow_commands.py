@@ -2169,95 +2169,80 @@ _TYPE_TO_DOMAIN = {
 }
 
 
-def _run_postflight_storage_pipeline(
-    session_id: str, vectors: dict, deltas: dict, reasoning: str,
-    grounded_verification: dict | None, postflight_confidence: float,
-    checkpoint_id: str | None, postflight_transaction_id: str | None,
-) -> None:
-    """Run all POSTFLIGHT storage operations: Qdrant embedding, Cortex push,
-    trajectory, episodic memory, auto-embed, workspace index, decay, snapshot.
-
-    All operations are non-fatal — failures are logged and skipped.
-    """
-    import os
-    import time
+def _pipeline_embed_grounded_calibration(
+    session_id, vectors, grounded_verification, project_id, ai_id, goal_id, now,
+):
+    """Stage 1: Grounded calibration embedding to Qdrant."""
     import uuid as uuid_mod
 
-    # Get session context (shared across all blocks)
     try:
-        db = _get_db_for_session(session_id)
-        session = db.get_session(session_id)
-        project_id = session.get('project_id') if session else None
-        ai_id = session.get('ai_id', 'claude-code') if session else 'claude-code'
-        goal_id = session.get('current_goal_id') if session else None
-        db.close()
-    except Exception:
-        return  # Can't do anything without session
+        if not grounded_verification or grounded_verification.get('evidence_count', 0) <= 0:
+            return
+        from empirica.core.qdrant.vector_store import (
+            _check_qdrant_available,
+            embed_calibration_trajectory,
+            embed_grounded_verification,
+        )
+        if not _check_qdrant_available():
+            return
 
-    if not project_id:
-        return
+        grounded_vectors = {}
+        for v_name, gap in grounded_verification.get('gaps', {}).items():
+            grounded_vectors[v_name] = round(vectors.get(v_name, 0.5) - gap, 4)
 
-    now = time.time()
-
-    # 1. Grounded calibration embedding to Qdrant
-    try:
-        if grounded_verification and grounded_verification.get('evidence_count', 0) > 0:
-            from empirica.core.qdrant.vector_store import (
-                _check_qdrant_available,
-                embed_calibration_trajectory,
-                embed_grounded_verification,
-            )
-            if _check_qdrant_available():
-                grounded_vectors = {}
-                for v_name, gap in grounded_verification.get('gaps', {}).items():
-                    grounded_vectors[v_name] = round(vectors.get(v_name, 0.5) - gap, 4)
-
-                embed_grounded_verification(
-                    project_id=project_id, verification_id=str(uuid_mod.uuid4()),
-                    session_id=session_id, ai_id=ai_id,
-                    self_assessed=vectors, grounded_vectors=grounded_vectors,
-                    calibration_gaps=grounded_verification.get('gaps', {}),
-                    grounded_coverage=grounded_verification.get('grounded_coverage', 0),
-                    calibration_score=grounded_verification.get('calibration_score', 0),
-                    evidence_count=grounded_verification.get('evidence_count', 0),
-                    sources=grounded_verification.get('sources', []),
-                    goal_id=goal_id, timestamp=now,
-                )
-                embed_calibration_trajectory(
-                    project_id=project_id, session_id=session_id, ai_id=ai_id,
-                    self_assessed=vectors, grounded_vectors=grounded_vectors,
-                    calibration_gaps=grounded_verification.get('gaps', {}),
-                    goal_id=goal_id, timestamp=now,
-                )
-                logger.debug(f"Embedded grounded calibration for {session_id[:8]}")
+        embed_grounded_verification(
+            project_id=project_id, verification_id=str(uuid_mod.uuid4()),
+            session_id=session_id, ai_id=ai_id,
+            self_assessed=vectors, grounded_vectors=grounded_vectors,
+            calibration_gaps=grounded_verification.get('gaps', {}),
+            grounded_coverage=grounded_verification.get('grounded_coverage', 0),
+            calibration_score=grounded_verification.get('calibration_score', 0),
+            evidence_count=grounded_verification.get('evidence_count', 0),
+            sources=grounded_verification.get('sources', []),
+            goal_id=goal_id, timestamp=now,
+        )
+        embed_calibration_trajectory(
+            project_id=project_id, session_id=session_id, ai_id=ai_id,
+            self_assessed=vectors, grounded_vectors=grounded_vectors,
+            calibration_gaps=grounded_verification.get('gaps', {}),
+            goal_id=goal_id, timestamp=now,
+        )
+        logger.debug(f"Embedded grounded calibration for {session_id[:8]}")
     except Exception as e:
         logger.debug(f"Grounded calibration embedding skipped: {e}")
 
-    # 2. Cortex cache feedback
+
+def _pipeline_cortex_cache_feedback(session_id, vectors, grounded_verification):
+    """Stage 2: Cortex cache feedback for low-calibration sessions."""
+    import os
+
     try:
-        if grounded_verification and grounded_verification.get('calibration_score', 1.0) < 0.3:
-            import urllib.request
-            cortex_url = os.environ.get('EMPIRICA_CORTEX_URL', 'http://localhost:8420')
-            payload = json.dumps({
-                'session_id': session_id,
-                'calibration_score': grounded_verification.get('calibration_score'),
-                'grounded_coverage': grounded_verification.get('grounded_coverage'),
-                'evidence_count': grounded_verification.get('evidence_count'),
-                'vectors': vectors,
-                'gaps': grounded_verification.get('gaps', {}),
-                'sources': grounded_verification.get('sources', []),
-            }).encode('utf-8')
-            headers = {'Content-Type': 'application/json'}
-            api_key = os.environ.get('CORTEX_API_KEY', '')
-            if api_key:
-                headers['Authorization'] = f'Bearer {api_key}'
-            req = urllib.request.Request(f'{cortex_url}/postflight', data=payload, headers=headers, method='POST')
-            urllib.request.urlopen(req, timeout=1.0)
-            logger.debug("Wrote verified predictions to Cortex cache")
+        if not grounded_verification or grounded_verification.get('calibration_score', 1.0) >= 0.3:
+            return
+        import urllib.request
+        cortex_url = os.environ.get('EMPIRICA_CORTEX_URL', 'http://localhost:8420')
+        payload = json.dumps({
+            'session_id': session_id,
+            'calibration_score': grounded_verification.get('calibration_score'),
+            'grounded_coverage': grounded_verification.get('grounded_coverage'),
+            'evidence_count': grounded_verification.get('evidence_count'),
+            'vectors': vectors,
+            'gaps': grounded_verification.get('gaps', {}),
+            'sources': grounded_verification.get('sources', []),
+        }).encode('utf-8')
+        headers = {'Content-Type': 'application/json'}
+        api_key = os.environ.get('CORTEX_API_KEY', '')
+        if api_key:
+            headers['Authorization'] = f'Bearer {api_key}'
+        req = urllib.request.Request(f'{cortex_url}/postflight', data=payload, headers=headers, method='POST')
+        urllib.request.urlopen(req, timeout=1.0)
+        logger.debug("Wrote verified predictions to Cortex cache")
     except Exception:
         pass  # Cortex not running
 
-    # 3. Epistemic trajectory storage
+
+def _pipeline_trajectory_storage(session_id, project_id):
+    """Stage 3: Epistemic trajectory storage."""
     try:
         db = _get_db_for_session(session_id)
         from empirica.core.epistemic_trajectory import store_trajectory
@@ -2266,7 +2251,34 @@ def _run_postflight_storage_pipeline(
     except Exception as e:
         logger.debug(f"Trajectory storage skipped: {e}")
 
-    # 4. Episodic memory
+
+def _build_episodic_narrative(reasoning, deltas, grounded_verification):
+    """Build narrative string for episodic memory, enriched with calibration gaps."""
+    narrative = reasoning or f"Session completed with learning delta: {deltas}"
+
+    if not grounded_verification or grounded_verification.get('evidence_count', 0) <= 0:
+        return narrative
+
+    cal_score = grounded_verification.get('calibration_score', 0)
+    coverage = grounded_verification.get('grounded_coverage', 0)
+    gaps = grounded_verification.get('gaps', {})
+    sig = {v: g for v, g in gaps.items() if abs(g) > 0.15}
+    if sig:
+        gap_desc = "; ".join(
+            f"{v}: {'over' if g > 0 else 'under'} by {abs(g):.2f}" for v, g in sig.items()
+        )
+        narrative += f" Grounded calibration: score={cal_score:.3f}, coverage={coverage:.0%}. Significant gaps: {gap_desc}."
+
+    return narrative
+
+
+def _pipeline_episodic_memory(
+    session_id, vectors, deltas, reasoning, grounded_verification,
+    project_id, ai_id, goal_id, now,
+):
+    """Stage 4: Episodic memory embedding."""
+    import uuid as uuid_mod
+
     try:
         db = _get_db_for_session(session_id)
         from empirica.core.qdrant.vector_store import embed_episodic
@@ -2274,19 +2286,11 @@ def _run_postflight_storage_pipeline(
             findings = db.get_project_findings(project_id, limit=5)
         except Exception:
             findings = []
+
         outcome = "success" if deltas.get("know", 0) > 0.1 else (
             "partial" if deltas.get("completion", 0) > 0 else "abandoned")
-        narrative = reasoning or f"Session completed with learning delta: {deltas}"
-        if grounded_verification and grounded_verification.get('evidence_count', 0) > 0:
-            cal_score = grounded_verification.get('calibration_score', 0)
-            coverage = grounded_verification.get('grounded_coverage', 0)
-            gaps = grounded_verification.get('gaps', {})
-            sig = {v: g for v, g in gaps.items() if abs(g) > 0.15}
-            if sig:
-                gap_desc = "; ".join(
-                    f"{v}: {'over' if g > 0 else 'under'} by {abs(g):.2f}" for v, g in sig.items()
-                )
-                narrative += f" Grounded calibration: score={cal_score:.3f}, coverage={coverage:.0%}. Significant gaps: {gap_desc}."
+        narrative = _build_episodic_narrative(reasoning, deltas, grounded_verification)
+
         embed_episodic(
             project_id=project_id, episode_id=str(uuid_mod.uuid4()),
             narrative=narrative, episode_type="session_arc",
@@ -2299,38 +2303,46 @@ def _run_postflight_storage_pipeline(
     except Exception as e:
         logger.debug(f"Episodic memory skipped: {e}")
 
-    # 5. Auto-embed findings/unknowns to Qdrant
+
+def _pipeline_auto_embed_memories(session_id, project_id):
+    """Stage 5: Auto-embed findings/unknowns to Qdrant."""
     try:
         from empirica.core.qdrant.vector_store import _check_qdrant_available, init_collections, upsert_memory
         db = _get_db_for_session(session_id)
-        if _check_qdrant_available():
-            init_collections(project_id)
-            try:
-                sf = db.get_project_findings(project_id, limit=10)
-                su = db.get_project_unknowns(project_id, resolved=False, limit=10)
-            except Exception:
-                sf, su = [], []
-            mem_items = []
-            for f in sf:
-                fid = f.get('finding_id') or str(f.get('id', ''))
-                if fid:
-                    mem_items.append({'id': fid, 'text': f.get('finding', ''), 'type': 'finding',
-                                      'session_id': f.get('session_id', session_id), 'goal_id': f.get('goal_id'),
-                                      'timestamp': f.get('created_timestamp')})
-            for u in su:
-                uid = u.get('unknown_id') or str(u.get('id', ''))
-                if uid:
-                    mem_items.append({'id': uid, 'text': u.get('unknown', ''), 'type': 'unknown',
-                                      'session_id': u.get('session_id', session_id), 'goal_id': u.get('goal_id'),
-                                      'timestamp': u.get('created_timestamp'), 'is_resolved': u.get('is_resolved', False)})
-            if mem_items:
-                upsert_memory(project_id, mem_items)
-                logger.debug(f"Auto-embedded {len(mem_items)} memory items")
+        if not _check_qdrant_available():
+            db.close()
+            return
+
+        init_collections(project_id)
+        try:
+            sf = db.get_project_findings(project_id, limit=10)
+            su = db.get_project_unknowns(project_id, resolved=False, limit=10)
+        except Exception:
+            sf, su = [], []
+
+        mem_items = []
+        for f in sf:
+            fid = f.get('finding_id') or str(f.get('id', ''))
+            if fid:
+                mem_items.append({'id': fid, 'text': f.get('finding', ''), 'type': 'finding',
+                                  'session_id': f.get('session_id', session_id), 'goal_id': f.get('goal_id'),
+                                  'timestamp': f.get('created_timestamp')})
+        for u in su:
+            uid = u.get('unknown_id') or str(u.get('id', ''))
+            if uid:
+                mem_items.append({'id': uid, 'text': u.get('unknown', ''), 'type': 'unknown',
+                                  'session_id': u.get('session_id', session_id), 'goal_id': u.get('goal_id'),
+                                  'timestamp': u.get('created_timestamp'), 'is_resolved': u.get('is_resolved', False)})
+        if mem_items:
+            upsert_memory(project_id, mem_items)
+            logger.debug(f"Auto-embedded {len(mem_items)} memory items")
         db.close()
     except Exception as e:
         logger.debug(f"Memory sync skipped: {e}")
 
-    # 6. Workspace index sync
+
+def _pipeline_workspace_index_sync(session_id, project_id):
+    """Stage 6: Workspace index sync."""
     try:
         from empirica.core.qdrant.connection import _check_qdrant_available as _ws_check
         from empirica.utils.session_resolver import InstanceResolver as _R
@@ -2342,7 +2354,9 @@ def _run_postflight_storage_pipeline(
     except Exception as e:
         logger.debug(f"Workspace index sync skipped: {e}")
 
-    # 7. Decay triggers + global sync
+
+def _pipeline_decay_and_global_sync(session_id, project_id):
+    """Stage 7: Decay triggers + global sync."""
     try:
         from empirica.core.qdrant.vector_store import (
             _check_qdrant_available,
@@ -2350,23 +2364,28 @@ def _run_postflight_storage_pipeline(
             auto_sync_session_to_global,
             update_assumption_urgency,
         )
-        if _check_qdrant_available():
-            try:
-                auto_sync_session_to_global(project_id, session_id)
-            except Exception:
-                pass
-            try:
-                apply_staleness_signal(project_id)
-            except Exception:
-                pass
-            try:
-                update_assumption_urgency(project_id)
-            except Exception:
-                pass
+        if not _check_qdrant_available():
+            return
+        try:
+            auto_sync_session_to_global(project_id, session_id)
+        except Exception:
+            pass
+        try:
+            apply_staleness_signal(project_id)
+        except Exception:
+            pass
+        try:
+            update_assumption_urgency(project_id)
+        except Exception:
+            pass
     except Exception:
         pass
 
-    # 8. Epistemic snapshot
+
+def _pipeline_epistemic_snapshot(
+    session_id, vectors, deltas, reasoning, postflight_confidence, checkpoint_id,
+):
+    """Stage 8: Epistemic snapshot creation."""
     try:
         from empirica.data.epistemic_snapshot import ContextSummary
         from empirica.data.snapshot_provider import EpistemicSnapshotProvider
@@ -2390,6 +2409,51 @@ def _run_postflight_storage_pipeline(
         db.close()
     except Exception as e:
         logger.debug(f"Snapshot creation skipped: {e}")
+
+
+def _run_postflight_storage_pipeline(
+    session_id: str, vectors: dict, deltas: dict, reasoning: str,
+    grounded_verification: dict | None, postflight_confidence: float,
+    checkpoint_id: str | None, postflight_transaction_id: str | None,
+) -> None:
+    """Run all POSTFLIGHT storage operations: Qdrant embedding, Cortex push,
+    trajectory, episodic memory, auto-embed, workspace index, decay, snapshot.
+
+    All operations are non-fatal — failures are logged and skipped.
+    """
+    import time
+
+    # Get session context (shared across all stages)
+    try:
+        db = _get_db_for_session(session_id)
+        session = db.get_session(session_id)
+        project_id = session.get('project_id') if session else None
+        ai_id = session.get('ai_id', 'claude-code') if session else 'claude-code'
+        goal_id = session.get('current_goal_id') if session else None
+        db.close()
+    except Exception:
+        return  # Can't do anything without session
+
+    if not project_id:
+        return
+
+    now = time.time()
+
+    _pipeline_embed_grounded_calibration(
+        session_id, vectors, grounded_verification, project_id, ai_id, goal_id, now,
+    )
+    _pipeline_cortex_cache_feedback(session_id, vectors, grounded_verification)
+    _pipeline_trajectory_storage(session_id, project_id)
+    _pipeline_episodic_memory(
+        session_id, vectors, deltas, reasoning, grounded_verification,
+        project_id, ai_id, goal_id, now,
+    )
+    _pipeline_auto_embed_memories(session_id, project_id)
+    _pipeline_workspace_index_sync(session_id, project_id)
+    _pipeline_decay_and_global_sync(session_id, project_id)
+    _pipeline_epistemic_snapshot(
+        session_id, vectors, deltas, reasoning, postflight_confidence, checkpoint_id,
+    )
 
 
 def _run_grounded_verification(
