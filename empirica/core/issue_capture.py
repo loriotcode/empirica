@@ -28,7 +28,7 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -591,7 +591,7 @@ class AutoCaptureLoggingHandler(logging.Handler):
     """
 
     # Patterns that indicate an error even at WARNING level
-    ERROR_PATTERNS = [
+    ERROR_PATTERNS: ClassVar[list[str]] = [
         'failed', 'error', 'exception', 'traceback', 'attribute error',
         'not found', 'missing', 'invalid', 'timeout', 'connection',
         'pydantic', 'validation', 'type error', 'value error', 'key error',

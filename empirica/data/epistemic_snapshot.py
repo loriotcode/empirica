@@ -379,10 +379,7 @@ Use this to maintain context continuity without full conversation history.
         # Check age
         created = datetime.fromisoformat(self.created_at)
         age_hours = (datetime.now() - created).total_seconds() / 3600
-        if age_hours >= max_age_hours:
-            return True
-
-        return False
+        return age_hours >= max_age_hours
 
     def get_refresh_reason(self) -> str | None:
         """Get reason why refresh is recommended (if applicable)"""

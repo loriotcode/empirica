@@ -183,7 +183,7 @@ class GitHandoffStorage:
                     if len(session_id) == 36 and session_id.count('-') == 4:
                         session_ids.add(session_id)
 
-            return sorted(list(session_ids))
+            return sorted(session_ids)
 
         except Exception as e:
             logger.debug(f"Failed to list handoffs from git: {e}")
@@ -594,7 +594,7 @@ class HybridHandoffStorage:
         else:  # both
             db_ids = set(self.db_storage.list_handoffs())
             git_ids = set(self.git_storage.list_handoffs())
-            return sorted(list(db_ids | git_ids))
+            return sorted(db_ids | git_ids)
 
     def check_sync_status(self, session_id: str) -> dict[str, bool]:
         """

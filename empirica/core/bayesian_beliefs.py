@@ -24,6 +24,7 @@ Date: 2025-12-30
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from typing import ClassVar
 
 
 @dataclass
@@ -58,7 +59,7 @@ class BayesianBeliefManager:
     MAX_CORRECTION_MAGNITUDE = 0.25
 
     # Vectors to track
-    TRACKED_VECTORS = [
+    TRACKED_VECTORS: ClassVar[list[str]] = [
         'engagement', 'know', 'do', 'context',
         'clarity', 'coherence', 'signal', 'density',
         'state', 'change', 'completion', 'impact', 'uncertainty'

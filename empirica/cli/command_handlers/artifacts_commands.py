@@ -652,7 +652,7 @@ def _render_sessions(sessions_map):
         first = checkpoints[0] if checkpoints else {}
         ai = first.get("ai_id", "?")
         date = _format_date_short(first.get("timestamp", ""))
-        phases = sorted(set(c.get("phase", "?") for c in checkpoints))
+        phases = sorted({c.get("phase", "?") for c in checkpoints})
         phase_str = " \u2192 ".join(phases)
         conf = first.get("overall_confidence", "")
         conf_str = f"{conf:.2f}" if isinstance(conf, (int, float)) else str(conf)

@@ -29,7 +29,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any
+from typing import Any, ClassVar
 
 from .decision_logic import DecisionLogic, PersonaMatch
 
@@ -604,7 +604,7 @@ class Sentinel:
     """
 
     # Default domain profiles
-    DEFAULT_PROFILES = {
+    DEFAULT_PROFILES: ClassVar[dict[str, DomainProfile]] = {
         "general": DomainProfile(
             name="general",
             uncertainty_trigger=0.5,

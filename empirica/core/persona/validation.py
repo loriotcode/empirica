@@ -46,9 +46,9 @@ def validate_persona_profile(profile_data: dict[str, Any]) -> None:
         error_path = " -> ".join(str(p) for p in e.path)
         raise ValidationError(
             f"Schema validation failed at {error_path}: {e.message}"
-        )
+        ) from e
     except jsonschema.SchemaError as e:
-        raise ValidationError(f"Invalid schema: {e.message}")
+        raise ValidationError(f"Invalid schema: {e.message}") from e
 
     # Additional business logic validation
     _validate_business_logic(profile_data)

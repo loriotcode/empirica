@@ -15,6 +15,7 @@ Flow Score = weighted average of above factors
 import logging
 import re
 from datetime import datetime
+from typing import ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class FlowStateMetrics:
     """Calculate flow state metrics for a session"""
 
     # Weights for flow score calculation
-    WEIGHTS = {
+    WEIGHTS: ClassVar[dict[str, float]] = {
         'cascade_completeness': 0.25,
         'bootstrap_usage': 0.15,
         'goal_structure': 0.15,

@@ -237,12 +237,18 @@ class HumanReadableTranslator:
 
     def _score_to_grade(self, score: float) -> str:
         """Convert score to letter grade"""
-        if score >= 0.9: return "A+"
-        elif score >= 0.8: return "A "
-        elif score >= 0.7: return "B+"
-        elif score >= 0.6: return "B "
-        elif score >= 0.5: return "C+"
-        else: return "C "
+        if score >= 0.9:
+            return "A+"
+        elif score >= 0.8:
+            return "A "
+        elif score >= 0.7:
+            return "B+"
+        elif score >= 0.6:
+            return "B "
+        elif score >= 0.5:
+            return "C+"
+        else:
+            return "C "
 
     def _density_to_description(self, density: float) -> str:
         """Convert density score to description"""

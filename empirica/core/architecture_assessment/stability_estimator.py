@@ -100,7 +100,7 @@ class StabilityEstimator:
         metrics.recent_commits_30d = len(recent)
 
         # Unique authors
-        authors = set(c.author for c in commits)
+        authors = {c.author for c in commits}
         metrics.unique_authors = len(authors)
 
         # Lines per commit

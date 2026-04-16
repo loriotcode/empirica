@@ -9,6 +9,7 @@ import json
 import logging
 import time
 import uuid
+from typing import ClassVar
 
 from .base import BaseRepository
 
@@ -19,7 +20,7 @@ class ProjectRepository(BaseRepository):
     """Repository for project-level management and context"""
 
     # Valid project types (v2.0 universal taxonomy)
-    PROJECT_TYPES = [
+    PROJECT_TYPES: ClassVar[list[str]] = [
         'software', 'content', 'research', 'data', 'design',
         'operations', 'strategic', 'engagement', 'legal',
         # Legacy types (backward compat)

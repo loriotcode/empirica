@@ -12,6 +12,7 @@ findings should be prioritized, while old low-impact findings fade.
 import logging
 import math
 from datetime import datetime
+from typing import ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class FindingsDeprecationEngine:
     DELTA_BOOST_FACTOR = 0.2   # execution state delta boost
 
     # Tier thresholds
-    TIER_THRESHOLDS = {
+    TIER_THRESHOLDS: ClassVar[dict[str, float]] = {
         "minimal": 0.80,    # Only high relevance (Tier 0)
         "moderate": 0.60,   # Recent context (Tiers 0-1)
         "full": 0.40,       # Extended history (Tiers 0-2)

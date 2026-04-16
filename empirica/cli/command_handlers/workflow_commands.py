@@ -2895,11 +2895,12 @@ def handle_postflight_submit_command(args):
                         from empirica.cli.utils.project_resolver import resolve_project_id as _rpi
                         _pyaml = Path.cwd() / '.empirica' / 'project.yaml'
                         if _pyaml.exists():
-                            for _ln in open(_pyaml):
-                                if _ln.startswith('project_id:'):
-                                    _pn = _ln.split(':', 1)[1].strip()
-                                    _sync_pid = _rpi(_pn) or _pn
-                                    break
+                            with open(_pyaml) as _pf:
+                                for _ln in _pf:
+                                    if _ln.startswith('project_id:'):
+                                        _pn = _ln.split(':', 1)[1].strip()
+                                        _sync_pid = _rpi(_pn) or _pn
+                                        break
                     except Exception:
                         pass
 
@@ -2936,7 +2937,8 @@ def handle_postflight_submit_command(args):
                         import yaml as _yaml
                         _bcf = Path.cwd() / ".breadcrumbs.yaml"
                         if _bcf.exists():
-                            _bcd = _yaml.safe_load(open(_bcf)) or {}
+                            with open(_bcf) as _bf:
+                                _bcd = _yaml.safe_load(_bf) or {}
                             _gc = _bcd.get("grounded_calibration", {})
                             if _gc:
                                 _cal = {

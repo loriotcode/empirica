@@ -661,7 +661,7 @@ def resolve_session_id(session_id_or_alias: str, ai_id: str | None = None) -> st
 
     except ImportError as e:
         logger.error(f"Failed to import SessionDatabase: {e}")
-        raise ValueError(f"Cannot resolve session alias - database unavailable: {e}")
+        raise ValueError(f"Cannot resolve session alias - database unavailable: {e}") from e
 
 
 def _resolve_partial_uuid(partial_or_full_uuid: str) -> str:
@@ -714,7 +714,7 @@ def _resolve_partial_uuid(partial_or_full_uuid: str) -> str:
         if len(partial_or_full_uuid) == 36:
             logger.debug("Database unavailable, assuming full UUID")
             return partial_or_full_uuid
-        raise ValueError(f"Cannot resolve partial UUID - database unavailable: {e}")
+        raise ValueError(f"Cannot resolve partial UUID - database unavailable: {e}") from e
 
 
 def get_latest_session_id(ai_id: str | None = None, active_only: bool = False) -> str:

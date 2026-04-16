@@ -20,7 +20,7 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +75,8 @@ class ServiceRegistry:
     per-session (cleared on session-create).
     """
 
-    _registered: dict[str, CheckDeclaration] = {}
-    _cache: dict[tuple[str, str], CheckResult] = {}  # (check_id, content_hash) → result
+    _registered: ClassVar[dict[str, CheckDeclaration]] = {}
+    _cache: ClassVar[dict[tuple[str, str], CheckResult]] = {}  # (check_id, content_hash) → result
 
     @classmethod
     def register(cls, declaration: CheckDeclaration) -> None:

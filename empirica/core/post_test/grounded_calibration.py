@@ -41,6 +41,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from typing import ClassVar
 
 from .collector import EvidenceBundle, PostTestCollector
 from .mapper import (
@@ -133,7 +134,7 @@ class GroundedCalibrationManager:
     # Lower than self-referential (0.1) — we trust objective evidence more
     OBSERVATION_VARIANCE = 0.05
 
-    TRACKED_VECTORS = [
+    TRACKED_VECTORS: ClassVar[list[str]] = [
         'engagement', 'know', 'do', 'context',
         'clarity', 'coherence', 'signal', 'density',
         'state', 'change', 'completion', 'impact', 'uncertainty'

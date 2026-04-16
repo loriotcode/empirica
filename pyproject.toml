@@ -216,6 +216,8 @@ ignore = [
     "RUF005", # collection-literal-concatenation (style preference)
     "B905",   # zip-without-strict (pedantic for internal code)
     # Security false-positive heavy
+    "S324",   # hashlib-insecure-hash (MD5 used for content IDs/dedup, not crypto)
+    "S608",   # hardcoded-sql (false positive: f-string SQL uses internal fragments, not user input; params use ?)
     "S607",   # start-process-with-partial-path (we legitimately call git, python3)
     "S603",   # subprocess-without-shell-equals-true (subprocess is core to our hooks)
     "S112",   # try-except-continue (style variant of S110, too noisy)
@@ -232,9 +234,24 @@ section-order = ["future", "standard-library", "third-party", "first-party", "lo
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = ["S101"]  # allow assert in tests
 "tests/**/*.py" = ["S101"]  # allow assert in nested tests
+"empirica/core/schemas/*.py" = ["S101"]  # validation asserts in schema converters
 "__init__.py" = ["F401", "E402"]  # allow unused imports and late imports in __init__
-"empirica/cli/cli_core.py" = ["F405"]  # star import from command_handlers __init__ (all exports defined in __all__)
-"empirica/plugins/**/*.py" = ["S108"]  # hooks use temp paths intentionally
+"empirica/cli/cli_core.py" = ["F405", "E402", "S110"]  # star import + conditional imports + graceful startup
+"empirica/cli/command_handlers/*.py" = ["S110"]  # command handlers use try-except-pass for graceful fallback on context resolution
+"empirica/cli/command_handlers/monitor_commands.py" = ["E402"]  # conditional imports
+"empirica/utils/session_resolver.py" = ["S110"]  # cascading context resolution — try-except-pass is the designed pattern
+"empirica/core/epistemic_brief.py" = ["S110"]  # best-effort context enrichment
+"empirica/core/post_test/collector.py" = ["S110"]  # evidence collection — missing evidence is normal, not an error
+"empirica/core/system_dashboard.py" = ["S110"]  # dashboard aggregation — partial data is acceptable
+"empirica/core/memory_manager.py" = ["S110"]  # memory operations — graceful degradation
+"empirica/config/path_resolver.py" = ["S110"]  # path resolution with fallback chains
+"empirica/core/statusline_cache.py" = ["S110"]  # cache reads — stale/missing cache is normal
+"empirica/core/canonical/*.py" = ["S110"]  # artifact extraction — partial extraction is fine
+"empirica/data/*.py" = ["S110"]  # database operations — graceful fallback on schema/data issues
+"empirica/cli/asyncio_fix.py" = ["S110"]  # asyncio patching — errors are expected on some platforms
+"empirica/core/qdrant/*.py" = ["S110"]  # vector store — Qdrant down is a normal condition
+"empirica/utils/memory_swap.py" = ["S110"]  # memory swap — fallback on swap issues
+"empirica/plugins/**/*.py" = ["S108", "S110"]  # hooks: temp paths + resilient try-except-pass (crash = CLI block)
 "scripts/*.py" = ["S108"]  # scripts use temp paths
 
 [tool.pyright]

@@ -567,7 +567,8 @@ def _resolve_project_path(stdin_claude_session_id=None) -> str | None:
         if inst_id:
             inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{inst_id}.json'
             if inst_file.exists():
-                pp = _json.load(open(inst_file)).get('project_path')
+                with open(inst_file) as _f:
+                    pp = _json.load(_f).get('project_path')
                 if pp and (Path(pp) / '.empirica' / 'sessions' / 'sessions.db').exists():
                     return pp
     except Exception:
@@ -579,7 +580,8 @@ def _resolve_project_path(stdin_claude_session_id=None) -> str | None:
             import json as _json
             aw = Path.home() / '.empirica' / f'active_work_{stdin_claude_session_id}.json'
             if aw.exists():
-                pp = _json.load(open(aw)).get('project_path')
+                with open(aw) as _f:
+                    pp = _json.load(_f).get('project_path')
                 if pp and (Path(pp) / '.empirica' / 'sessions' / 'sessions.db').exists():
                     return pp
         except Exception:
@@ -1384,6 +1386,7 @@ def main():
         print(f"{Colors.GRAY}[empirica:error]{Colors.RESET}")
         # Log error
         try:
+            from empirica.config.path_resolver import get_empirica_root
             with open(get_empirica_root() / 'statusline.log', 'a') as f:
                 f.write(f"ERROR: {e}\n")
         except Exception:

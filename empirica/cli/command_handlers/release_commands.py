@@ -29,7 +29,7 @@ from ..cli_utils import handle_cli_error
 
 class AssessmentStatus(Enum):
     """Status indicators for release readiness assessments."""
-    PASS = "pass"
+    PASS = "pass"  # noqa: S105
     WARN = "warn"
     FAIL = "fail"
     SKIP = "skip"

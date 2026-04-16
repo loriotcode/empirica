@@ -281,10 +281,7 @@ def should_generate(persona: dict, filepath: Path) -> bool:
         return False
 
     # Skip test personas
-    if "test" in stem.lower() or "comm_test" in stem:
-        return False
-
-    return True
+    return "test" not in stem.lower() and "comm_test" not in stem
 
 
 def main():

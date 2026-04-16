@@ -298,7 +298,8 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
         # Don't overwrite if they have active work — causes resolver warnings
         if instance_file.exists() and claude_session_id:
             try:
-                existing = json.load(open(instance_file))
+                with open(instance_file) as _if:
+                    existing = json.load(_if)
                 existing_claude_id = existing.get('claude_session_id')
                 if existing_claude_id and existing_claude_id != claude_session_id:
                     # Different Claude session — check for open transaction
@@ -306,7 +307,8 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
                     suffix = _get_instance_suffix()
                     tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
                     if tx_file.exists():
-                        tx_data = json.load(open(tx_file))
+                        with open(tx_file) as _tf:
+                            tx_data = json.load(_tf)
                         if tx_data.get('status') == 'open' and tx_data.get('session_id') == existing.get('empirica_session_id'):
                             print(f"Warning: Pane {instance_id} has open transaction from another session ({existing_claude_id[:8]}). Not overwriting.", file=sys.stderr)
                             return True  # Don't overwrite, but don't fail

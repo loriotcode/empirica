@@ -209,8 +209,8 @@ def validate_mcp_goal_input(arguments: dict[str, Any]) -> None:
                 value = float(scope[field])
                 if not (0.0 <= value <= 1.0):
                     raise ValidationError(f"scope.{field} must be 0.0-1.0, got {value}")
-            except (TypeError, ValueError):
-                raise ValidationError(f"scope.{field} must be a number, got {scope[field]}")
+            except (TypeError, ValueError) as e:
+                raise ValidationError(f"scope.{field} must be a number, got {scope[field]}") from e
 
     # Validate complexity if provided
     complexity = arguments.get("estimated_complexity")
@@ -221,8 +221,8 @@ def validate_mcp_goal_input(arguments: dict[str, Any]) -> None:
                 raise ValidationError(
                     f"estimated_complexity must be between 0.0 and 1.0, got {complexity}"
                 )
-        except (TypeError, ValueError):
-            raise ValidationError(f"estimated_complexity must be a number, got {type(complexity)}")
+        except (TypeError, ValueError) as e:
+            raise ValidationError(f"estimated_complexity must be a number, got {type(complexity)}") from e
 
 
 def validate_mcp_subtask_input(arguments: dict[str, Any]) -> None:
@@ -263,8 +263,8 @@ def validate_mcp_subtask_input(arguments: dict[str, Any]) -> None:
             tokens_int = int(tokens)
             if tokens_int < 0:
                 raise ValidationError("estimated_tokens must be non-negative")
-        except (TypeError, ValueError):
-            raise ValidationError(f"estimated_tokens must be an integer, got {type(tokens)}")
+        except (TypeError, ValueError) as e:
+            raise ValidationError(f"estimated_tokens must be an integer, got {type(tokens)}") from e
 
     # Validate dependencies if provided
     dependencies = arguments.get("dependencies")

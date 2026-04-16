@@ -46,10 +46,10 @@ class DocCodeIntegrityAnalyzer:
         missing_docs = actual_commands - documented_commands
 
         return {
-            "commands_in_code": sorted(list(actual_commands)),
-            "commands_in_docs": sorted(list(documented_commands)),
-            "missing_code": sorted(list(missing_code)),
-            "missing_docs": sorted(list(missing_docs)),
+            "commands_in_code": sorted(actual_commands),
+            "commands_in_docs": sorted(documented_commands),
+            "missing_code": sorted(missing_code),
+            "missing_docs": sorted(missing_docs),
             "total_commands": len(actual_commands),
             "documented_commands": len(documented_commands),
             "integrity_score": self._calculate_integrity_score(actual_commands, documented_commands)

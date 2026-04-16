@@ -11,8 +11,8 @@ import os
 def _load_yaml(path: str) -> dict:
     try:
         import yaml  # type: ignore
-    except Exception:  # pragma: no cover
-        raise RuntimeError("pyyaml is required to use doc planner")
+    except Exception as e:  # pragma: no cover
+        raise RuntimeError("pyyaml is required to use doc planner") from e
     with open(path, encoding='utf-8') as f:
         return yaml.safe_load(f) or {}
 

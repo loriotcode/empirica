@@ -527,7 +527,7 @@ class EpistemicHandoffReportGenerator:
         except Exception as e:
             logger.debug(f"No investigation tools tracked: {e}")
 
-        return sorted(list(tools_used)) if tools_used else ['N/A']
+        return sorted(tools_used) if tools_used else ['N/A']
 
     def _generate_recommendations(
         self,

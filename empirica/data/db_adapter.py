@@ -284,10 +284,10 @@ class PostgreSQLAdapter(DatabaseAdapter):
         try:
             import psycopg2
             import psycopg2.extras
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "PostgreSQL support requires psycopg2. Install with: pip install psycopg2-binary"
-            )
+            ) from e
 
         self._conn = psycopg2.connect(
             host=host,

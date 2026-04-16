@@ -897,9 +897,7 @@ def _has_dangerous_redirects(command: str) -> bool:
     cmd_clean = SAFE_REDIRECT_PATTERN.sub('', command)
     if '>' in cmd_clean or '>>' in cmd_clean:
         return True
-    if '<' in cmd_clean and '<<' not in command:
-        return True
-    return False
+    return '<' in cmd_clean and '<<' not in command
 
 
 def is_safe_bash_command(tool_input: dict) -> bool:
@@ -1336,11 +1334,8 @@ def _classify_rsync(command: str) -> bool:
         return False
 
     # If any source has ':' and dest is local → downloading → noetic
-    if any(':' in src and not src.startswith('/') for src in sources):
-        return True
-
     # Both local (or can't tell) → praxic (conservative)
-    return False
+    return any(':' in src and not src.startswith('/') for src in sources)
 
 
 def _classify_scp(command: str) -> bool:
@@ -1375,11 +1370,8 @@ def _classify_scp(command: str) -> bool:
     dest = non_option_args[-1]
 
     # If destination contains ':' (and isn't an absolute path) → uploading → praxic
-    if ':' in dest and not dest.startswith('/'):
-        return False
-
     # Otherwise → downloading or local copy → noetic
-    return True
+    return not (':' in dest and not dest.startswith('/'))
 
 
 def is_safe_pipe_chain(command: str) -> bool:
@@ -1457,10 +1449,8 @@ def _is_praxic_remote_command(command: str) -> bool:
     if not cmd.startswith(('ssh ', 'scp ', 'rsync ')):
         return False
     # If is_safe_remote_command says it's noetic, it's not praxic
-    if is_safe_remote_command(cmd):
-        return False
     # It's a remote command that's NOT read-only → praxic remote
-    return True
+    return not is_safe_remote_command(cmd)
 
 
 def _confidence_gate_remote(claude_session_id: str | None = None) -> str:

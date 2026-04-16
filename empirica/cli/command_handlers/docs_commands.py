@@ -25,7 +25,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from ..cli_utils import handle_cli_error
 
@@ -1772,7 +1772,7 @@ class DocsExplainAgent:
     """
 
     # Topic -> keywords mapping for better matching (used in fallback mode)
-    TOPIC_ALIASES = {
+    TOPIC_ALIASES: ClassVar[dict[str, list[str]]] = {
         "vectors": ["epistemic", "vectors", "know", "uncertainty", "engagement", "preflight", "postflight"],
         "session": ["session", "create", "start", "cascade", "workflow"],
         "goals": ["goals", "objectives", "subtasks", "tracking", "progress"],

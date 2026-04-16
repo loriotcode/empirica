@@ -26,7 +26,7 @@ Usage:
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 import yaml
 
@@ -46,7 +46,7 @@ class MCOLoader:
     _instance: Optional['MCOLoader'] = None
 
     # Config registry: maps attribute name to (filename, top-level key or None)
-    _CONFIG_REGISTRY = {
+    _CONFIG_REGISTRY: ClassVar[dict[str, tuple[str, str | None]]] = {
         'model_profiles': ('model_profiles.yaml', 'model_profiles'),
         'personas': ('personas.yaml', 'personas'),
         'epistemic_conduct': ('epistemic_conduct.yaml', None),

@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +234,7 @@ class TranscriptParser:
     """Parse Claude Code .jsonl transcripts into structured records."""
 
     # Record types that carry epistemic signal (vs operational noise)
-    SIGNAL_TYPES = {RecordType.USER, RecordType.ASSISTANT, RecordType.SYSTEM, RecordType.SUMMARY}
+    SIGNAL_TYPES: ClassVar[set[RecordType]] = {RecordType.USER, RecordType.ASSISTANT, RecordType.SYSTEM, RecordType.SUMMARY}
 
     def parse_session(self, jsonl_path: str) -> list[TranscriptRecord]:
         """Parse all records from a .jsonl transcript file.
@@ -547,10 +547,10 @@ class TranscriptParser:
             if r.record_type == RecordType.SYSTEM and r.subtype == "compact_boundary"
         )
 
-        models = set(
+        models = {
             r.model for r in records
             if r.record_type == RecordType.ASSISTANT and r.model
-        )
+        }
 
         timestamps = [r.timestamp for r in records if r.timestamp]
         duration_minutes = 0.0

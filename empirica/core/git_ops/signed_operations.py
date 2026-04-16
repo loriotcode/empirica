@@ -211,7 +211,7 @@ class SignedGitOperations:
 
         except subprocess.CalledProcessError as e:
             logger.error(f"Git command failed: {e.stderr}")
-            raise GitCommandError("git notes add", e.returncode, e.stderr)
+            raise GitCommandError("git notes add", e.returncode, e.stderr) from e
 
     def get_signed_state_from_commit(self, commit_sha: str) -> dict[str, Any] | None:
         """
@@ -414,8 +414,8 @@ class SignedGitOperations:
             "commits": results,
             "summary": {
                 "all_verified": all(r.get("state_verified") for r in results),
-                "phases_covered": list(set(r.get("phase") for r in results if r.get("phase"))),
-                "personas_involved": list(set(r.get("persona_id") for r in results if r.get("persona_id")))
+                "phases_covered": list({r.get("phase") for r in results if r.get("phase")}),
+                "personas_involved": list({r.get("persona_id") for r in results if r.get("persona_id")})
             }
         }
 

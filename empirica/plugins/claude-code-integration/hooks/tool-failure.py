@@ -48,9 +48,7 @@ def _is_interesting_failure(tool_name: str, error: str) -> bool:
         if pattern in error:
             return False
     # Short errors are usually transient
-    if len(error) < 20:
-        return False
-    return True
+    return len(error) >= 20
 
 
 def _truncate(s: str, max_len: int = 200) -> str:

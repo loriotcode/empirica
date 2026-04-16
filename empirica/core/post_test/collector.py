@@ -34,7 +34,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ class EvidenceProfile:
     INSUFFICIENT = "insufficient"
     AUTO = "auto"
 
-    VALID = {CODE, PROSE, WEB, HYBRID, INSUFFICIENT, AUTO}
+    VALID: ClassVar[set[str]] = {CODE, PROSE, WEB, HYBRID, INSUFFICIENT, AUTO}
 
     @staticmethod
     def resolve(explicit: str | None = None,

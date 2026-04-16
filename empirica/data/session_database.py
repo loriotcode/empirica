@@ -172,11 +172,11 @@ class SessionDatabase:
         """
         try:
             uuid.UUID(session_id)
-        except (ValueError, AttributeError, TypeError):
+        except (ValueError, AttributeError, TypeError) as e:
             raise ValueError(
                 f"Invalid session_id: '{session_id}'. "
                 f"Session IDs must be valid UUIDs (e.g., '550e8400-e29b-41d4-a716-446655440000')"
-            )
+            ) from e
 
     def _create_tables(self):
         """Create all database tables from schema modules (dialect-aware)"""

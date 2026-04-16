@@ -180,4 +180,4 @@ def get_file_refs_from_findings(
     for finding in findings:
         for ref in finding.get("refs", {}).get("files", []):
             files.add(ref.get("file", ""))
-    return sorted(list(files))
+    return sorted(files)

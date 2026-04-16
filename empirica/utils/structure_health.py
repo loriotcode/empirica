@@ -7,6 +7,7 @@ This is DYNAMIC context (what's in THIS project), not static prescription.
 
 import logging
 from pathlib import Path
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class StructureHealthAnalyzer:
     """Analyze project structure and detect patterns"""
 
     # Known project patterns (static knowledge)
-    PATTERNS = {
+    PATTERNS: ClassVar[dict[str, dict[str, Any]]] = {
         'python_package': {
             'name': 'Python Package',
             'expected_folders': ['src/', 'tests/', 'docs/'],

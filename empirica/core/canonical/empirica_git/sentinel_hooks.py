@@ -23,7 +23,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ class SentinelHooks:
     """
 
     # Global registry of evaluator functions
-    _evaluators: list[Callable] = []
+    _evaluators: ClassVar[list[Callable]] = []
 
     # Enable/disable Sentinel
     _enabled: bool = False

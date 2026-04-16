@@ -7,6 +7,7 @@ from context loading logic (~120 lines).
 
 import json
 import logging
+import os
 import subprocess
 
 from ..cli_utils import safe_print
