@@ -351,7 +351,7 @@ def main():
             if tx_path.exists():
                 with open(tx_path) as f:
                     active_transaction = json.load(f)
-            # Also capture hook counters (separate file since v1.8.4)
+            # Also capture hook counters (separate file since v1.8.5)
             counters_path = project_root / '.empirica' / f'hook_counters{suffix}.json'
             if counters_path.exists():
                 with open(counters_path) as f:
@@ -452,7 +452,7 @@ def main():
                 },
                 "context_budget": budget_report,  # Token budget state at compaction
                 "active_transaction": active_transaction,  # Transaction state for continuity
-                "hook_counters": hook_counters,  # Hook counters (separate from transaction since v1.8.4)
+                "hook_counters": hook_counters,  # Hook counters (separate from transaction since v1.8.5)
                 "last_task": last_task,  # Extracted human task from transcript
                 "git_context": git_context,  # Branch, modified files, recent commits
             }
