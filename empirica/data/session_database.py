@@ -1728,6 +1728,108 @@ class SessionDatabase:
         return result
 
 
+    def _build_project_metadata(self, project: dict) -> dict:
+        """Build project metadata dict from a resolved project row."""
+        repos = project.get('repos', []) or []
+        if isinstance(repos, str):
+            try:
+                repos = json.loads(repos)
+            except Exception:
+                repos = []
+
+        return {
+            'id': project['id'],
+            'name': project.get('name', 'Unknown'),
+            'description': project.get('description', ''),
+            'status': project.get('status', 'active'),
+            'repos': repos,
+            'total_sessions': project.get('total_sessions', 0),
+            'total_goals': project.get('total_goals', 0),
+        }
+
+    @staticmethod
+    def _enrich_project_from_yaml(project_meta: dict) -> dict:
+        """Enrich project metadata from project.yaml (v2.0 identity fields).
+
+        Returns the enriched dict. Non-fatal — returns original on any error.
+        """
+        try:
+            from empirica.config.project_config_loader import load_project_config
+            project_config = load_project_config()
+            if not project_config:
+                return project_meta
+
+            yaml_enrichment = {'type': project_config.type}
+            for attr in ('domain', 'languages', 'tags', 'contacts', 'engagements', 'edges'):
+                value = getattr(project_config, attr, None)
+                if value:
+                    yaml_enrichment[attr] = value
+            if project_config.classification != 'internal':
+                yaml_enrichment['classification'] = project_config.classification
+            yaml_enrichment['evidence_profile'] = project_config.evidence_profile
+            project_meta.update(yaml_enrichment)
+        except Exception:
+            pass  # project.yaml enrichment is non-fatal
+        return project_meta
+
+    def _attach_optional_metrics(self, breadcrumbs: dict, resolved_id: str, project_root: str) -> None:
+        """Compute and attach optional metrics (flow, health, feature status) to breadcrumbs."""
+        # Flow state metrics (AI productivity patterns)
+        try:
+            flow_metrics = self.calculate_flow_metrics(resolved_id, limit=5)
+            if flow_metrics and flow_metrics.get('current_flow'):
+                breadcrumbs['flow_metrics'] = flow_metrics
+        except Exception as e:
+            logger.debug(f"Flow metrics calculation skipped: {e}")
+
+        # Health score (epistemic quality and completeness)
+        try:
+            health_score = self.calculate_health_score(resolved_id, limit=5)
+            if health_score:
+                breadcrumbs['health_score'] = health_score
+        except Exception as e:
+            logger.debug(f"Health score calculation skipped: {e}")
+
+        # Feature status from FEATURE_STATUS.md
+        try:
+            feature_status = self._load_feature_status(project_root)
+            if feature_status:
+                breadcrumbs['feature_status'] = feature_status
+                if 'health_score' in breadcrumbs:
+                    breadcrumbs['health_score']['feature_completion'] = feature_status
+        except Exception as e:
+            logger.debug(f"Feature status load skipped: {e}")
+
+    def _attach_supplementary_data(
+        self,
+        breadcrumbs: dict,
+        resolved_id: str,
+        project_root: str,
+        session_id: str | None,
+        include_live_state: bool,
+        fresh_assess: bool,
+        trigger: str | None,
+    ) -> None:
+        """Attach dependency graph, git status, issues, and live state to breadcrumbs."""
+        dep_graph = self._generate_dependency_summary(project_root)
+        if dep_graph:
+            breadcrumbs['dependency_graph'] = dep_graph
+
+        git_status = self.get_git_status(project_root)
+        if git_status:
+            breadcrumbs['git_status'] = git_status
+
+        auto_issues = self.get_auto_captured_issues(resolved_id, limit=10)
+        if auto_issues:
+            breadcrumbs['auto_captured_issues'] = auto_issues
+
+        live_state = self._capture_live_state_if_requested(
+            session_id, resolved_id, include_live_state, fresh_assess, trigger
+        )
+        if live_state:
+            breadcrumbs['live_state'] = live_state
+            breadcrumbs['session_id'] = session_id or live_state.get('session_id')
+
     def bootstrap_project_breadcrumbs(
         self,
         project_id: str,
@@ -1789,130 +1891,42 @@ class SessionDatabase:
         # 3. Load all breadcrumbs based on mode
         breadcrumbs = self._load_breadcrumbs_for_mode(resolved_id, mode, subject)
 
-        # 4. Load goals
+        # 4. Load goals and merge truncation warnings
         goals_data = self._load_goals_for_project(resolved_id)
-
-        # Merge truncation warnings from both sources
         all_warnings = breadcrumbs.pop('truncation_warnings', []) + goals_data.pop('truncation_warnings', [])
         breadcrumbs.update(goals_data)
         if all_warnings:
             breadcrumbs['truncation_warnings'] = all_warnings
 
-        # 5. Generate dependency graph (replaces file tree)
-        dep_graph = self._generate_dependency_summary(project_root)
-        if dep_graph:
-            breadcrumbs['dependency_graph'] = dep_graph
-
-        # 5b. Capture git status
-        git_status = self.get_git_status(project_root)
-        if git_status:
-            breadcrumbs['git_status'] = git_status
-
-        # 5c. Load auto-captured issues
-        auto_issues = self.get_auto_captured_issues(resolved_id, limit=10)
-        if auto_issues:
-            breadcrumbs['auto_captured_issues'] = auto_issues
-
-        # 6. Capture live state if requested
-        live_state = self._capture_live_state_if_requested(
-            session_id, resolved_id, include_live_state, fresh_assess, trigger
+        # 5. Attach supplementary data (deps, git, issues, live state)
+        self._attach_supplementary_data(
+            breadcrumbs, resolved_id, project_root,
+            session_id, include_live_state, fresh_assess, trigger,
         )
-        if live_state:
-            breadcrumbs['live_state'] = live_state
-            breadcrumbs['session_id'] = session_id or live_state.get('session_id')
 
-        # 7. Add project metadata
-        repos = project.get('repos', []) or []
-        if isinstance(repos, str):
-            try:
-                import json
-                repos = json.loads(repos)
-            except Exception:
-                repos = []
-
-        breadcrumbs['project'] = {
-            'id': project['id'],
-            'name': project.get('name', 'Unknown'),
-            'description': project.get('description', ''),
-            'status': project.get('status', 'active'),
-            'repos': repos,
-            'total_sessions': project.get('total_sessions', 0),
-            'total_goals': project.get('total_goals', 0),
-        }
-
-        # Enrich from project.yaml if available (v2.0 identity fields)
-        try:
-            from empirica.config.project_config_loader import load_project_config
-            project_config = load_project_config()
-            if project_config:
-                yaml_enrichment = {'type': project_config.type}
-                if project_config.domain:
-                    yaml_enrichment['domain'] = project_config.domain
-                if project_config.classification != 'internal':
-                    yaml_enrichment['classification'] = project_config.classification
-                yaml_enrichment['evidence_profile'] = project_config.evidence_profile
-                if project_config.languages:
-                    yaml_enrichment['languages'] = project_config.languages
-                if project_config.tags:
-                    yaml_enrichment['tags'] = project_config.tags
-                if project_config.contacts:
-                    yaml_enrichment['contacts'] = project_config.contacts
-                if project_config.engagements:
-                    yaml_enrichment['engagements'] = project_config.engagements
-                if project_config.edges:
-                    yaml_enrichment['edges'] = project_config.edges
-                breadcrumbs['project'].update(yaml_enrichment)
-        except Exception:
-            pass  # project.yaml enrichment is non-fatal
+        # 6. Build and enrich project metadata
+        breadcrumbs['project'] = self._enrich_project_from_yaml(
+            self._build_project_metadata(project)
+        )
 
         if latest_handoff:
             breadcrumbs['latest_handoff'] = latest_handoff
-
-        # 7b. Add AI-specific epistemic handoff if loaded
         if ai_epistemic_handoff:
             breadcrumbs['ai_epistemic_handoff'] = ai_epistemic_handoff
 
-        # 7c. Add last activity summary
         breadcrumbs['last_activity'] = {
             'summary': f"Last activity: {project.get('last_activity_timestamp', 'Unknown')}",
             'next_focus': 'Continue with incomplete work and unknown resolutions'
         }
 
-        # 8. Generate context markdown if requested
+        # 7. Generate context markdown if requested
         if context_to_inject:
-            context_markdown = generate_context_markdown(breadcrumbs)
-            breadcrumbs['context_markdown'] = context_markdown
+            breadcrumbs['context_markdown'] = generate_context_markdown(breadcrumbs)
 
-        # 9. Calculate flow state metrics (AI productivity patterns)
-        try:
-            flow_metrics = self.calculate_flow_metrics(resolved_id, limit=5)
-            if flow_metrics and flow_metrics.get('current_flow'):
-                breadcrumbs['flow_metrics'] = flow_metrics
-        except Exception as e:
-            logger.debug(f"Flow metrics calculation skipped: {e}")
-            # Flow metrics are optional - don't fail bootstrap if calculation errors
+        # 8. Attach optional metrics (flow, health, feature status)
+        self._attach_optional_metrics(breadcrumbs, resolved_id, project_root)
 
-        # 10. Calculate health score (epistemic quality and completeness)
-        try:
-            health_score = self.calculate_health_score(resolved_id, limit=5)
-            if health_score:
-                breadcrumbs['health_score'] = health_score
-        except Exception as e:
-            logger.debug(f"Health score calculation skipped: {e}")
-            # Health score is optional - don't fail bootstrap if calculation errors
-
-        # 11. Load feature status from FEATURE_STATUS.md
-        try:
-            feature_status = self._load_feature_status(project_root)
-            if feature_status:
-                breadcrumbs['feature_status'] = feature_status
-                # Integrate into health score if present
-                if 'health_score' in breadcrumbs:
-                    breadcrumbs['health_score']['feature_completion'] = feature_status
-        except Exception as e:
-            logger.debug(f"Feature status load skipped: {e}")
-
-        # 12. Apply adaptive depth filtering LAST (after all fields populated)
+        # 9. Apply adaptive depth filtering LAST (after all fields populated)
         if depth != "auto" or trigger == "post_compact":
             breadcrumbs = self._apply_depth_filter(breadcrumbs, depth, trigger)
 

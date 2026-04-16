@@ -1700,6 +1700,173 @@ def cleanup_stale_instance_projects() -> int:
     return removed
 
 
+def _collect_open_transaction_sessions(marker_dir: 'Path') -> set:
+    """Scan marker_dir and project directories for open transaction session_ids.
+
+    These sessions are load-bearing even if the session itself has ended
+    (compaction carry-forward scenario).
+    """
+    from pathlib import Path
+
+    open_tx_sessions: set[str] = set()
+
+    def _extract_open_sid(tx_file: Path) -> None:
+        try:
+            with open(tx_file) as f:
+                tx_data = json.load(f)
+            if tx_data.get('status') == 'open':
+                sid = tx_data.get('session_id')
+                if sid:
+                    open_tx_sessions.add(sid)
+        except Exception:
+            pass
+
+    for tx_file in marker_dir.glob('**/active_transaction_*.json'):
+        _extract_open_sid(tx_file)
+
+    instance_dir = marker_dir / 'instance_projects'
+    if instance_dir.exists():
+        for ip_file in instance_dir.glob('*.json'):
+            try:
+                with open(ip_file) as f:
+                    pp = json.load(f).get('project_path')
+                if pp:
+                    for tx_file in Path(pp).glob('.empirica/active_transaction_*.json'):
+                        _extract_open_sid(tx_file)
+            except Exception:
+                continue
+
+    return open_tx_sessions
+
+
+def _is_session_ended_in_db(
+    session_id: str,
+    project_path: 'str | None',
+    open_tx_sessions: set,
+    marker_dir: 'Path',
+) -> bool:
+    """Check if a session has end_time set in the DB.
+
+    Returns False (keep the file) when the session can't be verified.
+    """
+    import sqlite3
+    from pathlib import Path
+
+    if not session_id:
+        return False
+    if session_id in open_tx_sessions:
+        return False  # Open transaction keeps it alive
+
+    db_candidates = []
+    if project_path:
+        db_candidates.append(Path(project_path) / '.empirica' / 'sessions' / 'sessions.db')
+    db_candidates.append(marker_dir / 'sessions' / 'sessions.db')
+
+    for db_path in db_candidates:
+        if not db_path.exists():
+            continue
+        try:
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.execute(
+                "SELECT end_time FROM sessions WHERE session_id = ?",
+                (session_id,)
+            )
+            row = cursor.fetchone()
+            conn.close()
+            if row is None:
+                return True  # Session not in DB at all — orphan
+            return row[0] is not None  # end_time IS NOT NULL means ended
+        except Exception:
+            continue
+    return False  # Can't check — keep it safe
+
+
+def _clean_active_work_files(
+    marker_dir: 'Path',
+    current_claude_session_id: 'str | None',
+    open_tx_sessions: set,
+) -> int:
+    """Remove active_work_{uuid}.json files for ended sessions."""
+    removed = 0
+    for aw_file in marker_dir.glob('active_work_*.json'):
+        claude_sid = aw_file.stem.replace('active_work_', '')
+        if claude_sid == current_claude_session_id:
+            continue  # Never delete current conversation
+
+        try:
+            with open(aw_file) as f:
+                data = json.load(f)
+            session_id = data.get('empirica_session_id')
+            project_path = data.get('project_path')
+
+            if _is_session_ended_in_db(session_id, project_path, open_tx_sessions, marker_dir):
+                aw_file.unlink()
+                removed += 1
+                logger.debug(f"Removed stale active_work: {aw_file.name} (session {session_id[:8] if session_id else '?'} ended)")
+        except Exception:
+            continue
+    return removed
+
+
+def _clean_non_tmux_instance_files(
+    instance_dir: 'Path',
+    open_tx_sessions: set,
+    marker_dir: 'Path',
+) -> int:
+    """Remove non-tmux instance_projects files for ended sessions."""
+    if not instance_dir.exists():
+        return 0
+
+    removed = 0
+    for ip_file in instance_dir.glob('*.json'):
+        if ip_file.stem.startswith('tmux_'):
+            continue  # Tmux cleanup handled by cleanup_stale_instance_projects()
+
+        try:
+            with open(ip_file) as f:
+                data = json.load(f)
+            session_id = data.get('empirica_session_id')
+            project_path = data.get('project_path')
+
+            inst_id = get_instance_id()
+            if inst_id and ip_file.stem == inst_id:
+                continue
+
+            if _is_session_ended_in_db(session_id, project_path, open_tx_sessions, marker_dir):
+                ip_file.unlink()
+                removed += 1
+                logger.debug(f"Removed stale instance_projects: {ip_file.name} (session {session_id[:8] if session_id else '?'} ended)")
+        except Exception:
+            continue
+    return removed
+
+
+def _clean_active_session_files(
+    marker_dir: 'Path',
+    open_tx_sessions: set,
+) -> int:
+    """Remove stale active_session files for ended sessions."""
+    removed = 0
+    for as_file in marker_dir.glob('active_session_*'):
+        try:
+            with open(as_file) as f:
+                data = json.load(f)
+            session_id = data.get('session_id')
+            project_path = data.get('project_path')
+
+            suffix = _get_instance_suffix()
+            if suffix and as_file.name == f'active_session{suffix}':
+                continue
+
+            if _is_session_ended_in_db(session_id, project_path, open_tx_sessions, marker_dir):
+                as_file.unlink()
+                removed += 1
+                logger.debug(f"Removed stale active_session: {as_file.name}")
+        except Exception:
+            continue
+    return removed
+
+
 def cleanup_stale_active_work_files(current_claude_session_id: str | None = None) -> int:
     """Remove active_work_{uuid}.json files for ended sessions.
 
@@ -1714,141 +1881,16 @@ def cleanup_stale_active_work_files(current_claude_session_id: str | None = None
 
     Returns number of files removed.
     """
-    import sqlite3
     from pathlib import Path
 
     marker_dir = Path.home() / '.empirica'
-    removed = 0
-
-    # Collect all open transaction session_ids (these are load-bearing even if session ended)
-    open_tx_sessions = set()
-    for tx_file in marker_dir.glob('**/active_transaction_*.json'):
-        try:
-            with open(tx_file) as f:
-                tx_data = json.load(f)
-            if tx_data.get('status') == 'open':
-                sid = tx_data.get('session_id')
-                if sid:
-                    open_tx_sessions.add(sid)
-        except Exception:
-            continue
-
-    # Also scan project directories for transaction files
     instance_dir = marker_dir / 'instance_projects'
-    if instance_dir.exists():
-        for ip_file in instance_dir.glob('*.json'):
-            try:
-                with open(ip_file) as f:
-                    ip_data = json.load(f)
-                pp = ip_data.get('project_path')
-                if pp:
-                    for tx_file in Path(pp).glob('.empirica/active_transaction_*.json'):
-                        try:
-                            with open(tx_file) as f:
-                                tx_data = json.load(f)
-                            if tx_data.get('status') == 'open':
-                                sid = tx_data.get('session_id')
-                                if sid:
-                                    open_tx_sessions.add(sid)
-                        except Exception:
-                            continue
-            except Exception:
-                continue
 
-    def _is_session_ended(session_id: str, project_path: str | None = None) -> bool:
-        """Check if a session has end_time set in the DB."""
-        if not session_id:
-            return False
-        if session_id in open_tx_sessions:
-            return False  # Open transaction keeps it alive
+    open_tx_sessions = _collect_open_transaction_sessions(marker_dir)
 
-        # Find the right DB
-        db_candidates = []
-        if project_path:
-            db_candidates.append(Path(project_path) / '.empirica' / 'sessions' / 'sessions.db')
-        db_candidates.append(marker_dir / 'sessions' / 'sessions.db')
-
-        for db_path in db_candidates:
-            if not db_path.exists():
-                continue
-            try:
-                conn = sqlite3.connect(str(db_path))
-                cursor = conn.execute(
-                    "SELECT end_time FROM sessions WHERE session_id = ?",
-                    (session_id,)
-                )
-                row = cursor.fetchone()
-                conn.close()
-                if row is None:
-                    return True  # Session not in DB at all — orphan
-                return row[0] is not None  # end_time IS NOT NULL means ended
-            except Exception:
-                continue
-        return False  # Can't check — keep it safe
-
-    # --- Clean active_work_{uuid}.json files ---
-    for aw_file in marker_dir.glob('active_work_*.json'):
-        # Extract claude_session_id from filename
-        claude_sid = aw_file.stem.replace('active_work_', '')
-        if claude_sid == current_claude_session_id:
-            continue  # Never delete current conversation
-
-        try:
-            with open(aw_file) as f:
-                data = json.load(f)
-            session_id = data.get('empirica_session_id')
-            project_path = data.get('project_path')
-
-            if _is_session_ended(session_id, project_path):
-                aw_file.unlink()
-                removed += 1
-                logger.debug(f"Removed stale active_work: {aw_file.name} (session {session_id[:8] if session_id else '?'} ended)")
-        except Exception:
-            continue
-
-    # --- Clean non-tmux instance_projects files ---
-    if instance_dir.exists():
-        for ip_file in instance_dir.glob('*.json'):
-            if ip_file.stem.startswith('tmux_'):
-                continue  # Tmux cleanup handled by cleanup_stale_instance_projects()
-
-            try:
-                with open(ip_file) as f:
-                    data = json.load(f)
-                session_id = data.get('empirica_session_id')
-                project_path = data.get('project_path')
-
-                # Check if this instance_id is the current one — don't delete
-                inst_id = get_instance_id()
-                if inst_id and ip_file.stem == inst_id:
-                    continue
-
-                if _is_session_ended(session_id, project_path):
-                    ip_file.unlink()
-                    removed += 1
-                    logger.debug(f"Removed stale instance_projects: {ip_file.name} (session {session_id[:8] if session_id else '?'} ended)")
-            except Exception:
-                continue
-
-    # --- Clean stale active_session files ---
-    for as_file in marker_dir.glob('active_session_*'):
-        try:
-            with open(as_file) as f:
-                data = json.load(f)
-            session_id = data.get('session_id')
-            project_path = data.get('project_path')
-
-            # Don't delete current instance's file
-            suffix = _get_instance_suffix()
-            if suffix and as_file.name == f'active_session{suffix}':
-                continue
-
-            if _is_session_ended(session_id, project_path):
-                as_file.unlink()
-                removed += 1
-                logger.debug(f"Removed stale active_session: {as_file.name}")
-        except Exception:
-            continue
+    removed = _clean_active_work_files(marker_dir, current_claude_session_id, open_tx_sessions)
+    removed += _clean_non_tmux_instance_files(instance_dir, open_tx_sessions, marker_dir)
+    removed += _clean_active_session_files(marker_dir, open_tx_sessions)
 
     return removed
 
