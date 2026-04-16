@@ -2285,107 +2285,670 @@ def _build_retrospective(session_id: str, transaction_id: str | None) -> dict:
         logger.debug(f"Retrospective feedback failed (non-fatal): {e}")
         return {}
 
+def _parse_postflight_input(args):
+    """Parse and validate postflight input from config file or CLI args.
+
+    Returns:
+        dict with keys: session_id, vectors, reasoning, preflight_session_id,
+        grounded_vectors, grounded_rationale, output_format
+    """
+    import sys
+
+    # Parse input (shared helper)
+    config_data, output_format = _parse_workflow_input(args, "POSTFLIGHT")
+
+    if config_data:
+        session_id = config_data.get('session_id') or getattr(args, 'session_id', None)
+        vectors = config_data.get('vectors')
+        reasoning = config_data.get('reasoning', '')
+        # B3: AI-reasoned grounded state (three-vector model)
+        postflight_grounded_vectors = config_data.get('grounded_vectors')
+        postflight_grounded_rationale = config_data.get('grounded_rationale')
+
+        if not session_id or not vectors:
+            print(json.dumps({
+                "ok": False,
+                "error": "Config file must include 'vectors' field" + (
+                    " and 'session_id' (could not auto-derive from active transaction)"
+                    if not session_id else ""
+                ),
+                "hint": "Run PREFLIGHT first to open a transaction, or provide session_id explicitly"
+            }))
+            sys.exit(1)
+    else:
+        session_id = args.session_id
+        vectors = parse_json_safely(args.vectors) if isinstance(args.vectors, str) else args.vectors
+        reasoning = args.reasoning
+        output_format = getattr(args, 'output', 'json')
+        postflight_grounded_vectors = None
+        postflight_grounded_rationale = None
+
+        if not session_id:
+            try:
+                session_id = R.session_id()
+            except Exception:
+                pass
+
+        if not session_id or not vectors:
+            print(json.dumps({
+                "ok": False,
+                "error": "Legacy mode requires --vectors flag (--session-id auto-derived if in transaction)",
+                "hint": "For AI-first mode, use: empirica postflight-submit config.json"
+            }))
+            sys.exit(1)
+
+    # TRANSACTION CONTINUITY FIX: Override session_id from active transaction
+    try:
+        tx_data = R.transaction_read()
+        if tx_data and tx_data.get('session_id'):
+            tx_session_id = tx_data['session_id']
+            if tx_session_id != session_id:
+                logger.debug(f"POSTFLIGHT: Overriding session_id from transaction file: {session_id[:8]}... -> {tx_session_id[:8]}...")
+                session_id = tx_session_id
+    except Exception as e:
+        logger.debug(f"Transaction session lookup failed (using provided session_id): {e}")
+
+    if not isinstance(vectors, dict):
+        raise ValueError("Vectors must be a dictionary")
+
+    session_id = _resolve_and_validate_session(session_id, "POSTFLIGHT")
+    vectors = _extract_all_vectors(vectors)
+
+    # TRANSACTION CONTINUITY: Get the original session_id where PREFLIGHT was run
+    # This handles the case where context compacted and session_id changed mid-transaction
+    preflight_session_id = session_id  # Default to current session
+    try:
+        import json as _json
+        from pathlib import Path
+        global_home = Path.home() / '.empirica'
+
+        # Check instance-specific active_work files for transaction context
+        for active_file in global_home.glob('active_work_*.json'):
+            try:
+                data = _json.loads(active_file.read_text())
+                # If this file has our transaction, use its empirica_session_id
+                if data.get('empirica_session_id'):
+                    # Check if this is the right project by matching project_path
+                    db_path = resolve_session_db_path(data['empirica_session_id'])
+                    if db_path:
+                        import sqlite3
+                        conn = sqlite3.connect(str(db_path))
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT 1 FROM reflexes WHERE session_id = ? AND phase = 'PREFLIGHT'",
+                                      (data['empirica_session_id'],))
+                        if cursor.fetchone():
+                            preflight_session_id = data['empirica_session_id']
+                            logger.debug(f"Using PREFLIGHT session from transaction: {preflight_session_id[:8]}...")
+                        conn.close()
+                        break
+            except Exception:
+                continue
+    except Exception as e:
+        logger.debug(f"Transaction context lookup failed (using current session): {e}")
+
+    return {
+        "session_id": session_id,
+        "vectors": vectors,
+        "reasoning": reasoning,
+        "preflight_session_id": preflight_session_id,
+        "grounded_vectors": postflight_grounded_vectors,
+        "grounded_rationale": postflight_grounded_rationale,
+        "output_format": output_format,
+    }
+
+
+def _calculate_postflight_deltas(logger_instance, vectors, preflight_session_id):
+    """Calculate deltas from preflight vectors and detect trajectory issues.
+
+    Returns:
+        tuple of (preflight_vectors, deltas, trajectory_issues)
+    """
+    deltas = {}
+    trajectory_issues = []  # Learning trajectory pattern issues (NOT calibration)
+    preflight_vectors = None
+
+    try:
+        # Get preflight checkpoint from git notes or SQLite for delta calculation
+        preflight_checkpoint = logger_instance.get_last_checkpoint(phase="PREFLIGHT")
+
+        # Fallback: Query SQLite reflexes table directly if git notes unavailable
+        # Use preflight_session_id to handle cross-session transactions (compaction)
+        if not preflight_checkpoint:
+            db = _get_db_for_session(preflight_session_id)
+            cursor = db.conn.cursor()
+            cursor.execute("""
+                SELECT engagement, know, do, context, clarity, coherence, signal, density,
+                       state, change, completion, impact, uncertainty
+                FROM reflexes
+                WHERE session_id = ? AND phase = 'PREFLIGHT'
+                ORDER BY timestamp DESC LIMIT 1
+            """, (preflight_session_id,))
+            preflight_row = cursor.fetchone()
+            db.close()
+
+            if preflight_row:
+                vector_names = ["engagement", "know", "do", "context", "clarity", "coherence",
+                               "signal", "density", "state", "change", "completion", "impact", "uncertainty"]
+                preflight_vectors = {name: preflight_row[i] for i, name in enumerate(vector_names)}
+            else:
+                preflight_vectors = None
+        elif 'vectors' in preflight_checkpoint:
+            preflight_vectors = preflight_checkpoint['vectors']
+        else:
+            preflight_vectors = None
+
+        if preflight_vectors:
+
+            # Calculate deltas (system calculates growth, not AI's claimed growth)
+            for key in vectors:
+                if key in preflight_vectors:
+                    pre_val = preflight_vectors.get(key, 0.5)
+                    post_val = vectors.get(key, 0.5)
+                    delta = post_val - pre_val
+                    deltas[key] = round(delta, 3)
+
+                    # Note: Within-session vector decreases removed
+                    # (PREFLIGHT->POSTFLIGHT decreases are calibration corrections, not memory gaps)
+                    # True memory gap detection requires cross-session comparison:
+                    # Previous session POSTFLIGHT -> Current session PREFLIGHT
+                    # This requires forced session restart before context fills and using
+                    # handoff-query/project-bootstrap to measure retention
+
+                    # TRAJECTORY ISSUE DETECTION: Identify learning patterns in PREFLIGHT->POSTFLIGHT deltas
+                    # Note: These are trajectory issues, NOT calibration (which requires grounded evidence)
+                    if key == "know" and delta > 0.2:
+                        do_delta = deltas.get("do", 0)
+                        if do_delta < -0.1:
+                            trajectory_issues.append({
+                                "pattern": "know_up_do_down",
+                                "description": "Knowledge increased but capability decreased - possible theoretical learning without application"
+                            })
+
+                    # If completion high but uncertainty also high, misalignment
+                    if key == "completion" and post_val > 0.8:
+                        uncertainty_post = vectors.get("uncertainty", 0.5)
+                        if uncertainty_post > 0.5:
+                            trajectory_issues.append({
+                                "pattern": "completion_high_uncertainty_high",
+                                "description": "High completion with high uncertainty - possible overconfidence or incomplete self-assessment"
+                            })
+        else:
+            logger.warning("No PREFLIGHT checkpoint found - cannot calculate deltas or detect memory gaps")
+
+    except Exception as e:
+        logger.debug(f"Delta calculation failed: {e}")
+        # Delta calculation is optional
+
+    return preflight_vectors, deltas, trajectory_issues
+
+
+def _close_postflight_transaction(session_id):
+    """Read and close active transaction, capture counters, entity context.
+
+    Returns:
+        dict with transaction_id, tool_call_count, avg_turns, phase_tool_counts,
+        context_shifts, tool_trace, work_context, work_type, entity_context,
+        resolved_project_path
+    """
+    import json as _json
+    from pathlib import Path
+
+    result = {
+        "transaction_id": None,
+        "tool_call_count": 0,
+        "avg_turns": 0,
+        "phase_tool_counts": None,
+        "context_shifts": {'solicited_prompts': 0, 'unsolicited_prompts': 0},
+        "tool_trace": [],
+        "work_context": None,
+        "work_type": None,
+        "entity_context": [],
+        "resolved_project_path": None,
+    }
+
+    # Read and close active transaction (POSTFLIGHT closes the transaction)
+    # Update status to "closed" instead of deleting - Sentinel reads this
+    try:
+        # Read current transaction with instance suffix (multi-instance isolation)
+        suffix = R.instance_suffix()
+
+        # Use canonical project resolution (NO CWD FALLBACK)
+        # Priority 0: instance_projects (TMUX_PANE) — authoritative
+        # Priority 1: active_work (claude_session_id) — fallback
+        resolved_project_path = R.project_path()
+        result["resolved_project_path"] = resolved_project_path
+
+        if resolved_project_path:
+            tx_file = Path(resolved_project_path) / '.empirica' / f'active_transaction{suffix}.json'
+        else:
+            # Last resort: home directory (should not happen in normal use)
+            tx_file = Path.home() / '.empirica' / f'active_transaction{suffix}.json'
+
+        if tx_file.exists():
+            with open(tx_file) as f:
+                tx_data = _json.load(f)
+            result["transaction_id"] = tx_data.get('transaction_id')
+            result["avg_turns"] = tx_data.get('avg_turns', 0)
+            # Work context for maturity-aware normalization
+            result["work_context"] = tx_data.get('work_context')
+            # Work type for evidence weight profiling
+            result["work_type"] = tx_data.get('work_type')
+
+            # Read hook counters file (hook-owned, separate from transaction)
+            counters_file = tx_file.parent / f'hook_counters{suffix}.json'
+            counters = {}
+            if counters_file.exists():
+                try:
+                    with open(counters_file) as f:
+                        counters = _json.load(f)
+                except Exception:
+                    pass
+
+            # Capture tool counts from counters (hooks write here now)
+            result["tool_call_count"] = counters.get('tool_call_count', 0)
+            # Phase-split counts for phase-weighted calibration
+            result["phase_tool_counts"] = {
+                'noetic_tool_calls': counters.get('noetic_tool_calls', 0),
+                'praxic_tool_calls': counters.get('praxic_tool_calls', 0),
+            }
+            # Context-shift tracking data
+            result["context_shifts"] = {
+                'solicited_prompts': counters.get('solicited_prompt_count', 0),
+                'unsolicited_prompts': counters.get('unsolicited_prompt_count', 0),
+            }
+            # Workflow trace for pattern mining
+            result["tool_trace"] = counters.get('tool_trace', [])
+
+            # Close transaction (workflow-owned write)
+            # Preserve enrichment fields — transaction_write does a full overwrite
+            # with only base fields. Save enrichment before, re-inject after.
+            _enrichment_keys = ('domain', 'criticality', 'work_type', 'work_context',
+                                'cascade_profile', 'predicted_check_outcomes')
+            _saved_enrichment = {k: tx_data[k] for k in _enrichment_keys if tx_data.get(k)}
+
+            R.transaction_write(
+                transaction_id=result["transaction_id"],
+                session_id=tx_data.get('session_id'),
+                preflight_timestamp=tx_data.get('preflight_timestamp'),
+                status="closed",
+                project_path=tx_data.get('project_path') or resolved_project_path
+            )
+
+            # Re-inject enrichment fields after close
+            if _saved_enrichment:
+                try:
+                    _closed_tx = R.transaction_read() or {}
+                    _closed_tx.update(_saved_enrichment)
+                    _tx_suffix = R.instance_suffix()
+                    _tx_proj = _closed_tx.get('project_path', resolved_project_path)
+                    _tx_path = Path(_tx_proj) / '.empirica' / f'active_transaction{_tx_suffix}.json'
+                    with open(_tx_path, 'w') as f:
+                        _json.dump(_closed_tx, f, indent=2)
+                except Exception as e:
+                    logger.warning(f"Failed to preserve enrichment on close: {e}")
+            # Delete hook counters file — data captured above
+            R.counters_clear()
+    except Exception as e:
+        logger.debug(f"Transaction close failed (non-fatal): {e}")
+        result["tool_call_count"] = 0
+        result["avg_turns"] = 0
+
+    # Collect entity context for git notes (cross-project provenance)
+    try:
+        from empirica.data.repositories.workspace_db import WorkspaceDBRepository
+        _pf_tx = R.transaction_read()
+        if _pf_tx and _pf_tx.get('transaction_id'):
+            with WorkspaceDBRepository.open() as _pf_ws:
+                _pf_links = _pf_ws.get_entity_artifacts_by_transaction(_pf_tx['transaction_id'])
+                seen = set()
+                for _l in _pf_links:
+                    key = f"{_l['entity_type']}:{_l['entity_id']}"
+                    if key not in seen:
+                        seen.add(key)
+                        result["entity_context"].append({
+                            "entity_type": _l['entity_type'],
+                            "entity_id": _l['entity_id'],
+                            "artifact_type": _l['artifact_type'],
+                        })
+    except Exception:
+        pass  # Entity context is optional enrichment
+
+    return result
+
+
+def _run_postflight_beliefs_and_exports(session_id, preflight_vectors, vectors):
+    """Run Bayesian belief updates and breadcrumbs export.
+
+    Returns:
+        tuple of (belief_updates, calibration_exported)
+    """
+    import uuid
+
+    belief_updates = {}
+    calibration_exported = False
+    try:
+        if preflight_vectors:
+            from empirica.core.bayesian_beliefs import BayesianBeliefManager
+
+            db = _get_db_for_session(session_id)
+            belief_manager = BayesianBeliefManager(db)
+
+            # Get cascade_id and ai_id for this session
+            cursor = db.conn.cursor()
+            cursor.execute("""
+                SELECT cascade_id FROM cascades
+                WHERE session_id = ?
+                ORDER BY started_at DESC LIMIT 1
+            """, (session_id,))
+            cascade_row = cursor.fetchone()
+            cascade_id = cascade_row[0] if cascade_row else str(uuid.uuid4())
+
+            # Get ai_id for calibration export
+            cursor.execute("SELECT ai_id FROM sessions WHERE session_id = ?", (session_id,))
+            ai_row = cursor.fetchone()
+            ai_id = ai_row[0] if ai_row else 'claude-code'
+
+            # Update beliefs with PREFLIGHT -> POSTFLIGHT comparison
+            belief_updates = belief_manager.update_beliefs(
+                cascade_id=cascade_id,
+                session_id=session_id,
+                preflight_vectors=preflight_vectors,
+                postflight_vectors=vectors
+            )
+
+            if belief_updates:
+                logger.debug(f"Updated Bayesian beliefs for {len(belief_updates)} vectors")
+
+                # BREADCRUMBS CALIBRATION EXPORT: Write to .breadcrumbs.yaml for instant session-start
+                # This creates a calibration cache layer - no DB queries needed at startup
+                try:
+                    from empirica.core.bayesian_beliefs import export_calibration_to_breadcrumbs
+                    calibration_exported = export_calibration_to_breadcrumbs(ai_id, db)
+                    if calibration_exported:
+                        logger.debug(f"Exported calibration to .breadcrumbs.yaml for {ai_id}")
+                except Exception as cal_e:
+                    logger.debug(f"Calibration export to breadcrumbs skipped: {cal_e}")
+
+                # BRIER CALIBRATION EXPORT: Write Brier decomposition to .breadcrumbs.yaml
+                try:
+                    from empirica.core.post_test.dynamic_thresholds import export_brier_to_breadcrumbs
+                    brier_exported = export_brier_to_breadcrumbs(ai_id, db)
+                    if brier_exported:
+                        logger.debug(f"Exported Brier calibration to .breadcrumbs.yaml for {ai_id}")
+                except Exception as brier_e:
+                    logger.debug(f"Brier calibration export to breadcrumbs skipped: {brier_e}")
+
+            db.close()
+    except Exception as e:
+        logger.debug(f"Bayesian belief update failed (non-fatal): {e}")
+
+    return belief_updates, calibration_exported
+
+
+def _run_postflight_compliance(session_id, transaction_id, work_type, resolved_project_path):
+    """Run compliance loop execution.
+
+    Returns:
+        tuple of (compliance_result, compliance_error)
+    """
+    compliance_result = None
+    compliance_error = None
+    try:
+        from empirica.config.service_registry import ServiceRegistry
+        from empirica.core.post_test.compliance_loop import run_compliance_checks
+        if not ServiceRegistry.list_all():
+            ServiceRegistry.load_builtins()
+        # Read domain/criticality from transaction file
+        _tx = R.transaction_read() or {}
+        _pf_domain = _tx.get('domain')
+        _pf_criticality = _tx.get('criticality')
+        _pf_work_type = _tx.get('work_type', work_type)
+        if _pf_domain or _pf_criticality:
+            # Goal-scoped: read edited_files from hook counters
+            _edited = []
+            try:
+                _hc = R.hook_counters_read() if hasattr(R, 'hook_counters_read') else None
+                if _hc:
+                    _edited = _hc.get('edited_files', [])
+                elif _tx:
+                    _edited = _tx.get('edited_files', [])
+            except Exception:
+                pass
+            compliance_result = run_compliance_checks(
+                session_id=session_id,
+                transaction_id=transaction_id,
+                work_type=_pf_work_type,
+                domain=_pf_domain,
+                criticality=_pf_criticality,
+                project_path=resolved_project_path,
+                changed_files=_edited,
+            )
+    except Exception as e:
+        import traceback
+        logger.warning(f"Compliance loop failed: {e}")
+        logger.debug(traceback.format_exc())
+        # Surface the error so the AI knows compliance didn't run
+        compliance_result = None
+        compliance_error = str(e)
+
+    return compliance_result, compliance_error
+
+
+def _build_postflight_result(
+    session_id, postflight_confidence, internal_consistency, deltas,
+    trajectory_issues, grounded_verification, sentinel_decision,
+    compliance_result, compliance_error, postflight_grounded_vectors,
+    postflight_grounded_rationale, vectors, resolved_project_path,
+):
+    """Build the postflight result dict including compliance, three-vector, memory hot-cache.
+
+    Returns:
+        result dict
+    """
+    from pathlib import Path
+
+    result = {
+        "ok": True,
+        "session_id": session_id,
+        "postflight_confidence": postflight_confidence,
+        "internal_consistency": internal_consistency,
+        "deltas": deltas,
+        "trajectory_issues": trajectory_issues if trajectory_issues else None,
+        "calibration": grounded_verification,
+        "sentinel": sentinel_decision.value if sentinel_decision else None,
+    }
+
+    # Surface compliance error if it failed
+    if compliance_result is None and compliance_error:
+        result["compliance_error"] = compliance_error
+
+    # B2: Add compliance block if domain checks ran
+    # B4: Compute check-outcome Brier if AI made predictions
+    if compliance_result is not None:
+        compliance_dict = compliance_result.to_dict()
+        # Attach predictions from PREFLIGHT to check results
+        _tx = R.transaction_read() or {}
+        _predictions = _tx.get('predicted_check_outcomes', {})
+        if _predictions and compliance_result.check_results:
+            for cr in compliance_result.check_results:
+                check_id = cr.get("check_id")
+                if check_id and check_id in _predictions:
+                    cr["predicted_pass"] = _predictions[check_id]
+            # Compute Brier on predictions vs actuals
+            try:
+                from empirica.core.post_test.dynamic_thresholds import compute_check_brier
+                check_brier = compute_check_brier(compliance_result.check_results)
+                if check_brier:
+                    compliance_dict["check_brier"] = check_brier
+            except Exception:
+                pass
+        result["compliance"] = compliance_dict
+
+    # B3: Three-vector block — only present when AI submitted grounded_vectors
+    if postflight_grounded_vectors:
+        # Extract observed vectors from the grounded_verification result
+        observed = {}
+        if grounded_verification:
+            for phase_key in ("noetic", "praxic", "combined"):
+                phase_data = grounded_verification.get("phases", {}).get(phase_key, {})
+                if phase_data:
+                    for vec_name, update in phase_data.get("updates", {}).items():
+                        observed[vec_name] = update.get("observation")
+        result["three_vector"] = {
+            "self_assessed": vectors,
+            "observed": observed,
+            "grounded": postflight_grounded_vectors,
+            "rationale_present": bool(postflight_grounded_rationale),
+        }
+
+    # MEMORY HOT-CACHE: Update CC MEMORY.md with ranked artifacts
+    # This runs at every POSTFLIGHT, not just session-end
+    try:
+        from empirica.core.memory_manager import update_hot_cache
+        _mem_updated = update_hot_cache(
+            session_id,
+            project_path=resolved_project_path,
+            db_path=str(Path(resolved_project_path) / '.empirica' / 'sessions' / 'sessions.db') if resolved_project_path else None,
+        )
+        if _mem_updated:
+            logger.debug("Updated MEMORY.md hot cache at POSTFLIGHT")
+        # Promote high-confidence eidetic facts to memory files
+        from empirica.core.memory_manager import promote_eidetic_to_memory
+        _promo_db = _get_db_for_session(session_id)
+        _promo_session = _promo_db.get_session(session_id)
+        _promo_pid = _promo_session.get('project_id') if _promo_session else None
+        _promo_db.close()
+        _promoted = promote_eidetic_to_memory(
+            project_id=_promo_pid,
+            project_path=resolved_project_path,
+        )
+        if _promoted:
+            logger.debug(f"Promoted {len(_promoted)} eidetic facts to memory: {_promoted}")
+        # Demote stale promoted memory files
+        from empirica.core.memory_manager import demote_stale_memories, enforce_memory_md_cap
+        _demoted = demote_stale_memories(project_path=resolved_project_path)
+        if _demoted:
+            logger.debug(f"Demoted {len(_demoted)} stale memory files: {_demoted}")
+        # Enforce MEMORY.md line cap
+        _evicted = enforce_memory_md_cap(project_path=resolved_project_path)
+        if _evicted:
+            logger.debug(f"Evicted {_evicted} lines from MEMORY.md")
+    except Exception as e:
+        logger.debug(f"MEMORY.md hot cache update skipped: {e}")
+
+    return result
+
+
+def _run_postflight_cortex_sync(session_id, reasoning, resolved_project_path):
+    """Push this transaction's artifacts to remote Cortex.
+
+    Each POSTFLIGHT is a sync boundary — artifacts flow to the
+    cloud intelligence layer at the natural measurement cadence.
+    No return value needed.
+    """
+    import os
+    from pathlib import Path
+
+    try:
+        _cortex_url = os.environ.get('CORTEX_REMOTE_URL', '')
+        _cortex_key = os.environ.get('CORTEX_API_KEY', '')
+        if _cortex_url and _cortex_key:
+            import urllib.error
+            import urllib.request
+
+            # Resolve project UUID
+            _sync_pid = ""
+            try:
+                from empirica.cli.utils.project_resolver import resolve_project_id as _rpi
+                _pyaml = Path.cwd() / '.empirica' / 'project.yaml'
+                if _pyaml.exists():
+                    with open(_pyaml) as _pf:
+                        for _ln in _pf:
+                            if _ln.startswith('project_id:'):
+                                _pn = _ln.split(':', 1)[1].strip()
+                                _sync_pid = _rpi(_pn) or _pn
+                                break
+            except Exception:
+                pass
+
+            # Extract this transaction's artifacts
+            _tx_delta = {}
+            try:
+                _tx_data = R.transaction_read()
+                _tx_id = _tx_data.get('transaction_id', '') if _tx_data else ''
+                if _tx_id:
+                    _sdb = _get_db_for_session(session_id)
+                    for _tbl, _key, _delta_key in [
+                        ("project_findings", "finding", "findings"),
+                        ("project_unknowns", "unknown", "unknowns"),
+                        ("decisions", "choice", "decisions"),
+                    ]:
+                        _rows = _sdb.conn.execute(
+                            f"SELECT id, {_key}" + (", impact" if _tbl == "project_findings" else ", rationale" if _tbl == "decisions" else "") +
+                            f" FROM {_tbl} WHERE transaction_id = ? LIMIT 20",
+                            (_tx_id,)
+                        ).fetchall()
+                        if _rows:
+                            if _tbl == "project_findings":
+                                _tx_delta[_delta_key] = [{"id": r["id"], "finding": r[_key], "impact": r["impact"] or 0.5} for r in _rows if r[_key]]
+                            elif _tbl == "decisions":
+                                _tx_delta[_delta_key] = [{"id": r["id"], "choice": r[_key], "rationale": r["rationale"] or ""} for r in _rows if r[_key]]
+                            else:
+                                _tx_delta[_delta_key] = [{"id": r["id"], "unknown": r[_key]} for r in _rows if r[_key]]
+            except Exception:
+                pass
+
+            # Read calibration summary
+            _cal = {}
+            try:
+                import yaml as _yaml
+                _bcf = Path.cwd() / ".breadcrumbs.yaml"
+                if _bcf.exists():
+                    with open(_bcf) as _bf:
+                        _bcd = _yaml.safe_load(_bf) or {}
+                    _gc = _bcd.get("grounded_calibration", {})
+                    if _gc:
+                        _cal = {
+                            "calibration_score": _gc.get("holistic_calibration_score", 0.5),
+                            "observations": _gc.get("observations", 0),
+                            "grounded_coverage": _gc.get("grounded_coverage", 0),
+                        }
+            except Exception:
+                pass
+
+            _payload = json.dumps({
+                "project_id": _sync_pid,
+                "task_context": reasoning[:200] if reasoning else "",
+                "calibration_summary": _cal,
+                "delta": _tx_delta,
+            }).encode("utf-8")
+
+            _req = urllib.request.Request(
+                f"{_cortex_url.rstrip('/')}/v1/sync",
+                data=_payload,
+                headers={"Authorization": f"Bearer {_cortex_key}", "Content-Type": "application/json"},
+                method="POST",
+            )
+            urllib.request.urlopen(_req, timeout=5)
+            logger.debug("Cortex sync push at POSTFLIGHT boundary")
+    except Exception:
+        pass  # Non-fatal — Cortex unavailable doesn't block POSTFLIGHT
+
 
 def handle_postflight_submit_command(args):
     """Handle postflight-submit command - AI-first with config file support"""
     try:
-        import os
-        import sys
-        import uuid
-
         from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
 
-        # Parse input (shared helper)
-        config_data, output_format = _parse_workflow_input(args, "POSTFLIGHT")
-
-        if config_data:
-            session_id = config_data.get('session_id') or getattr(args, 'session_id', None)
-            vectors = config_data.get('vectors')
-            reasoning = config_data.get('reasoning', '')
-            # B3: AI-reasoned grounded state (three-vector model)
-            postflight_grounded_vectors = config_data.get('grounded_vectors')
-            postflight_grounded_rationale = config_data.get('grounded_rationale')
-
-            if not session_id or not vectors:
-                print(json.dumps({
-                    "ok": False,
-                    "error": "Config file must include 'vectors' field" + (
-                        " and 'session_id' (could not auto-derive from active transaction)"
-                        if not session_id else ""
-                    ),
-                    "hint": "Run PREFLIGHT first to open a transaction, or provide session_id explicitly"
-                }))
-                sys.exit(1)
-        else:
-            session_id = args.session_id
-            vectors = parse_json_safely(args.vectors) if isinstance(args.vectors, str) else args.vectors
-            reasoning = args.reasoning
-            output_format = getattr(args, 'output', 'json')
-            postflight_grounded_vectors = None
-            postflight_grounded_rationale = None
-
-            if not session_id:
-                try:
-                    session_id = R.session_id()
-                except Exception:
-                    pass
-
-            if not session_id or not vectors:
-                print(json.dumps({
-                    "ok": False,
-                    "error": "Legacy mode requires --vectors flag (--session-id auto-derived if in transaction)",
-                    "hint": "For AI-first mode, use: empirica postflight-submit config.json"
-                }))
-                sys.exit(1)
-
-        # TRANSACTION CONTINUITY FIX: Override session_id from active transaction
-        try:
-            tx_data = R.transaction_read()
-            if tx_data and tx_data.get('session_id'):
-                tx_session_id = tx_data['session_id']
-                if tx_session_id != session_id:
-                    logger.debug(f"POSTFLIGHT: Overriding session_id from transaction file: {session_id[:8]}... -> {tx_session_id[:8]}...")
-                    session_id = tx_session_id
-        except Exception as e:
-            logger.debug(f"Transaction session lookup failed (using provided session_id): {e}")
-
-        if not isinstance(vectors, dict):
-            raise ValueError("Vectors must be a dictionary")
-
-        session_id = _resolve_and_validate_session(session_id, "POSTFLIGHT")
-        vectors = _extract_all_vectors(vectors)
-
-        # TRANSACTION CONTINUITY: Get the original session_id where PREFLIGHT was run
-        # This handles the case where context compacted and session_id changed mid-transaction
-        preflight_session_id = session_id  # Default to current session
-        try:
-            import json as _json
-            from pathlib import Path
-            global_home = Path.home() / '.empirica'
-
-            # Check instance-specific active_work files for transaction context
-            for active_file in global_home.glob('active_work_*.json'):
-                try:
-                    data = _json.loads(active_file.read_text())
-                    # If this file has our transaction, use its empirica_session_id
-                    if data.get('empirica_session_id'):
-                        # Check if this is the right project by matching project_path
-                        db_path = resolve_session_db_path(data['empirica_session_id'])
-                        if db_path:
-                            import sqlite3
-                            conn = sqlite3.connect(str(db_path))
-                            cursor = conn.cursor()
-                            cursor.execute("SELECT 1 FROM reflexes WHERE session_id = ? AND phase = 'PREFLIGHT'",
-                                          (data['empirica_session_id'],))
-                            if cursor.fetchone():
-                                preflight_session_id = data['empirica_session_id']
-                                logger.debug(f"Using PREFLIGHT session from transaction: {preflight_session_id[:8]}...")
-                            conn.close()
-                            break
-                except Exception:
-                    continue
-        except Exception as e:
-            logger.debug(f"Transaction context lookup failed (using current session): {e}")
+        # Stage 1: Parse and validate input
+        parsed = _parse_postflight_input(args)
+        session_id = parsed["session_id"]
+        vectors = parsed["vectors"]
+        reasoning = parsed["reasoning"]
+        preflight_session_id = parsed["preflight_session_id"]
+        postflight_grounded_vectors = parsed["grounded_vectors"]
+        postflight_grounded_rationale = parsed["grounded_rationale"]
+        output_format = parsed["output_format"]
 
         # Use GitEnhancedReflexLogger for proper 3-layer storage (SQLite + Git Notes + JSON)
         try:
@@ -2408,198 +2971,23 @@ def handle_postflight_submit_command(args):
             else:
                 internal_consistency = "poor"
 
-            # PURE POSTFLIGHT: Calculate deltas from previous checkpoint (system-driven)
-            # AI assesses CURRENT state only, system calculates growth independently
-            deltas = {}
-            trajectory_issues = []  # Learning trajectory pattern issues (NOT calibration)
+            # Stage 2: Calculate deltas from preflight vectors
+            preflight_vectors, deltas, trajectory_issues = _calculate_postflight_deltas(
+                logger_instance, vectors, preflight_session_id
+            )
 
-            try:
-                # Get preflight checkpoint from git notes or SQLite for delta calculation
-                preflight_checkpoint = logger_instance.get_last_checkpoint(phase="PREFLIGHT")
-
-                # Fallback: Query SQLite reflexes table directly if git notes unavailable
-                # Use preflight_session_id to handle cross-session transactions (compaction)
-                if not preflight_checkpoint:
-                    db = _get_db_for_session(preflight_session_id)
-                    cursor = db.conn.cursor()
-                    cursor.execute("""
-                        SELECT engagement, know, do, context, clarity, coherence, signal, density,
-                               state, change, completion, impact, uncertainty
-                        FROM reflexes
-                        WHERE session_id = ? AND phase = 'PREFLIGHT'
-                        ORDER BY timestamp DESC LIMIT 1
-                    """, (preflight_session_id,))
-                    preflight_row = cursor.fetchone()
-                    db.close()
-
-                    if preflight_row:
-                        vector_names = ["engagement", "know", "do", "context", "clarity", "coherence",
-                                       "signal", "density", "state", "change", "completion", "impact", "uncertainty"]
-                        preflight_vectors = {name: preflight_row[i] for i, name in enumerate(vector_names)}
-                    else:
-                        preflight_vectors = None
-                elif 'vectors' in preflight_checkpoint:
-                    preflight_vectors = preflight_checkpoint['vectors']
-                else:
-                    preflight_vectors = None
-
-                if preflight_vectors:
-
-                    # Calculate deltas (system calculates growth, not AI's claimed growth)
-                    for key in vectors:
-                        if key in preflight_vectors:
-                            pre_val = preflight_vectors.get(key, 0.5)
-                            post_val = vectors.get(key, 0.5)
-                            delta = post_val - pre_val
-                            deltas[key] = round(delta, 3)
-
-                            # Note: Within-session vector decreases removed
-                            # (PREFLIGHT→POSTFLIGHT decreases are calibration corrections, not memory gaps)
-                            # True memory gap detection requires cross-session comparison:
-                            # Previous session POSTFLIGHT → Current session PREFLIGHT
-                            # This requires forced session restart before context fills and using
-                            # handoff-query/project-bootstrap to measure retention
-
-                            # TRAJECTORY ISSUE DETECTION: Identify learning patterns in PREFLIGHT→POSTFLIGHT deltas
-                            # Note: These are trajectory issues, NOT calibration (which requires grounded evidence)
-                            if key == "know" and delta > 0.2:
-                                do_delta = deltas.get("do", 0)
-                                if do_delta < -0.1:
-                                    trajectory_issues.append({
-                                        "pattern": "know_up_do_down",
-                                        "description": "Knowledge increased but capability decreased - possible theoretical learning without application"
-                                    })
-
-                            # If completion high but uncertainty also high, misalignment
-                            if key == "completion" and post_val > 0.8:
-                                uncertainty_post = vectors.get("uncertainty", 0.5)
-                                if uncertainty_post > 0.5:
-                                    trajectory_issues.append({
-                                        "pattern": "completion_high_uncertainty_high",
-                                        "description": "High completion with high uncertainty - possible overconfidence or incomplete self-assessment"
-                                    })
-                else:
-                    logger.warning("No PREFLIGHT checkpoint found - cannot calculate deltas or detect memory gaps")
-
-            except Exception as e:
-                logger.debug(f"Delta calculation failed: {e}")
-                # Delta calculation is optional
-
-            # Read and close active transaction (POSTFLIGHT closes the transaction)
-            # Update status to "closed" instead of deleting - Sentinel reads this
-            postflight_transaction_id = None
-            postflight_tool_call_count = 0
-            postflight_avg_turns = 0
-            postflight_phase_tool_counts = None
-            postflight_context_shifts = {'solicited_prompts': 0, 'unsolicited_prompts': 0}
-            postflight_work_context = None
-            try:
-                import json as _json
-                from pathlib import Path
-
-                # Read current transaction with instance suffix (multi-instance isolation)
-                suffix = R.instance_suffix()
-
-                # Use canonical project resolution (NO CWD FALLBACK)
-                # Priority 0: instance_projects (TMUX_PANE) — authoritative
-                # Priority 1: active_work (claude_session_id) — fallback
-                resolved_project_path = R.project_path()
-
-                if resolved_project_path:
-                    tx_file = Path(resolved_project_path) / '.empirica' / f'active_transaction{suffix}.json'
-                else:
-                    # Last resort: home directory (should not happen in normal use)
-                    tx_file = Path.home() / '.empirica' / f'active_transaction{suffix}.json'
-
-                if tx_file.exists():
-                    with open(tx_file) as f:
-                        tx_data = _json.load(f)
-                    postflight_transaction_id = tx_data.get('transaction_id')
-                    postflight_avg_turns = tx_data.get('avg_turns', 0)
-                    # Work context for maturity-aware normalization
-                    postflight_work_context = tx_data.get('work_context')
-                    # Work type for evidence weight profiling
-                    postflight_work_type = tx_data.get('work_type')
-
-                    # Read hook counters file (hook-owned, separate from transaction)
-                    counters_file = tx_file.parent / f'hook_counters{suffix}.json'
-                    counters = {}
-                    if counters_file.exists():
-                        try:
-                            with open(counters_file) as f:
-                                counters = _json.load(f)
-                        except Exception:
-                            pass
-
-                    # Capture tool counts from counters (hooks write here now)
-                    postflight_tool_call_count = counters.get('tool_call_count', 0)
-                    # Phase-split counts for phase-weighted calibration
-                    postflight_phase_tool_counts = {
-                        'noetic_tool_calls': counters.get('noetic_tool_calls', 0),
-                        'praxic_tool_calls': counters.get('praxic_tool_calls', 0),
-                    }
-                    # Context-shift tracking data
-                    postflight_context_shifts = {
-                        'solicited_prompts': counters.get('solicited_prompt_count', 0),
-                        'unsolicited_prompts': counters.get('unsolicited_prompt_count', 0),
-                    }
-                    # Workflow trace for pattern mining
-                    postflight_tool_trace = counters.get('tool_trace', [])
-
-                    # Close transaction (workflow-owned write)
-                    # Preserve enrichment fields — transaction_write does a full overwrite
-                    # with only base fields. Save enrichment before, re-inject after.
-                    _enrichment_keys = ('domain', 'criticality', 'work_type', 'work_context',
-                                        'cascade_profile', 'predicted_check_outcomes')
-                    _saved_enrichment = {k: tx_data[k] for k in _enrichment_keys if tx_data.get(k)}
-
-                    R.transaction_write(
-                        transaction_id=postflight_transaction_id,
-                        session_id=tx_data.get('session_id'),
-                        preflight_timestamp=tx_data.get('preflight_timestamp'),
-                        status="closed",
-                        project_path=tx_data.get('project_path') or resolved_project_path
-                    )
-
-                    # Re-inject enrichment fields after close
-                    if _saved_enrichment:
-                        try:
-                            _closed_tx = R.transaction_read() or {}
-                            _closed_tx.update(_saved_enrichment)
-                            _tx_suffix = R.instance_suffix()
-                            _tx_proj = _closed_tx.get('project_path', resolved_project_path)
-                            _tx_path = Path(_tx_proj) / '.empirica' / f'active_transaction{_tx_suffix}.json'
-                            with open(_tx_path, 'w') as f:
-                                _json.dump(_closed_tx, f, indent=2)
-                        except Exception as e:
-                            logger.warning(f"Failed to preserve enrichment on close: {e}")
-                    # Delete hook counters file — data captured above
-                    R.counters_clear()
-            except Exception as e:
-                logger.debug(f"Transaction close failed (non-fatal): {e}")
-                postflight_tool_call_count = 0
-                postflight_avg_turns = 0
-
-            # Collect entity context for git notes (cross-project provenance)
-            postflight_entity_context = []
-            try:
-                from empirica.data.repositories.workspace_db import WorkspaceDBRepository
-                _pf_tx = R.transaction_read()
-                if _pf_tx and _pf_tx.get('transaction_id'):
-                    with WorkspaceDBRepository.open() as _pf_ws:
-                        _pf_links = _pf_ws.get_entity_artifacts_by_transaction(_pf_tx['transaction_id'])
-                        seen = set()
-                        for _l in _pf_links:
-                            key = f"{_l['entity_type']}:{_l['entity_id']}"
-                            if key not in seen:
-                                seen.add(key)
-                                postflight_entity_context.append({
-                                    "entity_type": _l['entity_type'],
-                                    "entity_id": _l['entity_id'],
-                                    "artifact_type": _l['artifact_type'],
-                                })
-            except Exception:
-                pass  # Entity context is optional enrichment
+            # Stage 3: Close transaction and capture counters
+            tx_info = _close_postflight_transaction(session_id)
+            postflight_transaction_id = tx_info["transaction_id"]
+            postflight_tool_call_count = tx_info["tool_call_count"]
+            postflight_avg_turns = tx_info["avg_turns"]
+            postflight_phase_tool_counts = tx_info["phase_tool_counts"]
+            postflight_context_shifts = tx_info["context_shifts"]
+            postflight_tool_trace = tx_info["tool_trace"]
+            postflight_work_context = tx_info["work_context"]
+            postflight_work_type = tx_info["work_type"]
+            postflight_entity_context = tx_info["entity_context"]
+            resolved_project_path = tx_info["resolved_project_path"]
 
             # RETROSPECTIVE: Compute early so it's available for checkpoint metadata
             # (persisted for next-PREFLIGHT behavioral feedback)
@@ -2663,71 +3051,10 @@ def handle_postflight_submit_command(args):
                 "checkpoint_id": checkpoint_id
             })
 
-            # NOTE: Removed auto-checkpoint after POSTFLIGHT
-            # POSTFLIGHT already writes to all 3 storage layers (SQLite + Git Notes + JSON)
-            # Creating an additional checkpoint was creating duplicate entries with default values
-            # The GitEnhancedReflexLogger.add_checkpoint() call above is sufficient
-
-            # BAYESIAN BELIEF UPDATE: Update AI priors based on PREFLIGHT → POSTFLIGHT deltas
-            # NOTE: Primary calibration source is vector_trajectories table (clean start/end vectors).
-            # This bayesian update is secondary - kept for backward compatibility and .breadcrumbs.yaml export.
-            belief_updates = {}
-            calibration_exported = False
-            try:
-                if preflight_vectors:
-                    from empirica.core.bayesian_beliefs import BayesianBeliefManager
-
-                    db = _get_db_for_session(session_id)
-                    belief_manager = BayesianBeliefManager(db)
-
-                    # Get cascade_id and ai_id for this session
-                    cursor = db.conn.cursor()
-                    cursor.execute("""
-                        SELECT cascade_id FROM cascades
-                        WHERE session_id = ?
-                        ORDER BY started_at DESC LIMIT 1
-                    """, (session_id,))
-                    cascade_row = cursor.fetchone()
-                    cascade_id = cascade_row[0] if cascade_row else str(uuid.uuid4())
-
-                    # Get ai_id for calibration export
-                    cursor.execute("SELECT ai_id FROM sessions WHERE session_id = ?", (session_id,))
-                    ai_row = cursor.fetchone()
-                    ai_id = ai_row[0] if ai_row else 'claude-code'
-
-                    # Update beliefs with PREFLIGHT → POSTFLIGHT comparison
-                    belief_updates = belief_manager.update_beliefs(
-                        cascade_id=cascade_id,
-                        session_id=session_id,
-                        preflight_vectors=preflight_vectors,
-                        postflight_vectors=vectors
-                    )
-
-                    if belief_updates:
-                        logger.debug(f"Updated Bayesian beliefs for {len(belief_updates)} vectors")
-
-                        # BREADCRUMBS CALIBRATION EXPORT: Write to .breadcrumbs.yaml for instant session-start
-                        # This creates a calibration cache layer - no DB queries needed at startup
-                        try:
-                            from empirica.core.bayesian_beliefs import export_calibration_to_breadcrumbs
-                            calibration_exported = export_calibration_to_breadcrumbs(ai_id, db)
-                            if calibration_exported:
-                                logger.debug(f"Exported calibration to .breadcrumbs.yaml for {ai_id}")
-                        except Exception as cal_e:
-                            logger.debug(f"Calibration export to breadcrumbs skipped: {cal_e}")
-
-                        # BRIER CALIBRATION EXPORT: Write Brier decomposition to .breadcrumbs.yaml
-                        try:
-                            from empirica.core.post_test.dynamic_thresholds import export_brier_to_breadcrumbs
-                            brier_exported = export_brier_to_breadcrumbs(ai_id, db)
-                            if brier_exported:
-                                logger.debug(f"Exported Brier calibration to .breadcrumbs.yaml for {ai_id}")
-                        except Exception as brier_e:
-                            logger.debug(f"Brier calibration export to breadcrumbs skipped: {brier_e}")
-
-                    db.close()
-            except Exception as e:
-                logger.debug(f"Bayesian belief update failed (non-fatal): {e}")
+            # Stage 4: Bayesian belief updates and breadcrumbs export
+            belief_updates, calibration_exported = _run_postflight_beliefs_and_exports(
+                session_id, preflight_vectors, vectors
+            )
 
             # GROUNDED VERIFICATION: Post-test evidence-based calibration
             grounded_verification = _run_grounded_verification(
@@ -2744,228 +3071,35 @@ def handle_postflight_submit_command(args):
                 checkpoint_id=checkpoint_id, postflight_transaction_id=postflight_transaction_id,
             )
 
-            # B2: Compliance loop — run domain checklist after grounded verification
-            compliance_result = None
-            compliance_error = None
-            try:
-                from empirica.config.service_registry import ServiceRegistry
-                from empirica.core.post_test.compliance_loop import run_compliance_checks
-                if not ServiceRegistry.list_all():
-                    ServiceRegistry.load_builtins()
-                # Read domain/criticality from transaction file
-                _tx = R.transaction_read() or {}
-                _pf_domain = _tx.get('domain')
-                _pf_criticality = _tx.get('criticality')
-                _pf_work_type = _tx.get('work_type', postflight_work_type)
-                if _pf_domain or _pf_criticality:
-                    # Goal-scoped: read edited_files from hook counters
-                    _edited = []
-                    try:
-                        _hc = R.hook_counters_read() if hasattr(R, 'hook_counters_read') else None
-                        if _hc:
-                            _edited = _hc.get('edited_files', [])
-                        elif _tx:
-                            _edited = _tx.get('edited_files', [])
-                    except Exception:
-                        pass
-                    compliance_result = run_compliance_checks(
-                        session_id=session_id,
-                        transaction_id=postflight_transaction_id,
-                        work_type=_pf_work_type,
-                        domain=_pf_domain,
-                        criticality=_pf_criticality,
-                        project_path=resolved_project_path,
-                        changed_files=_edited,
-                    )
-            except Exception as e:
-                import traceback
-                logger.warning(f"Compliance loop failed: {e}")
-                logger.debug(traceback.format_exc())
-                # Surface the error so the AI knows compliance didn't run
-                compliance_result = None
-                compliance_error = str(e)
+            # Stage 5: Compliance loop
+            compliance_result, compliance_error = _run_postflight_compliance(
+                session_id, postflight_transaction_id, postflight_work_type, resolved_project_path
+            )
 
-            result = {
-                "ok": True,
-                "session_id": session_id,
-                "postflight_confidence": postflight_confidence,
-                "internal_consistency": internal_consistency,
-                "deltas": deltas,
-                "trajectory_issues": trajectory_issues if trajectory_issues else None,
-                "calibration": grounded_verification,
-                "sentinel": sentinel_decision.value if sentinel_decision else None,
-            }
-
-            # Surface compliance error if it failed
-            if compliance_result is None and compliance_error:
-                result["compliance_error"] = compliance_error
-
-            # B2: Add compliance block if domain checks ran
-            # B4: Compute check-outcome Brier if AI made predictions
-            if compliance_result is not None:
-                compliance_dict = compliance_result.to_dict()
-                # Attach predictions from PREFLIGHT to check results
-                _predictions = (_tx or {}).get('predicted_check_outcomes', {})
-                if _predictions and compliance_result.check_results:
-                    for cr in compliance_result.check_results:
-                        check_id = cr.get("check_id")
-                        if check_id and check_id in _predictions:
-                            cr["predicted_pass"] = _predictions[check_id]
-                    # Compute Brier on predictions vs actuals
-                    try:
-                        from empirica.core.post_test.dynamic_thresholds import compute_check_brier
-                        check_brier = compute_check_brier(compliance_result.check_results)
-                        if check_brier:
-                            compliance_dict["check_brier"] = check_brier
-                    except Exception:
-                        pass
-                result["compliance"] = compliance_dict
-
-            # B3: Three-vector block — only present when AI submitted grounded_vectors
-            if postflight_grounded_vectors:
-                # Extract observed vectors from the grounded_verification result
-                observed = {}
-                if grounded_verification:
-                    for phase_key in ("noetic", "praxic", "combined"):
-                        phase_data = grounded_verification.get("phases", {}).get(phase_key, {})
-                        if phase_data:
-                            for vec_name, update in phase_data.get("updates", {}).items():
-                                observed[vec_name] = update.get("observation")
-                result["three_vector"] = {
-                    "self_assessed": vectors,
-                    "observed": observed,
-                    "grounded": postflight_grounded_vectors,
-                    "rationale_present": bool(postflight_grounded_rationale),
-                }
-
-            # MEMORY HOT-CACHE: Update CC MEMORY.md with ranked artifacts
-            # This runs at every POSTFLIGHT, not just session-end
-            try:
-                from empirica.core.memory_manager import update_hot_cache
-                _mem_updated = update_hot_cache(
-                    session_id,
-                    project_path=resolved_project_path,
-                    db_path=str(Path(resolved_project_path) / '.empirica' / 'sessions' / 'sessions.db') if resolved_project_path else None,
-                )
-                if _mem_updated:
-                    logger.debug("Updated MEMORY.md hot cache at POSTFLIGHT")
-                # Promote high-confidence eidetic facts to memory files
-                from empirica.core.memory_manager import promote_eidetic_to_memory
-                _promo_db = _get_db_for_session(session_id)
-                _promo_session = _promo_db.get_session(session_id)
-                _promo_pid = _promo_session.get('project_id') if _promo_session else None
-                _promo_db.close()
-                _promoted = promote_eidetic_to_memory(
-                    project_id=_promo_pid,
-                    project_path=resolved_project_path,
-                )
-                if _promoted:
-                    logger.debug(f"Promoted {len(_promoted)} eidetic facts to memory: {_promoted}")
-                # Demote stale promoted memory files
-                from empirica.core.memory_manager import demote_stale_memories, enforce_memory_md_cap
-                _demoted = demote_stale_memories(project_path=resolved_project_path)
-                if _demoted:
-                    logger.debug(f"Demoted {len(_demoted)} stale memory files: {_demoted}")
-                # Enforce MEMORY.md line cap
-                _evicted = enforce_memory_md_cap(project_path=resolved_project_path)
-                if _evicted:
-                    logger.debug(f"Evicted {_evicted} lines from MEMORY.md")
-            except Exception as e:
-                logger.debug(f"MEMORY.md hot cache update skipped: {e}")
+            # Stage 6: Build result dict
+            result = _build_postflight_result(
+                session_id=session_id,
+                postflight_confidence=postflight_confidence,
+                internal_consistency=internal_consistency,
+                deltas=deltas,
+                trajectory_issues=trajectory_issues,
+                grounded_verification=grounded_verification,
+                sentinel_decision=sentinel_decision,
+                compliance_result=compliance_result,
+                compliance_error=compliance_error,
+                postflight_grounded_vectors=postflight_grounded_vectors,
+                postflight_grounded_rationale=postflight_grounded_rationale,
+                vectors=vectors,
+                resolved_project_path=resolved_project_path,
+            )
 
             # RETROSPECTIVE: Already computed before checkpoint (for persistence).
             # Add to result for the AI to see in this POSTFLIGHT response.
             if retrospective:
                 result["retrospective"] = retrospective
 
-            # ── Cortex sync push (transaction boundary) ──────────────
-            # Push this transaction's artifacts to remote Cortex.
-            # Each POSTFLIGHT is a sync boundary — artifacts flow to the
-            # cloud intelligence layer at the natural measurement cadence.
-            try:
-                _cortex_url = os.environ.get('CORTEX_REMOTE_URL', '')
-                _cortex_key = os.environ.get('CORTEX_API_KEY', '')
-                if _cortex_url and _cortex_key and result.get('ok'):
-                    import urllib.error
-                    import urllib.request
-
-                    # Resolve project UUID
-                    _sync_pid = ""
-                    try:
-                        from empirica.cli.utils.project_resolver import resolve_project_id as _rpi
-                        _pyaml = Path.cwd() / '.empirica' / 'project.yaml'
-                        if _pyaml.exists():
-                            with open(_pyaml) as _pf:
-                                for _ln in _pf:
-                                    if _ln.startswith('project_id:'):
-                                        _pn = _ln.split(':', 1)[1].strip()
-                                        _sync_pid = _rpi(_pn) or _pn
-                                        break
-                    except Exception:
-                        pass
-
-                    # Extract this transaction's artifacts
-                    _tx_delta = {}
-                    try:
-                        _tx_data = R.transaction_read()
-                        _tx_id = _tx_data.get('transaction_id', '') if _tx_data else ''
-                        if _tx_id:
-                            _sdb = _get_db_for_session(session_id)
-                            for _tbl, _key, _delta_key in [
-                                ("project_findings", "finding", "findings"),
-                                ("project_unknowns", "unknown", "unknowns"),
-                                ("decisions", "choice", "decisions"),
-                            ]:
-                                _rows = _sdb.conn.execute(
-                                    f"SELECT id, {_key}" + (", impact" if _tbl == "project_findings" else ", rationale" if _tbl == "decisions" else "") +
-                                    f" FROM {_tbl} WHERE transaction_id = ? LIMIT 20",
-                                    (_tx_id,)
-                                ).fetchall()
-                                if _rows:
-                                    if _tbl == "project_findings":
-                                        _tx_delta[_delta_key] = [{"id": r["id"], "finding": r[_key], "impact": r["impact"] or 0.5} for r in _rows if r[_key]]
-                                    elif _tbl == "decisions":
-                                        _tx_delta[_delta_key] = [{"id": r["id"], "choice": r[_key], "rationale": r["rationale"] or ""} for r in _rows if r[_key]]
-                                    else:
-                                        _tx_delta[_delta_key] = [{"id": r["id"], "unknown": r[_key]} for r in _rows if r[_key]]
-                    except Exception:
-                        pass
-
-                    # Read calibration summary
-                    _cal = {}
-                    try:
-                        import yaml as _yaml
-                        _bcf = Path.cwd() / ".breadcrumbs.yaml"
-                        if _bcf.exists():
-                            with open(_bcf) as _bf:
-                                _bcd = _yaml.safe_load(_bf) or {}
-                            _gc = _bcd.get("grounded_calibration", {})
-                            if _gc:
-                                _cal = {
-                                    "calibration_score": _gc.get("holistic_calibration_score", 0.5),
-                                    "observations": _gc.get("observations", 0),
-                                    "grounded_coverage": _gc.get("grounded_coverage", 0),
-                                }
-                    except Exception:
-                        pass
-
-                    _payload = json.dumps({
-                        "project_id": _sync_pid,
-                        "task_context": reasoning[:200] if reasoning else "",
-                        "calibration_summary": _cal,
-                        "delta": _tx_delta,
-                    }).encode("utf-8")
-
-                    _req = urllib.request.Request(
-                        f"{_cortex_url.rstrip('/')}/v1/sync",
-                        data=_payload,
-                        headers={"Authorization": f"Bearer {_cortex_key}", "Content-Type": "application/json"},
-                        method="POST",
-                    )
-                    urllib.request.urlopen(_req, timeout=5)
-                    logger.debug("Cortex sync push at POSTFLIGHT boundary")
-            except Exception:
-                pass  # Non-fatal — Cortex unavailable doesn't block POSTFLIGHT
+            # Stage 7: Cortex sync push (completely independent of result)
+            _run_postflight_cortex_sync(session_id, reasoning, resolved_project_path)
 
             # NOTE: Statusline cache was removed (2026-02-06). Statusline reads directly from DB.
 
