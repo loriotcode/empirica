@@ -1041,543 +1041,805 @@ def handle_check_command(args):
         handle_cli_error(e, "CHECK", getattr(args, 'verbose', False))
 
 
+# ---------------------------------------------------------------------------
+# CHECK-SUBMIT stage helpers (extracted from handle_check_submit_command)
+# Each function represents a sequential stage; the main handler orchestrates.
+# ---------------------------------------------------------------------------
+
+
+def _check_parse_inputs(args):
+    """Parse and resolve CHECK inputs from config/stdin/CLI flags.
+
+    Returns a dict with keys: session_id, vectors, decision, reasoning, cycle,
+    output_format.
+    """
+    config_data, output_format = _parse_workflow_input(args, "CHECK")
+
+    if config_data:
+        session_id = config_data.get('session_id') or getattr(args, 'session_id', None)
+        vectors = config_data.get('vectors')
+        decision = config_data.get('decision')
+        reasoning = config_data.get('reasoning', '')
+        config_data.get('approach', reasoning)
+    else:
+        session_id = args.session_id
+        vectors = parse_json_safely(args.vectors) if isinstance(args.vectors, str) else args.vectors
+        decision = args.decision
+        reasoning = args.reasoning
+        getattr(args, 'approach', reasoning)
+        output_format = getattr(args, 'output', 'human')
+    cycle = getattr(args, 'cycle', 1)
+
+    # Auto-resolve session_id
+    if not session_id:
+        try:
+            session_id = R.session_id()
+        except Exception:
+            pass
+
+    session_id = _resolve_and_validate_session(session_id, "CHECK")
+
+    return {
+        "session_id": session_id,
+        "vectors": vectors,
+        "decision": decision,
+        "reasoning": reasoning,
+        "cycle": cycle,
+        "output_format": output_format,
+    }
+
+
+def _check_bootstrap_gate(session_id, vectors):
+    """Ensure project context is loaded before CHECK.
+
+    Returns (bootstrap_status, bootstrap_result).
+    bootstrap_result is None when no re-bootstrap was needed.
+    """
+    import sys as _sys
+
+    bootstrap_status = _check_bootstrap_status(session_id)
+    bootstrap_result = None
+
+    # Parse vectors early to check for reground triggers
+    _vectors_for_check = vectors
+    if isinstance(_vectors_for_check, str):
+        _vectors_for_check = parse_json_safely(_vectors_for_check)
+    if isinstance(_vectors_for_check, dict) and 'vectors' in _vectors_for_check:
+        _vectors_for_check = _vectors_for_check['vectors']
+
+    context_val = _vectors_for_check.get('context', 0.7) if isinstance(_vectors_for_check, dict) else 0.7
+    uncertainty_val = _vectors_for_check.get('uncertainty', 0.3) if isinstance(_vectors_for_check, dict) else 0.3
+
+    needs_reground = False
+    reground_reason = None
+    if not bootstrap_status.get('has_bootstrap'):
+        needs_reground = True
+        reground_reason = "initial bootstrap"
+    elif context_val < 0.5:
+        needs_reground = True
+        reground_reason = f"low context ({context_val:.2f} < 0.50)"
+    elif uncertainty_val > 0.6:
+        needs_reground = True
+        reground_reason = f"high uncertainty ({uncertainty_val:.2f} > 0.60)"
+
+    if needs_reground:
+        print(f"\U0001f504 Auto-running project-bootstrap ({reground_reason})...", file=_sys.stderr)
+        bootstrap_result = _auto_bootstrap(session_id)
+
+        if bootstrap_result.get('ok'):
+            print(f"\u2705 Bootstrap complete: project_id={bootstrap_result.get('project_id')}", file=_sys.stderr)
+        else:
+            print(f"\u26a0\ufe0f  Bootstrap failed: {bootstrap_result.get('error', 'unknown')}", file=_sys.stderr)
+            print("   CHECK will proceed but vectors may be hollow.", file=_sys.stderr)
+
+    return bootstrap_status, bootstrap_result
+
+
+def _check_get_round_and_history(session_id, args):
+    """Get the next CHECK round number and previous CHECK vectors.
+
+    Returns (round_num, previous_check_vectors).
+    """
+    previous_check_vectors = []
+    try:
+        db = _get_db_for_session(session_id)
+        cursor = db.conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) FROM reflexes
+            WHERE session_id = ? AND phase = 'CHECK'
+        """, (session_id,))
+        check_count = cursor.fetchone()[0]
+        round_num = check_count + 1
+
+        if check_count > 0:
+            cursor.execute("""
+                SELECT engagement, know, do, context, clarity, coherence,
+                       signal, density, state, change, completion, impact, uncertainty
+                FROM reflexes
+                WHERE session_id = ? AND phase = 'CHECK'
+                ORDER BY timestamp DESC
+                LIMIT 3
+            """, (session_id,))
+            rows = cursor.fetchall()
+            vector_names = ['engagement', 'know', 'do', 'context', 'clarity', 'coherence',
+                           'signal', 'density', 'state', 'change', 'completion', 'impact', 'uncertainty']
+            for row in rows:
+                prev_vectors = {}
+                for i, name in enumerate(vector_names):
+                    if row[i] is not None:
+                        prev_vectors[name] = row[i]
+                if prev_vectors:
+                    previous_check_vectors.append(prev_vectors)
+        db.close()
+    except Exception:
+        round_num = getattr(args, 'round', 1)
+
+    return round_num, previous_check_vectors
+
+
+def _check_normalize_vectors(vectors):
+    """Normalize vectors into a flat dict of 13 canonical keys.
+
+    Accepts flat dict, structured dict with foundation/comprehension/execution
+    groups, wrapped {vectors: {...}}, or JSON string.
+
+    Returns the normalized flat dict.
+    Raises ValueError if vectors is not a dict after normalization.
+    """
+    if isinstance(vectors, str):
+        vectors = parse_json_safely(vectors)
+
+    if isinstance(vectors, dict) and 'vectors' in vectors and isinstance(vectors.get('vectors'), dict):
+        vectors = vectors['vectors']
+
+    if isinstance(vectors, dict) and any(k in vectors for k in ('foundation', 'comprehension', 'execution')):
+        flat = {}
+        for k in ('engagement', 'uncertainty'):
+            if k in vectors:
+                flat[k] = vectors[k]
+        flat.update(vectors.get('foundation') or {})
+        flat.update(vectors.get('comprehension') or {})
+        flat.update(vectors.get('execution') or {})
+        vectors = flat
+
+    if not isinstance(vectors, dict):
+        raise ValueError("Vectors must be a dictionary")
+
+    return vectors
+
+
+def _check_load_dynamic_thresholds(session_id):
+    """Compute dynamic readiness thresholds from Brier score calibration.
+
+    Returns (ready_know_threshold, ready_uncertainty_threshold, dynamic_thresholds_info).
+    dynamic_thresholds_info is None when only static defaults are used.
+    """
+    ready_know_threshold = 0.70
+    ready_uncertainty_threshold = 0.35
+    dynamic_thresholds_info = None
+    profile_base_thresholds = None
+
+    # Profile-aware baselines
+    try:
+        cascade_profile = None
+        tx_id = R.transaction_id()
+        if tx_id:
+            tx_data = R.transaction_read()
+            if tx_data:
+                cascade_profile = tx_data.get('cascade_profile')
+        if cascade_profile and cascade_profile != 'default':
+            from empirica.config.threshold_loader import ThresholdLoader
+            loader = ThresholdLoader.get_instance()
+            if loader.load_profile(cascade_profile):
+                profile_base_thresholds = {
+                    'ready_know_threshold': loader.get('cascade.ready_know_threshold', 0.70),
+                    'ready_uncertainty_threshold': loader.get('cascade.ready_uncertainty_threshold', 0.35),
+                }
+                logger.info(f"CHECK using cascade profile '{cascade_profile}' baselines: {profile_base_thresholds}")
+    except Exception:
+        pass
+
+    # Dynamic thresholds from calibration history
+    try:
+        from empirica.core.post_test.dynamic_thresholds import compute_dynamic_thresholds
+        dt_db = _get_db_for_session(session_id)
+        dt_result = compute_dynamic_thresholds(
+            ai_id="claude-code", db=dt_db,
+            base_thresholds=profile_base_thresholds,
+        )
+        dt_db.close()
+
+        if dt_result.get("source") == "dynamic":
+            noetic = dt_result.get("noetic", {})
+            if noetic.get("brier_score") is not None:
+                ready_know_threshold = noetic["ready_know_threshold"]
+                ready_uncertainty_threshold = noetic["ready_uncertainty_threshold"]
+                dynamic_thresholds_info = {
+                    "source": "dynamic",
+                    "know_threshold": ready_know_threshold,
+                    "uncertainty_threshold": ready_uncertainty_threshold,
+                    "brier_score": noetic["brier_score"],
+                    "brier_reliability": noetic["brier_reliability"],
+                    "brier_resolution": noetic["brier_resolution"],
+                    "threshold_inflation": noetic["threshold_inflation"],
+                    "transactions_analyzed": noetic["transactions_analyzed"],
+                }
+                logger.info(
+                    f"Dynamic thresholds: know>={ready_know_threshold:.3f}, "
+                    f"uncertainty<={ready_uncertainty_threshold:.3f} "
+                    f"(brier={noetic['brier_score']:.3f}, "
+                    f"reliability={noetic['brier_reliability']:.3f}, "
+                    f"inflation={noetic['threshold_inflation']:.3f}, "
+                    f"n={noetic['transactions_analyzed']})"
+                )
+    except Exception as e:
+        logger.debug(f"Dynamic thresholds unavailable (using static): {e}")
+
+    return ready_know_threshold, ready_uncertainty_threshold, dynamic_thresholds_info
+
+
+def _check_detect_diminishing_returns(previous_check_vectors, know, uncertainty):
+    """Analyze whether investigation is still improving across rounds.
+
+    Returns a diminishing_returns dict with detection results.
+    """
+    diminishing_returns = {
+        "detected": False,
+        "rounds_analyzed": 0,
+        "know_deltas": [],
+        "uncertainty_deltas": [],
+        "reason": None,
+        "recommend_proceed": False
+    }
+
+    if len(previous_check_vectors) < 2:
+        return diminishing_returns
+
+    # Compute deltas between consecutive rounds (newest first)
+    for i in range(len(previous_check_vectors)):
+        if i == 0:
+            prev_know = previous_check_vectors[i].get('know', 0.5)
+            prev_uncertainty = previous_check_vectors[i].get('uncertainty', 0.5)
+            delta_know = know - prev_know
+            delta_uncertainty = uncertainty - prev_uncertainty
+            diminishing_returns["know_deltas"].append(delta_know)
+            diminishing_returns["uncertainty_deltas"].append(delta_uncertainty)
+        elif i < len(previous_check_vectors):
+            curr = previous_check_vectors[i - 1]
+            prev = previous_check_vectors[i]
+            delta_know = curr.get('know', 0.5) - prev.get('know', 0.5)
+            delta_uncertainty = curr.get('uncertainty', 0.5) - prev.get('uncertainty', 0.5)
+            diminishing_returns["know_deltas"].append(delta_know)
+            diminishing_returns["uncertainty_deltas"].append(delta_uncertainty)
+
+    diminishing_returns["rounds_analyzed"] = len(previous_check_vectors) + 1
+
+    if len(diminishing_returns["know_deltas"]) >= 2:
+        recent_know_deltas = diminishing_returns["know_deltas"][:2]
+        recent_uncertainty_deltas = diminishing_returns["uncertainty_deltas"][:2]
+
+        DELTA_THRESHOLD = 0.05
+
+        know_stagnant = all(abs(d) < DELTA_THRESHOLD for d in recent_know_deltas)
+        uncertainty_stagnant = all(d >= -DELTA_THRESHOLD for d in recent_uncertainty_deltas)
+
+        if know_stagnant and uncertainty_stagnant:
+            diminishing_returns["detected"] = True
+            diminishing_returns["reason"] = f"know stagnant ({recent_know_deltas}), uncertainty not decreasing ({recent_uncertainty_deltas})"
+
+            # Per the meta-uncertainty design (2026-04-07): the gate is
+            # uncertainty-only — uncertainty IS the meta confidence summary.
+            if uncertainty <= 0.45:
+                diminishing_returns["recommend_proceed"] = True
+                diminishing_returns["reason"] += " - uncertainty acceptable, investigation plateaued"
+            else:
+                diminishing_returns["reason"] += " - uncertainty too high for proceed override"
+
+    return diminishing_returns
+
+
+def _check_gate_decision(vectors, ready_uncertainty_threshold, diminishing_returns,
+                         round_num, decision):
+    """Compute the CHECK gate decision and apply autopilot enforcement.
+
+    Gate semantic (2026-04-07): The CHECK gate uses META UNCERTAINTY ONLY.
+    Uncertainty is the unified confidence summary -- it subsumes the AI's
+    epistemic state across all 12 other vectors.
+
+    NOTE: Use RAW vectors, not bias-corrected. Biases are INFORMATIONAL.
+
+    Returns (decision, computed_decision, autopilot_mode, decision_binding).
+    """
+    import os
+
+    know = vectors.get('know', 0.5)
+    uncertainty = vectors.get('uncertainty', 0.5)
+
+    # Load grounded corrections (informational only)
+    try:
+        from empirica.core.bayesian_beliefs import load_grounded_corrections
+        _corrections = load_grounded_corrections()
+    except Exception:
+        _corrections = {}
+    know + _corrections.get('know', 0.0)
+    uncertainty + _corrections.get('uncertainty', 0.0)
+
+    # Compute gate decision
+    computed_decision = None
+    if uncertainty <= ready_uncertainty_threshold:
+        computed_decision = "proceed"
+    elif diminishing_returns["recommend_proceed"]:
+        computed_decision = "proceed"
+        logger.info(f"CHECK decision override: proceed due to diminishing returns ({diminishing_returns['reason']})")
+    elif round_num >= 5 and uncertainty <= 0.40:
+        computed_decision = "proceed"
+        logger.info(f"CHECK decision override: proceed due to max investigate rounds (round={round_num}, uncertainty={uncertainty:.2f})")
+    else:
+        computed_decision = "investigate"
+
+    # AUTOPILOT MODE
+    autopilot_mode = os.getenv('EMPIRICA_AUTOPILOT_MODE', 'false').lower() in ('true', '1', 'yes')
+    decision_binding = autopilot_mode
+
+    if not decision or (autopilot_mode and decision != computed_decision):
+        if autopilot_mode and decision and decision != computed_decision:
+            logger.info(f"AUTOPILOT override: {decision} → {computed_decision} (autopilot enforcement)")
+        decision = computed_decision
+        logger.info(f"CHECK auto-computed decision: {decision} (uncertainty={uncertainty:.2f} vs threshold={ready_uncertainty_threshold:.2f}, gate uses META uncertainty only)")
+
+    return decision, computed_decision, autopilot_mode, decision_binding
+
+
+def _check_store_and_publish(session_id, round_num, vectors, decision, reasoning,
+                             cycle):
+    """Store CHECK checkpoint (3-layer) and publish bus event.
+
+    Returns (checkpoint_id, check_transaction_id, confidence, gaps).
+    """
+    from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
+
+    logger_instance = GitEnhancedReflexLogger(
+        session_id=session_id,
+        enable_git_notes=True
+    )
+
+    uncertainty = vectors.get('uncertainty', 0.5)
+    confidence = 1.0 - uncertainty
+
+    gaps = []
+    for key, value in vectors.items():
+        if isinstance(value, (int, float)) and value < 0.5:
+            gaps.append(f"{key}: {value:.2f}")
+
+    check_transaction_id = None
+    try:
+        check_transaction_id = R.transaction_id()
+        if check_transaction_id is None:
+            logger.warning("R.transaction_id() returned None — CHECK will be stored without transaction_id. "
+                           "This may cause Sentinel to not find this CHECK. Check instance_projects/ state.")
+    except Exception as e:
+        logger.warning(f"Failed to read active transaction: {e}")
+
+    checkpoint_id = logger_instance.add_checkpoint(
+        phase="CHECK",
+        round_num=round_num,
+        vectors=vectors,
+        metadata={
+            "decision": decision,
+            "reasoning": reasoning,
+            "confidence": confidence,
+            "gaps": gaps,
+            "cycle": cycle,
+            "round": round_num,
+            "transaction_id": check_transaction_id
+        }
+    )
+
+    # EPISTEMIC BUS: Publish CHECK_COMPLETE event
+    try:
+        from empirica.core.bus_persistence import wire_persistent_observers
+        from empirica.core.epistemic_bus import (
+            EpistemicEvent,
+            EventTypes,
+            get_global_bus,
+        )
+        wire_persistent_observers(session_id=session_id)
+        bus = get_global_bus()
+        bus.publish(EpistemicEvent(
+            event_type=EventTypes.CHECK_COMPLETE,
+            agent_id="claude-code",
+            session_id=session_id,
+            data={
+                "transaction_id": check_transaction_id,
+                "vectors": vectors,
+                "decision": decision,
+                "round": round_num,
+                "confidence": confidence,
+            },
+        ))
+    except Exception as e:
+        logger.debug(f"Bus publish (CHECK) failed (non-fatal): {e}")
+
+    return checkpoint_id, check_transaction_id, confidence, gaps
+
+
+def _check_apply_sentinel(session_id, decision, decision_binding, vectors, reasoning,
+                          confidence, gaps, cycle, round_num, checkpoint_id,
+                          check_transaction_id):
+    """Invoke Sentinel hook and apply override if warranted.
+
+    Returns (decision, sentinel_decision, sentinel_override).
+    """
+    sentinel_override = False
+    sentinel_decision = _invoke_sentinel_hook("CHECK", session_id, {
+        "vectors": vectors,
+        "decision": decision,
+        "reasoning": reasoning,
+        "confidence": confidence,
+        "gaps": gaps,
+        "cycle": cycle,
+        "round": round_num,
+        "checkpoint_id": checkpoint_id
+    })
+
+    if sentinel_decision and not decision_binding:
+        sentinel_map = {
+            SentinelDecision.PROCEED: "proceed",
+            SentinelDecision.INVESTIGATE: "investigate",
+            SentinelDecision.BRANCH: "investigate",
+            SentinelDecision.HALT: "investigate",
+            SentinelDecision.REVISE: "investigate",
+        }
+        if sentinel_decision in sentinel_map:
+            new_decision = sentinel_map[sentinel_decision]
+            if new_decision != decision:
+                logger.info(f"Sentinel override: {decision} → {new_decision} (sentinel={sentinel_decision.value})")
+                decision = new_decision
+                sentinel_override = True
+
+                # UPDATE DB: Sync the overridden decision to the stored reflex
+                try:
+                    db2 = _get_db_for_session(session_id)
+                    db2.conn.execute("""
+                        UPDATE reflexes SET reflex_data = json_set(reflex_data, '$.decision', ?)
+                        WHERE id = (
+                            SELECT id FROM reflexes
+                            WHERE session_id = ? AND phase = 'CHECK'
+                            AND transaction_id = ?
+                            ORDER BY timestamp DESC LIMIT 1
+                        )
+                    """, (new_decision, session_id, check_transaction_id))
+                    db2.conn.commit()
+                    db2.close()
+                    logger.info(f"DB synced: CHECK decision updated to '{new_decision}'")
+                except Exception as e:
+                    logger.warning(f"Failed to sync sentinel override to DB: {e}")
+    elif sentinel_decision and decision_binding:
+        logger.info(f"Autopilot binding active - Sentinel override blocked (sentinel wanted: {sentinel_decision.value})")
+
+    return decision, sentinel_decision, sentinel_override
+
+
+def _check_auto_checkpoint(session_id, vectors, decision, gaps, cycle, round_num):
+    """Create git checkpoint if uncertainty > 0.5 (risky decision).
+
+    Non-fatal — failures are logged and swallowed.
+    """
+    import json
+    import subprocess
+
+    uncertainty = vectors.get('uncertainty', 0.5)
+    if uncertainty > 0.5:
+        try:
+            subprocess.run(
+                [
+                    "empirica", "checkpoint-create",
+                    "--session-id", session_id,
+                    "--phase", "CHECK",
+                    "--round", str(round_num),
+                    "--metadata", json.dumps({
+                        "auto_checkpoint": True,
+                        "reason": "risky_decision",
+                        "uncertainty": uncertainty,
+                        "decision": decision,
+                        "gaps": gaps,
+                        "cycle": cycle,
+                        "round": round_num
+                    })
+                ],
+                capture_output=True,
+                timeout=10
+            )
+        except Exception as e:
+            logger.warning(f"Auto-checkpoint after CHECK (uncertainty > 0.5) failed (non-fatal): {e}")
+
+
+def _check_create_snapshot(session_id, vectors, decision, reasoning, round_num,
+                           checkpoint_id):
+    """Capture CHECK phase vectors as an epistemic snapshot for calibration.
+
+    Returns snapshot_id or None on failure.
+    """
+    try:
+        from empirica.data.epistemic_snapshot import ContextSummary
+        from empirica.data.snapshot_provider import EpistemicSnapshotProvider
+
+        uncertainty = vectors.get('uncertainty', 0.5)
+        db = _get_db_for_session(session_id)
+        snapshot_provider = EpistemicSnapshotProvider()
+
+        check_confidence = 1.0 - uncertainty
+        context_summary = ContextSummary(
+            semantic={"phase": "CHECK", "decision": decision, "confidence": check_confidence},
+            narrative=reasoning or f"CHECK round {round_num}: {decision}",
+            evidence_refs=[checkpoint_id] if checkpoint_id else []
+        )
+
+        snapshot = snapshot_provider.create_snapshot_from_session(
+            session_id=session_id,
+            context_summary=context_summary,
+            cascade_phase="CHECK",
+            domain_vectors={"round": round_num, "decision": decision} if round_num else None
+        )
+
+        snapshot.vectors = vectors
+        snapshot_provider.save_snapshot(snapshot)
+        snapshot_id = snapshot.snapshot_id
+
+        logger.debug(f"Created CHECK epistemic snapshot {snapshot_id} for session {session_id}")
+        db.close()
+        return snapshot_id
+    except Exception as e:
+        logger.debug(f"CHECK epistemic snapshot creation skipped: {e}")
+        return None
+
+
+def _check_run_blindspot_scan(result, decision, session_id, bootstrap_result,
+                              bootstrap_status):
+    """Run negative-space inference on knowledge topology.
+
+    Modifies result in-place. Returns updated decision.
+    """
+    try:
+        from empirica_prediction.blindspots.predictor import BlindspotPredictor
+        project_id = (bootstrap_result or {}).get('project_id') or bootstrap_status.get('project_id')
+        if project_id:
+            bs_predictor = BlindspotPredictor(project_id=project_id)
+            bs_report = bs_predictor.predict(
+                session_id=session_id,
+                max_predictions=5,
+                min_confidence=0.5,
+            )
+            bs_predictor.close()
+
+            if bs_report.predictions:
+                result["blindspots"] = {
+                    "count": len(bs_report.predictions),
+                    "critical_count": bs_report.critical_count,
+                    "high_count": bs_report.high_count,
+                    "uncertainty_adjustment": bs_report.uncertainty_adjustment,
+                    "missing_layers": bs_report.missing_layers,
+                    "predictions": [
+                        {
+                            "severity": p.severity,
+                            "description": p.description,
+                            "suggested_action": p.suggested_action,
+                            "confidence": p.confidence,
+                        }
+                        for p in bs_report.predictions[:5]
+                    ],
+                }
+
+                if bs_report.critical_count > 0 and decision == "proceed":
+                    result["blindspots"]["override"] = {
+                        "original_decision": decision,
+                        "new_decision": "investigate",
+                        "reason": f"{bs_report.critical_count} critical blindspot(s) detected"
+                    }
+                    decision = "investigate"
+                    result["decision"] = decision
+
+                logger.info(f"Blindspot scan: {len(bs_report.predictions)} predictions, "
+                            f"uncertainty_adj={bs_report.uncertainty_adjustment}")
+    except ImportError:
+        pass  # empirica-prediction not installed
+    except Exception as e:
+        logger.debug(f"Blindspot scan skipped: {e}")
+
+    return decision
+
+
+def _check_enrich_context(result, bootstrap_result, bootstrap_status, vectors,
+                          reasoning):
+    """Enrich result with pattern retrieval and codebase model context.
+
+    Modifies result in-place.
+    """
+    # NOETIC RAG: CHECK pattern retrieval
+    try:
+        check_project_id = (bootstrap_result or {}).get('project_id') or bootstrap_status.get('project_id')
+        if check_project_id:
+            from empirica.core.qdrant.pattern_retrieval import check_against_patterns
+            check_patterns = check_against_patterns(
+                check_project_id,
+                reasoning or "",
+                vectors=vectors,
+                include_findings=True,
+                include_eidetic=True,
+                include_goals=True,
+                include_assumptions=True,
+            )
+            if check_patterns and check_patterns.get("has_warnings"):
+                result["patterns"] = check_patterns
+    except Exception as e:
+        logger.debug(f"CHECK pattern retrieval failed (optional): {e}")
+
+    # CODEBASE MODEL: Entity graph context injection
+    try:
+        check_project_id = (bootstrap_result or {}).get('project_id') or bootstrap_status.get('project_id')
+        if check_project_id:
+            from empirica.config.path_resolver import get_session_db_path
+            from empirica.data.session_database import SessionDatabase
+            codebase_db_path = get_session_db_path()
+            if codebase_db_path:
+                codebase_db = SessionDatabase(codebase_db_path)
+                try:
+                    entity_count = codebase_db.codebase_model.count_entities(
+                        check_project_id, active_only=True
+                    )
+                    if entity_count > 0:
+                        constraints = codebase_db.codebase_model.get_constraints(
+                            project_id=check_project_id
+                        )
+                        result["codebase_context"] = {
+                            "active_entities": entity_count,
+                            "constraints": [
+                                {
+                                    "rule": c['rule_name'],
+                                    "type": c['constraint_type'],
+                                    "violations": c['violation_count'],
+                                    "description": c['description'],
+                                }
+                                for c in constraints[:5]
+                            ] if constraints else [],
+                        }
+                finally:
+                    codebase_db.close()
+    except Exception as e:
+        logger.debug(f"Codebase context injection skipped: {e}")
+
+
+def _check_build_praxic_reminders(session_id, check_transaction_id):
+    """Build proceed advisory reminders including calibration nudge.
+
+    Returns reminders dict.
+    """
+    reminders = {
+        "commit": "Commit before POSTFLIGHT — uncommitted edits are invisible to grounded calibration (change/state/do will ground near-zero).",
+        "artifacts": "Log the full breadth: assumption-log (beliefs), decision-log (choices), deadend-log (failures), mistake-log (errors) — not just findings.",
+        "completion": "Rate completion for THIS TRANSACTION only, not the overall plan. If the transaction's objective is met, completion = 1.0 regardless of remaining transactions.",
+    }
+
+    try:
+        current_tx = check_transaction_id
+        if current_tx:
+            retro = _build_retrospective(session_id, current_tx)
+            counts = retro.get("artifact_counts", {})
+            total_artifacts = sum(counts.values())
+
+            if total_artifacts == 0:
+                reminders["calibration_nudge"] = (
+                    "\u26a0 Current transaction has 0 epistemic artifacts logged. "
+                    "Your grounded calibration score depends on artifact breadth — "
+                    "zero artifacts means grounded verification has nothing to check "
+                    "your self-assessment against, which inflates perceived competence "
+                    "and leaves calibration gaps uncorrected. Log at least one finding "
+                    "before POSTFLIGHT: empirica finding-log --finding \"...\" --impact 0.5"
+                )
+            elif total_artifacts < 3 and len([k for k, v in counts.items() if v > 0]) == 1:
+                types_used = [k for k, v in counts.items() if v > 0]
+                reminders["calibration_nudge"] = (
+                    f"\u26a0 Only {total_artifacts} {types_used[0]} logged in this transaction. "
+                    "Breadth matters: assumptions, decisions, and dead-ends each ground "
+                    "different aspects of calibration. Consider what you're assuming "
+                    "(assumption-log), what you've chosen (decision-log), and what "
+                    "didn't work (deadend-log)."
+                )
+    except Exception as e:
+        logger.debug(f"Calibration nudge computation failed (non-fatal): {e}")
+
+    return reminders
+
+
+def _check_format_output(output_format, result, session_id, decision, cycle,
+                         vectors, reasoning):
+    """Format and print CHECK output in JSON or human-readable format."""
+    import json
+
+    if output_format == 'json':
+        print(json.dumps(result, indent=2))
+    else:
+        print("\u2705 CHECK assessment submitted successfully")
+        print(f"   Session: {session_id[:8]}...")
+        print(f"   Decision: {decision.upper()}")
+        print(f"   Cycle: {cycle}")
+        print(f"   Vectors: {len(vectors)} submitted")
+        print("   Storage: SQLite + Git Notes + JSON")
+        if reasoning:
+            print(f"   Reasoning: {reasoning[:80]}...")
 
 
 def handle_check_submit_command(args):
-    """Handle check-submit command"""
+    """Handle check-submit command.
+
+    Orchestrates sequential stages: parse inputs, bootstrap gate, round history,
+    vector normalization, dynamic thresholds, diminishing returns detection,
+    gate decision, checkpoint storage, sentinel override, snapshot, enrichment,
+    and output formatting.
+    """
     try:
-        import json
-        import os
+        # Stage 1: Parse and resolve inputs
+        inputs = _check_parse_inputs(args)
+        session_id = inputs["session_id"]
+        vectors = inputs["vectors"]
+        decision = inputs["decision"]
+        reasoning = inputs["reasoning"]
+        cycle = inputs["cycle"]
+        output_format = inputs["output_format"]
 
-        from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
+        # Stage 2: Bootstrap gate — ensure project context is loaded
+        bootstrap_status, bootstrap_result = _check_bootstrap_gate(session_id, vectors)
 
-        # Parse input (shared helper)
-        config_data, output_format = _parse_workflow_input(args, "CHECK")
+        # Stage 3: Get round number and previous CHECK vectors
+        round_num, previous_check_vectors = _check_get_round_and_history(session_id, args)
 
-        if config_data:
-            session_id = config_data.get('session_id') or getattr(args, 'session_id', None)
-            vectors = config_data.get('vectors')
-            decision = config_data.get('decision')
-            reasoning = config_data.get('reasoning', '')
-            config_data.get('approach', reasoning)
-        else:
-            session_id = args.session_id
-            vectors = parse_json_safely(args.vectors) if isinstance(args.vectors, str) else args.vectors
-            decision = args.decision
-            reasoning = args.reasoning
-            getattr(args, 'approach', reasoning)
-            output_format = getattr(args, 'output', 'human')
-        cycle = getattr(args, 'cycle', 1)
+        # Stage 4: Normalize vectors to flat canonical dict
+        vectors = _check_normalize_vectors(vectors)
 
-        # Auto-resolve session_id (shared helper handles config-mode auto-derive)
-        if not session_id:
-            try:
-                session_id = R.session_id()
-            except Exception:
-                pass
+        # Stage 5: Compute dynamic readiness thresholds
+        _ready_know_threshold, ready_uncertainty_threshold, dynamic_thresholds_info = (
+            _check_load_dynamic_thresholds(session_id)
+        )
 
-        session_id = _resolve_and_validate_session(session_id, "CHECK")
-
-        # BOOTSTRAP GATE: Ensure project context is loaded before CHECK
-        # Without bootstrap, CHECK vectors are hollow (same bug as PREFLIGHT-before-bootstrap)
-        bootstrap_status = _check_bootstrap_status(session_id)
-        bootstrap_result = None
-        reground_reason = None
-
-        # Parse vectors early to check for reground triggers
-        _vectors_for_check = vectors
-        if isinstance(_vectors_for_check, str):
-            _vectors_for_check = parse_json_safely(_vectors_for_check)
-        if isinstance(_vectors_for_check, dict) and 'vectors' in _vectors_for_check:
-            _vectors_for_check = _vectors_for_check['vectors']
-
-        # VECTOR-BASED REGROUND: Re-bootstrap if vectors indicate drift/uncertainty
-        # This ensures long-running sessions stay grounded
-        context_val = _vectors_for_check.get('context', 0.7) if isinstance(_vectors_for_check, dict) else 0.7
-        uncertainty_val = _vectors_for_check.get('uncertainty', 0.3) if isinstance(_vectors_for_check, dict) else 0.3
-
-        needs_reground = False
-        if not bootstrap_status.get('has_bootstrap'):
-            needs_reground = True
-            reground_reason = "initial bootstrap"
-        elif context_val < 0.5:
-            needs_reground = True
-            reground_reason = f"low context ({context_val:.2f} < 0.50)"
-        elif uncertainty_val > 0.6:
-            needs_reground = True
-            reground_reason = f"high uncertainty ({uncertainty_val:.2f} > 0.60)"
-
-        if needs_reground:
-            # Auto-run bootstrap to ensure CHECK has context
-            import sys as _sys
-            print(f"🔄 Auto-running project-bootstrap ({reground_reason})...", file=_sys.stderr)
-            bootstrap_result = _auto_bootstrap(session_id)
-
-            if bootstrap_result.get('ok'):
-                print(f"✅ Bootstrap complete: project_id={bootstrap_result.get('project_id')}", file=_sys.stderr)
-            else:
-                # Bootstrap failed - warn but don't block (graceful degradation)
-                print(f"⚠️  Bootstrap failed: {bootstrap_result.get('error', 'unknown')}", file=_sys.stderr)
-                print("   CHECK will proceed but vectors may be hollow.", file=_sys.stderr)
-
-        # AUTO-INCREMENT ROUND: Get next round from CHECK history
-        # Also retrieve previous CHECK vectors for diminishing returns detection
-        previous_check_vectors = []
-        try:
-            db = _get_db_for_session(session_id)
-            cursor = db.conn.cursor()
-            cursor.execute("""
-                SELECT COUNT(*) FROM reflexes
-                WHERE session_id = ? AND phase = 'CHECK'
-            """, (session_id,))
-            check_count = cursor.fetchone()[0]
-            round_num = check_count + 1  # Next round
-
-            # DIMINISHING RETURNS: Get last 3 CHECK vectors for delta analysis
-            # Note: reflexes table stores vectors as individual columns, not JSON
-            if check_count > 0:
-                cursor.execute("""
-                    SELECT engagement, know, do, context, clarity, coherence,
-                           signal, density, state, change, completion, impact, uncertainty
-                    FROM reflexes
-                    WHERE session_id = ? AND phase = 'CHECK'
-                    ORDER BY timestamp DESC
-                    LIMIT 3
-                """, (session_id,))
-                rows = cursor.fetchall()
-                vector_names = ['engagement', 'know', 'do', 'context', 'clarity', 'coherence',
-                               'signal', 'density', 'state', 'change', 'completion', 'impact', 'uncertainty']
-                for row in rows:
-                    prev_vectors = {}
-                    for i, name in enumerate(vector_names):
-                        if row[i] is not None:
-                            prev_vectors[name] = row[i]
-                    if prev_vectors:  # Only add if we got any vectors
-                        previous_check_vectors.append(prev_vectors)
-            db.close()
-        except Exception:
-            round_num = getattr(args, 'round', 1)  # Fallback to arg or 1
-
-        # Normalize vectors into a flat dict of 13 canonical keys.
-        # Accepts:
-        # - flat dict: {engagement, know, do, ... uncertainty}
-        # - structured dict: {engagement, foundation:{know,do,context}, comprehension:{clarity,...}, execution:{state,...}, uncertainty}
-        # - wrapped dict: {vectors: {...}}
-        # - JSON string (AI-first inputs)
-        if isinstance(vectors, str):
-            vectors = parse_json_safely(vectors)
-
-        if isinstance(vectors, dict) and 'vectors' in vectors and isinstance(vectors.get('vectors'), dict):
-            vectors = vectors['vectors']
-
-        if isinstance(vectors, dict) and any(k in vectors for k in ('foundation', 'comprehension', 'execution')):
-            flat = {}
-            # keep engagement/uncertainty if present
-            for k in ('engagement', 'uncertainty'):
-                if k in vectors:
-                    flat[k] = vectors[k]
-            # flatten groups
-            flat.update(vectors.get('foundation') or {})
-            flat.update(vectors.get('comprehension') or {})
-            flat.update(vectors.get('execution') or {})
-            vectors = flat
-
-        # Validate inputs
-        if not isinstance(vectors, dict):
-            raise ValueError("Vectors must be a dictionary")
-
-        # AUTO-COMPUTE DECISION from vectors if not provided
-        # Readiness gate: know >= threshold AND uncertainty <= threshold
-        # Thresholds are dynamic (earned autonomy from calibration history) with static fallback
+        # Stage 6: Detect diminishing returns across rounds
         know = vectors.get('know', 0.5)
         uncertainty = vectors.get('uncertainty', 0.5)
-        try:
-            from empirica.core.bayesian_beliefs import load_grounded_corrections
-            _corrections = load_grounded_corrections()
-        except Exception:
-            _corrections = {}
-        know + _corrections.get('know', 0.0)
-        uncertainty + _corrections.get('uncertainty', 0.0)
+        diminishing_returns = _check_detect_diminishing_returns(
+            previous_check_vectors, know, uncertainty
+        )
 
-        # Dynamic thresholds from Brier score calibration
-        # Miscalibration RAISES thresholds (compensates for unreliable self-assessment)
-        # Good calibration keeps thresholds at domain baseline (numbers are trusted)
-        # Profile-aware: if the transaction has a cascade_profile, use its baselines
-        ready_know_threshold = 0.70  # Static default
-        ready_uncertainty_threshold = 0.35  # Static default
-        dynamic_thresholds_info = None
-        profile_base_thresholds = None
+        # Stage 7: Compute gate decision (proceed/investigate) + autopilot
+        decision, computed_decision, _autopilot_mode, decision_binding = (
+            _check_gate_decision(vectors, ready_uncertainty_threshold,
+                                diminishing_returns, round_num, decision)
+        )
+
+        # Stage 8: Store checkpoint + publish bus event (inner try for storage errors)
         try:
-            cascade_profile = None
-            tx_id = R.transaction_id()
-            if tx_id:
-                tx_data = R.transaction_read()
-                if tx_data:
-                    cascade_profile = tx_data.get('cascade_profile')
-            if cascade_profile and cascade_profile != 'default':
-                from empirica.config.threshold_loader import ThresholdLoader
-                loader = ThresholdLoader.get_instance()
-                if loader.load_profile(cascade_profile):
-                    profile_base_thresholds = {
-                        'ready_know_threshold': loader.get('cascade.ready_know_threshold', 0.70),
-                        'ready_uncertainty_threshold': loader.get('cascade.ready_uncertainty_threshold', 0.35),
-                    }
-                    logger.info(f"CHECK using cascade profile '{cascade_profile}' baselines: {profile_base_thresholds}")
-        except Exception:
-            pass
-        try:
-            from empirica.core.post_test.dynamic_thresholds import compute_dynamic_thresholds
-            dt_db = _get_db_for_session(session_id)
-            dt_result = compute_dynamic_thresholds(
-                ai_id="claude-code", db=dt_db,
-                base_thresholds=profile_base_thresholds,
+            checkpoint_id, check_transaction_id, confidence, gaps = (
+                _check_store_and_publish(session_id, round_num, vectors, decision,
+                                        reasoning, cycle)
             )
-            dt_db.close()
-
-            if dt_result.get("source") == "dynamic":
-                # Use noetic thresholds for CHECK gate (investigation → action boundary)
-                noetic = dt_result.get("noetic", {})
-                if noetic.get("brier_score") is not None:
-                    ready_know_threshold = noetic["ready_know_threshold"]
-                    ready_uncertainty_threshold = noetic["ready_uncertainty_threshold"]
-                    dynamic_thresholds_info = {
-                        "source": "dynamic",
-                        "know_threshold": ready_know_threshold,
-                        "uncertainty_threshold": ready_uncertainty_threshold,
-                        "brier_score": noetic["brier_score"],
-                        "brier_reliability": noetic["brier_reliability"],
-                        "brier_resolution": noetic["brier_resolution"],
-                        "threshold_inflation": noetic["threshold_inflation"],
-                        "transactions_analyzed": noetic["transactions_analyzed"],
-                    }
-                    logger.info(
-                        f"Dynamic thresholds: know>={ready_know_threshold:.3f}, "
-                        f"uncertainty<={ready_uncertainty_threshold:.3f} "
-                        f"(brier={noetic['brier_score']:.3f}, "
-                        f"reliability={noetic['brier_reliability']:.3f}, "
-                        f"inflation={noetic['threshold_inflation']:.3f}, "
-                        f"n={noetic['transactions_analyzed']})"
-                    )
-        except Exception as e:
-            logger.debug(f"Dynamic thresholds unavailable (using static): {e}")
-
-        # DIMINISHING RETURNS DETECTION: Analyze if investigation is still improving
-        # Key insight: Speed and correctness are ALIGNED when calibration is good.
-        # If investigation stops improving know/reducing uncertainty, proceeding IS correct.
-        diminishing_returns = {
-            "detected": False,
-            "rounds_analyzed": 0,
-            "know_deltas": [],
-            "uncertainty_deltas": [],
-            "reason": None,
-            "recommend_proceed": False
-        }
-
-        if len(previous_check_vectors) >= 2:
-            # Compute deltas between consecutive rounds (newest first)
-            # previous_check_vectors[0] = last round, [1] = round before that, etc.
-            for i in range(len(previous_check_vectors)):
-                if i == 0:
-                    # Current vs last round
-                    prev_know = previous_check_vectors[i].get('know', 0.5)
-                    prev_uncertainty = previous_check_vectors[i].get('uncertainty', 0.5)
-                    delta_know = know - prev_know
-                    delta_uncertainty = uncertainty - prev_uncertainty  # Negative is good
-                    diminishing_returns["know_deltas"].append(delta_know)
-                    diminishing_returns["uncertainty_deltas"].append(delta_uncertainty)
-                elif i < len(previous_check_vectors):
-                    # Between previous rounds
-                    curr = previous_check_vectors[i - 1]
-                    prev = previous_check_vectors[i]
-                    delta_know = curr.get('know', 0.5) - prev.get('know', 0.5)
-                    delta_uncertainty = curr.get('uncertainty', 0.5) - prev.get('uncertainty', 0.5)
-                    diminishing_returns["know_deltas"].append(delta_know)
-                    diminishing_returns["uncertainty_deltas"].append(delta_uncertainty)
-
-            diminishing_returns["rounds_analyzed"] = len(previous_check_vectors) + 1
-
-            # Detect diminishing returns: if last 2 rounds show minimal improvement
-            if len(diminishing_returns["know_deltas"]) >= 2:
-                recent_know_deltas = diminishing_returns["know_deltas"][:2]
-                recent_uncertainty_deltas = diminishing_returns["uncertainty_deltas"][:2]
-
-                # Minimal improvement threshold
-                DELTA_THRESHOLD = 0.05  # Less than 5% improvement per round
-
-                know_stagnant = all(abs(d) < DELTA_THRESHOLD for d in recent_know_deltas)
-                uncertainty_stagnant = all(d >= -DELTA_THRESHOLD for d in recent_uncertainty_deltas)  # Not decreasing
-
-                if know_stagnant and uncertainty_stagnant:
-                    diminishing_returns["detected"] = True
-                    diminishing_returns["reason"] = f"know stagnant ({recent_know_deltas}), uncertainty not decreasing ({recent_uncertainty_deltas})"
-
-                    # Recommend proceed if baseline is reasonable (know >= 0.60, uncertainty <= 0.45)
-                    # Relaxed uncertainty threshold because investigation has plateaued.
-                    # Per the meta-uncertainty design (2026-04-07): the gate is
-                    # uncertainty-only — uncertainty IS the meta confidence summary.
-                    if uncertainty <= 0.45:
-                        diminishing_returns["recommend_proceed"] = True
-                        diminishing_returns["reason"] += " - uncertainty acceptable, investigation plateaued"
-                    else:
-                        diminishing_returns["reason"] += " - uncertainty too high for proceed override"
-
-        # Compute decision with diminishing returns factored in.
-        #
-        # Gate semantic (2026-04-07): The CHECK gate uses META UNCERTAINTY ONLY.
-        # Uncertainty is the unified confidence summary — it subsumes the AI's
-        # epistemic state across all 12 other vectors. Adding 'know' as a second
-        # condition makes the gate gameable (inflate know to bypass) and
-        # contradicts the meta-uncertainty design intent: uncertainty IS the
-        # meta confidence, not an independent measurement.
-        #
-        # Gaming resistance: an AI that inflates other vectors but reports low
-        # uncertainty will pass the gate, but the POSTFLIGHT meta-uncertainty
-        # derivation (mapper.py:_compute_meta_uncertainty) compares the
-        # self-reported uncertainty to a value computed from gap magnitudes
-        # of the OTHER grounded vectors. Inflation produces large gaps which
-        # produce high meta-uncertainty which produces a large divergence
-        # which surfaces in calibration_trajectory and overestimate_tendency.
-        # Honest measurement is recovered post-hoc.
-        #
-        # NOTE: Use RAW vectors, not bias-corrected. Biases are INFORMATIONAL.
-        computed_decision = None
-        if uncertainty <= ready_uncertainty_threshold:
-            computed_decision = "proceed"
-        elif diminishing_returns["recommend_proceed"]:
-            # Override: investigation plateaued with acceptable uncertainty
-            computed_decision = "proceed"
-            logger.info(f"CHECK decision override: proceed due to diminishing returns ({diminishing_returns['reason']})")
-        elif round_num >= 5 and uncertainty <= 0.40:
-            # Hard cap: 5+ rounds with acceptable uncertainty → proceed
-            # Prevents cold-start death spiral where threshold inflation blocks
-            # CHECK indefinitely despite honest, adequate investigation
-            computed_decision = "proceed"
-            logger.info(f"CHECK decision override: proceed due to max investigate rounds (round={round_num}, uncertainty={uncertainty:.2f})")
-        else:
-            computed_decision = "investigate"
-
-        # AUTOPILOT MODE: Check if decisions should be binding (enforced)
-        # When enabled, CHECK decisions are requirements, not suggestions
-        # Controlled by EMPIRICA_AUTOPILOT_MODE env var (default: false)
-        autopilot_mode = os.getenv('EMPIRICA_AUTOPILOT_MODE', 'false').lower() in ('true', '1', 'yes')
-        decision_binding = autopilot_mode  # Binding when autopilot is enabled
-
-        # Use computed decision if none provided OR if autopilot is enforcing
-        if not decision or (autopilot_mode and decision != computed_decision):
-            if autopilot_mode and decision and decision != computed_decision:
-                logger.info(f"AUTOPILOT override: {decision} → {computed_decision} (autopilot enforcement)")
-            decision = computed_decision
-            logger.info(f"CHECK auto-computed decision: {decision} (uncertainty={uncertainty:.2f} vs threshold={ready_uncertainty_threshold:.2f}, gate uses META uncertainty only)")
-
-        # Use GitEnhancedReflexLogger for proper 3-layer storage (SQLite + Git Notes + JSON)
-        try:
-            logger_instance = GitEnhancedReflexLogger(
-                session_id=session_id,
-                enable_git_notes=True  # Enable git notes for cross-AI features
-            )
-
-            # Calculate confidence from uncertainty (inverse relationship)
-            uncertainty = vectors.get('uncertainty', 0.5)
-            confidence = 1.0 - uncertainty
-
-            # Extract gaps (areas with low scores)
-            gaps = []
-            for key, value in vectors.items():
-                if isinstance(value, (int, float)) and value < 0.5:
-                    gaps.append(f"{key}: {value:.2f}")
-
-            # Read active transaction_id (generated by PREFLIGHT)
-            check_transaction_id2 = None
-            try:
-                check_transaction_id2 = R.transaction_id()
-                if check_transaction_id2 is None:
-                    logger.warning("R.transaction_id() returned None — CHECK will be stored without transaction_id. "
-                                   "This may cause Sentinel to not find this CHECK. Check instance_projects/ state.")
-            except Exception as e:
-                logger.warning(f"Failed to read active transaction: {e}")
-
-            # Add checkpoint - this writes to ALL 3 storage layers
-            checkpoint_id = logger_instance.add_checkpoint(
-                phase="CHECK",
-                round_num=round_num,
-                vectors=vectors,
-                metadata={
-                    "decision": decision,
-                    "reasoning": reasoning,
-                    "confidence": confidence,
-                    "gaps": gaps,
-                    "cycle": cycle,
-                    "round": round_num,
-                    "transaction_id": check_transaction_id2
-                }
-            )
-
-            # EPISTEMIC BUS: Publish CHECK_COMPLETE event
-            try:
-                from empirica.core.bus_persistence import wire_persistent_observers
-                from empirica.core.epistemic_bus import (
-                    EpistemicEvent,
-                    EventTypes,
-                    get_global_bus,
-                )
-                wire_persistent_observers(session_id=session_id)
-                bus = get_global_bus()
-                bus.publish(EpistemicEvent(
-                    event_type=EventTypes.CHECK_COMPLETE,
-                    agent_id="claude-code",
-                    session_id=session_id,
-                    data={
-                        "transaction_id": check_transaction_id2,
-                        "vectors": vectors,
-                        "decision": decision,
-                        "round": round_num,
-                        "confidence": confidence,
-                    },
-                ))
-            except Exception as e:
-                logger.debug(f"Bus publish (CHECK) failed (non-fatal): {e}")
 
             # NOTE: Bayesian belief updates during CHECK were REMOVED (2026-01-21)
-            # Reason: CHECK-phase updates polluted calibration data by recording mid-session
-            # observations without proper PREFLIGHT→POSTFLIGHT baseline comparison.
-            # Calibration now uses vector_trajectories table which captures clean start/end vectors.
-            # POSTFLIGHT still does proper belief updates with PREFLIGHT comparison (see postflight_submit).
+            # Calibration now uses vector_trajectories table.
 
-            # Wire CHECK phase hooks (TIER 3 Priority 3)
-            # Capture fresh epistemic state before and after CHECK
-            try:
-                import subprocess
+            # Stage 9: Sentinel hook + override
+            decision, sentinel_decision, sentinel_override = _check_apply_sentinel(
+                session_id, decision, decision_binding, vectors, reasoning,
+                confidence, gaps, cycle, round_num, checkpoint_id,
+                check_transaction_id
+            )
 
-                # Pre-CHECK hook: Capture state BEFORE checkpoint storage
-                # (Note: In real flow, pre_check would run BEFORE check-submit)
-                # For now, document that this should be called by orchestration layer
+            # Stage 10: Auto-checkpoint for risky decisions
+            _check_auto_checkpoint(session_id, vectors, decision, gaps, cycle,
+                                   round_num)
 
-                # Post-CHECK drift detection removed in v1.6.6 — superseded by
-                # grounded calibration pipeline (postflight → post-test → bayesian updates)
-            except Exception as e:
-                # Hook failures are non-critical
-                logger.warning(f"CHECK phase hooks error: {e}")
+            # Stage 11: Epistemic snapshot
+            _check_create_snapshot(session_id, vectors, decision, reasoning,
+                                  round_num, checkpoint_id)
 
-            # SENTINEL HOOK: Evaluate checkpoint for routing decisions
-            sentinel_override = False
-            sentinel_decision = _invoke_sentinel_hook("CHECK", session_id, {
-                "vectors": vectors,
-                "decision": decision,
-                "reasoning": reasoning,
-                "confidence": confidence,
-                "gaps": gaps,
-                "cycle": cycle,
-                "round": round_num,
-                "checkpoint_id": checkpoint_id
-            })
-
-            # SENTINEL OVERRIDE: Feed Sentinel decision back to override AI decision
-            # NOTE: When autopilot is binding, autopilot takes precedence over Sentinel
-            if sentinel_decision and not decision_binding:
-                sentinel_map = {
-                    SentinelDecision.PROCEED: "proceed",
-                    SentinelDecision.INVESTIGATE: "investigate",
-                    SentinelDecision.BRANCH: "investigate",
-                    SentinelDecision.HALT: "investigate",
-                    SentinelDecision.REVISE: "investigate",
-                }
-                if sentinel_decision in sentinel_map:
-                    new_decision = sentinel_map[sentinel_decision]
-                    if new_decision != decision:
-                        logger.info(f"Sentinel override: {decision} → {new_decision} (sentinel={sentinel_decision.value})")
-                        decision = new_decision
-                        sentinel_override = True
-
-                        # UPDATE DB: Sync the overridden decision to the stored reflex
-                        try:
-                            db2 = _get_db_for_session(session_id)
-                            db2.conn.execute("""
-                                UPDATE reflexes SET reflex_data = json_set(reflex_data, '$.decision', ?)
-                                WHERE id = (
-                                    SELECT id FROM reflexes
-                                    WHERE session_id = ? AND phase = 'CHECK'
-                                    AND transaction_id = ?
-                                    ORDER BY timestamp DESC LIMIT 1
-                                )
-                            """, (new_decision, session_id, check_transaction_id2))
-                            db2.conn.commit()
-                            db2.close()
-                            logger.info(f"DB synced: CHECK decision updated to '{new_decision}'")
-                        except Exception as e:
-                            logger.warning(f"Failed to sync sentinel override to DB: {e}")
-            elif sentinel_decision and decision_binding:
-                logger.info(f"Autopilot binding active - Sentinel override blocked (sentinel wanted: {sentinel_decision.value})")
-
-            # AUTO-CHECKPOINT: Create git checkpoint if uncertainty > 0.5 (risky decision)
-            # This preserves context if AI needs to investigate further
-            if uncertainty > 0.5:
-                try:
-                    import subprocess
-                    subprocess.run(
-                        [
-                            "empirica", "checkpoint-create",
-                            "--session-id", session_id,
-                            "--phase", "CHECK",
-                            "--round", str(round_num),
-                            "--metadata", json.dumps({
-                                "auto_checkpoint": True,
-                                "reason": "risky_decision",
-                                "uncertainty": uncertainty,
-                                "decision": decision,
-                                "gaps": gaps,
-                                "cycle": cycle,
-                                "round": round_num
-                            })
-                        ],
-                        capture_output=True,
-                        timeout=10
-                    )
-                except Exception as e:
-                    # Auto-checkpoint failure is not fatal, but log it
-                    logger.warning(f"Auto-checkpoint after CHECK (uncertainty > 0.5) failed (non-fatal): {e}")
-
-            # EPISTEMIC SNAPSHOTS: Capture CHECK phase vectors for calibration analysis
-            # Added 2026-01-21 to provide CHECK data for vector_trajectories analysis
-            # Previously only POSTFLIGHT was captured, missing CHECK as intermediate data point
-            snapshot_id = None
-            try:
-                from empirica.data.epistemic_snapshot import ContextSummary
-                from empirica.data.snapshot_provider import EpistemicSnapshotProvider
-
-                db = _get_db_for_session(session_id)
-                snapshot_provider = EpistemicSnapshotProvider()
-
-                # Build context summary from CHECK state
-                check_confidence = 1.0 - uncertainty
-                context_summary = ContextSummary(
-                    semantic={"phase": "CHECK", "decision": decision, "confidence": check_confidence},
-                    narrative=reasoning or f"CHECK round {round_num}: {decision}",
-                    evidence_refs=[checkpoint_id] if checkpoint_id else []
-                )
-
-                # Create snapshot - this auto-links to previous snapshot (PREFLIGHT)
-                snapshot = snapshot_provider.create_snapshot_from_session(
-                    session_id=session_id,
-                    context_summary=context_summary,
-                    cascade_phase="CHECK",
-                    domain_vectors={"round": round_num, "decision": decision} if round_num else None
-                )
-
-                # Set vectors
-                snapshot.vectors = vectors
-                # No delta for CHECK - deltas are POSTFLIGHT-PREFLIGHT only
-
-                # Save to epistemic_snapshots table
-                snapshot_provider.save_snapshot(snapshot)
-                snapshot_id = snapshot.snapshot_id
-
-                logger.debug(f"Created CHECK epistemic snapshot {snapshot_id} for session {session_id}")
-
-                db.close()
-            except Exception as e:
-                # Snapshot creation is non-fatal
-                logger.debug(f"CHECK epistemic snapshot creation skipped: {e}")
-
+            # Stage 12: Build result dict
             result = {
                 "ok": True,
                 "session_id": session_id,
@@ -1598,169 +1860,24 @@ def handle_check_submit_command(args):
                 } if SentinelHooks.is_enabled() and sentinel_override else None,
             }
 
-            # BLINDSPOT SCAN: Run negative-space inference on knowledge topology
-            # Surfaces unknown unknowns from artifact patterns. Optional - only runs
-            # if empirica-prediction is installed. Non-fatal on any error.
-            try:
-                from empirica_prediction.blindspots.predictor import BlindspotPredictor
-                project_id = (bootstrap_result or {}).get('project_id') or bootstrap_status.get('project_id')
-                if project_id:
-                    bs_predictor = BlindspotPredictor(project_id=project_id)
-                    bs_report = bs_predictor.predict(
-                        session_id=session_id,
-                        max_predictions=5,
-                        min_confidence=0.5,
-                    )
-                    bs_predictor.close()
+            # Stage 13: Blindspot scan (may override decision)
+            decision = _check_run_blindspot_scan(
+                result, decision, session_id, bootstrap_result, bootstrap_status
+            )
 
-                    if bs_report.predictions:
-                        result["blindspots"] = {
-                            "count": len(bs_report.predictions),
-                            "critical_count": bs_report.critical_count,
-                            "high_count": bs_report.high_count,
-                            "uncertainty_adjustment": bs_report.uncertainty_adjustment,
-                            "missing_layers": bs_report.missing_layers,
-                            "predictions": [
-                                {
-                                    "severity": p.severity,
-                                    "description": p.description,
-                                    "suggested_action": p.suggested_action,
-                                    "confidence": p.confidence,
-                                }
-                                for p in bs_report.predictions[:5]
-                            ],
-                        }
+            # Stage 14: Pattern retrieval + codebase context
+            _check_enrich_context(result, bootstrap_result, bootstrap_status,
+                                 vectors, reasoning)
 
-                        # Critical blindspots override decision to investigate
-                        if bs_report.critical_count > 0 and decision == "proceed":
-                            result["blindspots"]["override"] = {
-                                "original_decision": decision,
-                                "new_decision": "investigate",
-                                "reason": f"{bs_report.critical_count} critical blindspot(s) detected"
-                            }
-                            decision = "investigate"
-                            result["decision"] = decision
-
-                        logger.info(f"Blindspot scan: {len(bs_report.predictions)} predictions, "
-                                    f"uncertainty_adj={bs_report.uncertainty_adjustment}")
-            except ImportError:
-                pass  # empirica-prediction not installed
-            except Exception as e:
-                logger.debug(f"Blindspot scan skipped: {e}")
-
-            # NOETIC RAG: CHECK pattern retrieval — enriched context for proceed/investigate decision.
-            # The calibration_bias warning is gated by EMPIRICA_CALIBRATION_FEEDBACK
-            # (same flag as PREFLIGHT). See the flag comment in handle_preflight_command.
-            try:
-                check_project_id = (bootstrap_result or {}).get('project_id') or bootstrap_status.get('project_id')
-                if check_project_id:
-                    from empirica.core.qdrant.pattern_retrieval import check_against_patterns
-                    check_patterns = check_against_patterns(
-                        check_project_id,
-                        reasoning or "",
-                        vectors=vectors,
-                        include_findings=True,
-                        include_eidetic=True,
-                        include_goals=True,
-                        include_assumptions=True,
-                    )
-                    if check_patterns and check_patterns.get("has_warnings"):
-                        result["patterns"] = check_patterns
-            except Exception as e:
-                logger.debug(f"CHECK pattern retrieval failed (optional): {e}")
-
-            # CODEBASE MODEL: Entity graph context injection at CHECK time.
-            # Surfaces active entities, constraints, and relationships for the project.
-            # Non-fatal — skipped if codebase model tables don't exist yet.
-            try:
-                check_project_id = (bootstrap_result or {}).get('project_id') or bootstrap_status.get('project_id')
-                if check_project_id:
-                    from empirica.config.path_resolver import get_session_db_path
-                    from empirica.data.session_database import SessionDatabase
-                    codebase_db_path = get_session_db_path()
-                    if codebase_db_path:
-                        codebase_db = SessionDatabase(codebase_db_path)
-                        try:
-                            entity_count = codebase_db.codebase_model.count_entities(
-                                check_project_id, active_only=True
-                            )
-                            if entity_count > 0:
-                                constraints = codebase_db.codebase_model.get_constraints(
-                                    project_id=check_project_id
-                                )
-                                result["codebase_context"] = {
-                                    "active_entities": entity_count,
-                                    "constraints": [
-                                        {
-                                            "rule": c['rule_name'],
-                                            "type": c['constraint_type'],
-                                            "violations": c['violation_count'],
-                                            "description": c['description'],
-                                        }
-                                        for c in constraints[:5]
-                                    ] if constraints else [],
-                                }
-                        finally:
-                            codebase_db.close()
-            except Exception as e:
-                logger.debug(f"Codebase context injection skipped: {e}")
-
-            # PROCEED ADVISORY: Remind about commit cadence and artifact breadth
+            # Stage 15: Praxic reminders (only when proceeding)
             if decision == "proceed":
-                reminders = {
-                    "commit": "Commit before POSTFLIGHT — uncommitted edits are invisible to grounded calibration (change/state/do will ground near-zero).",
-                    "artifacts": "Log the full breadth: assumption-log (beliefs), decision-log (choices), deadend-log (failures), mistake-log (errors) — not just findings.",
-                    "completion": "Rate completion for THIS TRANSACTION only, not the overall plan. If the transaction's objective is met, completion = 1.0 regardless of remaining transactions.",
-                }
-
-                # DYNAMIC CALIBRATION NUDGE: If the current transaction has zero
-                # artifacts logged, surface a specific warning with scoring language.
-                # This is the proactive artifact-breadth enforcement that the chronic
-                # "zero artifacts logged" problem has needed. Design: retrospective
-                # POSTFLIGHT breadth_note is too late (learning after the fact);
-                # prospective CHECK-time nudge lets the AI course-correct mid-transaction.
-                try:
-                    # Use check_transaction_id2 (the CHECK's transaction, which is
-                    # the CURRENT open transaction from PREFLIGHT)
-                    current_tx = check_transaction_id2
-                    if current_tx:
-                        retro = _build_retrospective(session_id, current_tx)
-                        counts = retro.get("artifact_counts", {})
-                        total_artifacts = sum(counts.values())
-
-                        if total_artifacts == 0:
-                            reminders["calibration_nudge"] = (
-                                "⚠ Current transaction has 0 epistemic artifacts logged. "
-                                "Your grounded calibration score depends on artifact breadth — "
-                                "zero artifacts means grounded verification has nothing to check "
-                                "your self-assessment against, which inflates perceived competence "
-                                "and leaves calibration gaps uncorrected. Log at least one finding "
-                                "before POSTFLIGHT: empirica finding-log --finding \"...\" --impact 0.5"
-                            )
-                        elif total_artifacts < 3 and len([k for k, v in counts.items() if v > 0]) == 1:
-                            types_used = [k for k, v in counts.items() if v > 0]
-                            reminders["calibration_nudge"] = (
-                                f"⚠ Only {total_artifacts} {types_used[0]} logged in this transaction. "
-                                "Breadth matters: assumptions, decisions, and dead-ends each ground "
-                                "different aspects of calibration. Consider what you're assuming "
-                                "(assumption-log), what you've chosen (decision-log), and what "
-                                "didn't work (deadend-log)."
-                            )
-                except Exception as e:
-                    logger.debug(f"Calibration nudge computation failed (non-fatal): {e}")
-
-                result["praxic_reminders"] = reminders
+                result["praxic_reminders"] = _check_build_praxic_reminders(
+                    session_id, check_transaction_id
+                )
 
             # AUTO-POSTFLIGHT REMOVED (2026-03-02):
-            # Previously CHECK auto-triggered POSTFLIGHT when completion >= 0.7 AND impact >= 0.5.
-            # This was wrong: CHECK is a noetic→praxic gate, not a completion event.
-            # High completion at CHECK means "I've learned enough to act" (noetic completion),
-            # not "I've finished acting" (praxic completion). Auto-POSTFLIGHT here closed
-            # transactions before any praxic work happened, locking the AI out of the Sentinel.
-            # POSTFLIGHT should only happen after actual work is done, triggered by the AI
-            # or session-end hook — never automatically from CHECK.
-
-            # NOTE: Statusline cache was removed (2026-02-06). Statusline reads directly from DB.
+            # CHECK is a noetic->praxic gate, not a completion event.
+            # POSTFLIGHT should only happen after actual work is done.
 
         except Exception as e:
             logger.error(f"Failed to save check assessment: {e}")
@@ -1772,20 +1889,10 @@ def handle_check_submit_command(args):
                 "error": str(e)
             }
 
-        # Format output
-        if output_format == 'json':
-            print(json.dumps(result, indent=2))
-        else:
-            print("✅ CHECK assessment submitted successfully")
-            print(f"   Session: {session_id[:8]}...")
-            print(f"   Decision: {decision.upper()}")
-            print(f"   Cycle: {cycle}")
-            print(f"   Vectors: {len(vectors)} submitted")
-            print("   Storage: SQLite + Git Notes + JSON")
-            if reasoning:
-                print(f"   Reasoning: {reasoning[:80]}...")
+        # Stage 16: Format output
+        _check_format_output(output_format, result, session_id, decision, cycle,
+                            vectors, reasoning)
 
-        # Return None to avoid exit code issues and duplicate output
         return None
 
     except Exception as e:
