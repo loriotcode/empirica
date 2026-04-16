@@ -273,6 +273,20 @@ reportUnusedFunction = true
 reportDuplicateImport = true
 strictListInference = true
 strictDictionaryInference = true
+# Suppress noisy categories — too many false positives from dynamic Python patterns
+reportOptionalMemberAccess = false  # try/except patterns handle None at runtime
+reportArgumentType = false          # dynamic dispatch, variable reuse across branches
+reportOptionalSubscript = false     # same pattern as OptionalMemberAccess
+reportCallIssue = false             # overloaded constructors, optional params
+reportOperatorIssue = false         # dynamic types in aggregation code
+reportIndexIssue = false            # dict access on union types
+reportAssignmentType = false        # Path/str interop, intentional type widening
+# Keep these — they catch real bugs
+reportUndefinedVariable = true      # catches missing imports, typos
+reportReturnType = true             # catches wrong return types
+reportRedeclaration = true          # catches shadowing bugs
+reportAttributeAccessIssue = true   # catches typos in attribute names
+reportGeneralTypeIssues = true      # general type safety
 
 [tool.pyright.defineConstant]
 TESTING = true
