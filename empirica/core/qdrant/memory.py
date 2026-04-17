@@ -284,28 +284,10 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
             continue
         coll_fn, fields = _SEARCH_COLLECTIONS[kind_name]
         boost = _COLLECTION_BOOST.get(kind_name, 1.0)
-        # Apply code_api filter only to eidetic in intelligence mode
         query_filter = _intelligence_filter if (kind_name == "eidetic" and _intelligence_filter) else None
-        try:
-            coll_name = coll_fn(project_id)
-            if client.collection_exists(coll_name):
-                qvec = _get_embedding_for_collection(client, coll_name, query_text, create_if_missing=False)
-                if qvec is None:
-                    results[kind_name] = []
-                    continue
-                resp = client.query_points(
-                    collection_name=coll_name, query=qvec, limit=limit,
-                    with_payload=True, query_filter=query_filter)
-                results[kind_name] = [
-                    {"score": (getattr(r, 'score', 0.0) or 0.0) * boost,
-                     **{f: (r.payload or {}).get(f) for f in fields}}
-                    for r in resp.points
-                ]
-            else:
-                results[kind_name] = []
-        except Exception as e:
-            logger.debug(f"{kind_name} query failed: {e}")
-            results[kind_name] = []
+        results[kind_name] = _search_single_collection(
+            client, coll_fn, project_id, query_text, fields, boost, limit, query_filter,
+        )
 
     if results:
         return results
@@ -317,22 +299,51 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
             if kind_name not in _SEARCH_COLLECTIONS:
                 continue
             coll_fn, fields = _SEARCH_COLLECTIONS[kind_name]
-            coll_name = coll_fn(project_id)
-            if client.collection_exists(coll_name):
-                qvec = _get_embedding_for_collection(client, coll_name, query_text, create_if_missing=False)
-            else:
-                qvec = None
-            if qvec is None:
-                results[kind_name] = []
-                continue
-            raw = _rest_search(coll_name, qvec, limit)
-            results[kind_name] = [
-                {"score": d.get('score', 0.0),
-                 **{f: (d.get('payload') or {}).get(f) for f in fields}}
-                for d in raw
-            ]
+            results[kind_name] = _rest_search_collection(
+                client, coll_fn, project_id, query_text, fields, limit,
+            )
         return results
     except Exception as e:
         logger.debug(f"REST search also failed: {e}")
         return empty_result
+
+
+def _search_single_collection(client, coll_fn, project_id, query_text,
+                              fields, boost, limit, query_filter):
+    """Search a single Qdrant collection via client, returning formatted results."""
+    try:
+        coll_name = coll_fn(project_id)
+        if not client.collection_exists(coll_name):
+            return []
+        qvec = _get_embedding_for_collection(client, coll_name, query_text, create_if_missing=False)
+        if qvec is None:
+            return []
+        resp = client.query_points(
+            collection_name=coll_name, query=qvec, limit=limit,
+            with_payload=True, query_filter=query_filter)
+        return [
+            {"score": (getattr(r, 'score', 0.0) or 0.0) * boost,
+             **{f: (r.payload or {}).get(f) for f in fields}}
+            for r in resp.points
+        ]
+    except Exception as e:
+        logger.debug(f"collection query failed: {e}")
+        return []
+
+
+def _rest_search_collection(client, coll_fn, project_id, query_text, fields, limit):
+    """Search a single collection via REST fallback."""
+    coll_name = coll_fn(project_id)
+    if client.collection_exists(coll_name):
+        qvec = _get_embedding_for_collection(client, coll_name, query_text, create_if_missing=False)
+    else:
+        qvec = None
+    if qvec is None:
+        return []
+    raw = _rest_search(coll_name, qvec, limit)
+    return [
+        {"score": d.get('score', 0.0),
+         **{f: (d.get('payload') or {}).get(f) for f in fields}}
+        for d in raw
+    ]
 

@@ -332,35 +332,10 @@ class ArtifactExtractor:
 
             # Pattern 2: Tool chain dead ends (tool fails, then different tool used)
             failed_chains = [c for c in turn.tool_chains if not c.success]
-            if failed_chains:
-                for chain in failed_chains:
-                    approach = f"Used {chain.tool_name}"
-                    if chain.tool_input:
-                        # Extract key info from tool input
-                        if "command" in chain.tool_input:
-                            approach += f": {chain.tool_input['command'][:100]}"
-                        elif "pattern" in chain.tool_input:
-                            approach += f": {chain.tool_input['pattern'][:100]}"
-
-                    if self._is_duplicate(approach):
-                        continue
-
-                    # Extract failure reason from result
-                    why_failed = ""
-                    if chain.result_content:
-                        # Take first error line
-                        for line in chain.result_content.split('\n'):
-                            if any(w in line.lower() for w in ['error', 'fail', 'not found', 'denied']):
-                                why_failed = line.strip()[:200]
-                                break
-
-                    dead_ends.append(ExtractedDeadEnd(
-                        approach=approach,
-                        why_failed=why_failed,
-                        confidence=0.65,  # Tool failure is a moderate-confidence dead end
-                        source_turn=turn.turn_index,
-                        timestamp=turn.timestamp,
-                    ))
+            for chain in failed_chains:
+                dead_end = self._extract_tool_chain_dead_end(chain, turn)
+                if dead_end:
+                    dead_ends.append(dead_end)
 
         return [d for d in dead_ends if d.confidence >= self.min_confidence]
 
@@ -454,6 +429,33 @@ class ArtifactExtractor:
         )
 
         return result
+
+    def _extract_tool_chain_dead_end(self, chain, turn) -> ExtractedDeadEnd | None:
+        """Extract a dead end from a failed tool chain invocation."""
+        approach = f"Used {chain.tool_name}"
+        if chain.tool_input:
+            if "command" in chain.tool_input:
+                approach += f": {chain.tool_input['command'][:100]}"
+            elif "pattern" in chain.tool_input:
+                approach += f": {chain.tool_input['pattern'][:100]}"
+
+        if self._is_duplicate(approach):
+            return None
+
+        why_failed = ""
+        if chain.result_content:
+            for line in chain.result_content.split('\n'):
+                if any(w in line.lower() for w in ['error', 'fail', 'not found', 'denied']):
+                    why_failed = line.strip()[:200]
+                    break
+
+        return ExtractedDeadEnd(
+            approach=approach,
+            why_failed=why_failed,
+            confidence=0.65,
+            source_turn=turn.turn_index,
+            timestamp=turn.timestamp,
+        )
 
     # --- Helpers ---
 

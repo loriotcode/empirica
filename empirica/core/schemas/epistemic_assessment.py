@@ -533,6 +533,24 @@ class EpistemicAssessmentSchema:
         return self.execution_change.score < 0.5
 
 
+def _check_vector(vector_data: dict, vector_name: str) -> None:
+    """Validate vector has required score and rationale fields."""
+    if "score" not in vector_data:
+        raise ValueError(f"Missing score in {vector_name}")
+    if "rationale" not in vector_data:
+        raise ValueError(f"Missing rationale in {vector_name}")
+    score = float(vector_data["score"])
+    if not 0.0 <= score <= 1.0:
+        raise ValueError(f"Score out of range [0.0, 1.0] in {vector_name}: {score}")
+
+
+def _validate_nested_keys(data: dict, parent_key: str, required_keys: list[str]) -> None:
+    """Validate that a nested dict contains all required keys."""
+    for key in required_keys:
+        if key not in data[parent_key]:
+            raise ValueError(f"Missing {parent_key} key: {key}")
+
+
 def validate_assessment(data: dict[str, Any]) -> bool:
     """
     Validate assessment dictionary format
@@ -558,39 +576,22 @@ def validate_assessment(data: dict[str, Any]) -> bool:
             raise ValueError(f"Missing top-level key: {key}")
 
     required_foundation = ["know", "do", "context"]
-    for key in required_foundation:
-        if key not in data["foundation"]:
-            raise ValueError(f"Missing foundation key: {key}")
-
     required_comprehension = ["clarity", "coherence", "signal", "density"]
-    for key in required_comprehension:
-        if key not in data["comprehension"]:
-            raise ValueError(f"Missing comprehension key: {key}")
-
     required_execution = ["state", "change", "completion", "impact"]
-    for key in required_execution:
-        if key not in data["execution"]:
-            raise ValueError(f"Missing execution key: {key}")
+
+    _validate_nested_keys(data, "foundation", required_foundation)
+    _validate_nested_keys(data, "comprehension", required_comprehension)
+    _validate_nested_keys(data, "execution", required_execution)
 
     # Validate all vectors have score + rationale
-    def check_vector(vector_data: dict, vector_name: str) -> None:
-        """Validate vector has required score and rationale fields."""
-        if "score" not in vector_data:
-            raise ValueError(f"Missing score in {vector_name}")
-        if "rationale" not in vector_data:
-            raise ValueError(f"Missing rationale in {vector_name}")
-        score = float(vector_data["score"])
-        if not 0.0 <= score <= 1.0:
-            raise ValueError(f"Score out of range [0.0, 1.0] in {vector_name}: {score}")
-
-    check_vector(data["engagement"], "engagement")
+    _check_vector(data["engagement"], "engagement")
     for key in required_foundation:
-        check_vector(data["foundation"][key], f"foundation.{key}")
+        _check_vector(data["foundation"][key], f"foundation.{key}")
     for key in required_comprehension:
-        check_vector(data["comprehension"][key], f"comprehension.{key}")
+        _check_vector(data["comprehension"][key], f"comprehension.{key}")
     for key in required_execution:
-        check_vector(data["execution"][key], f"execution.{key}")
-    check_vector(data["uncertainty"], "uncertainty")
+        _check_vector(data["execution"][key], f"execution.{key}")
+    _check_vector(data["uncertainty"], "uncertainty")
 
     return True
 

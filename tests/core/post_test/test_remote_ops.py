@@ -19,7 +19,6 @@ from empirica.core.post_test.collector import (
 )
 from empirica.core.post_test.mapper import EvidenceMapper
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

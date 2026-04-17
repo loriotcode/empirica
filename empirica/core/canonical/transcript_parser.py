@@ -577,6 +577,48 @@ class TranscriptParser:
 # --- Claude.ai Export Parser ---
 
 
+def _extract_content_block_parts(content: list) -> list[str]:
+    """Extract text parts from a list of content blocks."""
+    parts = []
+    for block in content:
+        if isinstance(block, str):
+            parts.append(block)
+        elif isinstance(block, dict):
+            block_type = block.get("type", "")
+            if block_type == "text":
+                parts.append(block.get("text", ""))
+            elif block_type == "tool_use":
+                _extract_tool_use_text(block, parts)
+            elif block_type == "tool_result":
+                _extract_tool_result_text(block, parts)
+    return parts
+
+
+def _extract_tool_use_text(block: dict, parts: list[str]) -> None:
+    """Extract text from a tool_use content block."""
+    tool_name = block.get("name", "unknown")
+    tool_input = block.get("input", {})
+    msg_text = block.get("message", "")
+    if msg_text:
+        parts.append(f"[Tool: {tool_name}] {msg_text}")
+    elif isinstance(tool_input, dict):
+        for key in ("query", "command", "description"):
+            if key in tool_input:
+                parts.append(f"[Tool: {tool_name}] {tool_input[key]}")
+                break
+
+
+def _extract_tool_result_text(block: dict, parts: list[str]) -> None:
+    """Extract text from a tool_result content block."""
+    inner = block.get("content", [])
+    if isinstance(inner, list):
+        for inner_block in inner:
+            if isinstance(inner_block, dict) and inner_block.get("type") == "text":
+                text = inner_block.get("text", "")
+                if text and len(text) < 500:
+                    parts.append(text)
+
+
 class ClaudeAIParser:
     """Parse Claude.ai conversation exports.
 
@@ -734,39 +776,9 @@ class ClaudeAIParser:
 
     def _extract_message_content(self, msg: dict[str, Any]) -> str:
         """Extract text content from a message using content[] as canonical source."""
-        # Prefer content[] blocks over text field (text has ~13% mismatch rate)
         content = msg.get("content")
         if isinstance(content, list):
-            parts = []
-            for block in content:
-                if isinstance(block, str):
-                    parts.append(block)
-                elif isinstance(block, dict):
-                    block_type = block.get("type", "")
-                    if block_type == "text":
-                        parts.append(block.get("text", ""))
-                    elif block_type == "tool_use":
-                        # Include tool usage context for extraction
-                        tool_name = block.get("name", "unknown")
-                        tool_input = block.get("input", {})
-                        msg_text = block.get("message", "")
-                        if msg_text:
-                            parts.append(f"[Tool: {tool_name}] {msg_text}")
-                        elif isinstance(tool_input, dict):
-                            # Extract meaningful fields from tool input
-                            for key in ("query", "command", "description"):
-                                if key in tool_input:
-                                    parts.append(f"[Tool: {tool_name}] {tool_input[key]}")
-                                    break
-                    elif block_type == "tool_result":
-                        # Extract text from tool results
-                        inner = block.get("content", [])
-                        if isinstance(inner, list):
-                            for inner_block in inner:
-                                if isinstance(inner_block, dict) and inner_block.get("type") == "text":
-                                    text = inner_block.get("text", "")
-                                    if text and len(text) < 500:
-                                        parts.append(text)
+            parts = _extract_content_block_parts(content)
             if parts:
                 return "\n".join(parts)
 

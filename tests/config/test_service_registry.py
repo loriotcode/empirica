@@ -18,7 +18,6 @@ from empirica.config.service_registry import (
     ServiceRegistry,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -52,7 +51,8 @@ def _make_declaration(
     timeout_seconds: int = 120,
 ) -> CheckDeclaration:
     if runner is None:
-        runner = lambda ctx: _make_result(check_id)
+        def runner(ctx):
+            return _make_result(check_id)
     return CheckDeclaration(
         check_id=check_id,
         tool=tool,
@@ -249,7 +249,7 @@ class TestBuiltinChecks:
 
     def test_builtin_tests_applies_to_code(self):
         ServiceRegistry.load_builtins()
-        decl = ServiceRegistry.get("tests")
+        ServiceRegistry.get("tests")
         resolved = ServiceRegistry.resolve_for("code", "default")
         assert any(d.check_id == "tests" for d in resolved)
 

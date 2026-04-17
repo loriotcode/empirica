@@ -27,6 +27,62 @@ from .schema import (
 logger = logging.getLogger(__name__)
 
 
+def _format_lesson_node(lesson: dict) -> str:
+    """Format a lesson with confidence icon and name."""
+    conf = lesson.get('confidence', 0)
+    conf_icon = "●" if conf >= 0.85 else "◐" if conf >= 0.70 else "○"
+    return f"{conf_icon} {lesson['name']} [{conf:.2f}]"
+
+
+def _print_lesson_tree(lessons, lesson_id, lines, printed,
+                       prefix="", is_last=True, rel_label=None):
+    """Recursively print lesson tree with ASCII formatting."""
+    if lesson_id in printed:
+        return
+    printed.add(lesson_id)
+
+    lesson = lessons.get(lesson_id)
+    if not lesson:
+        return
+
+    connector = "└── " if is_last else "├── "
+    if rel_label:
+        lines.append(f"{prefix}{connector}[{rel_label}] {_format_lesson_node(lesson)}")
+    else:
+        lines.append(f"{prefix}{_format_lesson_node(lesson)}")
+
+    children = []
+    for e in lesson.get('enables', []):
+        children.append((e['id'], 'enables'))
+    for p in lesson.get('prerequisite_for', []):
+        children.append((p['id'], 'prereq'))
+    for imp in lesson.get('improves', []):
+        children.append((imp['id'], 'improves'))
+
+    children = [(cid, rel) for cid, rel in children if cid not in printed]
+
+    child_prefix = prefix + ("    " if is_last else "│   ")
+    for i, (child_id, rel) in enumerate(children):
+        child_is_last = i == len(children) - 1
+        _print_lesson_tree(lessons, child_id, lines, printed,
+                           child_prefix, child_is_last, rel)
+
+
+def _print_related_connections(lessons, lines):
+    """Print bidirectional related connections between lessons."""
+    lines.append("")
+    lines.append("RELATED CONNECTIONS:")
+    related_printed = set()
+    for lid, lesson in lessons.items():
+        for rel in lesson.get('related', []):
+            pair = tuple(sorted([lid, rel['id']]))
+            if pair not in related_printed:
+                related_printed.add(pair)
+                l1 = lessons[lid]['name'].replace('NotebookLM: ', '')
+                l2 = lessons[rel['id']]['name'].replace('NotebookLM: ', '')
+                lines.append(f"  {l1} <--related--> {l2}")
+
+
 class LessonStorageManager:
     """
     Multi-layer storage manager for lessons.
@@ -947,53 +1003,12 @@ class LessonStorageManager:
         lines.append(f"Lessons: {len(lessons)} | Edges: {lesson_map['edge_count']}")
         lines.append("")
 
-        # Print from entry points
         printed = set()
-
-        def format_lesson(lesson):
-            """Format lesson with confidence icon and name."""
-            conf_icon = "●" if lesson['confidence'] >= 0.85 else "◐" if lesson['confidence'] >= 0.70 else "○"
-            return f"{conf_icon} {lesson['name']} [{lesson['confidence']:.2f}]"
-
-        def print_tree(lesson_id, prefix="", is_last=True, rel_label=None):
-            """Recursively print lesson tree with ASCII formatting."""
-            if lesson_id in printed:
-                return
-            printed.add(lesson_id)
-
-            lesson = lessons.get(lesson_id)
-            if not lesson:
-                return
-
-            # Print the current lesson
-            connector = "└── " if is_last else "├── "
-            if rel_label:
-                lines.append(f"{prefix}{connector}[{rel_label}] {format_lesson(lesson)}")
-            else:
-                lines.append(f"{prefix}{format_lesson(lesson)}")
-
-            # Get children (lessons this one enables or is prerequisite for)
-            children = []
-            for e in lesson.get('enables', []):
-                children.append((e['id'], 'enables'))
-            for p in lesson.get('prerequisite_for', []):
-                children.append((p['id'], 'prereq'))
-            for i in lesson.get('improves', []):
-                children.append((i['id'], 'improves'))
-
-            # Filter out already printed
-            children = [(cid, rel) for cid, rel in children if cid not in printed]
-
-            # Print children
-            child_prefix = prefix + ("    " if is_last else "│   ")
-            for i, (child_id, rel) in enumerate(children):
-                child_is_last = i == len(children) - 1
-                print_tree(child_id, child_prefix, child_is_last, rel)
 
         lines.append("WORKFLOW STRUCTURE:")
         for i, ep in enumerate(entry_points):
             is_last_ep = i == len(entry_points) - 1
-            print_tree(ep, "", is_last_ep)
+            _print_lesson_tree(lessons, ep, lines, printed, "", is_last_ep)
         lines.append("")
 
         # Print orphans (no relationships)
@@ -1001,21 +1016,10 @@ class LessonStorageManager:
         if orphans:
             lines.append("STANDALONE LESSONS:")
             for lid in orphans:
-                lesson = lessons[lid]
-                lines.append(f"  {format_lesson(lesson)}")
+                lines.append(f"  {_format_lesson_node(lessons[lid])}")
 
         # Print related connections (bidirectional)
-        lines.append("")
-        lines.append("RELATED CONNECTIONS:")
-        related_printed = set()
-        for lid, lesson in lessons.items():
-            for rel in lesson.get('related', []):
-                pair = tuple(sorted([lid, rel['id']]))
-                if pair not in related_printed:
-                    related_printed.add(pair)
-                    l1 = lessons[lid]['name'].replace('NotebookLM: ', '')
-                    l2 = lessons[rel['id']]['name'].replace('NotebookLM: ', '')
-                    lines.append(f"  {l1} <--related--> {l2}")
+        _print_related_connections(lessons, lines)
 
         return "\n".join(lines)
 

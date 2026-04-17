@@ -219,8 +219,8 @@ def _format_health_section(health):
     safe_print()
 
 
-def _format_findings_section(breadcrumbs):
-    """Print findings, unknowns, dead ends, mistakes, decisions, ref docs, and recent artifacts."""
+def _format_findings_subsection(breadcrumbs):
+    """Print findings and unknowns subsection."""
     if breadcrumbs.get('findings'):
         safe_print("\U0001f4dd Recent Findings (last 10):")
         for i, f in enumerate(breadcrumbs['findings'][:10], 1):
@@ -235,6 +235,9 @@ def _format_findings_section(breadcrumbs):
                 safe_print(f"   {i}. {u['unknown']}")
             safe_print()
 
+
+def _format_dead_ends_and_mistakes(breadcrumbs):
+    """Print dead ends, mistakes, and key decisions subsection."""
     if breadcrumbs.get('dead_ends'):
         safe_print("\U0001f480 Dead Ends (What Didn't Work):")
         for i, d in enumerate(breadcrumbs['dead_ends'][:5], 1):
@@ -257,6 +260,9 @@ def _format_findings_section(breadcrumbs):
             safe_print(f"   {i}. {d}")
         safe_print()
 
+
+def _format_refdocs_and_artifacts(breadcrumbs):
+    """Print reference docs and recent artifacts subsection."""
     if breadcrumbs.get('reference_docs'):
         safe_print("\U0001f4c4 Reference Docs:")
         for i, doc in enumerate(breadcrumbs['reference_docs'][:5], 1):
@@ -273,11 +279,18 @@ def _format_findings_section(breadcrumbs):
             safe_print(f"   {i}. Session {artifact['session_id']} ({artifact['ai_id']})")
             safe_print(f"      Task: {artifact['task_summary']}")
             safe_print(f"      Files modified ({len(artifact['files_modified'])}):")
-            for file in artifact['files_modified'][:5]:  # Show first 5 files
+            for file in artifact['files_modified'][:5]:
                 safe_print(f"        \u2022 {file}")
             if len(artifact['files_modified']) > 5:
                 safe_print(f"        ... and {len(artifact['files_modified']) - 5} more")
         safe_print()
+
+
+def _format_findings_section(breadcrumbs):
+    """Print findings, unknowns, dead ends, mistakes, decisions, ref docs, and recent artifacts."""
+    _format_findings_subsection(breadcrumbs)
+    _format_dead_ends_and_mistakes(breadcrumbs)
+    _format_refdocs_and_artifacts(breadcrumbs)
 
 
 def _format_active_work_section(breadcrumbs):
@@ -667,24 +680,8 @@ def _format_workspace_context_section(project_id, breadcrumbs):
         logger.debug("Workspace context hook failed: %s", ws_err)
 
 
-def format_bootstrap_output(
-    args, project_id, breadcrumbs, db=None,
-    mco_config=None, workflow_suggestions=None,
-    global_learnings=None, project_skills=None,
-):
-    """Format and print bootstrap output (JSON or human-readable)."""
-    if hasattr(args, 'output') and args.output == 'json':
-        _format_json_output(
-            args, project_id, breadcrumbs,
-            mco_config=mco_config,
-            workflow_suggestions=workflow_suggestions,
-            global_learnings=global_learnings,
-            project_skills=project_skills,
-        )
-        return
-
-    # --- Human-readable output ---
-
+def _format_human_output(project_id, breadcrumbs, db, mco_config, workflow_suggestions):
+    """Format and print the human-readable bootstrap output sections."""
     if mco_config:
         _format_mco_section(mco_config)
 
@@ -704,7 +701,6 @@ def format_bootstrap_output(
         _format_health_section(breadcrumbs['health_score'])
 
     _format_findings_section(breadcrumbs)
-
     _format_active_work_section(breadcrumbs)
 
     if breadcrumbs.get('flow_metrics') is not None:
@@ -738,3 +734,22 @@ def format_bootstrap_output(
         _format_memory_gap_section(breadcrumbs)
 
     _format_workspace_context_section(project_id, breadcrumbs)
+
+
+def format_bootstrap_output(
+    args, project_id, breadcrumbs, db=None,
+    mco_config=None, workflow_suggestions=None,
+    global_learnings=None, project_skills=None,
+):
+    """Format and print bootstrap output (JSON or human-readable)."""
+    if hasattr(args, 'output') and args.output == 'json':
+        _format_json_output(
+            args, project_id, breadcrumbs,
+            mco_config=mco_config,
+            workflow_suggestions=workflow_suggestions,
+            global_learnings=global_learnings,
+            project_skills=project_skills,
+        )
+        return
+
+    _format_human_output(project_id, breadcrumbs, db, mco_config, workflow_suggestions)

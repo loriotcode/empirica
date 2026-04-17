@@ -218,69 +218,79 @@ def search_cross_project(
             if coll_name not in all_collections:
                 continue
 
-            try:
-                info = client.get_collection(coll_name)
-                if info.points_count < min_points:
-                    continue
+            hits = _query_collection_safe(client, coll_name, qvec, limit, min_points)
+            for r in hits:
+                result = _build_cross_project_result(r, pid, coll_type)
+                all_results.append(result)
 
-                hits = client.query_points(
-                    collection_name=coll_name,
-                    query=qvec,
-                    limit=limit,
-                    with_payload=True,
-                )
+    deduped = _deduplicate_results(all_results)
+    deduped.sort(key=lambda x: x["score"], reverse=True)
+    return deduped[:limit * 3]  # Return more results since they span projects
 
-                for r in hits.points:
-                    payload = r.payload or {}
-                    score = getattr(r, 'score', 0.0) or 0.0
 
-                    result = {
-                        "score": score,
-                        "project_id": pid,
-                        "collection_type": coll_type,
-                        "type": payload.get("type", coll_type),
-                    }
+def _query_collection_safe(client, coll_name, qvec, limit, min_points):
+    """Query a Qdrant collection, returning empty list on failure."""
+    try:
+        info = client.get_collection(coll_name)
+        if info.points_count < min_points:
+            return []
 
-                    # Type-specific fields
-                    if coll_type == "memory":
-                        result["text"] = payload.get("text", "")
-                        result["impact"] = payload.get("impact")
-                        result["session_id"] = payload.get("session_id")
-                    elif coll_type == "eidetic":
-                        result["content"] = payload.get("content", "")
-                        result["confidence"] = payload.get("confidence")
-                        result["domain"] = payload.get("domain")
-                    elif coll_type == "episodic":
-                        result["narrative"] = payload.get("narrative", "")
-                        result["outcome"] = payload.get("outcome")
+        hits = client.query_points(
+            collection_name=coll_name,
+            query=qvec,
+            limit=limit,
+            with_payload=True,
+        )
+        return hits.points
+    except Exception as e:
+        logger.debug(f"cross-project search {coll_name} failed: {e}")
+        return []
 
-                    all_results.append(result)
 
-            except Exception as e:
-                logger.debug(f"cross-project search {coll_name} failed: {e}")
-                continue
+def _build_cross_project_result(r, pid, coll_type):
+    """Build a result dict from a Qdrant point for cross-project search."""
+    payload = r.payload or {}
+    score = getattr(r, 'score', 0.0) or 0.0
 
-    # Deduplicate by content across collection types (same text in memory + eidetic)
+    result = {
+        "score": score,
+        "project_id": pid,
+        "collection_type": coll_type,
+        "type": payload.get("type", coll_type),
+    }
+
+    if coll_type == "memory":
+        result["text"] = payload.get("text", "")
+        result["impact"] = payload.get("impact")
+        result["session_id"] = payload.get("session_id")
+    elif coll_type == "eidetic":
+        result["content"] = payload.get("content", "")
+        result["confidence"] = payload.get("confidence")
+        result["domain"] = payload.get("domain")
+    elif coll_type == "episodic":
+        result["narrative"] = payload.get("narrative", "")
+        result["outcome"] = payload.get("outcome")
+
+    return result
+
+
+def _deduplicate_results(all_results):
+    """Deduplicate results by content across collection types."""
     seen_content = {}
     deduped = []
     for r in all_results:
         text = r.get("text") or r.get("content") or r.get("narrative") or ""
         key = " ".join(text.strip().lower().split())
         if key and key in seen_content:
-            # Keep the higher-scoring entry, skip duplicates
             if r["score"] > seen_content[key]["score"]:
                 deduped.remove(seen_content[key])
                 seen_content[key] = r
                 deduped.append(r)
-            # else: skip this duplicate (equal or lower score)
         else:
             if key:
                 seen_content[key] = r
             deduped.append(r)
-
-    # Sort by score descending, return top results
-    deduped.sort(key=lambda x: x["score"], reverse=True)
-    return deduped[:limit * 3]  # Return more results since they span projects
+    return deduped
 
 
 def sync_high_impact_to_global(project_id: str, min_impact: float = 0.7) -> int:

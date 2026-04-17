@@ -8,16 +8,11 @@ Tests:
 - Integration with Phase 2 signing identities
 """
 
-import pytest
-import json
-from pathlib import Path
 
-from empirica.core.persona import (
-    PersonaProfile,
-    PersonaManager,
-    validate_persona_profile,
-    ValidationError
-)
+import pytest
+
+from empirica.core.persona import PersonaManager
+
 
 def test_create_persona_from_template(tmp_path):
     """Test creating persona from built-in template"""
@@ -88,10 +83,10 @@ def test_list_personas(tmp_path):
 def test_validation_weights_sum():
     """Test that weights must sum to 1.0"""
 
-    from empirica.core.persona import EpistemicConfig, SigningIdentityConfig
+    from empirica.core.persona import EpistemicConfig
 
     # Invalid weights (sum > 1.0)
-    with pytest.raises(ValueError, match="sum to 1.0"):
+    with pytest.raises(ValueError, match=r"sum to 1\.0"):
         EpistemicConfig(
             priors={
                 "engagement": 0.7, "know": 0.5, "do": 0.5, "context": 0.5,

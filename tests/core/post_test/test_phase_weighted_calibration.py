@@ -1,17 +1,14 @@
 """Tests for phase-weighted calibration and calibration insights."""
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-from empirica.core.post_test.grounded_calibration import (
-    _compute_phase_weights,
-    run_grounded_verification,
-)
 from empirica.core.post_test.calibration_insights import (
     CalibrationInsight,
     CalibrationInsightsAnalyzer,
 )
-
+from empirica.core.post_test.grounded_calibration import (
+    _compute_phase_weights,
+)
 
 # --- Phase Weight Tests ---
 
@@ -158,7 +155,7 @@ class TestEvidenceGaps:
         all_vectors = ['know', 'do', 'context', 'clarity', 'coherence', 'signal',
                        'density', 'state', 'change', 'completion', 'impact', 'uncertainty']
         records = [
-            {'gaps': {v: 0.05 for v in all_vectors}, 'grounded_coverage': 0.9}
+            {'gaps': dict.fromkeys(all_vectors, 0.05), 'grounded_coverage': 0.9}
             for _ in range(10)
         ]
         analyzer = CalibrationInsightsAnalyzer.__new__(CalibrationInsightsAnalyzer)

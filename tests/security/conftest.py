@@ -1,7 +1,7 @@
 """Shared fixtures for security tests"""
-import pytest
 import sqlite3
-from pathlib import Path
+
+import pytest
 
 
 @pytest.fixture
@@ -9,7 +9,7 @@ def temp_db(tmp_path):
     """Create temporary SQLite database for testing"""
     db_path = tmp_path / "test_security.db"
     conn = sqlite3.connect(str(db_path))
-    
+
     # Create test table
     conn.execute("""
         CREATE TABLE sessions (
@@ -19,7 +19,7 @@ def temp_db(tmp_path):
         )
     """)
     conn.commit()
-    
+
     yield conn
     conn.close()
 

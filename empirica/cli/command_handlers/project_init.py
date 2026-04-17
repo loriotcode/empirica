@@ -130,256 +130,246 @@ def _collect_project_config_from_args(args, git_root) -> dict:
     }
 
 
+def _ensure_git_root(interactive, output_format):
+    """Ensure we're in a git repo, optionally initializing one. Returns git_root or None."""
+    from empirica.config.path_resolver import get_git_root
+
+    git_root = get_git_root()
+    if git_root:
+        return git_root
+
+    import subprocess
+    explicit_non_interactive = not interactive
+    if interactive:
+        response = input("Not in a git repository. Initialize one? [Y/n]: ").strip().lower()
+        if response in ('n', 'no'):
+            print("Aborted. Run 'git init' manually, then try again.")
+            return None
+        subprocess.run(['git', 'init'], check=True)
+    elif output_format == 'json' or explicit_non_interactive:
+        subprocess.run(['git', 'init'], capture_output=True, check=True)
+
+    git_root = get_git_root()
+    if not git_root:
+        if output_format == 'json':
+            print(json.dumps({"ok": False, "error": "Not in a git repository"}))
+        else:
+            print("Error: Not in a git repository. Run 'git init' first.")
+    return git_root
+
+
+def _check_already_initialized(config_path, args, output_format):
+    """Check if Empirica is already initialized. Returns True if should abort."""
+    if not config_path.exists() or getattr(args, 'force', False):
+        return False
+    if output_format == 'json':
+        print(json.dumps({
+            "ok": False,
+            "error": "Empirica already initialized in this repo",
+            "hint": "Use --force to reinitialize"
+        }, indent=2))
+    else:
+        print("❌ Empirica already initialized in this repo")
+        print(f"   Config found: {config_path}")
+        print("\nTip: Use --force to reinitialize")
+    return True
+
+
+def _get_git_remote_url():
+    """Get git remote URL for repos field. Returns URL string or None."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ['git', 'remote', 'get-url', 'origin'],
+            capture_output=True, text=True, timeout=5
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+    except Exception:
+        return None
+
+
+def _build_project_config(config_input, git_root, git_url):
+    """Build the project.yaml config dict from collected inputs."""
+    from datetime import datetime
+
+    project_name = config_input['project_name']
+    languages = config_input['languages']
+    if not languages:
+        languages = _auto_detect_languages(git_root)
+
+    project_config = {
+        'version': '2.0',
+        'name': project_name,
+        'description': config_input['project_description'] or f"{project_name} project",
+        'project_id': None,
+        'type': config_input['project_type'],
+        'domain': config_input['project_domain'],
+        'classification': config_input['classification'],
+        'status': 'active',
+        'evidence_profile': config_input['evidence_profile'],
+        'languages': languages,
+        'tags': config_input['tags'],
+        'created_at': datetime.now().strftime('%Y-%m-%d'),
+        'created_by': os.environ.get('USER', 'unknown'),
+    }
+    if git_url:
+        project_config['repository'] = git_url
+    project_config.update({
+        'contacts': [], 'engagements': [], 'edges': [],
+        'beads': {'default_enabled': config_input['enable_beads']},
+        'subjects': {},
+        'auto_detect': {'enabled': True, 'method': 'path_match'},
+        'domain_config': {},
+        'calibration_weights': _seed_calibration_weights(config_input['project_type']),
+    })
+    return project_config
+
+
+def _create_semantic_index_template(git_root, project_name):
+    """Create SEMANTIC_INDEX.yaml template. Returns path or None."""
+    import yaml
+
+    docs_dir = git_root / 'docs'
+    docs_dir.mkdir(exist_ok=True)
+    semantic_index_path = docs_dir / 'SEMANTIC_INDEX.yaml'
+
+    template = {
+        'version': '2.0', 'project': project_name,
+        'index': {
+            'README.md': {
+                'tags': ['readme', 'getting-started'],
+                'concepts': ['Project overview'],
+                'questions': ['What is this project?'],
+                'use_cases': ['new_user_onboarding']
+            }
+        },
+        'total_docs_indexed': 1, 'last_updated': '2025-12-19',
+        'coverage': {'core_concepts': 1, 'quickstart': 0, 'architecture': 0, 'api': 0}
+    }
+    with open(semantic_index_path, 'w') as f:
+        yaml.dump(template, f, default_flow_style=False, sort_keys=False)
+    return semantic_index_path
+
+
+def _format_init_output(output_format, project_id, project_name, git_root, config_path,
+                         project_config_path, semantic_index_path, enable_beads,
+                         create_semantic_index, reused_existing):
+    """Format and print the project-init output."""
+    if output_format == 'json':
+        result = {
+            "ok": True, "project_id": project_id, "project_name": project_name,
+            "git_root": str(git_root), "reused_existing": reused_existing,
+            "files_created": {
+                "config": str(config_path),
+                "project_config": str(project_config_path),
+                "semantic_index": str(semantic_index_path) if semantic_index_path else None
+            },
+            "beads_enabled": enable_beads,
+            "message": "Empirica initialized successfully" + (" (reused existing project)" if reused_existing else "")
+        }
+        print(json.dumps(result, indent=2))
+    else:
+        print("\n✅ Empirica initialized successfully!\n")
+        print("📁 Files created:")
+        print(f"   • {config_path.relative_to(git_root)}")
+        print(f"   • {project_config_path.relative_to(git_root)}")
+        if semantic_index_path:
+            print(f"   • {semantic_index_path.relative_to(git_root)}")
+
+        print(f"\n🆔 Project ID: {project_id}")
+        print(f"📦 Project Name: {project_name}")
+        if enable_beads:
+            print("🔗 BEADS: Enabled by default")
+
+        print("\n📋 Next steps:")
+        if enable_beads:
+            print("   1. Initialize BEADS issue tracking:")
+            print("      bd init")
+            print("   2. Create your first session:")
+            print("      empirica session-create --ai-id myai")
+            print("   3. Create goals (BEADS will auto-link):")
+            print("      empirica goals-create --objective '...' --success-criteria '...'")
+        else:
+            print("   1. Create your first session:")
+            print("      empirica session-create --ai-id myai")
+            print("   2. Start working with epistemic tracking:")
+            print("      empirica preflight-submit <assessment.json>")
+
+        if create_semantic_index:
+            print("\n📖 Semantic index template created!")
+            print("   Edit docs/SEMANTIC_INDEX.yaml to add your documentation metadata")
+
+
 def handle_project_init_command(args):
     """Handle project-init command - initialize Empirica in a new repo"""
     try:
-        from empirica.config.path_resolver import create_default_config, ensure_empirica_structure, get_git_root
+        import yaml
+
+        from empirica.config.path_resolver import create_default_config, ensure_empirica_structure
         from empirica.data.session_database import SessionDatabase
 
-        # Auto-detect non-interactive: explicit flag OR no TTY OR JSON output
         explicit_non_interactive = getattr(args, 'non_interactive', False)
         has_tty = sys.stdin.isatty() if hasattr(sys.stdin, 'isatty') else False
         output_format = getattr(args, 'output', 'default')
         interactive = not explicit_non_interactive and has_tty and output_format != 'json'
 
-        # Check if in git repo — offer to init one if not
-        git_root = get_git_root()
+        git_root = _ensure_git_root(interactive, output_format)
         if not git_root:
-            import subprocess
-            if interactive:
-                response = input("Not in a git repository. Initialize one? [Y/n]: ").strip().lower()
-                if response in ('n', 'no'):
-                    print("Aborted. Run 'git init' manually, then try again.")
-                    return None
-                subprocess.run(['git', 'init'], check=True)
-                git_root = get_git_root()
-            elif output_format == 'json' or explicit_non_interactive:
-                # Auto-init silently in non-interactive mode
-                subprocess.run(['git', 'init'], capture_output=True, check=True)
-                git_root = get_git_root()
+            return None
 
-            if not git_root:
-                if output_format == 'json':
-                    print(json.dumps({"ok": False, "error": "Not in a git repository"}))
-                else:
-                    print("Error: Not in a git repository. Run 'git init' first.")
-                return None
-
-        # Check if already initialized
         config_path = git_root / '.empirica' / 'config.yaml'
-        if config_path.exists() and not getattr(args, 'force', False):
-            if output_format == 'json':
-                print(json.dumps({
-                    "ok": False,
-                    "error": "Empirica already initialized in this repo",
-                    "hint": "Use --force to reinitialize"
-                }, indent=2))
-            else:
-                print("❌ Empirica already initialized in this repo")
-                print(f"   Config found: {config_path}")
-                print("\nTip: Use --force to reinitialize")
+        if _check_already_initialized(config_path, args, output_format):
             return None
 
         if output_format != 'json':
             print("🚀 Initializing Empirica in this repository...")
             print(f"   Git root: {git_root}\n")
 
-        # Create directory structure
         ensure_empirica_structure()
-
-        # Create config.yaml
         create_default_config()
 
-        # Collect project configuration (interactive or from args)
         if interactive and output_format != 'json':
             config_input = _collect_project_config_interactive(git_root)
         else:
             config_input = _collect_project_config_from_args(args, git_root)
 
-        project_name = config_input['project_name']
-        project_description = config_input['project_description']
-        enable_beads = config_input['enable_beads']
-        create_semantic_index = config_input['create_semantic_index']
-        project_type = config_input['project_type']
-        project_domain = config_input['project_domain']
-        evidence_profile = config_input['evidence_profile']
-        classification = config_input['classification']
-        languages = config_input['languages']
-        tags = config_input['tags']
-
-        # Create project.yaml with BEADS config
+        git_url = _get_git_remote_url()
+        project_config = _build_project_config(config_input, git_root, git_url)
         project_config_path = git_root / '.empirica' / 'project.yaml'
 
-        # Get git remote URL for repos field
-        import subprocess
-        try:
-            result = subprocess.run(
-                ['git', 'remote', 'get-url', 'origin'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            git_url = result.stdout.strip() if result.returncode == 0 else None
-        except Exception:
-            git_url = None
-
-        # Auto-detect languages from build files if not specified
-        if not languages:
-            languages = _auto_detect_languages(git_root)
-
-        from datetime import datetime
-        project_config = {
-            'version': '2.0',
-            'name': project_name,
-            'description': project_description or f"{project_name} project",
-            'project_id': None,  # Placeholder — filled after DB creation
-            'type': project_type,
-            'domain': project_domain,
-            'classification': classification,
-            'status': 'active',
-            'evidence_profile': evidence_profile,
-            'languages': languages,
-            'tags': tags,
-            'created_at': datetime.now().strftime('%Y-%m-%d'),
-            'created_by': os.environ.get('USER', 'unknown'),
-        }
-        if git_url:
-            project_config['repository'] = git_url
-        project_config.update({
-            'contacts': [],
-            'engagements': [],
-            'edges': [],
-            'beads': {
-                'default_enabled': enable_beads,
-            },
-            'subjects': {},
-            'auto_detect': {
-                'enabled': True,
-                'method': 'path_match'
-            },
-            'domain_config': {},
-            'calibration_weights': _seed_calibration_weights(project_type),
-        })
-
-        import yaml
         with open(project_config_path, 'w') as f:
             yaml.dump(project_config, f, default_flow_style=False, sort_keys=False)
 
-        # Create or reuse project in database (idempotent)
-        # For new projects, we must pass explicit path since get_session_db_path()
-        # requires an existing db or context to resolve
         db_path = git_root / '.empirica' / 'sessions' / 'sessions.db'
         db = SessionDatabase(db_path=str(db_path))
-        project_id = None
         reused_existing = False
 
-        # Resolve or create project ID
+        project_name = config_input['project_name']
+        project_description = config_input['project_description']
         project_id = _resolve_or_create_project(
             db, args, project_name, project_description, project_config_path,
-            git_url, project_type, tags, output_format)
+            git_url, config_input['project_type'], config_input['tags'], output_format)
 
-        # Update project.yaml with project_id
         project_config['project_id'] = project_id
         with open(project_config_path, 'w') as f:
             yaml.dump(project_config, f, default_flow_style=False, sort_keys=False)
-
         db.close()
 
-        # Register in global workspace
         _register_project_in_workspace(
             project_id, project_name, project_description, git_root, git_url, project_config, output_format)
 
-        # NOTE: project-init does NOT update resolver context (instance_projects,
-        # TTY sessions, active_work). Those files route the current terminal to a
-        # project — overwriting them here corrupts context for any existing session
-        # in this terminal. Use `empirica project-switch` to change active project.
-
-        # Create SEMANTIC_INDEX.yaml template if requested
         semantic_index_path = None
-        if create_semantic_index:
-            docs_dir = git_root / 'docs'
-            docs_dir.mkdir(exist_ok=True)
+        if config_input['create_semantic_index']:
+            semantic_index_path = _create_semantic_index_template(git_root, project_name)
 
-            semantic_index_path = docs_dir / 'SEMANTIC_INDEX.yaml'
+        _format_init_output(
+            output_format, project_id, project_name, git_root, config_path,
+            project_config_path, semantic_index_path, config_input['enable_beads'],
+            config_input['create_semantic_index'], reused_existing)
 
-            template = {
-                'version': '2.0',
-                'project': project_name,
-                'index': {
-                    'README.md': {
-                        'tags': ['readme', 'getting-started'],
-                        'concepts': ['Project overview'],
-                        'questions': ['What is this project?'],
-                        'use_cases': ['new_user_onboarding']
-                    }
-                },
-                'total_docs_indexed': 1,
-                'last_updated': '2025-12-19',
-                'coverage': {
-                    'core_concepts': 1,
-                    'quickstart': 0,
-                    'architecture': 0,
-                    'api': 0
-                }
-            }
-
-            with open(semantic_index_path, 'w') as f:
-                yaml.dump(template, f, default_flow_style=False, sort_keys=False)
-
-        # Format output
-        if output_format == 'json':
-            result = {
-                "ok": True,
-                "project_id": project_id,
-                "project_name": project_name,
-                "git_root": str(git_root),
-                "reused_existing": reused_existing,
-                "files_created": {
-                    "config": str(config_path),
-                    "project_config": str(project_config_path),
-                    "semantic_index": str(semantic_index_path) if semantic_index_path else None
-                },
-                "beads_enabled": enable_beads,
-                "message": "Empirica initialized successfully" + (" (reused existing project)" if reused_existing else "")
-            }
-            print(json.dumps(result, indent=2))
-        else:
-            print("\n✅ Empirica initialized successfully!\n")
-            print("📁 Files created:")
-            print(f"   • {config_path.relative_to(git_root)}")
-            print(f"   • {project_config_path.relative_to(git_root)}")
-            if semantic_index_path:
-                print(f"   • {semantic_index_path.relative_to(git_root)}")
-
-            print(f"\n🆔 Project ID: {project_id}")
-            print(f"📦 Project Name: {project_name}")
-            if enable_beads:
-                print("🔗 BEADS: Enabled by default")
-
-            print("\n📋 Next steps:")
-            if enable_beads:
-                print("   1. Initialize BEADS issue tracking:")
-                print("      bd init")
-                print("   2. Create your first session:")
-                print("      empirica session-create --ai-id myai")
-                print("   3. Create goals (BEADS will auto-link):")
-                print("      empirica goals-create --objective '...' --success-criteria '...'")
-            else:
-                print("   1. Create your first session:")
-                print("      empirica session-create --ai-id myai")
-                print("   2. Start working with epistemic tracking:")
-                print("      empirica preflight-submit <assessment.json>")
-
-            if create_semantic_index:
-                print("\n📖 Semantic index template created!")
-                print("   Edit docs/SEMANTIC_INDEX.yaml to add your documentation metadata")
-
-        # Return result dict for programmatic use (e.g., auto-init)
         return {
-            "ok": True,
-            "project_id": project_id,
-            "project_name": project_name,
-            "git_root": str(git_root),
+            "ok": True, "project_id": project_id,
+            "project_name": project_name, "git_root": str(git_root),
         }
 
     except Exception as e:

@@ -14,6 +14,7 @@ These commands provide JSON output for MCP v2 server integration.
 
 import json
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -81,9 +82,7 @@ def _check_for_similar_goals(objective: str, session_id: str | None = None, thre
     Returns:
         List of similar goals found, empty if none
     """
-    import os
     import re
-    import subprocess
 
     similar = []
 
@@ -1984,6 +1983,7 @@ def _handle_goals_claim_command_helper(ai_id, beads_issue_id, create_branch, goa
 
             # Add branch mapping
             try:
+                from empirica.integrations.branch_mapping import get_branch_mapping
                 branch_mapping = get_branch_mapping()
                 branch_mapping.add_mapping(
                     branch_name=branch_name,
@@ -2009,7 +2009,6 @@ def handle_goals_claim_command(args):
     try:
         from empirica.core.goals.repository import GoalRepository
         from empirica.data.session_database import SessionDatabase
-        from empirica.integrations.branch_mapping import get_branch_mapping
 
         goal_id = args.goal_id
         create_branch = getattr(args, 'create_branch', True)

@@ -198,6 +198,86 @@ def fetch_ranked_artifacts(session_id: str, db_path: str | None = None,
     return result
 
 
+def _format_auto_section(artifacts: dict, session_id: str) -> str:
+    """Format ranked artifacts into the MEMORY.md auto-generated section."""
+    auto_lines = []
+    auto_lines.append(f"\n{MEMORY_AUTO_START}\n")
+
+    ranked = sorted(artifacts['findings'], key=lambda f: f.get('impact', 0.5), reverse=True)
+
+    critical = [f for f in ranked if f.get('impact', 0.5) > 0.7]
+    if critical:
+        auto_lines.append("### Critical (weight > 0.7)")
+        for f in critical[:5]:
+            impact = f.get('impact', 0.5)
+            text = f['finding'][:100].replace('\n', ' ')
+            auto_lines.append(f"- [{impact:.2f}] **Finding:** {text}...")
+
+    important = [f for f in ranked if 0.4 <= f.get('impact', 0.5) <= 0.7]
+    if important:
+        auto_lines.append("\n### Important (weight 0.4-0.7)")
+        for f in important[:5]:
+            impact = f.get('impact', 0.5)
+            text = f['finding'][:100].replace('\n', ' ')
+            auto_lines.append(f"- [{impact:.2f}] **Finding:** {text}...")
+
+    if artifacts['dead_ends']:
+        auto_lines.append("\n### Dead-Ends (avoid re-trying)")
+        for d in artifacts['dead_ends'][:3]:
+            approach = d['approach'][:80].replace('\n', ' ')
+            auto_lines.append(f"- [{0.5 + len(d.get('why_failed', '')) / 500:.2f}] **Dead-End:** {approach}")
+
+    if artifacts['mistakes']:
+        auto_lines.append("\n### Mistakes (prevention strategies)")
+        for m in artifacts['mistakes'][:3]:
+            text = m['mistake'][:80].replace('\n', ' ')
+            auto_lines.append(f"- [{0.50:.2f}] **Mistake:** {text}")
+
+    if artifacts['goals']:
+        auto_lines.append(f"\n### Active Goals ({len(artifacts['goals'])})")
+        for g in artifacts['goals'][:5]:
+            obj = g['objective'][:80].replace('\n', ' ')
+            auto_lines.append(f"- [{0.44:.2f}] **Goal:** {obj}...")
+
+    total_items = sum(len(v) for v in artifacts.values())
+    auto_lines.append("\n---")
+    auto_lines.append(f"📊 **{total_items} items ranked** | For deeper context:")
+    auto_lines.append(f"- `empirica project-bootstrap --session-id {session_id[:8]}` (full load + subtasks)")
+    auto_lines.append("- `empirica project-search --task \"<query>\"` (Qdrant semantic)")
+    auto_lines.append("- `git notes show --ref=breadcrumbs HEAD` (session narrative)")
+
+    return '\n'.join(auto_lines) + '\n'
+
+
+def _replace_auto_section(existing: str, auto_section: str) -> str:
+    """Replace or append the auto-generated section in MEMORY.md content."""
+    if MEMORY_AUTO_START not in existing:
+        return existing.rstrip('\n') + '\n' + auto_section
+
+    start_idx = existing.index(MEMORY_AUTO_START)
+    end_marker = "📊 **"
+    if end_marker not in existing[start_idx:]:
+        return existing[:start_idx] + auto_section
+
+    end_search = existing.index(end_marker, start_idx)
+    end_idx = existing.find('\n', end_search)
+    if end_idx == -1:
+        end_idx = len(existing)
+    else:
+        while end_idx < len(existing) - 1:
+            next_line_end = existing.find('\n', end_idx + 1)
+            if next_line_end == -1:
+                next_line_end = len(existing)
+            next_line = existing[end_idx + 1:next_line_end]
+            if next_line.startswith('- `empirica') or next_line.startswith('- `git'):
+                end_idx = next_line_end
+            else:
+                break
+        end_idx += 1
+
+    return existing[:start_idx] + auto_section + existing[end_idx:]
+
+
 def update_hot_cache(session_id: str, project_path: str | None = None,
                      db_path: str | None = None) -> bool:
     """Update MEMORY.md auto-generated section with ranked artifacts.
@@ -213,63 +293,7 @@ def update_hot_cache(session_id: str, project_path: str | None = None,
         return False
 
     artifacts = fetch_ranked_artifacts(session_id, db_path)
-
-    # Format the auto section
-    auto_lines = []
-    auto_lines.append(f"\n{MEMORY_AUTO_START}\n")
-
-    # Rank findings by impact, include top items
-    ranked = sorted(artifacts['findings'], key=lambda f: f.get('impact', 0.5), reverse=True)
-
-    # Critical findings (impact > 0.7)
-    critical = [f for f in ranked if f.get('impact', 0.5) > 0.7]
-    if critical:
-        auto_lines.append("### Critical (weight > 0.7)")
-        for f in critical[:5]:
-            impact = f.get('impact', 0.5)
-            text = f['finding'][:100].replace('\n', ' ')
-            auto_lines.append(f"- [{impact:.2f}] **Finding:** {text}...")
-
-    # Important findings (impact 0.4-0.7)
-    important = [f for f in ranked if 0.4 <= f.get('impact', 0.5) <= 0.7]
-    if important:
-        auto_lines.append("\n### Important (weight 0.4-0.7)")
-        for f in important[:5]:
-            impact = f.get('impact', 0.5)
-            text = f['finding'][:100].replace('\n', ' ')
-            auto_lines.append(f"- [{impact:.2f}] **Finding:** {text}...")
-
-    # Dead-ends (always valuable)
-    if artifacts['dead_ends']:
-        auto_lines.append("\n### Dead-Ends (avoid re-trying)")
-        for d in artifacts['dead_ends'][:3]:
-            approach = d['approach'][:80].replace('\n', ' ')
-            d['why_failed'][:60].replace('\n', ' ')
-            auto_lines.append(f"- [{0.5 + len(d.get('why_failed', '')) / 500:.2f}] **Dead-End:** {approach}")
-
-    # Mistakes with prevention
-    if artifacts['mistakes']:
-        auto_lines.append("\n### Mistakes (prevention strategies)")
-        for m in artifacts['mistakes'][:3]:
-            text = m['mistake'][:80].replace('\n', ' ')
-            auto_lines.append(f"- [{0.50:.2f}] **Mistake:** {text}")
-
-    # Open goals
-    if artifacts['goals']:
-        auto_lines.append(f"\n### Active Goals ({len(artifacts['goals'])})")
-        for g in artifacts['goals'][:5]:
-            obj = g['objective'][:80].replace('\n', ' ')
-            auto_lines.append(f"- [{0.44:.2f}] **Goal:** {obj}...")
-
-    # Footer with retrieval hints
-    total_items = sum(len(v) for v in artifacts.values())
-    auto_lines.append("\n---")
-    auto_lines.append(f"📊 **{total_items} items ranked** | For deeper context:")
-    auto_lines.append(f"- `empirica project-bootstrap --session-id {session_id[:8]}` (full load + subtasks)")
-    auto_lines.append("- `empirica project-search --task \"<query>\"` (Qdrant semantic)")
-    auto_lines.append("- `git notes show --ref=breadcrumbs HEAD` (session narrative)")
-
-    auto_section = '\n'.join(auto_lines) + '\n'
+    auto_section = _format_auto_section(artifacts, session_id)
 
     # Enforce line cap
     auto_section_lines = auto_section.count('\n')
@@ -277,46 +301,9 @@ def update_hot_cache(session_id: str, project_path: str | None = None,
         lines = auto_section.split('\n')
         auto_section = '\n'.join(lines[:MEMORY_AUTO_MAX_LINES]) + '\n'
 
-    # Read existing MEMORY.md
-    if memory_path.exists():
-        existing = memory_path.read_text()
-    else:
-        existing = "# Empirica Project Memory\n"
+    existing = memory_path.read_text() if memory_path.exists() else "# Empirica Project Memory\n"
+    updated = _replace_auto_section(existing, auto_section)
 
-    # Replace or append auto section
-    if MEMORY_AUTO_START in existing:
-        # Find the auto section and replace it
-        start_idx = existing.index(MEMORY_AUTO_START)
-        # Find the end marker (the ---\n📊 line and everything after it until next ## or end)
-        end_marker = "📊 **"
-        if end_marker in existing[start_idx:]:
-            # Find the end of the auto section (next line after the 📊 footer)
-            end_search = existing.index(end_marker, start_idx)
-            # Go to end of line
-            end_idx = existing.find('\n', end_search)
-            if end_idx == -1:
-                end_idx = len(existing)
-            else:
-                # Include any trailing retrieval hints (lines starting with -)
-                while end_idx < len(existing) - 1:
-                    next_line_end = existing.find('\n', end_idx + 1)
-                    if next_line_end == -1:
-                        next_line_end = len(existing)
-                    next_line = existing[end_idx + 1:next_line_end]
-                    if next_line.startswith('- `empirica') or next_line.startswith('- `git'):
-                        end_idx = next_line_end
-                    else:
-                        break
-                end_idx += 1  # Include the final newline
-            updated = existing[:start_idx] + auto_section + existing[end_idx:]
-        else:
-            # No end marker found, replace to end of file
-            updated = existing[:start_idx] + auto_section
-    else:
-        # Append at end
-        updated = existing.rstrip('\n') + '\n' + auto_section
-
-    # Write back
     try:
         memory_path.parent.mkdir(parents=True, exist_ok=True)
         memory_path.write_text(updated)

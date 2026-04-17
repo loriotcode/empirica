@@ -165,6 +165,34 @@ def add_delegated_work_to_parent(tool_call_count: int) -> bool:
         return False
 
 
+def _extract_text_from_message(msg: dict) -> str:
+    """Extract text content from a transcript message entry."""
+    content = msg.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block.get("text", ""))
+        return "\n".join(parts)
+    return ""
+
+
+def _extract_matching_sentence(text_content: str, pattern_start: str) -> str | None:
+    """Find the first sentence containing the pattern, return it truncated or None."""
+    if pattern_start not in text_content:
+        return None
+    keyword = pattern_start.rstrip(':')
+    for sentence in text_content.split('.'):
+        if keyword in sentence:
+            stripped = sentence.strip()
+            if len(stripped) > 10:
+                return stripped[:200]
+            break
+    return None
+
+
 def extract_findings_from_transcript(transcript_path: str) -> dict:
     """Extract epistemic artifacts from agent transcript.
 
@@ -178,49 +206,34 @@ def extract_findings_from_transcript(transcript_path: str) -> dict:
     if not transcript_path or not Path(transcript_path).exists():
         return {"findings": findings, "unknowns": unknowns, "dead_ends": dead_ends}
 
+    finding_patterns = ["Found:", "Discovered:", "Key insight:", "Result:"]
+    unknown_patterns = ["Unknown:", "Unclear:", "Need to investigate:", "TODO:"]
+
     try:
         content = Path(transcript_path).read_text()
-
-        # Try to parse as JSONL (Claude Code transcript format)
         for line in content.strip().split('\n'):
             try:
                 entry = json.loads(line)
-                msg = entry.get("message", {})
-                role = msg.get("role", "")
-                text_content = ""
-
-                # Extract text from message content
-                if isinstance(msg.get("content"), str):
-                    text_content = msg["content"]
-                elif isinstance(msg.get("content"), list):
-                    for block in msg["content"]:
-                        if isinstance(block, dict) and block.get("type") == "text":
-                            text_content += block.get("text", "") + "\n"
-
-                if role == "assistant" and text_content:
-                    # Look for finding-like patterns
-                    for pattern_start in ["Found:", "Discovered:", "Key insight:", "Result:"]:
-                        if pattern_start in text_content:
-                            # Extract the sentence containing the pattern
-                            for sentence in text_content.split('.'):
-                                if pattern_start.rstrip(':') in sentence:
-                                    finding = sentence.strip()
-                                    if len(finding) > 10:
-                                        findings.append(finding[:200])
-                                    break
-
-                    # Look for unknown-like patterns
-                    for pattern_start in ["Unknown:", "Unclear:", "Need to investigate:", "TODO:"]:
-                        if pattern_start in text_content:
-                            for sentence in text_content.split('.'):
-                                if pattern_start.rstrip(':') in sentence:
-                                    unknown = sentence.strip()
-                                    if len(unknown) > 10:
-                                        unknowns.append(unknown[:200])
-                                    break
-
             except json.JSONDecodeError:
                 continue
+
+            msg = entry.get("message", {})
+            if msg.get("role") != "assistant":
+                continue
+
+            text_content = _extract_text_from_message(msg)
+            if not text_content:
+                continue
+
+            for pattern in finding_patterns:
+                match = _extract_matching_sentence(text_content, pattern)
+                if match:
+                    findings.append(match)
+
+            for pattern in unknown_patterns:
+                match = _extract_matching_sentence(text_content, pattern)
+                if match:
+                    unknowns.append(match)
 
     except (OSError, UnicodeDecodeError):
         pass

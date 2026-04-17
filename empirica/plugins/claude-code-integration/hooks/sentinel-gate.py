@@ -531,27 +531,16 @@ def _resolve_empirica_session_id(claude_session_id: str | None) -> str | None:
     return None
 
 
-def _try_increment_tool_count(claude_session_id: str | None = None,
-                              tool_name: str | None = None,
-                              tool_input: dict | None = None) -> tuple:
-    """Increment tool_call_count in the hook counters file (separate from transaction).
+def _locate_transaction_file(claude_session_id: str | None,
+                             suffix: str,
+                             empirica_session_id: str | None) -> Path | None:
+    """Locate the active transaction file using priority chain.
 
-    Transaction file is READ-ONLY here (for status check and avg_turns).
-    All counter mutations go to hook_counters_{suffix}.json to avoid race
-    conditions with POSTFLIGHT's status=closed write.
-
-    Returns (tool_call_count, avg_turns) or (0, 0) if no transaction.
+    Try 1: active_work file for project_path
+    Try 2: project_resolver canonical path
+    Try 3: global fallback
     """
-    import tempfile
-
-    from empirica.utils.session_resolver import InstanceResolver as R
-    suffix = R.instance_suffix()
-    empirica_session_id = _resolve_empirica_session_id(claude_session_id)
-
-    # Find the transaction file (READ-ONLY — for status and avg_turns)
-    tx_path = None
-
-    # Try 1: active_work file for project_path
+    # Try 1: active_work file
     if claude_session_id:
         aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if aw_file.exists():
@@ -559,28 +548,133 @@ def _try_increment_tool_count(claude_session_id: str | None = None,
                 with open(aw_file) as f:
                     pp = json.load(f).get('project_path')
                 if pp:
-                    tx_path = _find_transaction_file(
+                    tx = _find_transaction_file(
                         Path(pp) / '.empirica', suffix, empirica_session_id)
+                    if tx:
+                        return tx
             except Exception:
                 pass
 
     # Try 2: project_resolver canonical path
-    if not tx_path:
-        pp = get_active_project_path(claude_session_id)
-        if pp:
-            tx_path = _find_transaction_file(
-                Path(pp) / '.empirica', suffix, empirica_session_id)
+    pp = get_active_project_path(claude_session_id)
+    if pp:
+        tx = _find_transaction_file(
+            Path(pp) / '.empirica', suffix, empirica_session_id)
+        if tx:
+            return tx
 
     # Try 3: global fallback
-    if not tx_path:
-        tx_path = _find_transaction_file(
-            Path.home() / '.empirica', suffix, empirica_session_id)
+    return _find_transaction_file(
+        Path.home() / '.empirica', suffix, empirica_session_id)
 
+
+def _classify_tool_phase(tool_name: str, tool_input: dict | None) -> bool:
+    """Classify whether a tool call is noetic (True) or praxic (False)."""
+    return (
+        tool_name in NOETIC_TOOLS
+        or tool_name in NOETIC_MCP_CHROME
+        or tool_name in NOETIC_MCP_CORTEX
+        or (tool_name == 'Bash' and tool_input and is_safe_bash_command(tool_input))
+        or (tool_name in ('Write', 'Edit') and tool_input and is_plan_file(tool_input))
+    )
+
+
+def _update_phase_counters(counters: dict, tool_name: str, is_noetic: bool) -> None:
+    """Update phase-split counters for calibration."""
+    if is_noetic:
+        counters['noetic_tool_calls'] = counters.get('noetic_tool_calls', 0) + 1
+    else:
+        counters['praxic_tool_calls'] = counters.get('praxic_tool_calls', 0) + 1
+
+
+def _track_edited_files(counters: dict, tool_name: str, tool_input: dict | None) -> None:
+    """Track edited file paths for non-git file change detection."""
+    if tool_name not in ('Edit', 'Write') or not tool_input:
+        return
+    fp = tool_input.get('file_path', '')
+    if fp:
+        edited = counters.get('edited_files', [])
+        if fp not in edited:
+            edited.append(fp)
+            counters['edited_files'] = edited
+
+
+def _track_read_files(counters: dict, tool_name: str, tool_input: dict | None) -> None:
+    """Track read file paths for re-read advisory. Sets global _last_read_count."""
+    global _last_read_count
+    if tool_name != 'Read' or not tool_input:
+        return
+    fp = tool_input.get('file_path', '')
+    if fp:
+        read_counts = counters.get('read_files', {})
+        read_counts[fp] = read_counts.get(fp, 0) + 1
+        counters['read_files'] = read_counts
+        _last_read_count = read_counts[fp]
+
+
+def _extract_trace_target(tool_name: str, tool_input: dict | None) -> str:
+    """Extract a compact target identifier for workflow trace recording."""
+    if tool_name in ('Read', 'Edit', 'Write') and tool_input:
+        target = tool_input.get('file_path', '')
+        if target:
+            return target.rsplit('/', 1)[-1]  # Just filename
+    elif tool_name == 'Bash' and tool_input:
+        cmd = tool_input.get('command', '')
+        return cmd.split()[0] if cmd else ''
+    elif tool_name in ('Grep', 'Glob') and tool_input:
+        return tool_input.get('pattern', '')[:30]
+    return ''
+
+
+def _record_workflow_trace(counters: dict, tool_name: str, tool_input: dict | None,
+                           is_noetic: bool) -> None:
+    """Record tool sequence entry for pattern mining.
+
+    Compact format: [tool_name, target, phase]. Capped at 200 entries.
+    """
+    target = _extract_trace_target(tool_name, tool_input)
+    phase = 'n' if is_noetic else 'p'
+    trace = counters.get('tool_trace', [])
+    trace.append([tool_name, target[:40], phase])
+    if len(trace) > 200:
+        trace = trace[-200:]
+    counters['tool_trace'] = trace
+
+
+def _atomic_write_counters(counters: dict, counters_path: Path) -> None:
+    """Atomic write to counters file (NOT the transaction file)."""
+    import tempfile
+    fd, tmp = tempfile.mkstemp(dir=str(counters_path.parent))
+    try:
+        with os.fdopen(fd, 'w') as tf:
+            json.dump(counters, tf, indent=2)
+        os.replace(tmp, str(counters_path))
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
+
+def _try_increment_tool_count(claude_session_id: str | None = None,
+                              tool_name: str | None = None,
+                              tool_input: dict | None = None) -> tuple:
+    """Increment tool_call_count in the hook counters file (separate from transaction).
+
+    Orchestrates: transaction lookup, counter read-modify-write, phase tracking,
+    file tracking, workflow trace recording, and atomic persistence.
+
+    Returns (tool_call_count, avg_turns) or (0, 0) if no transaction.
+    """
+    from empirica.utils.session_resolver import InstanceResolver as R
+    suffix = R.instance_suffix()
+    empirica_session_id = _resolve_empirica_session_id(claude_session_id)
+
+    tx_path = _locate_transaction_file(claude_session_id, suffix, empirica_session_id)
     if not tx_path:
         return 0, 0
 
     try:
-        # READ transaction file (read-only — never write back)
         with open(tx_path) as f:
             tx = json.load(f)
 
@@ -589,7 +683,7 @@ def _try_increment_tool_count(claude_session_id: str | None = None,
 
         avg = tx.get('avg_turns', 0)
 
-        # READ-MODIFY-WRITE the counters file (hook-owned, no race with POSTFLIGHT)
+        # Read existing counters
         counters_path = tx_path.parent / f'hook_counters{suffix}.json'
         counters = {}
         if counters_path.exists():
@@ -602,75 +696,22 @@ def _try_increment_tool_count(claude_session_id: str | None = None,
         counters['tool_call_count'] = counters.get('tool_call_count', 0) + 1
         count = counters['tool_call_count']
 
-        # Phase-split counting for phase-weighted calibration
+        # Phase-split counting and tracking
+        is_noetic = False
         if tool_name:
-            _is_noetic = (
-                tool_name in NOETIC_TOOLS
-                or tool_name in NOETIC_MCP_CHROME or tool_name in NOETIC_MCP_CORTEX
-                or (tool_name == 'Bash' and tool_input and is_safe_bash_command(tool_input))
-                or (tool_name in ('Write', 'Edit') and tool_input and is_plan_file(tool_input))
-            )
-            if _is_noetic:
-                counters['noetic_tool_calls'] = counters.get('noetic_tool_calls', 0) + 1
-            else:
-                counters['praxic_tool_calls'] = counters.get('praxic_tool_calls', 0) + 1
+            is_noetic = _classify_tool_phase(tool_name, tool_input)
+            _update_phase_counters(counters, tool_name, is_noetic)
 
-        # Track edited file paths for non-git file change detection
-        if tool_name in ('Edit', 'Write') and tool_input:
-            fp = tool_input.get('file_path', '')
-            if fp:
-                edited = counters.get('edited_files', [])
-                if fp not in edited:
-                    edited.append(fp)
-                    counters['edited_files'] = edited
+        _track_edited_files(counters, tool_name, tool_input)
+        _track_read_files(counters, tool_name, tool_input)
 
-        # Track read file paths for re-read advisory
-        global _last_read_count
-        if tool_name == 'Read' and tool_input:
-            fp = tool_input.get('file_path', '')
-            if fp:
-                read_counts = counters.get('read_files', {})
-                read_counts[fp] = read_counts.get(fp, 0) + 1
-                counters['read_files'] = read_counts
-                _last_read_count = read_counts[fp]
-
-        # Context-shift tracking: flag when AI asks user a question
         if tool_name == 'AskUserQuestion':
             counters['pending_user_response'] = True
 
-        # WORKFLOW TRACE: Record tool sequence for pattern mining
-        # Compact format: [tool_name, target, phase] — target is file path or command prefix
         if tool_name:
-            target = ''
-            if tool_name in ('Read', 'Edit', 'Write') and tool_input:
-                target = tool_input.get('file_path', '')
-                if target:
-                    target = target.rsplit('/', 1)[-1]  # Just filename, not full path
-            elif tool_name == 'Bash' and tool_input:
-                cmd = tool_input.get('command', '')
-                target = cmd.split()[0] if cmd else ''  # First word of command
-            elif (tool_name == 'Grep' and tool_input) or (tool_name == 'Glob' and tool_input):
-                target = tool_input.get('pattern', '')[:30]
-            phase = 'n' if _is_noetic else 'p'
-            trace = counters.get('tool_trace', [])
-            trace.append([tool_name, target[:40], phase])
-            # Cap at 200 entries per transaction to bound memory
-            if len(trace) > 200:
-                trace = trace[-200:]
-            counters['tool_trace'] = trace
+            _record_workflow_trace(counters, tool_name, tool_input, is_noetic)
 
-        # Atomic write to counters file (NOT the transaction file)
-        fd, tmp = tempfile.mkstemp(dir=str(counters_path.parent))
-        try:
-            with os.fdopen(fd, 'w') as tf:
-                json.dump(counters, tf, indent=2)
-            os.replace(tmp, str(counters_path))
-        except BaseException:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-
+        _atomic_write_counters(counters, counters_path)
         return count, avg
     except Exception:
         return 0, 0

@@ -75,6 +75,37 @@ def read_manifest(harness_cwd_project: Path) -> dict | None:
         return None
 
 
+def _copy_dir_entries(source: Path, dest: Path, label: str) -> list[str]:
+    """Copy directory entries from source to dest, skipping swap-internal files."""
+    copied = []
+    for entry in source.iterdir():
+        if entry.name in (BACKUP_SUBDIR, MANIFEST_NAME):
+            continue
+        target = dest / entry.name
+        try:
+            if entry.is_dir():
+                shutil.copytree(entry, target, dirs_exist_ok=True)
+            else:
+                shutil.copy2(entry, target)
+            copied.append(entry.name)
+        except Exception as e:
+            logger.warning(f"{label} failed for {entry}: {e}")
+    return copied
+
+
+def _remove_entries(directory: Path, names: list[str]) -> None:
+    """Remove named entries from a directory."""
+    for name in names:
+        original = directory / name
+        try:
+            if original.is_dir():
+                shutil.rmtree(original)
+            else:
+                original.unlink()
+        except Exception as e:
+            logger.warning(f"Failed to remove original {original}: {e}")
+
+
 def swap_memory(
     harness_cwd_project: Path,
     active_tx_project: Path,
@@ -139,45 +170,13 @@ def swap_memory(
 
     # Backup target memory dir contents (excluding the backup dir itself if it exists)
     backup_dir.mkdir(parents=True, exist_ok=True)
-    backed_up = []
-    for entry in target_memory.iterdir():
-        if entry.name in (BACKUP_SUBDIR, MANIFEST_NAME):
-            continue
-        dest = backup_dir / entry.name
-        try:
-            if entry.is_dir():
-                shutil.copytree(entry, dest, dirs_exist_ok=True)
-            else:
-                shutil.copy2(entry, dest)
-            backed_up.append(entry.name)
-        except Exception as e:
-            logger.warning(f"Backup failed for {entry}: {e}")
+    backed_up = _copy_dir_entries(target_memory, backup_dir, "Backup")
 
     # Remove originals (now safely backed up)
-    for name in backed_up:
-        original = target_memory / name
-        try:
-            if original.is_dir():
-                shutil.rmtree(original)
-            else:
-                original.unlink()
-        except Exception as e:
-            logger.warning(f"Failed to remove original {original}: {e}")
+    _remove_entries(target_memory, backed_up)
 
     # Copy source memory dir contents into target (skipping its own backup dirs)
-    copied = []
-    for entry in source_memory.iterdir():
-        if entry.name in (BACKUP_SUBDIR, MANIFEST_NAME):
-            continue
-        dest = target_memory / entry.name
-        try:
-            if entry.is_dir():
-                shutil.copytree(entry, dest, dirs_exist_ok=True)
-            else:
-                shutil.copy2(entry, dest)
-            copied.append(entry.name)
-        except Exception as e:
-            logger.warning(f"Copy failed for {entry}: {e}")
+    copied = _copy_dir_entries(source_memory, target_memory, "Copy")
 
     # Write the manifest
     manifest = {

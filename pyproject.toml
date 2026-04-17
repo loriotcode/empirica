@@ -232,8 +232,8 @@ known-first-party = ["empirica"]
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*.py" = ["S101"]  # allow assert in tests
-"tests/**/*.py" = ["S101"]  # allow assert in nested tests
+"tests/*.py" = ["S101", "S108", "S110"]  # allow assert, temp paths, try-except-pass in tests
+"tests/**/*.py" = ["S101", "S108", "S110"]  # allow assert, temp paths, try-except-pass in nested tests
 "empirica/core/schemas/*.py" = ["S101"]  # validation asserts in schema converters
 "__init__.py" = ["F401", "E402"]  # allow unused imports and late imports in __init__
 "empirica/cli/cli_core.py" = ["F405", "E402", "S110"]  # star import + conditional imports + graceful startup

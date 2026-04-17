@@ -21,6 +21,88 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
+def _apply_simple_field_updates(args, config):
+    """Apply simple scalar field updates from args. Returns list of change descriptions."""
+    changes = []
+    for field, attr in [
+        ('type', 'type'), ('domain', 'domain'), ('classification', 'classification'),
+        ('status', 'status'), ('evidence_profile', 'evidence_profile'),
+    ]:
+        value = getattr(args, field.replace('-', '_'), None)
+        if value is not None and value != getattr(config, attr):
+            setattr(config, attr, value)
+            changes.append(f"{field}: {value}")
+    return changes
+
+
+def _apply_list_updates(args, config):
+    """Apply languages, tags, contacts, edges updates. Returns list of change descriptions."""
+    changes = []
+
+    # Languages
+    new_languages = getattr(args, 'languages', None)
+    if new_languages:
+        config.languages = new_languages
+        changes.append(f"languages: {new_languages}")
+
+    # Tags
+    new_tags = getattr(args, 'tags', None)
+    if new_tags:
+        config.tags = new_tags
+        changes.append(f"tags: {new_tags}")
+
+    add_tag = getattr(args, 'add_tag', None)
+    if add_tag and add_tag not in config.tags:
+        config.tags.append(add_tag)
+        changes.append(f"+tag: {add_tag}")
+
+    remove_tag = getattr(args, 'remove_tag', None)
+    if remove_tag and remove_tag in config.tags:
+        config.tags.remove(remove_tag)
+        changes.append(f"-tag: {remove_tag}")
+
+    # Contacts
+    add_contact = getattr(args, 'add_contact', None)
+    if add_contact:
+        roles = getattr(args, 'roles', []) or []
+        existing = [c for c in config.contacts if c.get('id') == add_contact]
+        if existing:
+            existing[0]['roles'] = roles
+            changes.append(f"updated contact: {add_contact} roles={roles}")
+        else:
+            config.contacts.append({'id': add_contact, 'roles': roles})
+            changes.append(f"+contact: {add_contact} roles={roles}")
+
+    remove_contact = getattr(args, 'remove_contact', None)
+    if remove_contact:
+        before = len(config.contacts)
+        config.contacts = [c for c in config.contacts if c.get('id') != remove_contact]
+        if len(config.contacts) < before:
+            changes.append(f"-contact: {remove_contact}")
+
+    # Edges
+    add_edge = getattr(args, 'add_edge', None)
+    if add_edge:
+        relation = getattr(args, 'relation', 'related') or 'related'
+        existing = [e for e in config.edges if e.get('entity') == add_edge]
+        if existing:
+            existing[0]['relation'] = relation
+            changes.append(f"updated edge: {add_edge} relation={relation}")
+        else:
+            config.edges.append({'entity': add_edge, 'relation': relation})
+            changes.append(f"+edge: {add_edge} relation={relation}")
+        _soft_validate_edge(add_edge)
+
+    remove_edge = getattr(args, 'remove_edge', None)
+    if remove_edge:
+        before = len(config.edges)
+        config.edges = [e for e in config.edges if e.get('entity') != remove_edge]
+        if len(config.edges) < before:
+            changes.append(f"-edge: {remove_edge}")
+
+    return changes
+
+
 def handle_project_update_command(args):
     """Handle project-update command - update project.yaml fields."""
     try:
@@ -45,90 +127,17 @@ def handle_project_update_command(args):
                 print("❌ No project.yaml found. Run 'empirica project-init' first.")
             return None
 
-        # Load current config
         with open(config_path) as f:
             raw_config = yaml.safe_load(f) or {}
 
         config = ProjectConfig(raw_config)
         changes = []
 
-        # Handle --migrate first
         if getattr(args, 'migrate', False):
             changes.extend(_migrate_v1_to_v2(config, git_root))
 
-        # Simple field updates
-        for field, attr in [
-            ('type', 'type'), ('domain', 'domain'), ('classification', 'classification'),
-            ('status', 'status'), ('evidence_profile', 'evidence_profile'),
-        ]:
-            value = getattr(args, field.replace('-', '_'), None)
-            if value is not None and value != getattr(config, attr):
-                setattr(config, attr, value)
-                changes.append(f"{field}: {value}")
-
-        # Languages
-        new_languages = getattr(args, 'languages', None)
-        if new_languages:
-            config.languages = new_languages
-            changes.append(f"languages: {new_languages}")
-
-        # Tags
-        new_tags = getattr(args, 'tags', None)
-        if new_tags:
-            config.tags = new_tags
-            changes.append(f"tags: {new_tags}")
-
-        add_tag = getattr(args, 'add_tag', None)
-        if add_tag and add_tag not in config.tags:
-            config.tags.append(add_tag)
-            changes.append(f"+tag: {add_tag}")
-
-        remove_tag = getattr(args, 'remove_tag', None)
-        if remove_tag and remove_tag in config.tags:
-            config.tags.remove(remove_tag)
-            changes.append(f"-tag: {remove_tag}")
-
-        # Contacts
-        add_contact = getattr(args, 'add_contact', None)
-        if add_contact:
-            roles = getattr(args, 'roles', []) or []
-            # Check if contact already exists
-            existing = [c for c in config.contacts if c.get('id') == add_contact]
-            if existing:
-                existing[0]['roles'] = roles
-                changes.append(f"updated contact: {add_contact} roles={roles}")
-            else:
-                config.contacts.append({'id': add_contact, 'roles': roles})
-                changes.append(f"+contact: {add_contact} roles={roles}")
-
-        remove_contact = getattr(args, 'remove_contact', None)
-        if remove_contact:
-            before = len(config.contacts)
-            config.contacts = [c for c in config.contacts if c.get('id') != remove_contact]
-            if len(config.contacts) < before:
-                changes.append(f"-contact: {remove_contact}")
-
-        # Edges
-        add_edge = getattr(args, 'add_edge', None)
-        if add_edge:
-            relation = getattr(args, 'relation', 'related') or 'related'
-            existing = [e for e in config.edges if e.get('entity') == add_edge]
-            if existing:
-                existing[0]['relation'] = relation
-                changes.append(f"updated edge: {add_edge} relation={relation}")
-            else:
-                config.edges.append({'entity': add_edge, 'relation': relation})
-                changes.append(f"+edge: {add_edge} relation={relation}")
-
-            # Soft validate: warn if target not found in workspace
-            _soft_validate_edge(add_edge)
-
-        remove_edge = getattr(args, 'remove_edge', None)
-        if remove_edge:
-            before = len(config.edges)
-            config.edges = [e for e in config.edges if e.get('entity') != remove_edge]
-            if len(config.edges) < before:
-                changes.append(f"-edge: {remove_edge}")
+        changes.extend(_apply_simple_field_updates(args, config))
+        changes.extend(_apply_list_updates(args, config))
 
         if not changes:
             if output_format == 'json':
@@ -137,19 +146,15 @@ def handle_project_update_command(args):
                 print("ℹ️  No changes specified. Use --help to see available options.")
             return None
 
-        # Serialize and write
         updated = config.to_dict()
         with open(config_path, 'w') as f:
             yaml.dump(updated, f, default_flow_style=False, sort_keys=False)
 
-        # Sync to DB
         _sync_to_db(config, git_root)
 
         if output_format == 'json':
             print(json.dumps({
-                "ok": True,
-                "changes": changes,
-                "config": updated,
+                "ok": True, "changes": changes, "config": updated,
             }, indent=2, default=str))
         else:
             print(f"✅ Updated project.yaml ({len(changes)} changes)")

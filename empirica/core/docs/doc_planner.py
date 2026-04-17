@@ -36,6 +36,31 @@ def _find_cli_reference(root: str) -> str | None:
     return None
 
 
+def _find_doc_by_tags(index: dict, target_tags: list[str]) -> str | None:
+    """Find the first doc in the index matching any of the target tags."""
+    for rel, meta in index.items():
+        tags = [t.lower() for t in meta.get('tags', [])]
+        if any(t in tags for t in target_tags):
+            return rel
+    return None
+
+
+def _suggest_by_tag(index, suggest_fn, num_mistakes, num_unknowns, num_findings):
+    """Suggest doc updates based on memory state and semantic index tags."""
+    if num_mistakes:
+        rel = _find_doc_by_tags(index, ['troubleshooting'])
+        if rel:
+            suggest_fn(rel, f"{num_mistakes} mistakes logged → add prevention guidance")
+    if num_unknowns:
+        rel = _find_doc_by_tags(index, ['investigation', 'unknowns'])
+        if rel:
+            suggest_fn(rel, f"{num_unknowns} unresolved unknowns → add resolution patterns or notes")
+    if num_findings:
+        rel = _find_doc_by_tags(index, ['project', 'bootstrap', 'breadcrumbs'])
+        if rel:
+            suggest_fn(rel, f"{num_findings} findings → update knowledge sections")
+
+
 def compute_doc_plan(project_id: str, session_id: str | None = None, goal_id: str | None = None) -> dict:
     """
     Heuristic planner that:
@@ -94,27 +119,7 @@ def compute_doc_plan(project_id: str, session_id: str | None = None, goal_id: st
             })
 
     # Suggest core docs based on memory state
-    if num_mistakes:
-        # Troubleshooting doc
-        for rel, meta in index.items():
-            tags = [t.lower() for t in meta.get('tags', [])]
-            if 'troubleshooting' in tags:
-                _suggest_if_present(rel, f"{num_mistakes} mistakes logged → add prevention guidance")
-                break
-    if num_unknowns:
-        # Investigation system doc
-        for rel, meta in index.items():
-            tags = [t.lower() for t in meta.get('tags', [])]
-            if 'investigation' in tags or 'unknowns' in tags:
-                _suggest_if_present(rel, f"{num_unknowns} unresolved unknowns → add resolution patterns or notes")
-                break
-    if num_findings:
-        # Project-level tracking doc (breadcrumbs / memory)
-        for rel, meta in index.items():
-            tags = [t.lower() for t in meta.get('tags', [])]
-            if 'project' in tags or 'bootstrap' in tags or 'breadcrumbs' in tags:
-                _suggest_if_present(rel, f"{num_findings} findings → update knowledge sections")
-                break
+    _suggest_by_tag(index, _suggest_if_present, num_mistakes, num_unknowns, num_findings)
 
     # Suggest CLI reference if we detect new CLI (project-search/embed exist in codebase)
     cli_ref = _find_cli_reference(root)

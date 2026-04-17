@@ -187,13 +187,12 @@ def _load_calibration_from_breadcrumbs_yaml() -> str:
         return ""
 
 
-def main():
-    hook_input = json.loads(sys.stdin.read())
-    claude_session_id = hook_input.get('session_id')
+def _resolve_project_and_setup(claude_session_id: str) -> tuple:
+    """Resolve project root, set CWD, and compute instance_id.
 
-    # CRITICAL: Find and change to project root BEFORE importing empirica
-    # Uses priority chain: claude_session_id → instance_projects → env var
-    # NO CWD FALLBACK - fails explicitly to prevent wrong context pollution
+    Exits with error if project root cannot be resolved.
+    Returns (project_root, instance_id).
+    """
     project_root = find_project_root(claude_session_id, check_compact_handoff=True)
     if project_root is None:
         print(json.dumps({
@@ -203,203 +202,166 @@ def main():
         }))
         sys.exit(1)
     os.chdir(project_root)
-
-    # Compute instance_id for active_work file writing
     instance_id = get_instance_id()
-
-    # Now safe to import empirica (after cwd is set correctly)
     sys.path.insert(0, str(Path.home() / 'empirical-ai' / 'empirica'))
+    return project_root, instance_id
 
-    # Memory swap: when harness CWD doesn't match the resolved project (e.g.
-    # user is working on project A but their terminal is cd'd into project B),
-    # the auto-memory loader on the next session start would load B's memory.
-    # Swap A's memory contents into B's slot so the next conversation reads
-    # the right memory. Restored on session-end-postflight or by pre-compact
-    # if the next compact targets a different project. (KNOWN_ISSUES 11.28)
+
+def _try_memory_swap(claude_session_id: str) -> None:
+    """Attempt memory swap for cross-project CWD mismatch. Non-fatal."""
     try:
         from empirica.utils.memory_swap import maybe_swap_for_active_transaction
         swap_result = maybe_swap_for_active_transaction(claude_session_id=claude_session_id)
         if swap_result.get("action") == "swapped":
-            print(f"💾 {swap_result.get('message', '')}", file=sys.stderr)
+            print(f"{swap_result.get('message', '')}", file=sys.stderr)
     except Exception as e:
-        print(f"⚠️  memory swap failed (non-fatal): {e}", file=sys.stderr)
+        print(f"memory swap failed (non-fatal): {e}", file=sys.stderr)
 
-    # Find active Empirica session (using active_work file first, then DB fallback)
-    empirica_session = _get_empirica_session(claude_session_id=claude_session_id)
-    if not empirica_session:
-        print(json.dumps({"ok": True, "skipped": True, "reason": "No active Empirica session"}))
-        sys.exit(0)
 
-    ai_id = os.getenv('EMPIRICA_AI_ID', 'claude-code')
+def _extract_pre_snapshot_data(pre_snapshot: dict) -> tuple:
+    """Extract vectors, reasoning, transaction, and counters from pre-compact snapshot.
 
-    # CRITICAL: Detect phase state to route recovery correctly
-    phase_state = _get_session_phase_state(empirica_session)
+    Returns (pre_vectors, pre_reasoning, active_transaction, hook_counters).
+    """
+    if not pre_snapshot:
+        return {}, None, None, None
+    pre_vectors = pre_snapshot.get('checkpoint', {}) or \
+                  (pre_snapshot.get('live_state') or {}).get('vectors', {})
+    pre_reasoning = (pre_snapshot.get('live_state') or {}).get('reasoning')
+    active_transaction = pre_snapshot.get('active_transaction')
+    hook_counters = pre_snapshot.get('hook_counters')
+    return pre_vectors, pre_reasoning, active_transaction, hook_counters
 
-    # Load pre-compact snapshot (what the AI thought it knew)
-    pre_snapshot = _load_pre_snapshot()
-    pre_vectors = {}
-    pre_reasoning = None
 
-    if pre_snapshot:
-        pre_vectors = pre_snapshot.get('checkpoint', {}) or \
-                      (pre_snapshot.get('live_state') or {}).get('vectors', {})
-        pre_reasoning = (pre_snapshot.get('live_state') or {}).get('reasoning')
-
-    # Extract active transaction and hook counters from pre-compact snapshot
-    active_transaction = None
-    hook_counters = None
-    if pre_snapshot:
-        active_transaction = pre_snapshot.get('active_transaction')
-        hook_counters = pre_snapshot.get('hook_counters')
-
-    # Load DYNAMIC context - only what's relevant for re-grounding
-    dynamic_context = _load_dynamic_context(empirica_session, ai_id, pre_snapshot)
-
-    # Inject transaction context into dynamic_context
+def _enrich_dynamic_context(dynamic_context: dict, active_transaction: dict,
+                            pre_snapshot: dict) -> None:
+    """Inject transaction, last_task, git_context, and calibration into dynamic_context."""
     if active_transaction:
         dynamic_context['active_transaction'] = active_transaction
-
-    # Inject last_task and git_context from pre-compact snapshot (unified breadcrumbs)
     if pre_snapshot:
         dynamic_context['last_task'] = pre_snapshot.get('last_task', '')
         dynamic_context['git_context'] = pre_snapshot.get('git_context', {})
-
-    # Load calibration biases from .breadcrumbs.yaml (absorbed from session-start.sh)
     calibration_text = _load_calibration_from_breadcrumbs_yaml()
     if calibration_text:
         dynamic_context['calibration_biases'] = calibration_text
 
-    # Route based on phase state and transaction state:
-    # - OPEN TRANSACTION → Just continue (no new PREFLIGHT/CHECK needed)
-    # - Session COMPLETE (has POSTFLIGHT) → Create new session + bootstrap + PREFLIGHT
-    # - Session INCOMPLETE (mid-work, no open tx) → CHECK gate on old session
-    session_bootstrap = None
 
-    # TRANSACTION CONTINUITY: If there's an open transaction, just continue
-    # We recreate the transaction file below (it doesn't persist across processes)
-    if active_transaction and active_transaction.get('status') == 'open':
-        recovery_prompt = _generate_transaction_continue_prompt(
-            pre_vectors=pre_vectors,
-            dynamic_context=dynamic_context,
-            active_transaction=active_transaction
-        )
-        action_required = "CONTINUE_TRANSACTION"
+def _auto_heal_session(tx_session_id: str, ai_id: str, project_id: str,
+                       instance_id: str, project_root: Path) -> None:
+    """Auto-heal missing session in project DB for cross-project resume. Non-fatal."""
+    try:
+        from empirica.data.session_database import SessionDatabase
+        from empirica.utils.session_resolver import _validate_session_in_db
 
-        # CRITICAL: Write active_work file for NEW conversation even when continuing transaction.
-        # The transaction file has the right session_id, but CLI commands need active_work
-        # keyed by the NEW claude_session_id to resolve the correct project.
-        # BUG FIX: Use transaction's session_id, not _get_empirica_session()'s which might
-        # return a DIFFERENT session. This was causing statusline to query wrong session.
-        tx_session_id = active_transaction.get('session_id') or empirica_session
-
-        # AUTO-HEAL (migration 034 era): if the transaction's session_id was
-        # propagated from a different project's DB (cross-project resume),
-        # the row may not exist in the current project-local sessions table.
-        # Subsequent CLI commands will fail validation. Insert a minimal row
-        # so the transaction can continue cleanly. Failure is non-fatal —
-        # we still write the active_work files below.
-        try:
-            from empirica.data.session_database import SessionDatabase
-            from empirica.utils.session_resolver import _validate_session_in_db
-
-            if not _validate_session_in_db(tx_session_id, project_path=str(project_root)):
-                db = SessionDatabase()
-                project_id = (
-                    dynamic_context.get('session_context', {}).get('project_id')
-                )
-                healed = db.ensure_session_exists(
-                    session_id=tx_session_id,
-                    ai_id=ai_id,
-                    project_id=project_id,
-                    instance_id=instance_id,
-                )
-                db.close()
-                if healed:
-                    print(
-                        f"post-compact: auto-healed missing session "
-                        f"{tx_session_id[:8]} in project DB",
-                        file=sys.stderr,
-                    )
-        except Exception as e:
-            print(
-                f"post-compact: auto-heal skipped ({type(e).__name__}: {e})",
-                file=sys.stderr,
+        if not _validate_session_in_db(tx_session_id, project_path=str(project_root)):
+            db = SessionDatabase()
+            healed = db.ensure_session_exists(
+                session_id=tx_session_id, ai_id=ai_id,
+                project_id=project_id, instance_id=instance_id,
             )
+            db.close()
+            if healed:
+                print(f"post-compact: auto-healed missing session {tx_session_id[:8]} in project DB",
+                      file=sys.stderr)
+    except Exception as e:
+        print(f"post-compact: auto-heal skipped ({type(e).__name__}: {e})", file=sys.stderr)
 
-        _write_active_work_for_new_conversation(
-            claude_session_id=claude_session_id,
-            project_path=str(project_root),
-            empirica_session_id=tx_session_id,
-            instance_id=instance_id
-        )
 
-        # CRITICAL: Also write active_transaction file for Sentinel and statusline.
-        # The OLD Claude process created this file during PREFLIGHT, but it's gone now.
-        # Without this, Sentinel/statusline fall back to wrong transaction data.
-        _write_active_transaction_for_new_conversation(
-            active_transaction=active_transaction,
-            project_path=str(project_root),
-            instance_id=instance_id
-        )
+def _restore_hook_counters(hook_counters: dict, project_root: Path) -> None:
+    """Restore hook counters file from pre-compact snapshot. Non-fatal."""
+    if not hook_counters:
+        return
+    try:
+        suffix = _get_instance_suffix()
+        counters_file = Path(str(project_root)) / '.empirica' / f'hook_counters{suffix}.json'
+        with open(counters_file, 'w') as f:
+            json.dump(hook_counters, f, indent=2)
+    except Exception:
+        pass
 
-        # Restore hook counters file (separate from transaction since v1.8.5)
-        if hook_counters:
-            try:
-                suffix = _get_instance_suffix()
-                counters_file = Path(str(project_root)) / '.empirica' / f'hook_counters{suffix}.json'
-                with open(counters_file, 'w') as f:
-                    json.dump(hook_counters, f, indent=2)
-            except Exception:
-                pass  # Non-fatal
-    elif phase_state.get('is_complete'):
-        # NEW: Actually create session and run bootstrap here
-        # This enforces the correct sequence before AI does PREFLIGHT
-        project_id = dynamic_context.get('session_context', {}).get('project_id')
-        session_bootstrap = _create_session_and_bootstrap(ai_id, project_id)
 
-        recovery_prompt = _generate_new_session_prompt(
-            pre_vectors=pre_vectors,
-            dynamic_context=dynamic_context,
-            old_session_id=empirica_session,
-            ai_id=ai_id,
-            session_bootstrap=session_bootstrap
-        )
-        action_required = "NEW_SESSION_PREFLIGHT"
+def _handle_open_transaction(active_transaction: dict, pre_vectors: dict,
+                             dynamic_context: dict, claude_session_id: str,
+                             empirica_session: str, ai_id: str, instance_id: str,
+                             project_root: Path, hook_counters: dict) -> tuple:
+    """Handle CONTINUE_TRANSACTION path: open transaction survives compaction.
 
-        # Update session_id if we created one
-        if session_bootstrap.get('session_id'):
-            empirica_session = session_bootstrap['session_id']
+    Returns (recovery_prompt, action_required, empirica_session).
+    """
+    recovery_prompt = _generate_transaction_continue_prompt(
+        pre_vectors=pre_vectors,
+        dynamic_context=dynamic_context,
+        active_transaction=active_transaction
+    )
+    tx_session_id = active_transaction.get('session_id') or empirica_session
 
-        # CRITICAL: Write active_work file for NEW conversation so all subsequent
-        # CLI commands (project-bootstrap, finding-log, etc.) resolve correctly.
-        # Without this, CLI falls through to CWD-based git remote lookup = wrong project.
-        _write_active_work_for_new_conversation(
-            claude_session_id=claude_session_id,
-            project_path=str(project_root),
-            empirica_session_id=empirica_session,
-            instance_id=instance_id
-        )
-    else:
-        recovery_prompt = _generate_check_prompt(
-            pre_vectors=pre_vectors,
-            pre_reasoning=pre_reasoning,
-            dynamic_context=dynamic_context
-        )
-        action_required = "CHECK_GATE"
+    project_id = dynamic_context.get('session_context', {}).get('project_id')
+    _auto_heal_session(tx_session_id, ai_id, project_id, instance_id, project_root)
 
-        # CRITICAL: Write active_work file for NEW conversation
-        _write_active_work_for_new_conversation(
-            claude_session_id=claude_session_id,
-            project_path=str(project_root),
-            empirica_session_id=empirica_session,
-            instance_id=instance_id
-        )
+    _write_active_work_for_new_conversation(
+        claude_session_id=claude_session_id, project_path=str(project_root),
+        empirica_session_id=tx_session_id, instance_id=instance_id
+    )
+    _write_active_transaction_for_new_conversation(
+        active_transaction=active_transaction, project_path=str(project_root),
+        instance_id=instance_id
+    )
+    _restore_hook_counters(hook_counters, project_root)
+    return recovery_prompt, "CONTINUE_TRANSACTION", tx_session_id
 
-    # Calculate what drift WOULD be if vectors unchanged (to show the problem)
-    potential_drift = _calculate_potential_drift(pre_vectors)
 
-    # Build the injection payload using Claude Code's hook format
-    output = {
+def _handle_complete_session(pre_vectors: dict, dynamic_context: dict,
+                             empirica_session: str, ai_id: str, claude_session_id: str,
+                             instance_id: str, project_root: Path) -> tuple:
+    """Handle NEW_SESSION_PREFLIGHT path: previous session was complete.
+
+    Returns (recovery_prompt, action_required, empirica_session, session_bootstrap).
+    """
+    project_id = dynamic_context.get('session_context', {}).get('project_id')
+    session_bootstrap = _create_session_and_bootstrap(ai_id, project_id)
+
+    recovery_prompt = _generate_new_session_prompt(
+        pre_vectors=pre_vectors, dynamic_context=dynamic_context,
+        old_session_id=empirica_session, ai_id=ai_id,
+        session_bootstrap=session_bootstrap
+    )
+
+    if session_bootstrap.get('session_id'):
+        empirica_session = session_bootstrap['session_id']
+
+    _write_active_work_for_new_conversation(
+        claude_session_id=claude_session_id, project_path=str(project_root),
+        empirica_session_id=empirica_session, instance_id=instance_id
+    )
+    return recovery_prompt, "NEW_SESSION_PREFLIGHT", empirica_session, session_bootstrap
+
+
+def _handle_incomplete_session(pre_vectors: dict, pre_reasoning: str,
+                               dynamic_context: dict, empirica_session: str,
+                               claude_session_id: str, instance_id: str,
+                               project_root: Path) -> tuple:
+    """Handle CHECK_GATE path: session incomplete, need CHECK to continue.
+
+    Returns (recovery_prompt, action_required).
+    """
+    recovery_prompt = _generate_check_prompt(
+        pre_vectors=pre_vectors, pre_reasoning=pre_reasoning,
+        dynamic_context=dynamic_context
+    )
+    _write_active_work_for_new_conversation(
+        claude_session_id=claude_session_id, project_path=str(project_root),
+        empirica_session_id=empirica_session, instance_id=instance_id
+    )
+    return recovery_prompt, "CHECK_GATE"
+
+
+def _build_output_payload(recovery_prompt: str, empirica_session: str,
+                          action_required: str, phase_state: dict,
+                          pre_vectors: dict, pre_reasoning: str,
+                          pre_snapshot: dict, potential_drift: dict,
+                          session_bootstrap: dict) -> dict:
+    """Build the injection payload using Claude Code's hook format."""
+    return {
         "hookSpecificOutput": {
             "hookEventName": "SessionStart",
             "additionalContext": recovery_prompt
@@ -413,10 +375,12 @@ def main():
             "timestamp": pre_snapshot.get('timestamp') if pre_snapshot else None
         },
         "potential_drift_warning": potential_drift,
-        "session_bootstrap": session_bootstrap  # NEW: Include bootstrap result
+        "session_bootstrap": session_bootstrap
     }
 
-    # Clean up compact handoff — consumed, no longer needed
+
+def _cleanup_compact_handoff(instance_id: str) -> None:
+    """Clean up compact handoff file -- consumed, no longer needed."""
     try:
         if instance_id:
             handoff_suffix = _get_instance_suffix()
@@ -424,13 +388,68 @@ def main():
             if handoff_file.exists():
                 handoff_file.unlink()
     except Exception:
-        pass  # Cleanup failure is non-fatal
+        pass
 
+
+def main():
+    """Post-compact recovery orchestrator.
+
+    Routes recovery based on transaction/phase state:
+    open transaction -> continue, complete session -> new PREFLIGHT,
+    incomplete session -> CHECK gate.
+    """
+    hook_input = json.loads(sys.stdin.read())
+    claude_session_id = hook_input.get('session_id')
+
+    # Stage 1: Resolve project and setup environment
+    project_root, instance_id = _resolve_project_and_setup(claude_session_id)
+    _try_memory_swap(claude_session_id)
+
+    # Stage 2: Find active session
+    empirica_session = _get_empirica_session(claude_session_id=claude_session_id)
+    if not empirica_session:
+        print(json.dumps({"ok": True, "skipped": True, "reason": "No active Empirica session"}))
+        sys.exit(0)
+
+    ai_id = os.getenv('EMPIRICA_AI_ID', 'claude-code')
+
+    # Stage 3: Load state
+    phase_state = _get_session_phase_state(empirica_session)
+    pre_snapshot = _load_pre_snapshot()
+    pre_vectors, pre_reasoning, active_transaction, hook_counters = _extract_pre_snapshot_data(pre_snapshot)
+
+    dynamic_context = _load_dynamic_context(empirica_session, ai_id, pre_snapshot)
+    _enrich_dynamic_context(dynamic_context, active_transaction, pre_snapshot)
+
+    # Stage 4: Route based on phase state
+    session_bootstrap = None
+
+    if active_transaction and active_transaction.get('status') == 'open':
+        recovery_prompt, action_required, empirica_session = _handle_open_transaction(
+            active_transaction, pre_vectors, dynamic_context, claude_session_id,
+            empirica_session, ai_id, instance_id, project_root, hook_counters
+        )
+    elif phase_state.get('is_complete'):
+        recovery_prompt, action_required, empirica_session, session_bootstrap = _handle_complete_session(
+            pre_vectors, dynamic_context, empirica_session, ai_id,
+            claude_session_id, instance_id, project_root
+        )
+    else:
+        recovery_prompt, action_required = _handle_incomplete_session(
+            pre_vectors, pre_reasoning, dynamic_context, empirica_session,
+            claude_session_id, instance_id, project_root
+        )
+
+    # Stage 5: Build output and emit
+    potential_drift = _calculate_potential_drift(pre_vectors)
+    output = _build_output_payload(
+        recovery_prompt, empirica_session, action_required, phase_state,
+        pre_vectors, pre_reasoning, pre_snapshot, potential_drift, session_bootstrap
+    )
+
+    _cleanup_compact_handoff(instance_id)
     print(json.dumps(output), file=sys.stdout)
-
-    # User-visible message to stderr
     _print_user_message(pre_vectors, dynamic_context, potential_drift, phase_state, ai_id, session_bootstrap)
-
     sys.exit(0)
 
 
@@ -575,7 +594,7 @@ def _load_dynamic_context(session_id: str, ai_id: str, pre_snapshot: dict) -> di
         cursor.execute("""
             SELECT id, objective, status, scope, created_timestamp
             FROM goals
-            WHERE project_id = ? AND status IN ('planned', 'in_progress')
+            WHERE project_id = ? AND status IN ('active', 'in_progress', 'blocked')
             ORDER BY created_timestamp DESC LIMIT 3
         """, (project_id,))
         for row in cursor.fetchall():
@@ -681,20 +700,59 @@ def _load_dynamic_context(session_id: str, ai_id: str, pre_snapshot: dict) -> di
         }
 
 
-def _create_session_and_bootstrap(ai_id: str, project_id: str | None = None) -> dict:
+def _run_cli_json(cmd: list, timeout: int = 15) -> dict:
+    """Run an empirica CLI command and return parsed JSON output.
+
+    Returns parsed JSON dict on success, None on failure.
     """
-    Create a new session AND run project-bootstrap in one step.
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        if result.returncode == 0:
+            return json.loads(result.stdout)
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
+        pass
+    return None
 
-    This enforces the correct sequence: session-create → project-bootstrap
-    before the AI does PREFLIGHT. Previously, AI could skip bootstrap.
 
-    Returns:
-        {
-            "session_id": str,
-            "bootstrap_output": dict or None,
-            "memory_context": dict or None,
-            "error": str or None
-        }
+def _fetch_optional_context(project_id: str, result: dict) -> None:
+    """Fetch optional context (memory, related goals, stale goals) from Qdrant.
+
+    All fetches are non-fatal -- failures are silently ignored.
+    """
+    if not project_id:
+        return
+
+    # Memory context from Qdrant
+    memory = _run_cli_json([
+        'empirica', 'project-search', '--project-id', project_id,
+        '--task', 'current context and recent work', '--output', 'json'
+    ])
+    if memory:
+        result["memory_context"] = memory
+
+    # Semantic search for related goals
+    goals = _run_cli_json([
+        'empirica', 'goals-search', 'current work in progress',
+        '--project-id', project_id, '--status', 'in_progress',
+        '--limit', '5', '--output', 'json'
+    ])
+    if goals and goals.get('results'):
+        result["related_goals"] = goals['results']
+
+    # Stale goals (marked during pre-compact)
+    stale = _run_cli_json([
+        'empirica', 'goals-get-stale', '--project-id', project_id, '--output', 'json'
+    ], timeout=10)
+    if stale and stale.get('stale_goals'):
+        result["stale_goals"] = stale['stale_goals']
+
+
+def _create_session_and_bootstrap(ai_id: str, project_id: str | None = None) -> dict:
+    """Create a new session AND run project-bootstrap in one step.
+
+    Orchestrates: session creation, bootstrap, and optional Qdrant context fetches.
+
+    Returns dict with session_id, bootstrap_output, memory_context, error.
     """
     result = {
         "session_id": None,
@@ -705,75 +763,27 @@ def _create_session_and_bootstrap(ai_id: str, project_id: str | None = None) -> 
 
     try:
         # Step 1: Create new session
-        create_cmd = subprocess.run(
-            ['empirica', 'session-create', '--ai-id', ai_id, '--output', 'json'],
-            capture_output=True, text=True, timeout=15
-        )
-        if create_cmd.returncode != 0:
-            result["error"] = f"session-create failed: {create_cmd.stderr}"
+        create_output = _run_cli_json(
+            ['empirica', 'session-create', '--ai-id', ai_id, '--output', 'json'])
+        if not create_output:
+            result["error"] = "session-create failed or returned invalid JSON"
             return result
 
-        create_output = json.loads(create_cmd.stdout)
         new_session_id = create_output.get('session_id')
         if not new_session_id:
             result["error"] = "session-create returned no session_id"
             return result
-
         result["session_id"] = new_session_id
 
-        # Step 2: Run project-bootstrap to load context
-        bootstrap_cmd = subprocess.run(
+        # Step 2: Run project-bootstrap
+        bootstrap = _run_cli_json(
             ['empirica', 'project-bootstrap', '--session-id', new_session_id, '--output', 'json'],
-            capture_output=True, text=True, timeout=30
-        )
-        if bootstrap_cmd.returncode == 0:
-            try:
-                result["bootstrap_output"] = json.loads(bootstrap_cmd.stdout)
-            except json.JSONDecodeError:
-                result["bootstrap_output"] = {"raw": bootstrap_cmd.stdout[:500]}
+            timeout=30)
+        if bootstrap:
+            result["bootstrap_output"] = bootstrap
 
-        # Step 3: Try to get memory context from Qdrant (optional)
-        if project_id:
-            try:
-                search_cmd = subprocess.run(
-                    ['empirica', 'project-search', '--project-id', project_id,
-                     '--task', 'current context and recent work', '--output', 'json'],
-                    capture_output=True, text=True, timeout=15
-                )
-                if search_cmd.returncode == 0:
-                    result["memory_context"] = json.loads(search_cmd.stdout)
-            except Exception:
-                pass  # Memory search is optional
-
-        # Step 4: Semantic search for related goals (optional)
-        if project_id:
-            try:
-                goals_cmd = subprocess.run(
-                    ['empirica', 'goals-search', 'current work in progress',
-                     '--project-id', project_id, '--status', 'in_progress',
-                     '--limit', '5', '--output', 'json'],
-                    capture_output=True, text=True, timeout=15
-                )
-                if goals_cmd.returncode == 0:
-                    goals_result = json.loads(goals_cmd.stdout)
-                    if goals_result.get('results'):
-                        result["related_goals"] = goals_result['results']
-            except Exception:
-                pass  # Goal search is optional - Qdrant may not have goals yet
-
-        # Step 5: Get stale goals (marked during pre-compact)
-        if project_id:
-            try:
-                stale_cmd = subprocess.run(
-                    ['empirica', 'goals-get-stale', '--project-id', project_id, '--output', 'json'],
-                    capture_output=True, text=True, timeout=10
-                )
-                if stale_cmd.returncode == 0:
-                    stale_result = json.loads(stale_cmd.stdout)
-                    if stale_result.get('stale_goals'):
-                        result["stale_goals"] = stale_result['stale_goals']
-            except Exception:
-                pass  # Stale goal check is optional
+        # Steps 3-5: Optional context fetches (non-fatal)
+        _fetch_optional_context(project_id, result)
 
     except subprocess.TimeoutExpired:
         result["error"] = "Command timed out"
@@ -876,8 +886,6 @@ EOF
 
 **Key principle:** Your PREFLIGHT should reflect knowledge AFTER reading the bootstrap context above.
 This makes the PREFLIGHT→POSTFLIGHT delta meaningful.
-
-**Shell env (run if needed for manual CLI):** `export EMPIRICA_SESSION_ID={new_session_id}`
 """
 
     # Fallback: Hook couldn't create session, AI needs to do full sequence
@@ -1211,7 +1219,7 @@ def _calculate_potential_drift(pre_vectors: dict) -> dict:
     if not pre_vectors:
         return {"warning": "No pre-compact vectors to compare"}
 
-    # Post-compact, calibrated beliefs would typically show:
+    # Post-compact, honest assessment would typically show:
     # - Lower know (lost detailed context)
     # - Higher uncertainty (less confident)
     # - Similar or lower context (depends on evidence loaded)
@@ -1265,9 +1273,6 @@ def _print_user_message(pre_vectors: dict, dynamic_context: dict, potential_drif
    Recent Findings: {findings_count}
    Open Unknowns: {unknowns_count}
 
-🔧 Shell env var (if needed for manual CLI):
-   export EMPIRICA_SESSION_ID={new_session_id}
-
 🎯 ACTION REQUIRED:
    Run PREFLIGHT with your ACTUAL knowledge state (after reading loaded context):
    empirica preflight-submit --session-id {new_session_id}
@@ -1316,7 +1321,7 @@ def _print_user_message(pre_vectors: dict, dynamic_context: dict, potential_drif
 
 🎯 ACTION REQUIRED:
    1. Load context: empirica project-bootstrap --session-id <ID>
-   2. Run CHECK: empirica check-submit (with calibrated beliefs)
+   2. Run CHECK: empirica check-submit (with honest assessment)
    3. Follow decision: "proceed" or "investigate"
 """, file=sys.stderr)
 

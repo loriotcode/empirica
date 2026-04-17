@@ -12,12 +12,12 @@ alongside an auto-captured high-severity error.
 """
 
 import json
-import subprocess
 import re
+import subprocess
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Discovery: find every CLI command that declares --output with a json choice
@@ -280,7 +280,7 @@ class TestErrorFormat:
 
     # Commands invoked with deliberately wrong arguments to provoke errors.
     # Each tuple: (command, extra_args_that_cause_failure)
-    ERROR_SCENARIOS = [
+    ERROR_SCENARIOS: ClassVar[list] = [
         # Non-existent session ID
         ("session-snapshot", ["nonexistent-session-id", "--output", "json"]),
         # Non-existent goal ID
@@ -290,7 +290,7 @@ class TestErrorFormat:
     ]
 
     # Filter to only scenarios whose command actually supports --output json
-    VALID_SCENARIOS = [
+    VALID_SCENARIOS: ClassVar[list] = [
         (cmd, args)
         for cmd, args in ERROR_SCENARIOS
         if cmd in ALL_JSON_COMMANDS

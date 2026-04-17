@@ -449,6 +449,29 @@ def get_brier_profile(
         return {}
 
 
+def _find_brier_section(lines: list[str]) -> tuple[int, int]:
+    """Find start/end indices of the brier_calibration section in a YAML file."""
+    section_start = -1
+    section_end = -1
+    in_section = False
+
+    for i, line in enumerate(lines):
+        if '# Brier calibration' in line and section_start == -1:
+            section_start = i
+        elif line.strip().startswith('brier_calibration:'):
+            if section_start == -1:
+                section_start = i
+            in_section = True
+        elif in_section and line.strip() and not line.startswith(' ') and not line.startswith('\t'):
+            section_end = i
+            break
+
+    if in_section and section_end == -1:
+        section_end = len(lines)
+
+    return section_start, section_end
+
+
 def export_brier_to_breadcrumbs(
     ai_id: str,
     db,
@@ -539,23 +562,7 @@ def export_brier_to_breadcrumbs(
             with open(breadcrumbs_path) as f:
                 existing_lines = f.readlines()
 
-        section_start = -1
-        section_end = -1
-        in_section = False
-
-        for i, line in enumerate(existing_lines):
-            if '# Brier calibration' in line and section_start == -1:
-                section_start = i
-            elif line.strip().startswith('brier_calibration:'):
-                if section_start == -1:
-                    section_start = i
-                in_section = True
-            elif in_section and line.strip() and not line.startswith(' ') and not line.startswith('\t'):
-                section_end = i
-                break
-
-        if in_section and section_end == -1:
-            section_end = len(existing_lines)
+        section_start, section_end = _find_brier_section(existing_lines)
 
         if section_start >= 0:
             new_lines = (

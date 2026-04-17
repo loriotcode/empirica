@@ -274,62 +274,13 @@ def apply_staleness_signal(
         if not client.collection_exists(coll):
             return 0
 
-        from qdrant_client.models import PointStruct
-
-        # Scroll all memory items
-        all_points = []
-        offset = None
-        while True:
-            results = client.scroll(
-                collection_name=coll,
-                limit=100,
-                offset=offset,
-                with_payload=True,
-                with_vectors=True,
-            )
-            points, next_offset = results
-            all_points.extend(points)
-            if next_offset is None or not points:
-                break
-            offset = next_offset
-
+        all_points = _scroll_all_points(client, coll)
         now = _time.time()
-        updated = 0
-        batch = []
-
-        for point in all_points:
-            ts = point.payload.get("timestamp")
-            if not ts:
-                continue
-
-            # Parse timestamp
-            if isinstance(ts, str):
-                try:
-                    from datetime import datetime
-                    ts_float = datetime.fromisoformat(ts.replace('Z', '+00:00')).timestamp()
-                except Exception:
-                    continue
-            else:
-                ts_float = float(ts)
-
-            age_days = (now - ts_float) / 86400
-            if age_days < period_days:
-                continue  # Too recent, skip
-
-            new_staleness = min(1.0, age_days / max_age_days)
-            old_staleness = point.payload.get("staleness_factor", 0.0)
-
-            # Only update if staleness changed significantly (>0.05)
-            if abs(new_staleness - old_staleness) > 0.05:
-                payload = point.payload
-                payload["staleness_factor"] = round(new_staleness, 3)
-                payload["staleness_updated_at"] = now
-                batch.append(PointStruct(id=point.id, vector=point.vector, payload=payload))
-                updated += 1
+        batch = _compute_staleness_updates(all_points, now, period_days, max_age_days)
+        updated = len(batch)
 
         # Batch upsert
         if batch:
-            # Upsert in chunks of 50
             for i in range(0, len(batch), 50):
                 client.upsert(collection_name=coll, points=batch[i:i+50])
 
@@ -343,6 +294,67 @@ def apply_staleness_signal(
     except Exception as e:
         logger.warning(f"Failed to apply staleness signal: {e}")
         return 0
+
+
+def _scroll_all_points(client, coll):
+    """Scroll all points from a Qdrant collection."""
+    all_points = []
+    offset = None
+    while True:
+        results = client.scroll(
+            collection_name=coll,
+            limit=100,
+            offset=offset,
+            with_payload=True,
+            with_vectors=True,
+        )
+        points, next_offset = results
+        all_points.extend(points)
+        if next_offset is None or not points:
+            break
+        offset = next_offset
+    return all_points
+
+
+def _parse_timestamp(ts) -> float | None:
+    """Parse a timestamp value to float. Returns None if unparseable."""
+    if isinstance(ts, str):
+        try:
+            from datetime import datetime
+            return datetime.fromisoformat(ts.replace('Z', '+00:00')).timestamp()
+        except Exception:
+            return None
+    return float(ts)
+
+
+def _compute_staleness_updates(all_points, now, period_days, max_age_days):
+    """Compute staleness updates for points that need updating."""
+    from qdrant_client.models import PointStruct
+
+    batch = []
+    for point in all_points:
+        ts = point.payload.get("timestamp")
+        if not ts:
+            continue
+
+        ts_float = _parse_timestamp(ts)
+        if ts_float is None:
+            continue
+
+        age_days = (now - ts_float) / 86400
+        if age_days < period_days:
+            continue
+
+        new_staleness = min(1.0, age_days / max_age_days)
+        old_staleness = point.payload.get("staleness_factor", 0.0)
+
+        if abs(new_staleness - old_staleness) > 0.05:
+            payload = point.payload
+            payload["staleness_factor"] = round(new_staleness, 3)
+            payload["staleness_updated_at"] = now
+            batch.append(PointStruct(id=point.id, vector=point.vector, payload=payload))
+
+    return batch
 
 
 def update_assumption_urgency(

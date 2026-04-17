@@ -9,19 +9,22 @@ Tests:
 5. Handle invalid states gracefully
 """
 
-import pytest
-import tempfile
 import json
+import tempfile
 from pathlib import Path
 
-from git import Repo, GitCommandError
+import pytest
+from git import GitCommandError, Repo
 
-from empirica.core.persona.persona_profile import (
-    PersonaProfile, SigningIdentityConfig, EpistemicConfig, PersonaMetadata
-)
-from empirica.core.identity.ai_identity import AIIdentity
-from empirica.core.persona.signing_persona import SigningPersona
 from empirica.core.git_ops.signed_operations import SignedGitOperations
+from empirica.core.identity.ai_identity import AIIdentity
+from empirica.core.persona.persona_profile import (
+    EpistemicConfig,
+    PersonaMetadata,
+    PersonaProfile,
+    SigningIdentityConfig,
+)
+from empirica.core.persona.signing_persona import SigningPersona
 
 
 @pytest.fixture
@@ -335,7 +338,7 @@ def test_multiple_personas_chain(git_ops, test_epistemic_state):
     identities = []
     personas = []
 
-    for i, persona_name in enumerate(["researcher", "reviewer"]):
+    for _i, persona_name in enumerate(["researcher", "reviewer"]):
         identity = AIIdentity(ai_id=f"test_{persona_name}")
         identity.generate_keypair()
         identities.append(identity)
@@ -360,14 +363,14 @@ def test_multiple_personas_chain(git_ops, test_epistemic_state):
         personas.append(signing)
 
     # Create CASCADE with different personas
-    commit_sha = git_ops.commit_signed_state(
+    git_ops.commit_signed_state(
         signing_persona=personas[0],
         epistemic_state=test_epistemic_state,
         phase="PREFLIGHT",
         message="Research phase"
     )
 
-    commit_sha = git_ops.commit_signed_state(
+    git_ops.commit_signed_state(
         signing_persona=personas[1],
         epistemic_state=test_epistemic_state,
         phase="CHECK",

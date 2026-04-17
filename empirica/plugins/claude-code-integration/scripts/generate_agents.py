@@ -284,6 +284,65 @@ def should_generate(persona: dict, filepath: Path) -> bool:
     return "test" not in stem.lower() and "comm_test" not in stem
 
 
+def _resolve_personas_dir(args_personas_dir: str | None) -> Path:
+    """Resolve the personas directory from args or auto-detect."""
+    if args_personas_dir:
+        return Path(args_personas_dir)
+
+    cwd = Path.cwd()
+    personas_dir = cwd / ".empirica" / "personas"
+    if personas_dir.exists():
+        return personas_dir
+
+    try:
+        import subprocess
+        git_root = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"],
+            stderr=subprocess.DEVNULL, text=True
+        ).strip()
+        return Path(git_root) / ".empirica" / "personas"
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    return personas_dir  # Return default even if missing; caller checks existence
+
+
+def _process_persona_file(pf, args, output_dir) -> str:
+    """Process a single persona file. Returns 'generated', 'skipped', or 'error'."""
+    persona = load_persona(pf)
+    if not persona:
+        return 'error'
+
+    if not should_generate(persona, pf):
+        if args.verbose:
+            print(f"  Skip: {pf.name} (filtered)")
+        return 'skipped'
+
+    name = agent_name_from_file(pf)
+    output_file = output_dir / f"{name}.md"
+
+    if output_file.exists() and not args.force:
+        if args.verbose:
+            print(f"  Skip: {name}.md (exists, use --force to overwrite)")
+        return 'skipped'
+
+    content = generate_agent_md(persona, name)
+    if not content:
+        return 'error'
+
+    if args.dry_run:
+        print(f"  Would write: {name}.md ({len(content)} bytes)")
+        if args.verbose:
+            print(f"    Domains: {persona.get('epistemic_config', {}).get('focus_domains', [])}")
+            tools = resolve_tools(persona.get("capabilities", {}))
+            print(f"    Tools: {tools}")
+    else:
+        output_file.write_text(content)
+        print(f"  Generated: {name}.md")
+
+    return 'generated'
+
+
 def main():
     import argparse
 
@@ -295,94 +354,36 @@ def main():
     parser.add_argument("--verbose", action="store_true", help="Show detailed output")
     args = parser.parse_args()
 
-    # Resolve persona directory
-    if args.personas_dir:
-        personas_dir = Path(args.personas_dir)
-    else:
-        # Auto-detect from git root or cwd
-        cwd = Path.cwd()
-        personas_dir = cwd / ".empirica" / "personas"
-        if not personas_dir.exists():
-            # Try git root
-            try:
-                import subprocess
-                git_root = subprocess.check_output(
-                    ["git", "rev-parse", "--show-toplevel"],
-                    stderr=subprocess.DEVNULL, text=True
-                ).strip()
-                personas_dir = Path(git_root) / ".empirica" / "personas"
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                pass
+    personas_dir = _resolve_personas_dir(args.personas_dir)
 
     if not personas_dir.exists():
         print(f"Error: Personas directory not found: {personas_dir}", file=sys.stderr)
         sys.exit(1)
 
-    # Resolve output directory
     if args.output_dir:
         output_dir = Path(args.output_dir)
     else:
-        # Default: plugin agents/ directory
         script_dir = Path(__file__).resolve().parent
         output_dir = script_dir.parent / "agents"
-
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load and generate
     persona_files = sorted(personas_dir.glob("*.json"))
     if not persona_files:
         print(f"No persona files found in {personas_dir}", file=sys.stderr)
         sys.exit(1)
 
-    generated = 0
-    skipped = 0
-    errors = 0
-
     print(f"Generating agents from {len(persona_files)} personas in {personas_dir}")
     print(f"Output directory: {output_dir}")
     print()
 
+    counts = {'generated': 0, 'skipped': 0, 'error': 0}
     for pf in persona_files:
-        persona = load_persona(pf)
-        if not persona:
-            errors += 1
-            continue
-
-        if not should_generate(persona, pf):
-            if args.verbose:
-                print(f"  Skip: {pf.name} (filtered)")
-            skipped += 1
-            continue
-
-        name = agent_name_from_file(pf)
-        output_file = output_dir / f"{name}.md"
-
-        if output_file.exists() and not args.force:
-            if args.verbose:
-                print(f"  Skip: {name}.md (exists, use --force to overwrite)")
-            skipped += 1
-            continue
-
-        content = generate_agent_md(persona, name)
-        if not content:
-            errors += 1
-            continue
-
-        if args.dry_run:
-            print(f"  Would write: {name}.md ({len(content)} bytes)")
-            if args.verbose:
-                print(f"    Domains: {persona.get('epistemic_config', {}).get('focus_domains', [])}")
-                tools = resolve_tools(persona.get("capabilities", {}))
-                print(f"    Tools: {tools}")
-        else:
-            output_file.write_text(content)
-            print(f"  Generated: {name}.md")
-
-        generated += 1
+        result = _process_persona_file(pf, args, output_dir)
+        counts[result] += 1
 
     print()
-    print(f"Results: {generated} generated, {skipped} skipped, {errors} errors")
-    return 0 if errors == 0 else 1
+    print(f"Results: {counts['generated']} generated, {counts['skipped']} skipped, {counts['error']} errors")
+    return 0 if counts['error'] == 0 else 1
 
 
 if __name__ == "__main__":

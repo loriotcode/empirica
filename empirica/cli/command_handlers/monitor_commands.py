@@ -1449,7 +1449,6 @@ def _fetch_trajectory_rows(weeks, include_tests):
 
     Returns (rows, cutoff_str) or raises if no DB found.
     """
-    import json
     import sqlite3
     from datetime import datetime, timedelta
 

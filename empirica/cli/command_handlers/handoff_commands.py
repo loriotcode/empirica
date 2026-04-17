@@ -12,6 +12,227 @@ from ..cli_utils import handle_cli_error
 logger = logging.getLogger(__name__)
 
 
+def _handoff_read_config(args):
+    """Read config data from file/stdin or return None for legacy mode."""
+    import os
+    import sys
+
+    from ..cli_utils import parse_json_safely
+
+    if not (hasattr(args, 'config') and args.config):
+        return None
+
+    if args.config == '-':
+        return parse_json_safely(sys.stdin.read())
+
+    if not os.path.exists(args.config):
+        print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
+        sys.exit(1)
+    with open(args.config) as f:
+        return parse_json_safely(f.read())
+
+
+def _handoff_extract_from_legacy(args):
+    """Extract handoff parameters from legacy CLI flags."""
+    from ..cli_utils import parse_json_safely
+
+    key_findings = parse_json_safely(args.key_findings) if isinstance(args.key_findings, str) else (args.key_findings or [])
+    remaining_unknowns = parse_json_safely(args.remaining_unknowns) if args.remaining_unknowns and isinstance(args.remaining_unknowns, str) else (args.remaining_unknowns or [])
+
+    if isinstance(key_findings, str):
+        key_findings = [key_findings]
+    if isinstance(remaining_unknowns, str):
+        remaining_unknowns = [remaining_unknowns]
+    artifacts = parse_json_safely(args.artifacts) if args.artifacts and isinstance(args.artifacts, str) else (args.artifacts or [])
+
+    return {
+        "session_id": args.session_id,
+        "task_summary": args.task_summary,
+        "key_findings": key_findings,
+        "remaining_unknowns": remaining_unknowns,
+        "next_session_context": getattr(args, 'next_session_context', None),
+        "artifacts": artifacts,
+        "planning_only": getattr(args, 'planning_only', False),
+    }
+
+
+def _handoff_parse_input(args):
+    """Parse handoff input from config file or CLI flags.
+
+    Returns dict with keys: session_id, task_summary, key_findings,
+    remaining_unknowns, next_session_context, artifacts, planning_only.
+    Exits on validation failure.
+    """
+    import sys
+
+    config_data = _handoff_read_config(args)
+
+    if config_data:
+        parsed = {
+            "session_id": config_data.get('session_id'),
+            "task_summary": config_data.get('task_summary'),
+            "key_findings": config_data.get('key_findings', []),
+            "remaining_unknowns": config_data.get('remaining_unknowns', []),
+            "next_session_context": config_data.get('next_session_context'),
+            "artifacts": config_data.get('artifacts', []),
+            "planning_only": config_data.get('planning_only', False),
+        }
+    else:
+        parsed = _handoff_extract_from_legacy(args)
+
+    if not parsed["session_id"]:
+        from empirica.utils.session_resolver import InstanceResolver as R
+        parsed["session_id"] = R.session_id()
+
+    required = [
+        ("session_id", "No active transaction and 'session_id' not in config"),
+        ("task_summary", "Config must include 'task_summary' field"),
+        ("key_findings", "Config must include 'key_findings' array"),
+        ("next_session_context", "Config must include 'next_session_context' field"),
+    ]
+    for field, error_msg in required:
+        if not parsed[field]:
+            hint = "Either run PREFLIGHT first, or provide 'session_id' in config" if field == "session_id" else None
+            err = {"ok": False, "error": error_msg}
+            if hint:
+                err["hint"] = hint
+            print(json.dumps(err))
+            sys.exit(1)
+
+    return parsed
+
+
+def _handoff_determine_type(session_id, planning_only):
+    """Determine handoff type based on available assessments.
+
+    Returns (handoff_type, start_assessment, end_assessment) or
+    (None, None, None) if no assessments found.
+    """
+    from empirica.data.session_database import SessionDatabase
+
+    db = SessionDatabase()
+    preflight = db.get_preflight_assessment(session_id)
+    checks = db.get_check_phase_assessments(session_id)
+    postflight = db.get_postflight_assessment(session_id)
+
+    if planning_only:
+        return "planning", None, None
+    if preflight and postflight:
+        return "complete", preflight, postflight
+    if preflight and checks:
+        return "investigation", preflight, checks[-1]
+    if preflight:
+        return "preflight_only", preflight, None
+    return None, None, None
+
+
+def _handoff_print_no_assessments():
+    """Print help message when no CASCADE assessments are found."""
+    print("⚠️  No CASCADE workflow assessments found for this session")
+    print()
+    print("Three handoff options:")
+    print()
+    print("Option 1: INVESTIGATION HANDOFF (PREFLIGHT + CHECK)")
+    print("  → For specialist handoff after investigation phase")
+    print("  $ empirica preflight → investigate → check → handoff-create")
+    print("  → Epistemic deltas: PREFLIGHT → CHECK (learning from investigation)")
+    print()
+    print("Option 2: COMPLETE HANDOFF (PREFLIGHT + POSTFLIGHT)")
+    print("  → For full workflow completion")
+    print("  $ empirica preflight → work → postflight → handoff-create")
+    print("  → Epistemic deltas: PREFLIGHT → POSTFLIGHT (full cycle learning)")
+    print()
+    print("Option 3: PLANNING HANDOFF (no assessments required)")
+    print("  → For documentation-only handoff")
+    print("  $ empirica handoff-create --session-id ... --planning-only [other args]")
+    print("  → No epistemic deltas (documentation only)")
+    print()
+
+
+def _handoff_generate_report(handoff_type, start_assessment, end_assessment, parsed):
+    """Generate handoff report based on type. Returns (handoff, display_name)."""
+    from empirica.core.handoff.report_generator import EpistemicHandoffReportGenerator
+
+    generator = EpistemicHandoffReportGenerator()
+    common_kwargs = {
+        "session_id": parsed["session_id"],
+        "task_summary": parsed["task_summary"],
+        "key_findings": parsed["key_findings"],
+        "remaining_unknowns": parsed["remaining_unknowns"],
+        "next_session_context": parsed["next_session_context"],
+        "artifacts_created": parsed["artifacts"],
+    }
+
+    if handoff_type == "planning":
+        handoff = generator.generate_planning_handoff(**common_kwargs)
+        return handoff, "📋 Planning Handoff"
+
+    if handoff_type == "investigation":
+        handoff = generator.generate_handoff_report(
+            **common_kwargs,
+            start_assessment=start_assessment,
+            end_assessment=end_assessment,
+            handoff_subtype="investigation"
+        )
+        handoff['handoff_subtype'] = 'investigation'
+        handoff['epistemic_note'] = 'PREFLIGHT → CHECK deltas (investigation phase)'
+        return handoff, "🔬 Investigation Handoff (PREFLIGHT→CHECK)"
+
+    if handoff_type == "complete":
+        handoff = generator.generate_handoff_report(
+            **common_kwargs,
+            start_assessment=start_assessment,
+            end_assessment=end_assessment,
+            handoff_subtype="complete"
+        )
+        handoff['handoff_subtype'] = 'complete'
+        handoff['epistemic_note'] = 'PREFLIGHT → POSTFLIGHT deltas (full cycle)'
+        return handoff, "📊 Complete Handoff (PREFLIGHT→POSTFLIGHT)"
+
+    # preflight_only
+    handoff = generator.generate_planning_handoff(**common_kwargs)
+    handoff['handoff_subtype'] = 'preflight_only'
+    handoff['epistemic_note'] = 'Only PREFLIGHT available (aborted session)'
+    return handoff, "⚠️  Preflight-Only Handoff (incomplete)"
+
+
+def _handoff_format_output(args, session_id, handoff_type, handoff, sync_result, handoff_display_name):
+    """Format and print handoff output in JSON or human-readable format."""
+    if hasattr(args, 'output') and args.output == 'json':
+        result = {
+            "ok": True,
+            "session_id": session_id,
+            "handoff_id": handoff['session_id'],
+            "handoff_type": handoff_type,
+            "handoff_subtype": handoff.get('handoff_subtype', handoff_type),
+            "token_count": len(handoff.get('compressed_json', '')) // 4,
+            "storage": f"git:refs/notes/empirica/handoff/{session_id}",
+            "has_epistemic_deltas": handoff_type in ["investigation", "complete"],
+            "epistemic_deltas": handoff.get('epistemic_deltas', {}),
+            "epistemic_note": handoff.get('epistemic_note', ''),
+            "calibration_status": handoff.get('calibration_status', 'N/A'),
+            "storage_sync": sync_result
+        }
+        print(json.dumps(result, indent=2))
+    else:
+        print(f"✅ {handoff_display_name} created successfully")
+        print(f"   Session: {session_id[:8]}...")
+        print(f"   Type: {handoff_type}")
+        if handoff.get('epistemic_note'):
+            print(f"   Note: {handoff['epistemic_note']}")
+        print(f"   Token count: ~{len(handoff.get('compressed_json', '')) // 4} tokens")
+        print("   Storage: git notes (refs/notes/empirica/handoff/)")
+        if handoff_type in ["investigation", "complete"]:
+            print(f"   Calibration: {handoff.get('calibration_status', 'N/A')}")
+            if handoff.get('epistemic_deltas'):
+                deltas = handoff['epistemic_deltas']
+                print(f"   Epistemic deltas: KNOW {deltas.get('know', 0):+.2f}, CONTEXT {deltas.get('context', 0):+.2f}, STATE {deltas.get('state', 0):+.2f}")
+        else:
+            print("   Type: Documentation-only (no CASCADE workflow assessments)")
+
+    print(json.dumps(handoff, indent=2))
+
+
 def handle_handoff_create_command(args):
     """Handle handoff-create command
 
@@ -24,234 +245,38 @@ def handle_handoff_create_command(args):
     - Legacy: CLI flags (backward compatible)
     """
     try:
-        import os
-        import sys
-
-        from empirica.core.handoff.report_generator import EpistemicHandoffReportGenerator
         from empirica.core.handoff.storage import HybridHandoffStorage
-        from empirica.data.session_database import SessionDatabase
 
-        from ..cli_utils import parse_json_safely
+        # Stage 1: Parse and validate input
+        parsed = _handoff_parse_input(args)
+        session_id = parsed["session_id"]
 
-        # AI-FIRST MODE: Check if config file provided
-        config_data = None
-        if hasattr(args, 'config') and args.config:
-            if args.config == '-':
-                config_data = parse_json_safely(sys.stdin.read())
-            else:
-                if not os.path.exists(args.config):
-                    print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
-                    sys.exit(1)
-                with open(args.config) as f:
-                    config_data = parse_json_safely(f.read())
-
-        # Extract parameters from config or fall back to legacy flags
-        if config_data:
-            # AI-FIRST MODE
-            session_id = config_data.get('session_id')  # Optional - auto-derives from transaction
-            task_summary = config_data.get('task_summary')
-            key_findings = config_data.get('key_findings', [])
-            remaining_unknowns = config_data.get('remaining_unknowns', [])
-            next_session_context = config_data.get('next_session_context')
-            artifacts = config_data.get('artifacts', [])
-            planning_only = config_data.get('planning_only', False)
-        else:
-            # LEGACY MODE
-            session_id = args.session_id
-            task_summary = args.task_summary
-            next_session_context = getattr(args, 'next_session_context', None)
-            planning_only = getattr(args, 'planning_only', False)
-
-            # Parse JSON arrays from strings (use parse_json_safely to handle empty/malformed input)
-            key_findings = parse_json_safely(args.key_findings) if isinstance(args.key_findings, str) else (args.key_findings or [])
-            remaining_unknowns = parse_json_safely(args.remaining_unknowns) if args.remaining_unknowns and isinstance(args.remaining_unknowns, str) else (args.remaining_unknowns or [])
-
-            # Auto-convert strings to single-item arrays for better UX
-            if isinstance(key_findings, str):
-                key_findings = [key_findings]
-            if isinstance(remaining_unknowns, str):
-                remaining_unknowns = [remaining_unknowns]
-            artifacts = parse_json_safely(args.artifacts) if args.artifacts and isinstance(args.artifacts, str) else (args.artifacts or [])
-
-        # UNIFIED: Auto-derive session_id if not provided (works for both modes)
-        if not session_id:
-            from empirica.utils.session_resolver import InstanceResolver as R
-            session_id = R.session_id()
-
-        # Validate required fields
-        if not session_id:
-            print(json.dumps({"ok": False, "error": "No active transaction and 'session_id' not in config", "hint": "Either run PREFLIGHT first, or provide 'session_id' in config"}))
-            sys.exit(1)
-        if not task_summary:
-            print(json.dumps({"ok": False, "error": "Config must include 'task_summary' field"}))
-            sys.exit(1)
-        if not key_findings:
-            print(json.dumps({"ok": False, "error": "Config must include 'key_findings' array"}))
-            sys.exit(1)
-        if not next_session_context:
-            print(json.dumps({"ok": False, "error": "Config must include 'next_session_context' field"}))
-            sys.exit(1)
-
-        # Determine handoff type based on available assessments
-        db = SessionDatabase()
-        preflight = db.get_preflight_assessment(session_id)
-        checks = db.get_check_phase_assessments(session_id)
-        postflight = db.get_postflight_assessment(session_id)
-
-        # Determine handoff type
-        if planning_only:
-            handoff_type = "planning"
-            start_assessment = None
-            end_assessment = None
-        elif preflight and postflight:
-            # Complete CASCADE: PREFLIGHT → [CHECK*] → POSTFLIGHT
-            handoff_type = "complete"
-            start_assessment = preflight
-            end_assessment = postflight
-        elif preflight and checks:
-            # Investigation complete: PREFLIGHT → [CHECK*]
-            handoff_type = "investigation"
-            start_assessment = preflight
-            end_assessment = checks[-1]  # Most recent CHECK
-        elif preflight:
-            # Only PREFLIGHT (rare - aborted session)
-            handoff_type = "preflight_only"
-            start_assessment = preflight
-            end_assessment = None
-        else:
-            # No assessments at all
-            handoff_type = None
-            start_assessment = None
-            end_assessment = None
+        # Stage 2: Determine handoff type
+        handoff_type, start_assessment, end_assessment = _handoff_determine_type(
+            session_id, parsed["planning_only"]
+        )
 
         if handoff_type is None:
-            # No assessments found
-            print("⚠️  No CASCADE workflow assessments found for this session")
-            print()
-            print("Three handoff options:")
-            print()
-            print("Option 1: INVESTIGATION HANDOFF (PREFLIGHT + CHECK)")
-            print("  → For specialist handoff after investigation phase")
-            print("  $ empirica preflight → investigate → check → handoff-create")
-            print("  → Epistemic deltas: PREFLIGHT → CHECK (learning from investigation)")
-            print()
-            print("Option 2: COMPLETE HANDOFF (PREFLIGHT + POSTFLIGHT)")
-            print("  → For full workflow completion")
-            print("  $ empirica preflight → work → postflight → handoff-create")
-            print("  → Epistemic deltas: PREFLIGHT → POSTFLIGHT (full cycle learning)")
-            print()
-            print("Option 3: PLANNING HANDOFF (no assessments required)")
-            print("  → For documentation-only handoff")
-            print("  $ empirica handoff-create --session-id ... --planning-only [other args]")
-            print("  → No epistemic deltas (documentation only)")
-            print()
+            _handoff_print_no_assessments()
             return None
 
-        # Generate handoff report based on type
-        generator = EpistemicHandoffReportGenerator()
+        # Stage 3: Generate handoff report
+        handoff, handoff_display_name = _handoff_generate_report(
+            handoff_type, start_assessment, end_assessment, parsed
+        )
 
-        if handoff_type == "planning":
-            # Planning handoff (no epistemic deltas)
-            handoff = generator.generate_planning_handoff(
-                session_id=session_id,
-                task_summary=task_summary,
-                key_findings=key_findings,
-                remaining_unknowns=remaining_unknowns,
-                next_session_context=next_session_context,
-                artifacts_created=artifacts
-            )
-            handoff_display_name = "📋 Planning Handoff"
-        elif handoff_type == "investigation":
-            # Investigation handoff (PREFLIGHT → CHECK deltas)
-            handoff = generator.generate_handoff_report(
-                session_id=session_id,
-                task_summary=task_summary,
-                key_findings=key_findings,
-                remaining_unknowns=remaining_unknowns,
-                next_session_context=next_session_context,
-                artifacts_created=artifacts,
-                start_assessment=start_assessment,
-                end_assessment=end_assessment,
-                handoff_subtype="investigation"
-            )
-            handoff['handoff_subtype'] = 'investigation'
-            handoff['epistemic_note'] = 'PREFLIGHT → CHECK deltas (investigation phase)'
-            handoff_display_name = "🔬 Investigation Handoff (PREFLIGHT→CHECK)"
-        elif handoff_type == "complete":
-            # Complete handoff (PREFLIGHT → POSTFLIGHT deltas)
-            handoff = generator.generate_handoff_report(
-                session_id=session_id,
-                task_summary=task_summary,
-                key_findings=key_findings,
-                remaining_unknowns=remaining_unknowns,
-                next_session_context=next_session_context,
-                artifacts_created=artifacts,
-                start_assessment=start_assessment,
-                end_assessment=end_assessment,
-                handoff_subtype="complete"
-            )
-            handoff['handoff_subtype'] = 'complete'
-            handoff['epistemic_note'] = 'PREFLIGHT → POSTFLIGHT deltas (full cycle)'
-            handoff_display_name = "📊 Complete Handoff (PREFLIGHT→POSTFLIGHT)"
-        elif handoff_type == "preflight_only":
-            # Only PREFLIGHT (aborted session)
-            handoff = generator.generate_planning_handoff(
-                session_id=session_id,
-                task_summary=task_summary,
-                key_findings=key_findings,
-                remaining_unknowns=remaining_unknowns,
-                next_session_context=next_session_context,
-                artifacts_created=artifacts
-            )
-            handoff['handoff_subtype'] = 'preflight_only'
-            handoff['epistemic_note'] = 'Only PREFLIGHT available (aborted session)'
-            handoff_display_name = "⚠️  Preflight-Only Handoff (incomplete)"
-
-        # Store in BOTH git notes AND database
+        # Stage 4: Store in BOTH git notes AND database
         storage = HybridHandoffStorage()
         sync_result = storage.store_handoff(session_id, handoff)
 
-        # Warn if partial storage
         if not sync_result['fully_synced']:
             logger.warning(
                 f"⚠️ Partial storage: git={sync_result['git_stored']}, "
                 f"db={sync_result['db_stored']}"
             )
 
-        # Format output
-        if hasattr(args, 'output') and args.output == 'json':
-            result = {
-                "ok": True,
-                "session_id": session_id,
-                "handoff_id": handoff['session_id'],
-                "handoff_type": handoff_type,
-                "handoff_subtype": handoff.get('handoff_subtype', handoff_type),
-                "token_count": len(handoff.get('compressed_json', '')) // 4,
-                "storage": f"git:refs/notes/empirica/handoff/{session_id}",
-                "has_epistemic_deltas": handoff_type in ["investigation", "complete"],
-                "epistemic_deltas": handoff.get('epistemic_deltas', {}),
-                "epistemic_note": handoff.get('epistemic_note', ''),
-                "calibration_status": handoff.get('calibration_status', 'N/A'),
-                "storage_sync": sync_result
-            }
-            print(json.dumps(result, indent=2))
-        else:
-            print(f"✅ {handoff_display_name} created successfully")
-            print(f"   Session: {session_id[:8]}...")
-            print(f"   Type: {handoff_type}")
-            if handoff.get('epistemic_note'):
-                print(f"   Note: {handoff['epistemic_note']}")
-            print(f"   Token count: ~{len(handoff.get('compressed_json', '')) // 4} tokens")
-            print("   Storage: git notes (refs/notes/empirica/handoff/)")
-            if handoff_type in ["investigation", "complete"]:
-                print(f"   Calibration: {handoff.get('calibration_status', 'N/A')}")
-                if handoff.get('epistemic_deltas'):
-                    deltas = handoff['epistemic_deltas']
-                    print(f"   Epistemic deltas: KNOW {deltas.get('know', 0):+.2f}, CONTEXT {deltas.get('context', 0):+.2f}, STATE {deltas.get('state', 0):+.2f}")
-            else:
-                print("   Type: Documentation-only (no CASCADE workflow assessments)")
-
-        print(json.dumps(handoff, indent=2))
+        # Stage 5: Format output
+        _handoff_format_output(args, session_id, handoff_type, handoff, sync_result, handoff_display_name)
         return 0
 
     except Exception as e:

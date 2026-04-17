@@ -82,11 +82,166 @@ def archive_stale_plans() -> list:
     return archived
 
 
-def create_session_and_bootstrap(ai_id: str, project_id: str | None = None) -> dict:
-    """
-    Create session + run bootstrap in sequence.
+def _create_empirica_session(ai_id: str, env: dict) -> tuple:
+    """Run session-create CLI command and return (session_id, error).
 
-    Returns dict with session_id, bootstrap_output, error
+    Returns (session_id, None) on success, (None, error_msg) on failure.
+    """
+    create_cmd = subprocess.run(
+        ['empirica', 'session-create', '--ai-id', ai_id, '--output', 'json'],
+        capture_output=True, text=True, timeout=15, env=env
+    )
+    if create_cmd.returncode != 0:
+        return None, f"session-create failed: {create_cmd.stderr}"
+    create_output = json.loads(create_cmd.stdout)
+    session_id = create_output.get('session_id')
+    if not session_id:
+        return None, "session-create returned no session_id"
+    return session_id, None
+
+
+def _run_bootstrap(session_id: str, env: dict) -> tuple:
+    """Run project-bootstrap and return (bootstrap_data, project_context).
+
+    Returns parsed bootstrap output and extracted context tuple.
+    """
+    bootstrap_cmd = subprocess.run(
+        ['empirica', 'project-bootstrap', '--session-id', session_id, '--output', 'json'],
+        capture_output=True, text=True, timeout=30, env=env
+    )
+    if bootstrap_cmd.returncode != 0:
+        return None, None
+    try:
+        bootstrap_data = json.loads(bootstrap_cmd.stdout)
+        project_context = {
+            "goals": bootstrap_data.get("goals", [])[:3],
+            "findings": bootstrap_data.get("findings", [])[:5],
+            "unknowns": bootstrap_data.get("unknowns", [])[:5]
+        }
+        return bootstrap_data, project_context
+    except json.JSONDecodeError:
+        return {"raw": bootstrap_cmd.stdout[:500]}, None
+
+
+def _build_cortex_sync_delta(bootstrap_data) -> dict:
+    """Extract sync delta from bootstrap breadcrumbs for Cortex remote sync."""
+    delta = {}
+    if not isinstance(bootstrap_data, dict):
+        return delta
+    breadcrumbs = bootstrap_data.get("breadcrumbs", {})
+    if breadcrumbs:
+        delta["findings"] = [
+            {"finding": f.get("finding", ""), "impact": f.get("impact", 0.5)}
+            for f in breadcrumbs.get("findings", [])[:10]
+        ]
+        delta["unknowns"] = [
+            {"unknown": u.get("unknown", "")}
+            for u in breadcrumbs.get("unknowns", [])[:5]
+        ]
+    return delta
+
+
+def _load_user_profile() -> dict:
+    """Load user profile from workflow-protocol.yaml for Cortex sync."""
+    user_profile = {"name": "unknown", "role": "member", "domains": []}
+    try:
+        wp_path = Path.cwd() / "workflow-protocol.yaml"
+        if not wp_path.exists():
+            wp_path = Path.home() / ".empirica" / "workflow-protocol.yaml"
+        if wp_path.exists():
+            import yaml
+            with open(wp_path) as wp_f:
+                wp = yaml.safe_load(wp_f)
+            if wp:
+                up = wp.get("user_profile", {})
+                user_profile["name"] = up.get("name", "unknown")
+                user_profile["role"] = up.get("role", "member")
+                domains = wp.get("domains", {})
+                user_profile["domains"] = domains.get("expert", [])[:5]
+    except Exception:
+        pass
+    return user_profile
+
+
+def _write_cortex_cache(sync_result: dict, sync_project_id: str) -> dict:
+    """Write Cortex remote cache and return sync summary dict."""
+    import time as _sync_time
+    _suffix = ""
+    _tmux = os.environ.get("TMUX_PANE")
+    if _tmux:
+        _suffix = f"_tmux_{_tmux.lstrip('%')}"
+    else:
+        _term = os.environ.get("TERM_SESSION_ID") or os.environ.get("WINDOWID") or ""
+        if _term:
+            _suffix = f"_term_{_term.replace('/', '_')}"
+
+    cache_file = Path.home() / ".empirica" / f"cortex_remote_cache{_suffix}.json"
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_file, "w") as cf:
+        json.dump({
+            "timestamp": _sync_time.time(),
+            "project_id": sync_project_id,
+            "cross_domain_context": sync_result.get("cross_domain_context", []),
+            "synced_artifacts": sync_result.get("synced_artifacts", 0),
+        }, cf)
+
+    return {
+        "ok": True,
+        "synced": sync_result.get("synced_artifacts", 0),
+        "cross_domain": len(sync_result.get("cross_domain_context", [])),
+    }
+
+
+def _cortex_remote_sync(result: dict) -> None:
+    """Pull cross-domain context from Cortex at session start.
+
+    Graceful degradation — if Cortex unavailable, session continues normally.
+    """
+    cortex_api_key = os.environ.get('CORTEX_API_KEY', '')
+    cortex_url = os.environ.get('CORTEX_REMOTE_URL', '')
+    if not (cortex_api_key and cortex_url):
+        return
+
+    import urllib.error
+    import urllib.request
+
+    bootstrap_data = result.get("bootstrap_output", {})
+    delta = _build_cortex_sync_delta(bootstrap_data)
+
+    sync_project_id = ""
+    if isinstance(bootstrap_data, dict):
+        sync_project_id = bootstrap_data.get("project_id", "")
+
+    user_profile = _load_user_profile()
+
+    payload = json.dumps({
+        "project_id": sync_project_id,
+        "user_profile_summary": user_profile,
+        "delta": delta,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        f"{cortex_url.rstrip('/')}/v1/sync",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {cortex_api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        sync_result = json.loads(resp.read())
+
+    if sync_result.get("ok"):
+        result["cortex_sync"] = _write_cortex_cache(sync_result, sync_project_id)
+
+
+def create_session_and_bootstrap(ai_id: str, project_id: str | None = None) -> dict:
+    """Create session + run bootstrap in sequence.
+
+    Returns dict with session_id, bootstrap_output, error.
+    Orchestrates: session creation, bootstrap, and optional Cortex sync.
     """
     result = {
         "session_id": None,
@@ -96,143 +251,27 @@ def create_session_and_bootstrap(ai_id: str, project_id: str | None = None) -> d
     }
 
     try:
-        # Create session
         # Set EMPIRICA_CWD_RELIABLE=true because session-init already os.chdir'd
-        # to the resolved project_root. This enables the git-root cross-check in
-        # get_session_db_path() to detect cross-project bleed from stale context.
+        # to the resolved project_root.
         env = {**os.environ, 'EMPIRICA_CWD_RELIABLE': 'true'}
-        create_cmd = subprocess.run(
-            ['empirica', 'session-create', '--ai-id', ai_id, '--output', 'json'],
-            capture_output=True, text=True, timeout=15, env=env
-        )
 
-        if create_cmd.returncode != 0:
-            result["error"] = f"session-create failed: {create_cmd.stderr}"
+        # Step 1: Create session
+        session_id, error = _create_empirica_session(ai_id, env)
+        if error:
+            result["error"] = error
             return result
-
-        create_output = json.loads(create_cmd.stdout)
-        session_id = create_output.get('session_id')
-
-        if not session_id:
-            result["error"] = "session-create returned no session_id"
-            return result
-
         result["session_id"] = session_id
 
-        # Run bootstrap (env inherited from create_session — includes EMPIRICA_CWD_RELIABLE)
-        bootstrap_cmd = subprocess.run(
-            ['empirica', 'project-bootstrap', '--session-id', session_id, '--output', 'json'],
-            capture_output=True, text=True, timeout=30, env=env
-        )
+        # Step 2: Run bootstrap
+        bootstrap_data, project_context = _run_bootstrap(session_id, env)
+        if bootstrap_data:
+            result["bootstrap_output"] = bootstrap_data
+        if project_context:
+            result["project_context"] = project_context
 
-        if bootstrap_cmd.returncode == 0:
-            try:
-                bootstrap_data = json.loads(bootstrap_cmd.stdout)
-                result["bootstrap_output"] = bootstrap_data
-
-                # Extract key context
-                result["project_context"] = {
-                    "goals": bootstrap_data.get("goals", [])[:3],
-                    "findings": bootstrap_data.get("findings", [])[:5],
-                    "unknowns": bootstrap_data.get("unknowns", [])[:5]
-                }
-            except json.JSONDecodeError:
-                result["bootstrap_output"] = {"raw": bootstrap_cmd.stdout[:500]}
-
-        # Cortex remote sync: pull cross-domain context at session start
-        # Graceful degradation — if Cortex unavailable, session continues normally
+        # Step 3: Cortex remote sync (optional, graceful degradation)
         try:
-            cortex_api_key = os.environ.get('CORTEX_API_KEY', '')
-            cortex_url = os.environ.get('CORTEX_REMOTE_URL', '')
-            if cortex_api_key and cortex_url:
-                import urllib.error
-                import urllib.request
-
-                # Build delta from bootstrap findings/unknowns
-                delta = {}
-                bootstrap_data_for_sync = result.get("bootstrap_output", {})
-                if isinstance(bootstrap_data_for_sync, dict):
-                    breadcrumbs = bootstrap_data_for_sync.get("breadcrumbs", {})
-                    if breadcrumbs:
-                        delta["findings"] = [
-                            {"finding": f.get("finding", ""), "impact": f.get("impact", 0.5)}
-                            for f in breadcrumbs.get("findings", [])[:10]
-                        ]
-                        delta["unknowns"] = [
-                            {"unknown": u.get("unknown", "")}
-                            for u in breadcrumbs.get("unknowns", [])[:5]
-                        ]
-
-                # Get project_id from bootstrap
-                sync_project_id = ""
-                if isinstance(bootstrap_data_for_sync, dict):
-                    sync_project_id = bootstrap_data_for_sync.get("project_id", "")
-
-                # Build user profile from workflow protocol if available
-                user_profile = {"name": "unknown", "role": "member", "domains": []}
-                try:
-                    wp_path = Path.cwd() / "workflow-protocol.yaml"
-                    if not wp_path.exists():
-                        wp_path = Path.home() / ".empirica" / "workflow-protocol.yaml"
-                    if wp_path.exists():
-                        import yaml
-                        with open(wp_path) as wp_f:
-                            wp = yaml.safe_load(wp_f)
-                        if wp:
-                            up = wp.get("user_profile", {})
-                            user_profile["name"] = up.get("name", "unknown")
-                            user_profile["role"] = up.get("role", "member")
-                            domains = wp.get("domains", {})
-                            user_profile["domains"] = domains.get("expert", [])[:5]
-                except Exception:
-                    pass
-
-                payload = json.dumps({
-                    "project_id": sync_project_id,
-                    "user_profile_summary": user_profile,
-                    "delta": delta,
-                }).encode("utf-8")
-
-                req = urllib.request.Request(
-                    f"{cortex_url.rstrip('/')}/v1/sync",
-                    data=payload,
-                    headers={
-                        "Authorization": f"Bearer {cortex_api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    method="POST",
-                )
-
-                with urllib.request.urlopen(req, timeout=10) as resp:
-                    sync_result = json.loads(resp.read())
-
-                if sync_result.get("ok"):
-                    # Write remote context to local cache for http_bridge enrichment
-                    import time as _sync_time
-                    _suffix = ""
-                    _tmux = os.environ.get("TMUX_PANE")
-                    if _tmux:
-                        _suffix = f"_tmux_{_tmux.lstrip('%')}"
-                    else:
-                        _term = os.environ.get("TERM_SESSION_ID") or os.environ.get("WINDOWID") or ""
-                        if _term:
-                            _suffix = f"_term_{_term.replace('/', '_')}"
-
-                    cache_file = Path.home() / ".empirica" / f"cortex_remote_cache{_suffix}.json"
-                    cache_file.parent.mkdir(parents=True, exist_ok=True)
-                    with open(cache_file, "w") as cf:
-                        json.dump({
-                            "timestamp": _sync_time.time(),
-                            "project_id": sync_project_id,
-                            "cross_domain_context": sync_result.get("cross_domain_context", []),
-                            "synced_artifacts": sync_result.get("synced_artifacts", 0),
-                        }, cf)
-
-                    result["cortex_sync"] = {
-                        "ok": True,
-                        "synced": sync_result.get("synced_artifacts", 0),
-                        "cross_domain": len(sync_result.get("cross_domain_context", [])),
-                    }
+            _cortex_remote_sync(result)
         except Exception:
             pass  # Cortex unavailable — session continues normally
 
@@ -298,8 +337,8 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
         # Don't overwrite if they have active work — causes resolver warnings
         if instance_file.exists() and claude_session_id:
             try:
-                with open(instance_file) as _if:
-                    existing = json.load(_if)
+                with open(instance_file) as f:
+                    existing = json.load(f)
                 existing_claude_id = existing.get('claude_session_id')
                 if existing_claude_id and existing_claude_id != claude_session_id:
                     # Different Claude session — check for open transaction
@@ -307,8 +346,8 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
                     suffix = _get_instance_suffix()
                     tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
                     if tx_file.exists():
-                        with open(tx_file) as _tf:
-                            tx_data = json.load(_tf)
+                        with open(tx_file) as tx_f:
+                            tx_data = json.load(tx_f)
                         if tx_data.get('status') == 'open' and tx_data.get('session_id') == existing.get('empirica_session_id'):
                             print(f"Warning: Pane {instance_id} has open transaction from another session ({existing_claude_id[:8]}). Not overwriting.", file=sys.stderr)
                             return True  # Don't overwrite, but don't fail
@@ -391,94 +430,99 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
         return False
 
 
-def _detect_existing_session(claude_session_id: str, project_root: Path) -> dict:
-    """Check if an Empirica session already exists for this conversation.
-
-    On 'resume' (continued conversation in new terminal), the session exists
-    in the DB but the anchor files (active_work_{uuid}, instance_projects)
-    are stale because the WINDOWID changed. We detect this to avoid creating
-    a duplicate session.
-
-    Returns dict with session_id if found, empty dict if not.
-    """
-    if not claude_session_id:
-        return {}
-
-    # Check active_work_{uuid} file first (fastest)
+def _check_active_work_file(claude_session_id: str) -> dict:
+    """Check active_work_{uuid} file for existing session (fastest lookup)."""
     active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
-    if active_work_file.exists():
-        try:
-            with open(active_work_file) as f:
-                data = json.load(f)
-            session_id = data.get('empirica_session_id')
-            if session_id:
-                return {'session_id': session_id, 'source': 'active_work'}
-        except Exception:
-            pass
-
-    # Check active_session file (written by session-create)
+    if not active_work_file.exists():
+        return {}
     try:
-        from project_resolver import _get_instance_suffix
-        _get_instance_suffix()
-    except ImportError:
+        with open(active_work_file) as f:
+            data = json.load(f)
+        session_id = data.get('empirica_session_id')
+        if session_id:
+            return {'session_id': session_id, 'source': 'active_work'}
+    except Exception:
         pass
+    return {}
 
-    # Scan ALL active_session files — the old WINDOWID's file may still exist
+
+def _check_active_session_files(project_root: Path) -> dict:
+    """Scan all active_session files for a matching project path."""
     for as_file in Path.home().glob('.empirica/active_session_*'):
         try:
             with open(as_file) as f:
                 data = json.load(f)
-            # Match by project_path — same project means same logical session
             if data.get('project_path') == str(project_root):
                 session_id = data.get('session_id')
                 if session_id:
                     return {'session_id': session_id, 'source': 'active_session'}
         except Exception:
             continue
+    return {}
 
-    # Check for orphaned open transactions (from previous instance after restart).
-    # After machine/terminal/tmux restart, instance-keyed files are stale (TMUX_PANE,
-    # WINDOWID change), but transaction files survive. Adopt and re-key them.
-    empirica_dir = project_root / '.empirica'
-    if empirica_dir.exists():
+
+def _find_best_orphaned_transaction(empirica_dir: Path) -> tuple:
+    """Find the most recent open transaction file in .empirica dir.
+
+    Returns (tx_file, tx_data) or (None, None) if none found.
+    """
+    best_tx = None
+    best_mtime = 0
+    for tx_file in empirica_dir.glob('active_transaction*.json'):
         try:
-            from project_resolver import _get_instance_suffix
-            new_suffix = _get_instance_suffix()
-        except ImportError:
-            new_suffix = ''
-
-        best_tx = None
-        best_mtime = 0
-        for tx_file in empirica_dir.glob('active_transaction*.json'):
-            try:
-                mtime = tx_file.stat().st_mtime
-                if mtime <= best_mtime:
-                    continue
-                with open(tx_file) as f:
-                    tx_data = json.load(f)
-                if tx_data.get('status') == 'open':
-                    best_tx = (tx_file, tx_data, mtime)
-                    best_mtime = mtime
-            except Exception:
+            mtime = tx_file.stat().st_mtime
+            if mtime <= best_mtime:
                 continue
+            with open(tx_file) as f:
+                tx_data = json.load(f)
+            if tx_data.get('status') == 'open':
+                best_tx = (tx_file, tx_data)
+                best_mtime = mtime
+        except Exception:
+            continue
+    if best_tx:
+        return best_tx
+    return None, None
 
-        if best_tx:
-            tx_file, tx_data, _ = best_tx
-            session_id = tx_data.get('session_id')
-            if session_id:
-                # Re-key the transaction file to the new instance suffix
-                new_tx_file = empirica_dir / f'active_transaction{new_suffix}.json'
-                if tx_file != new_tx_file:
-                    try:
-                        import shutil
-                        shutil.copy2(str(tx_file), str(new_tx_file))
-                        tx_file.unlink()
-                        print(f"🔗 Adopted orphaned transaction {tx_data.get('transaction_id', '?')[:8]}... → new instance", file=sys.stderr)
-                    except Exception:
-                        pass  # Adoption failure is non-fatal, proceed with found session
-                return {'session_id': session_id, 'source': 'orphaned_transaction'}
 
-    # Check DB directly via CLI
+def _adopt_orphaned_transaction(project_root: Path) -> dict:
+    """Check for orphaned open transactions and re-key them to the new instance.
+
+    After machine/terminal/tmux restart, instance-keyed files are stale but
+    transaction files survive. Adopt and re-key them.
+    """
+    empirica_dir = project_root / '.empirica'
+    if not empirica_dir.exists():
+        return {}
+
+    try:
+        from project_resolver import _get_instance_suffix
+        new_suffix = _get_instance_suffix()
+    except ImportError:
+        new_suffix = ''
+
+    tx_file, tx_data = _find_best_orphaned_transaction(empirica_dir)
+    if not tx_file or not tx_data:
+        return {}
+
+    session_id = tx_data.get('session_id')
+    if not session_id:
+        return {}
+
+    # Re-key the transaction file to the new instance suffix
+    new_tx_file = empirica_dir / f'active_transaction{new_suffix}.json'
+    if tx_file != new_tx_file:
+        try:
+            shutil.copy2(str(tx_file), str(new_tx_file))
+            tx_file.unlink()
+            print(f"Adopted orphaned transaction {tx_data.get('transaction_id', '?')[:8]}... -> new instance", file=sys.stderr)
+        except Exception:
+            pass  # Adoption failure is non-fatal
+    return {'session_id': session_id, 'source': 'orphaned_transaction'}
+
+
+def _check_db_for_active_session(project_root: Path) -> dict:
+    """Check DB directly via CLI for an active session."""
     try:
         result = subprocess.run(
             ['empirica', 'session-list', '--output', 'json', '--limit', '5'],
@@ -493,123 +537,127 @@ def _detect_existing_session(claude_session_id: str, project_root: Path) -> dict
                     return {'session_id': s.get('session_id'), 'source': 'db_active'}
     except Exception:
         pass
-
     return {}
 
 
-def main():
-    """Main session init logic.
+def _detect_existing_session(claude_session_id: str, project_root: Path) -> dict:
+    """Check if an Empirica session already exists for this conversation.
 
-    Handles both 'startup' (fresh conversation) and 'resume' (continued
-    conversation in new terminal). On resume, detects existing session and
-    updates anchor files without creating a duplicate.
+    Orchestrates a priority chain of lookups to avoid creating duplicates:
+    1. active_work file (fastest)
+    2. active_session files (scans all WINDOWIDs)
+    3. orphaned transactions (re-keyed from previous instance)
+    4. DB query (CLI fallback)
+
+    Returns dict with session_id if found, empty dict if not.
     """
-    hook_input = {}
+    if not claude_session_id:
+        return {}
+
+    found = _check_active_work_file(claude_session_id)
+    if found:
+        return found
+
+    found = _check_active_session_files(project_root)
+    if found:
+        return found
+
+    found = _adopt_orphaned_transaction(project_root)
+    if found:
+        return found
+
+    return _check_db_for_active_session(project_root)
+
+
+def _try_cwd_adoption() -> tuple:
+    """Attempt CWD-first adoption of an open transaction on startup.
+
+    On startup, if CWD has an open transaction, adopt it. This is the common
+    case after tmux restart. Open transactions are authoritative (KNOWN_ISSUES 11.26).
+
+    Returns (project_root, adopted: bool).
+    """
+    cwd_root = _find_git_root() or Path.cwd()
+    if not has_valid_db(cwd_root):
+        return None, False
+    empirica_dir = cwd_root / '.empirica'
     try:
-        hook_input = json.loads(sys.stdin.read())
+        for tx_candidate in sorted(empirica_dir.glob('active_transaction*.json'),
+                                   key=lambda p: p.stat().st_mtime, reverse=True):
+            try:
+                with open(tx_candidate) as f:
+                    tx_data = json.load(f)
+                if tx_data.get('status') == 'open':
+                    print(f"Adopted open transaction from CWD: {tx_candidate.name}", file=sys.stderr)
+                    return cwd_root, True
+            except Exception:
+                continue
     except Exception:
         pass
+    return None, False
 
-    # Extract claude_session_id from hook input (critical for instance isolation)
-    claude_session_id = hook_input.get('session_id')
 
-    # Detect if this is a resume (continued conversation)
-    event_type = hook_input.get('type', 'startup')
-    is_resume = event_type == 'resume'
-
-    # CWD-FIRST ADOPTION: On startup, if CWD has an open transaction, adopt it.
-    # This is the common case after tmux restart — the user opened Claude Code
-    # in the project folder and expects it to reconnect. Skips the full
-    # instance_projects resolution chain which may point to a stale pane.
-    #
-    # Principle: CWD with open transaction = adopt. No transaction = fall
-    # through to normal resolution. Open transactions are authoritative
-    # (KNOWN_ISSUES 11.26). This replaces the old STARTUP OVERRIDE.
-    cwd_adopted = False
-    if event_type == 'startup':
-        cwd_root = _find_git_root() or Path.cwd()
-        if has_valid_db(cwd_root):
-            empirica_dir = cwd_root / '.empirica'
-            try:
-                for tx_candidate in sorted(empirica_dir.glob('active_transaction*.json'),
-                                           key=lambda p: p.stat().st_mtime, reverse=True):
-                    try:
-                        with open(tx_candidate) as f:
-                            tx_data = json.load(f)
-                        if tx_data.get('status') == 'open':
-                            project_root = cwd_root
-                            cwd_adopted = True
-                            print(f"Adopted open transaction from CWD: {tx_candidate.name}", file=sys.stderr)
-                            break
-                    except Exception:
-                        continue
-            except Exception:
-                pass
-
-    if not cwd_adopted:
-        # Normal resolution — instance-aware chain with CWD/git fallbacks
-        project_root = find_project_root(claude_session_id, allow_cwd_fallback=True, allow_git_root=True)
-
-    os.chdir(project_root)
-
-    ai_id = os.getenv('EMPIRICA_AI_ID', 'claude-code')
-
-    # Opportunistic cleanup: remove stale instance_projects for dead tmux panes
-    stale_removed = 0
+def _run_stale_cleanup(claude_session_id: str) -> int:
+    """Opportunistic cleanup of stale instance_projects for dead tmux panes."""
     try:
         sys.path.insert(0, str(Path.home() / 'empirical-ai' / 'empirica'))
         from empirica.utils.session_resolver import InstanceResolver as R
-        stale_removed = R.cleanup_stale_instances()
-        # DB-based cleanup: remove active_work, instance_projects (non-tmux), and
-        # active_session files for ended sessions (no open transaction referencing them)
-        stale_removed += R.cleanup_stale_files(current_claude_session_id=claude_session_id)
+        removed = R.cleanup_stale_instances()
+        removed += R.cleanup_stale_files(current_claude_session_id=claude_session_id)
+        return removed
     except Exception:
-        pass  # Cleanup failure is non-fatal
+        return 0
 
-    # Archive stale plans (whose goals are complete)
-    archived_plans = archive_stale_plans()
 
-    # Version drift detection: compare plugin VERSION with CLI version
-    version_drift_warning = ""
+def _check_version_drift() -> str:
+    """Compare plugin VERSION with CLI version. Returns warning string or empty."""
     try:
         plugin_version_file = Path(__file__).parent.parent / 'VERSION'
         if plugin_version_file.exists():
             plugin_ver = plugin_version_file.read_text().strip()
             from empirica import __version__ as cli_ver
             if plugin_ver != cli_ver:
-                version_drift_warning = f"⚠️  Plugin v{plugin_ver} != CLI v{cli_ver}. Run: empirica setup-claude-code --force"
+                return f"Plugin v{plugin_ver} != CLI v{cli_ver}. Run: empirica setup-claude-code --force"
     except Exception:
         pass
+    return ""
 
-    # RESUME PATH: Detect existing session and update anchor files only
-    if is_resume:
-        existing = _detect_existing_session(claude_session_id, project_root)
-        if existing.get('session_id'):
-            session_id = existing['session_id']
-            # Update anchor files for the new WINDOWID/terminal
-            _write_instance_projects(str(project_root), claude_session_id, session_id)
 
-            # Run bootstrap to load context
-            bootstrap_output = None
-            try:
-                bootstrap_cmd = subprocess.run(
-                    ['empirica', 'project-bootstrap', '--session-id', session_id, '--output', 'json'],
-                    capture_output=True, text=True, timeout=30,
-                    cwd=str(project_root)
-                )
-                if bootstrap_cmd.returncode == 0:
-                    bootstrap_output = json.loads(bootstrap_cmd.stdout)
-            except Exception:
-                pass
+def _bootstrap_for_existing_session(session_id: str, project_root: Path) -> bool:
+    """Run project-bootstrap for an existing/adopted session. Returns success."""
+    try:
+        bootstrap_cmd = subprocess.run(
+            ['empirica', 'project-bootstrap', '--session-id', session_id, '--output', 'json'],
+            capture_output=True, text=True, timeout=30,
+            cwd=str(project_root)
+        )
+        return bootstrap_cmd.returncode == 0
+    except Exception:
+        return False
 
-            output = {
-                "ok": True,
-                "session_id": session_id,
-                "resumed": True,
-                "bootstrap_complete": bootstrap_output is not None,
-                "hookSpecificOutput": {
-                    "hookEventName": "SessionStart",
-                    "additionalContext": f"""
+
+def _handle_resume_path(claude_session_id: str, project_root: Path, ai_id: str) -> bool:
+    """Handle resume path: detect existing session, update anchors, exit if found.
+
+    Returns True if session was resumed (and sys.exit was called), False to continue.
+    """
+    existing = _detect_existing_session(claude_session_id, project_root)
+    if not existing.get('session_id'):
+        print(f"Resume: no existing session found for {project_root.name}, creating new one", file=sys.stderr)
+        return False
+
+    session_id = existing['session_id']
+    _write_instance_projects(str(project_root), claude_session_id, session_id)
+    bootstrap_ok = _bootstrap_for_existing_session(session_id, project_root)
+
+    output = {
+        "ok": True,
+        "session_id": session_id,
+        "resumed": True,
+        "bootstrap_complete": bootstrap_ok,
+        "hookSpecificOutput": {
+            "hookEventName": "SessionStart",
+            "additionalContext": f"""
 ## Session Resumed
 
 **Session ID:** `{session_id}` (existing, from {existing.get('source', 'unknown')})
@@ -619,97 +667,77 @@ Anchor files updated for new terminal. Existing session and transaction state pr
 
 **Note:** If you need a fresh session, run `empirica session-create --ai-id {ai_id}`.
 """
-                }
-            }
+        }
+    }
 
-            print(f"""
-🔄 Empirica: Session Resumed
+    print(f"""
+Empirica: Session Resumed
 
-✅ Session: {session_id} (anchored to new terminal)
-✅ Project: {project_root.name}
+Session: {session_id} (anchored to new terminal)
+Project: {project_root.name}
 """, file=sys.stderr)
 
-            print(json.dumps(output))
-            sys.exit(0)
+    print(json.dumps(output))
+    sys.exit(0)
 
-        # No existing session found during resume — fall through to create new one
-        print(f"⚠️  Resume: no existing session found for {project_root.name}, creating new one", file=sys.stderr)
 
-    # STARTUP PATH: Check for orphaned transactions before creating a new session.
-    # After machine/terminal/tmux restart, event_type is 'startup' but the CWD project
-    # may have an open transaction from the previous instance. Adopt it instead of
-    # creating a duplicate session.
-    if not is_resume:
-        existing = _detect_existing_session(claude_session_id, project_root)
-        if existing.get('session_id') and existing.get('source') == 'orphaned_transaction':
-            session_id = existing['session_id']
-            _write_instance_projects(str(project_root), claude_session_id, session_id)
+def _handle_orphan_adoption(claude_session_id: str, project_root: Path) -> bool:
+    """Handle startup path: adopt orphaned transactions from previous instance.
 
-            # Bootstrap to load context
-            bootstrap_output = None
-            try:
-                bootstrap_cmd = subprocess.run(
-                    ['empirica', 'project-bootstrap', '--session-id', session_id, '--output', 'json'],
-                    capture_output=True, text=True, timeout=30,
-                    cwd=str(project_root)
-                )
-                if bootstrap_cmd.returncode == 0:
-                    bootstrap_output = json.loads(bootstrap_cmd.stdout)
-            except Exception:
-                pass
+    Returns True if adoption happened (and sys.exit was called), False to continue.
+    """
+    existing = _detect_existing_session(claude_session_id, project_root)
+    if not (existing.get('session_id') and existing.get('source') == 'orphaned_transaction'):
+        return False
 
-            output = {
-                "ok": True,
-                "session_id": session_id,
-                "adopted": True,
-                "bootstrap_complete": bootstrap_output is not None,
-                "hookSpecificOutput": {
-                    "hookEventName": "SessionStart",
-                    "additionalContext": f"""
+    session_id = existing['session_id']
+    _write_instance_projects(str(project_root), claude_session_id, session_id)
+    bootstrap_ok = _bootstrap_for_existing_session(session_id, project_root)
+
+    output = {
+        "ok": True,
+        "session_id": session_id,
+        "adopted": True,
+        "bootstrap_complete": bootstrap_ok,
+        "hookSpecificOutput": {
+            "hookEventName": "SessionStart",
+            "additionalContext": f"""
 ## Transaction Adopted After Restart
 
 **Session ID:** `{session_id}` (adopted from orphaned transaction)
 **Project:** {project_root}
 
 Found an open transaction from a previous terminal/tmux instance.
-Session and transaction state preserved — anchor files updated for new instance.
+Session and transaction state preserved -- anchor files updated for new instance.
 
 **After reviewing context:** Run CHECK or continue your transaction.
 """
-                }
-            }
+        }
+    }
 
-            print(f"""
-🔗 Empirica: Transaction Adopted
+    print(f"""
+Empirica: Transaction Adopted
 
-✅ Session: {session_id} (from orphaned transaction)
-✅ Project: {project_root.name}
-✅ Transaction state preserved
+Session: {session_id} (from orphaned transaction)
+Project: {project_root.name}
+Transaction state preserved
 """, file=sys.stderr)
 
-            print(json.dumps(output))
-            sys.exit(0)
+    print(json.dumps(output))
+    sys.exit(0)
 
-    # Create session and bootstrap
-    result = create_session_and_bootstrap(ai_id)
 
-    # CRITICAL: Write instance_projects IMMEDIATELY after session creation
-    # This establishes the linkage that project-switch, statusline, and sentinel need.
-    # Works with or without claude_session_id — fallback writes generic active_work.json
-    if result.get("session_id"):
-        _write_instance_projects(str(project_root), claude_session_id, result["session_id"])
-
-    if result.get("error"):
-        # Error creating session - provide fallback guidance
-        output = {
-            "ok": False,
-            "error": result["error"],
-            "hookSpecificOutput": {
-                "hookEventName": "SessionStart",
-                "additionalContext": f"""
+def _emit_session_error(error: str, ai_id: str) -> None:
+    """Emit session init error output and exit."""
+    output = {
+        "ok": False,
+        "error": error,
+        "hookSpecificOutput": {
+            "hookEventName": "SessionStart",
+            "additionalContext": f"""
 ## Session Init Failed
 
-Error: {result["error"]}
+Error: {error}
 
 **Manual Setup Required:**
 
@@ -726,13 +754,17 @@ empirica preflight-submit - << 'EOF'
 EOF
 ```
 """
-            }
         }
-        print(json.dumps(output))
-        sys.exit(0)
+    }
+    print(json.dumps(output))
+    sys.exit(0)
 
-    # Initialize Context Budget Manager (bootloader phase)
-    budget_summary = None
+
+def _init_context_budget(session_id: str, project_context: dict) -> dict:
+    """Initialize Context Budget Manager (bootloader phase).
+
+    Returns budget summary dict, or dict with 'error' key on failure.
+    """
     try:
         sys.path.insert(0, str(Path.home() / 'empirical-ai' / 'empirica'))
         from empirica.core.context_budget import (
@@ -745,90 +777,69 @@ EOF
         )
 
         manager = ContextBudgetManager(
-            session_id=result["session_id"],
-            auto_subscribe=False,  # No bus in subprocess
+            session_id=session_id,
+            auto_subscribe=False,
         )
 
-        # Register anchor zone: CLAUDE.md, calibration, session state
+        # Register anchor zone
         manager.register_item(ContextItem(
-            id="claude_md",
-            zone=MemoryZone.ANCHOR,
-            content_type=ContentType.SYSTEM_PROMPT,
-            source="CLAUDE.md",
-            channel=InjectionChannel.HOOK,
-            label="CLAUDE.md system prompt + calibration",
-            estimated_tokens=12000,
-            epistemic_value=1.0,
-            evictable=False,
+            id="claude_md", zone=MemoryZone.ANCHOR,
+            content_type=ContentType.SYSTEM_PROMPT, source="CLAUDE.md",
+            channel=InjectionChannel.HOOK, label="CLAUDE.md system prompt + calibration",
+            estimated_tokens=12000, epistemic_value=1.0, evictable=False,
         ))
         manager.register_item(ContextItem(
-            id="session_state",
-            zone=MemoryZone.ANCHOR,
-            content_type=ContentType.CALIBRATION,
-            source="session-init",
-            channel=InjectionChannel.HOOK,
-            label=f"Session {result['session_id'][:8]} state",
-            estimated_tokens=1000,
-            epistemic_value=1.0,
-            evictable=False,
+            id="session_state", zone=MemoryZone.ANCHOR,
+            content_type=ContentType.CALIBRATION, source="session-init",
+            channel=InjectionChannel.HOOK, label=f"Session {session_id[:8]} state",
+            estimated_tokens=1000, epistemic_value=1.0, evictable=False,
         ))
 
         # Register bootstrap context as cache items
-        ctx = result.get("project_context", {})
+        ctx = project_context or {}
         if ctx.get("goals"):
             for i, g in enumerate(ctx["goals"]):
                 obj = g.get("objective", str(g)) if isinstance(g, dict) else str(g)
                 manager.register_item(ContextItem(
-                    id=f"boot_goal_{i}",
-                    zone=MemoryZone.WORKING,
-                    content_type=ContentType.GOAL,
-                    source="project-bootstrap",
-                    channel=InjectionChannel.HOOK,
-                    label=obj[:80],
-                    estimated_tokens=200,
-                    epistemic_value=0.8,
-                    evictable=False,
+                    id=f"boot_goal_{i}", zone=MemoryZone.WORKING,
+                    content_type=ContentType.GOAL, source="project-bootstrap",
+                    channel=InjectionChannel.HOOK, label=obj[:80],
+                    estimated_tokens=200, epistemic_value=0.8, evictable=False,
                 ))
         if ctx.get("findings"):
             for i, f in enumerate(ctx["findings"]):
                 text = f.get("finding", str(f)) if isinstance(f, dict) else str(f)
                 impact = f.get("impact", 0.5) if isinstance(f, dict) else 0.5
                 manager.register_item(ContextItem(
-                    id=f"boot_finding_{i}",
-                    zone=MemoryZone.CACHE,
-                    content_type=ContentType.FINDING,
-                    source="project-bootstrap",
-                    channel=InjectionChannel.HOOK,
-                    label=text[:80],
+                    id=f"boot_finding_{i}", zone=MemoryZone.CACHE,
+                    content_type=ContentType.FINDING, source="project-bootstrap",
+                    channel=InjectionChannel.HOOK, label=text[:80],
                     estimated_tokens=estimate_tokens(text),
                     epistemic_value=float(impact) if impact else 0.5,
                 ))
 
-        # Persist and get summary
         manager.persist_state()
-        budget_summary = manager.get_inventory_summary()
+        return manager.get_inventory_summary()
     except Exception as e:
-        budget_summary = {"error": str(e)}
+        return {"error": str(e)}
 
-    # Initialize System Dashboard (observability layer)
-    dashboard_status = None
+
+def _init_dashboard(session_id: str, ai_id: str) -> str:
+    """Initialize System Dashboard. Returns summary string or None."""
     try:
         from empirica.core.system_dashboard import SystemDashboard
         dashboard = SystemDashboard(
-            session_id=result["session_id"],
-            node_id=ai_id,
-            auto_subscribe=False,  # No bus in subprocess
+            session_id=session_id, node_id=ai_id, auto_subscribe=False,
         )
         status = dashboard.get_system_status()
-        dashboard_status = status.format_summary()
+        return status.format_summary()
     except Exception:
-        pass  # Dashboard failure is non-fatal
+        return None
 
-    # Success - generate PREFLIGHT prompt
-    session_id = result["session_id"]
-    context_text = format_context(result.get("project_context"))
 
-    prompt = f"""
+def _build_preflight_prompt(session_id: str, context_text: str) -> str:
+    """Build the PREFLIGHT prompt for a new session."""
+    return f"""
 ## New Session Initialized
 
 **Session ID:** `{session_id}`
@@ -864,6 +875,67 @@ EOF
 **Position-holding:** Load `/epistemic-persistence-protocol` when holding or updating a position under user pushback.
 """
 
+
+def main():
+    """Main session init logic.
+
+    Orchestrates: input parsing, project resolution, existing session detection
+    (resume/adoption), new session creation, budget/dashboard init, and output.
+    """
+    hook_input = {}
+    try:
+        hook_input = json.loads(sys.stdin.read())
+    except Exception:
+        pass
+
+    claude_session_id = hook_input.get('session_id')
+    event_type = hook_input.get('type', 'startup')
+    is_resume = event_type == 'resume'
+
+    # CWD-FIRST ADOPTION on startup
+    cwd_adopted = False
+    if event_type == 'startup':
+        cwd_root, cwd_adopted = _try_cwd_adoption()
+        if cwd_adopted:
+            project_root = cwd_root
+
+    if not cwd_adopted:
+        project_root = find_project_root(claude_session_id, allow_cwd_fallback=True, allow_git_root=True)
+
+    os.chdir(project_root)
+    ai_id = os.getenv('EMPIRICA_AI_ID', 'claude-code')
+
+    # Housekeeping
+    _run_stale_cleanup(claude_session_id)
+    archived_plans = archive_stale_plans()
+    version_drift_warning = _check_version_drift()
+
+    # RESUME PATH
+    if is_resume:
+        _handle_resume_path(claude_session_id, project_root, ai_id)
+
+    # STARTUP: Orphaned transaction adoption
+    if not is_resume:
+        _handle_orphan_adoption(claude_session_id, project_root)
+
+    # Create session and bootstrap
+    result = create_session_and_bootstrap(ai_id)
+
+    if result.get("session_id"):
+        _write_instance_projects(str(project_root), claude_session_id, result["session_id"])
+
+    if result.get("error"):
+        _emit_session_error(result["error"], ai_id)
+
+    # Initialize subsystems
+    session_id = result["session_id"]
+    budget_summary = _init_context_budget(session_id, result.get("project_context", {}))
+    dashboard_status = _init_dashboard(session_id, ai_id)
+
+    # Build output
+    context_text = format_context(result.get("project_context"))
+    prompt = _build_preflight_prompt(session_id, context_text)
+
     output = {
         "ok": True,
         "session_id": session_id,
@@ -875,19 +947,19 @@ EOF
     }
 
     # User-visible message
-    archive_msg = f"\n🗄️  Archived {len(archived_plans)} stale plan(s)" if archived_plans else ""
+    archive_msg = f"\nArchived {len(archived_plans)} stale plan(s)" if archived_plans else ""
     budget_msg = ""
     if budget_summary and not budget_summary.get("error"):
-        budget_msg = f"\n📊 Budget: {budget_summary.get('tokens_used', 0):,}t used / {budget_summary.get('tokens_available', 0):,}t avail ({budget_summary.get('utilization_pct', 0)}%)"
-    dash_msg = f"\n🖥️  {dashboard_status}" if dashboard_status else ""
+        budget_msg = f"\nBudget: {budget_summary.get('tokens_used', 0):,}t used / {budget_summary.get('tokens_available', 0):,}t avail ({budget_summary.get('utilization_pct', 0)}%)"
+    dash_msg = f"\n{dashboard_status}" if dashboard_status else ""
     drift_msg = f"\n{version_drift_warning}" if version_drift_warning else ""
     print(f"""
-🚀 Empirica: New Session Initialized
+Empirica: New Session Initialized
 
-✅ Session created: {session_id}
-✅ Project context loaded{archive_msg}{budget_msg}{dash_msg}{drift_msg}
+Session created: {session_id}
+Project context loaded{archive_msg}{budget_msg}{dash_msg}{drift_msg}
 
-📋 Run PREFLIGHT to establish baseline, then CHECK before actions.
+Run PREFLIGHT to establish baseline, then CHECK before actions.
 """, file=sys.stderr)
 
     print(json.dumps(output))

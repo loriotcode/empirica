@@ -307,64 +307,63 @@ def _find_session_for_commit(commit_sha: str, repo_path: str) -> dict | None:
                 break
 
     if matching_refs:
-        # Get the session_id from the first match
         first_ref = matching_refs[0]
         session_id = first_ref.split("/")[4]
-
-        # Load all phases for this session
-        session_refs = _get_session_refs(repo_path, session_id)
-        assessments = []
-        for ref in session_refs:
-            a = _get_assessment_from_ref(repo_path, ref)
-            if a:
-                assessments.append(a)
-
-        if assessments:
-            phase_priority = {"POSTFLIGHT": 0, "CHECK": 1, "PREFLIGHT": 2}
-            assessments.sort(key=lambda x: phase_priority.get(x["phase"], 99))
-            return assessments[0]
+        result = _best_assessment_for_session(repo_path, session_id)
+        if result:
+            return result
 
     # Strategy 2: Timestamp proximity (scans cached data, no new I/O)
+    return _find_session_by_timestamp(commit_sha, repo_path)
+
+
+def _best_assessment_for_session(repo_path: str, session_id: str) -> dict | None:
+    """Load all assessments for a session and return the best one (prefer POSTFLIGHT)."""
+    session_refs = _get_session_refs(repo_path, session_id)
+    assessments = []
+    for ref in session_refs:
+        a = _get_assessment_from_ref(repo_path, ref)
+        if a:
+            assessments.append(a)
+    if not assessments:
+        return None
+    phase_priority = {"POSTFLIGHT": 0, "CHECK": 1, "PREFLIGHT": 2}
+    assessments.sort(key=lambda x: phase_priority.get(x["phase"], 99))
+    return assessments[0]
+
+
+def _find_session_by_timestamp(commit_sha: str, repo_path: str) -> dict | None:
+    """Find a session assessment by timestamp proximity to a commit."""
     try:
         commit_time = _git_cmd(repo_path, "log", "-1", "--format=%ct", commit_sha)
-        if commit_time:
-            commit_ts = float(commit_time)
-            best_ref = None
-            best_diff = float("inf")
+        if not commit_time:
+            return None
+        commit_ts = float(commit_time)
+        best_ref = None
+        best_diff = float("inf")
 
-            for ref, data in _session_data_cache.items():
-                if not ref.startswith("refs/notes/empirica/session/"):
-                    continue
-                ts_str = data.get("timestamp", "")
-                if not ts_str:
-                    continue
-                try:
-                    from datetime import datetime
-                    dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
-                    assess_ts = dt.timestamp()
-                    diff = abs(assess_ts - commit_ts)
-                    if diff < best_diff:
-                        best_diff = diff
-                        best_ref = ref
-                except (ValueError, TypeError):
-                    continue
+        for ref, data in _session_data_cache.items():
+            if not ref.startswith("refs/notes/empirica/session/"):
+                continue
+            ts_str = data.get("timestamp", "")
+            if not ts_str:
+                continue
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                assess_ts = dt.timestamp()
+                diff = abs(assess_ts - commit_ts)
+                if diff < best_diff:
+                    best_diff = diff
+                    best_ref = ref
+            except (ValueError, TypeError):
+                continue
 
-            # Only match if within 2 hours
-            if best_ref and best_diff < 7200:
-                session_id = best_ref.split("/")[4]
-                session_refs = _get_session_refs(repo_path, session_id)
-                assessments = []
-                for ref in session_refs:
-                    a = _get_assessment_from_ref(repo_path, ref)
-                    if a:
-                        assessments.append(a)
-                if assessments:
-                    phase_priority = {"POSTFLIGHT": 0, "CHECK": 1, "PREFLIGHT": 2}
-                    assessments.sort(key=lambda x: phase_priority.get(x["phase"], 99))
-                    return assessments[0]
+        if best_ref and best_diff < 7200:
+            session_id = best_ref.split("/")[4]
+            return _best_assessment_for_session(repo_path, session_id)
     except Exception:  # noqa: S110 — best-effort assessment lookup; None fallback is correct
         pass
-
     return None
 
 

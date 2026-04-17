@@ -1447,8 +1447,10 @@ class SessionDatabase:
             return
         try:
             rel_parts = list(py_file.relative_to(root_path).parts)
-            if rel_parts[-1] == "__init__.py": rel_parts = rel_parts[:-1]
-            else: rel_parts[-1] = rel_parts[-1].replace(".py", "")
+            if rel_parts[-1] == "__init__.py":
+                rel_parts = rel_parts[:-1]
+            else:
+                rel_parts[-1] = rel_parts[-1].replace(".py", "")
             module_name = ".".join(rel_parts)
         except ValueError:
             return
@@ -1456,12 +1458,16 @@ class SessionDatabase:
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     top = alias.name.split('.')[0]
-                    if top in package_prefixes: reverse_graph[alias.name].add(module_name)
-                    else: external_deps.add(top)
+                    if top in package_prefixes:
+                        reverse_graph[alias.name].add(module_name)
+                    else:
+                        external_deps.add(top)
             elif isinstance(node, ast.ImportFrom) and node.module:
                 top = node.module.split('.')[0]
-                if top in package_prefixes: reverse_graph[node.module].add(module_name)
-                elif node.level == 0: external_deps.add(top)
+                if top in package_prefixes:
+                    reverse_graph[node.module].add(module_name)
+                elif node.level == 0:
+                    external_deps.add(top)
         for node in ast.walk(tree):
             if (isinstance(node, ast.If) and isinstance(node.test, ast.Compare) and len(node.test.comparators) == 1):
                 left = node.test.left
@@ -2110,9 +2116,12 @@ class SessionDatabase:
                             drift += abs(pre_vectors[key] - post_vectors[key])
                             count += 1
                 drift = drift / count if count > 0 else 0.0
-                if drift > 0.3: return "full"
-                elif drift > 0.1: return "moderate"
-                else: return "minimal"
+                if drift > 0.3:
+                    return "full"
+                elif drift > 0.1:
+                    return "moderate"
+                else:
+                    return "minimal"
         except Exception:
             pass
         return "moderate"

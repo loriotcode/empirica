@@ -17,7 +17,6 @@ from empirica.core.dispatch_bus import (
     set_global_bus,
 )
 
-
 # ---------------------------------------------------------------------------
 # DispatchMessage serialization
 # ---------------------------------------------------------------------------
@@ -289,7 +288,7 @@ class TestDispatchBus:
 
     def test_dispatch_with_deadline(self):
         bus = self._bus()
-        corr_id = bus.dispatch(
+        bus.dispatch(
             to_instance="cowork-1",
             action="quick_task",
             deadline_seconds=60,

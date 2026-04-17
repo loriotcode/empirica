@@ -6,7 +6,6 @@ Tests that the postflight delta calculation correctly handles both:
 - Nested dict format: {"engagement": {"score": 0.95, "rationale": "..."}}
 """
 
-import pytest
 from empirica.cli.command_handlers.workflow_commands import _extract_numeric_value
 
 

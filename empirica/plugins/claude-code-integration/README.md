@@ -20,7 +20,7 @@ empirica setup-claude-code --force # Reset/update (preserves non-Empirica hooks)
 
 | Component | Count | Location |
 |-----------|-------|----------|
-| Hooks | 18 | `~/.claude/plugins/local/empirica/hooks/` |
+| Hooks | 15 | `~/.claude/plugins/local/empirica/hooks/` |
 | Skills | 7 | `~/.claude/plugins/local/empirica/skills/` |
 | Commands | 2 | `~/.claude/plugins/local/empirica/commands/` |
 | Agents | 9 | `~/.claude/plugins/local/empirica/agents/` |
@@ -72,8 +72,6 @@ Hooks fire automatically on Claude Code events. No manual invocation needed.
 | Hook | Event | What It Does |
 |------|-------|-------------|
 | **ewm-protocol-loader** | SessionStart | Loads user's workflow protocol (`~/.empirica/workflow-protocol.yaml`) for personalized AI collaboration |
-| **elicitation** | Elicitation | Tracks AI-initiated questions as objective uncertainty measurements |
-| **elicitation-result** | ElicitationResult | Auto-logs user answers as findings or decisions |
 
 ---
 

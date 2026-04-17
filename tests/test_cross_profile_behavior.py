@@ -9,7 +9,8 @@ This test validates the core profile system for the November 20, 2025 launch.
 """
 
 import pytest
-from empirica.config.profile_loader import ProfileLoader, InvestigationProfile, load_profile
+
+from empirica.config.profile_loader import ProfileLoader, load_profile
 
 
 class TestCrossProfileBehavior:
@@ -57,7 +58,7 @@ class TestCrossProfileBehavior:
             "Balanced should have moderate rounds (7)"
 
         # Verify at least 3 different values exist
-        unique_values = set(v for v in max_rounds.values() if v is not None)
+        unique_values = {v for v in max_rounds.values() if v is not None}
         assert len(unique_values) >= 3, \
             f"Expected at least 3 different max_rounds values, got {unique_values}"
 

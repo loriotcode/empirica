@@ -11,45 +11,45 @@ Created: 2025-12-01
 Purpose: Catch integration bugs that unit tests miss
 """
 
-import pytest
-import subprocess
 import json
+import subprocess
 import time
-from pathlib import Path
+
+import pytest
 
 
 class TestCheckpointWorkflowE2E:
     """End-to-end checkpoint workflow tests"""
-    
+
     @pytest.fixture
     def test_repo(self, tmp_path):
         """Create test git repository"""
         repo_dir = tmp_path / "test_repo"
         repo_dir.mkdir()
-        
+
         subprocess.run(["git", "init"], cwd=repo_dir, check=True, capture_output=True)
         subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=repo_dir, check=True)
         subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_dir, check=True)
-        
+
         # Create initial commit
         (repo_dir / "README.md").write_text("# Test")
         subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
-        subprocess.run(["git", "commit", "-m", "Initial commit"], 
+        subprocess.run(["git", "commit", "-m", "Initial commit"],
                       cwd=repo_dir, check=True, capture_output=True)
-        
+
         return repo_dir
-    
+
     def test_full_checkpoint_workflow(self, test_repo):
         """
         E2E: Bootstrap → PREFLIGHT → Checkpoint → List
-        
+
         This catches the bugs:
         - Missing list_checkpoints method
         - Empty vectors in checkpoints
         - Missing reflexes table
         """
         session_id = f"e2e-test-{int(time.time())}"
-        
+
         # Step 1: Bootstrap session
         result = subprocess.run(
             ["empirica", "bootstrap", "--ai-id", "e2e-test"],
@@ -57,7 +57,7 @@ class TestCheckpointWorkflowE2E:
             text=True,
             cwd=test_repo
         )
-        
+
         if result.returncode == 0:
             # Extract session ID from output if needed
             pass
@@ -78,7 +78,7 @@ class TestCheckpointWorkflowE2E:
             "impact": 0.75,
             "uncertainty": 0.35
         })
-        
+
         result = subprocess.run(
             ["empirica", "preflight-submit",
              "--session-id", session_id,
@@ -88,7 +88,7 @@ class TestCheckpointWorkflowE2E:
             text=True,
             cwd=test_repo
         )
-        
+
         # Step 3: Create checkpoint (should include vectors from database)
         result = subprocess.run(
             ["empirica", "checkpoint-create",
@@ -99,17 +99,17 @@ class TestCheckpointWorkflowE2E:
             text=True,
             cwd=test_repo
         )
-        
+
         # BUG CHECK: Should NOT show "empty vectors" warning
         assert "empty vectors" not in result.stdout.lower(), \
             "REGRESSION: Checkpoint should not have empty vectors"
         assert "Could not load vectors" not in result.stderr, \
             "REGRESSION: Should load vectors from reflexes table"
-        
+
         # Should show success
         assert result.returncode == 0 or "created" in result.stdout.lower(), \
             "Checkpoint creation should succeed"
-        
+
         # Step 4: List checkpoints (tests missing method bug)
         result = subprocess.run(
             ["empirica", "checkpoint-list",
@@ -118,17 +118,17 @@ class TestCheckpointWorkflowE2E:
             text=True,
             cwd=test_repo
         )
-        
+
         # BUG CHECK: Should NOT crash with AttributeError
         assert "AttributeError" not in result.stderr, \
             "REGRESSION: list_checkpoints method must exist"
         assert "has no attribute 'list_checkpoints'" not in result.stderr, \
             "REGRESSION: list_checkpoints must be implemented"
-        
+
         # Should show checkpoint
         assert result.returncode == 0, \
             "checkpoint-list should execute successfully"
-        
+
         # Step 6: Load checkpoint and verify vectors
         result = subprocess.run(
             ["empirica", "checkpoint-load",
@@ -137,12 +137,12 @@ class TestCheckpointWorkflowE2E:
             text=True,
             cwd=test_repo
         )
-        
+
         if result.returncode == 0 and result.stdout:
             # Try to parse as JSON
             try:
                 checkpoint_data = json.loads(result.stdout)
-                
+
                 # BUG CHECK: Checkpoint must have vectors
                 assert "vectors" in checkpoint_data, \
                     "REGRESSION: Checkpoint must include vectors"
@@ -150,7 +150,7 @@ class TestCheckpointWorkflowE2E:
                     "REGRESSION: Vectors must not be empty"
                 assert len(checkpoint_data["vectors"]) == 13, \
                     "REGRESSION: Must have all 13 epistemic vectors"
-                
+
             except json.JSONDecodeError:
                 # Output might not be JSON, that's okay for now
                 pass
@@ -158,22 +158,22 @@ class TestCheckpointWorkflowE2E:
 
 class TestGoalsWorkflowE2E:
     """End-to-end goals workflow tests"""
-    
+
     def test_full_goals_workflow(self):
         """
         E2E: Create Goal → Add Subtasks → Complete → Check Progress
-        
+
         Verifies goals system works end-to-end via CLI
         """
         session_id = f"goals-e2e-{int(time.time())}"
-        
+
         # Step 1: Bootstrap session
         result = subprocess.run(
             ["empirica", "bootstrap", "--ai-id", "goals-test"],
             capture_output=True,
             text=True
         )
-        
+
         # Step 2: Create goal (--force bypasses fuzzy duplicate detection for tests)
         result = subprocess.run(
             ["empirica", "goals-create",
@@ -189,9 +189,9 @@ class TestGoalsWorkflowE2E:
             capture_output=True,
             text=True
         )
-        
+
         assert result.returncode == 0, "Goal creation should succeed"
-        
+
         # Extract goal ID from output
         goal_id = None
         if "goal_id" in result.stdout:
@@ -200,13 +200,13 @@ class TestGoalsWorkflowE2E:
                 goal_id = output_data.get("goal_id")
             except json.JSONDecodeError:
                 pass
-        
+
         if not goal_id:
             pytest.skip("Could not extract goal_id from output")
-        
+
         # Step 3: Add subtasks
         subtask_ids = []
-        
+
         for i, desc in enumerate(["Subtask 1", "Subtask 2", "Subtask 3"]):
             result = subprocess.run(
                 ["empirica", "goals-add-subtask",
@@ -217,9 +217,9 @@ class TestGoalsWorkflowE2E:
                 capture_output=True,
                 text=True
             )
-            
+
             assert result.returncode == 0, f"Subtask {i+1} creation should succeed"
-            
+
             # Extract task ID
             if "task_id" in result.stdout:
                 try:
@@ -229,7 +229,7 @@ class TestGoalsWorkflowE2E:
                         subtask_ids.append(task_id)
                 except json.JSONDecodeError:
                     pass
-        
+
         # Step 4: Check progress (should be 0%)
         result = subprocess.run(
             ["empirica", "goals-progress",
@@ -238,9 +238,9 @@ class TestGoalsWorkflowE2E:
             capture_output=True,
             text=True
         )
-        
+
         assert result.returncode == 0, "Progress check should succeed"
-        
+
         if result.stdout:
             try:
                 progress = json.loads(result.stdout)
@@ -248,7 +248,7 @@ class TestGoalsWorkflowE2E:
                     "Initial progress should be 0%"
             except json.JSONDecodeError:
                 pass
-        
+
         # Step 5: Complete first subtask
         if subtask_ids:
             result = subprocess.run(
@@ -258,9 +258,9 @@ class TestGoalsWorkflowE2E:
                 capture_output=True,
                 text=True
             )
-            
+
             assert result.returncode == 0, "Subtask completion should succeed"
-        
+
         # Step 6: Check progress again (should be >0%)
         result = subprocess.run(
             ["empirica", "goals-progress",
@@ -269,7 +269,7 @@ class TestGoalsWorkflowE2E:
             capture_output=True,
             text=True
         )
-        
+
         if result.stdout:
             try:
                 progress = json.loads(result.stdout)

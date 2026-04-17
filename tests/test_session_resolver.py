@@ -3,24 +3,21 @@ Tests for session resolver (alias support for session IDs)
 """
 
 import pytest
-from empirica.utils.session_resolver import (
-    resolve_session_id,
-    get_latest_session_id,
-    is_session_alias
-)
+
+from empirica.utils.session_resolver import get_latest_session_id, is_session_alias, resolve_session_id
 
 
 def test_is_session_alias():
     """Test alias detection"""
-    assert is_session_alias("latest") == True
-    assert is_session_alias("last") == True
-    assert is_session_alias("latest:active") == True
-    assert is_session_alias("latest:claude-code") == True
-    assert is_session_alias("latest:active:claude-code") == True
+    assert is_session_alias("latest")
+    assert is_session_alias("last")
+    assert is_session_alias("latest:active")
+    assert is_session_alias("latest:claude-code")
+    assert is_session_alias("latest:active:claude-code")
 
     # UUIDs are not aliases
-    assert is_session_alias("88dbf132-cc7c-4a4b-9b59-77df3b13dbd2") == False
-    assert is_session_alias("88dbf132") == False
+    assert not is_session_alias("88dbf132-cc7c-4a4b-9b59-77df3b13dbd2")
+    assert not is_session_alias("88dbf132")
 
 
 def test_resolve_full_uuid():

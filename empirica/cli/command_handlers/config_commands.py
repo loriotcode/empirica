@@ -133,6 +133,38 @@ def handle_config_show_command(args):
         handle_cli_error(e, "Config Show", getattr(args, 'verbose', False))
 
 
+def _validate_model_profiles(mco):
+    """Validate model profiles in MCO config. Returns (issues, warnings)."""
+    warnings = []
+    print("\n📊 Checking Model Profiles...")
+    if not mco.model_profiles:
+        warnings.append("No model profiles configured")
+    else:
+        for name, profile in mco.model_profiles.items():
+            bias = profile.get('bias_profile', {})
+            if not bias:
+                warnings.append(f"{name}: Missing bias_profile")
+            else:
+                print(f"   ✅ {name}: Valid (uncertainty_awareness={bias.get('uncertainty_awareness', 'N/A')})")
+    return warnings
+
+
+def _validate_personas(mco):
+    """Validate personas in MCO config. Returns warnings list."""
+    warnings = []
+    print("\n👤 Checking Personas...")
+    if not mco.personas:
+        warnings.append("No personas configured")
+    else:
+        for name, persona in mco.personas.items():
+            investigation = persona.get('investigation_style', {})
+            if not investigation:
+                warnings.append(f"{name}: Missing investigation_style")
+            else:
+                print(f"   ✅ {name}: Valid (max_rounds={investigation.get('max_rounds', 'N/A')})")
+    return warnings
+
+
 def handle_config_validate_command(args):
     """
     Validate Empirica configuration.
@@ -147,38 +179,15 @@ def handle_config_validate_command(args):
         issues = []
         warnings = []
 
-        # Validate model profiles
-        print("\n📊 Checking Model Profiles...")
-        if not mco.model_profiles:
-            warnings.append("No model profiles configured")
-        else:
-            for name, profile in mco.model_profiles.items():
-                bias = profile.get('bias_profile', {})
-                if not bias:
-                    warnings.append(f"{name}: Missing bias_profile")
-                else:
-                    print(f"   ✅ {name}: Valid (uncertainty_awareness={bias.get('uncertainty_awareness', 'N/A')})")
+        warnings.extend(_validate_model_profiles(mco))
+        warnings.extend(_validate_personas(mco))
 
-        # Validate personas
-        print("\n👤 Checking Personas...")
-        if not mco.personas:
-            warnings.append("No personas configured")
-        else:
-            for name, persona in mco.personas.items():
-                investigation = persona.get('investigation_style', {})
-                if not investigation:
-                    warnings.append(f"{name}: Missing investigation_style")
-                else:
-                    print(f"   ✅ {name}: Valid (max_rounds={investigation.get('max_rounds', 'N/A')})")
-
-        # Validate epistemic conduct
         print("\n📜 Checking Epistemic Conduct...")
         if not mco.epistemic_conduct:
             warnings.append("No epistemic conduct configuration")
         else:
             print("   ✅ Epistemic conduct loaded")
 
-        # Check MCO files exist
         print("\n📂 Checking MCO Files...")
         required_files = ['model_profiles.yaml', 'personas.yaml', 'epistemic_conduct.yaml']
         for filename in required_files:
@@ -188,9 +197,7 @@ def handle_config_validate_command(args):
             else:
                 issues.append(f"Missing MCO file: {filename}")
 
-        # Summary
         print("\n" + "=" * 70)
-
         if not issues and not warnings:
             print("✅ Configuration is valid with no issues")
         else:
@@ -198,12 +205,10 @@ def handle_config_validate_command(args):
                 print(f"❌ Found {len(issues)} issue(s):")
                 for issue in issues:
                     print(f"   • {issue}")
-
             if warnings:
                 print(f"\n⚠️  Found {len(warnings)} warning(s):")
                 for warning in warnings:
                     print(f"   • {warning}")
-
         print("=" * 70)
 
     except Exception as e:

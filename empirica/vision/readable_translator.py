@@ -22,75 +22,83 @@ class ReadableAssessment:
     suggestions: list[str]
 
 
+def _classify_quality(context_value: float) -> str:
+    """Classify overall quality from context value."""
+    if context_value >= 0.7:
+        return "🌟 Excellent"
+    elif context_value >= 0.5:
+        return "✅ Good"
+    elif context_value >= 0.3:
+        return "⚠️ Fair"
+    return "⛔ Needs Work"
+
+
+def _classify_reading(clarity: float) -> str:
+    """Classify reading experience from clarity score."""
+    if clarity >= 0.7:
+        return "Easy to understand visually"
+    elif clarity >= 0.5:
+        return "Moderately clear presentation"
+    return "May be visually confusing - take extra time"
+
+
+def _classify_pacing(ease_of_processing: float) -> str:
+    """Classify pacing from ease of processing (1 - density)."""
+    if ease_of_processing >= 0.7:
+        return "Quick read - focused content"
+    elif ease_of_processing >= 0.5:
+        return "Moderate pace - take your time"
+    return "Information-dense - read slowly, take notes"
+
+
+def _classify_priority(impact: float) -> str:
+    """Classify priority from impact score."""
+    if impact >= 0.7:
+        return "⭐ Core Concept - Essential"
+    elif impact >= 0.5:
+        return "📌 Important - Don't Skip"
+    return "📚 Background - Skim if short on time"
+
+
+def _estimate_study_time(density: float) -> int:
+    """Estimate study time in minutes from density."""
+    base_time = 2
+    if density > 0.7:
+        return base_time + 3
+    elif density > 0.5:
+        return base_time + 1
+    return base_time
+
+
+def _generate_suggestions(assessment) -> list[str]:
+    """Generate study suggestions from assessment metrics."""
+    suggestions = []
+    if assessment.clarity < 0.5:
+        suggestions.append("💡 Visual quality low - try zooming in or viewing on larger screen")
+    if assessment.density > 0.7:
+        suggestions.append("⏰ Dense content - budget extra time, consider making notes")
+    if assessment.has_diagram:
+        suggestions.append("📊 Contains diagrams - trace connections visually")
+    if assessment.has_code:
+        suggestions.append("💻 Contains code - try typing it out instead of just reading")
+    if assessment.impact > 0.7 and assessment.clarity < 0.6:
+        suggestions.append("⭐ Core concept with unclear presentation - seek supplementary materials")
+    if not suggestions:
+        suggestions.append("👍 Standard slide - read at normal pace")
+    return suggestions
+
+
 class HumanReadableTranslator:
     """Translate epistemic assessments to plain English"""
 
     def translate_single(self, assessment: SlideEpistemicAssessment) -> ReadableAssessment:
         """Translate one slide assessment"""
-
-        # Overall quality
-        if assessment.context_value >= 0.7:
-            quality = "🌟 Excellent"
-        elif assessment.context_value >= 0.5:
-            quality = "✅ Good"
-        elif assessment.context_value >= 0.3:
-            quality = "⚠️ Fair"
-        else:
-            quality = "⛔ Needs Work"
-
-        # Reading experience (clarity)
-        if assessment.clarity >= 0.7:
-            reading = "Easy to understand visually"
-        elif assessment.clarity >= 0.5:
-            reading = "Moderately clear presentation"
-        else:
-            reading = "May be visually confusing - take extra time"
-
-        # Pacing (density - inverted)
-        ease_of_processing = 1.0 - assessment.density
-        if ease_of_processing >= 0.7:
-            pacing = "Quick read - focused content"
-        elif ease_of_processing >= 0.5:
-            pacing = "Moderate pace - take your time"
-        else:
-            pacing = "Information-dense - read slowly, take notes"
-
-        # Priority (impact)
-        if assessment.impact >= 0.7:
-            priority = "⭐ Core Concept - Essential"
-        elif assessment.impact >= 0.5:
-            priority = "📌 Important - Don't Skip"
-        else:
-            priority = "📚 Background - Skim if short on time"
-
-        # Study time estimate (based on density and word count)
-        base_time = 2  # minutes
-        if assessment.density > 0.7:
-            study_time = base_time + 3
-        elif assessment.density > 0.5:
-            study_time = base_time + 1
-        else:
-            study_time = base_time
-
-        # Generate suggestions
-        suggestions = []
-        if assessment.clarity < 0.5:
-            suggestions.append("💡 Visual quality low - try zooming in or viewing on larger screen")
-
-        if assessment.density > 0.7:
-            suggestions.append("⏰ Dense content - budget extra time, consider making notes")
-
-        if assessment.has_diagram:
-            suggestions.append("📊 Contains diagrams - trace connections visually")
-
-        if assessment.has_code:
-            suggestions.append("💻 Contains code - try typing it out instead of just reading")
-
-        if assessment.impact > 0.7 and assessment.clarity < 0.6:
-            suggestions.append("⭐ Core concept with unclear presentation - seek supplementary materials")
-
-        if not suggestions:
-            suggestions.append("👍 Standard slide - read at normal pace")
+        quality = _classify_quality(assessment.context_value)
+        reading = _classify_reading(assessment.clarity)
+        pacing = _classify_pacing(1.0 - assessment.density)
+        priority = _classify_priority(assessment.impact)
+        study_time = _estimate_study_time(assessment.density)
+        suggestions = _generate_suggestions(assessment)
 
         return ReadableAssessment(
             slide_number=assessment.slide_number,

@@ -2,15 +2,12 @@
 
 import json
 
-import pytest
-
+from empirica.core.post_test.collector import EvidenceProfile
 from empirica.core.post_test.web_collector import (
-    WebEvidenceCollector,
     WEB_EXTENSIONS,
+    WebEvidenceCollector,
     _HTMLStructureValidator,
 )
-from empirica.core.post_test.collector import EvidenceProfile
-
 
 # --- HTML Validator Tests ---
 
@@ -153,7 +150,7 @@ class TestLinkIntegrity:
         return dist
 
     def test_link_checking(self, tmp_path):
-        dist = self._setup_site(tmp_path)
+        self._setup_site(tmp_path)
         collector = WebEvidenceCollector(session_id="test")
         collector._project_path = tmp_path
         collector._web_config = {"output_dir": "dist"}

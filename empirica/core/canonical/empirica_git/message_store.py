@@ -253,8 +253,6 @@ class GitMessageStore:
                 if not line:
                     continue
 
-                # Extract channel and message_id from ref path
-                # refs/notes/empirica/messages/<channel>/<message_id>
                 ref_parts = line.strip().split('/')
                 if len(ref_parts) < 6:
                     continue
@@ -266,29 +264,8 @@ class GitMessageStore:
                 if not msg:
                     continue
 
-                # Filter by recipient
-                to_info = msg.get('to', {})
-                if to_info.get('ai_id') != '*' and to_info.get('ai_id') != ai_id:
+                if not self._matches_inbox_filters(msg, ai_id, machine, status, include_expired):
                     continue
-
-                # Filter by machine if specified
-                if machine and to_info.get('machine') and to_info['machine'] != machine:
-                    continue
-
-                # Filter expired
-                if not include_expired and self._is_expired(msg):
-                    continue
-
-                # Filter by status
-                if status == 'unread':
-                    read_ids = [r.get('ai_id') for r in msg.get('read_by', [])]
-                    if ai_id in read_ids:
-                        continue
-                elif status == 'read':
-                    read_ids = [r.get('ai_id') for r in msg.get('read_by', [])]
-                    if ai_id not in read_ids:
-                        continue
-                # status == 'all' -> no filter
 
                 messages.append(msg)
 
@@ -302,6 +279,32 @@ class GitMessageStore:
         except Exception as e:
             logger.warning(f"Failed to get inbox: {e}")
             return []
+
+    def _matches_inbox_filters(
+        self, msg: dict, ai_id: str, machine: str | None,
+        status: str, include_expired: bool,
+    ) -> bool:
+        """Check if a message passes all inbox filters."""
+        to_info = msg.get('to', {})
+        if to_info.get('ai_id') != '*' and to_info.get('ai_id') != ai_id:
+            return False
+
+        if machine and to_info.get('machine') and to_info['machine'] != machine:
+            return False
+
+        if not include_expired and self._is_expired(msg):
+            return False
+
+        if status == 'unread':
+            read_ids = [r.get('ai_id') for r in msg.get('read_by', [])]
+            if ai_id in read_ids:
+                return False
+        elif status == 'read':
+            read_ids = [r.get('ai_id') for r in msg.get('read_by', [])]
+            if ai_id not in read_ids:
+                return False
+
+        return True
 
     def mark_read(
         self,

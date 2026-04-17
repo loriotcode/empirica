@@ -85,6 +85,25 @@ def embed_episodic(
         return False
 
 
+def _compute_recency_weight(age_days: float) -> float:
+    """Compute recency weight based on age in days.
+
+    Decay formula: starts at 1.0, decays to 0.05 over ~1 year.
+    """
+    if age_days <= 1:
+        return 1.0
+    elif age_days <= 7:
+        return 0.95 - (0.15 * (age_days - 1) / 6)
+    elif age_days <= 30:
+        return 0.80 - (0.30 * (age_days - 7) / 23)
+    elif age_days <= 90:
+        return 0.50 - (0.25 * (age_days - 30) / 60)
+    elif age_days <= 365:
+        return 0.25 - (0.15 * (age_days - 90) / 275)
+    else:
+        return max(0.05, 0.10 - (0.05 * (age_days - 365) / 365))
+
+
 def search_episodic(
     project_id: str,
     query: str,
@@ -154,28 +173,12 @@ def search_episodic(
         processed = []
         for r in results.points:
             timestamp = r.payload.get("timestamp", now)
-
-            # Calculate recency weight based on age
-            age_days = (now - timestamp) / 86400  # seconds to days
-
-            # Decay formula: starts at 1.0, decays to 0.05 over ~1 year
-            if age_days <= 1:
-                recency = 1.0
-            elif age_days <= 7:
-                recency = 0.95 - (0.15 * (age_days - 1) / 6)  # 0.95 → 0.80
-            elif age_days <= 30:
-                recency = 0.80 - (0.30 * (age_days - 7) / 23)  # 0.80 → 0.50
-            elif age_days <= 90:
-                recency = 0.50 - (0.25 * (age_days - 30) / 60)  # 0.50 → 0.25
-            elif age_days <= 365:
-                recency = 0.25 - (0.15 * (age_days - 90) / 275)  # 0.25 → 0.10
-            else:
-                recency = max(0.05, 0.10 - (0.05 * (age_days - 365) / 365))  # → 0.05 min
+            age_days = (now - timestamp) / 86400
+            recency = _compute_recency_weight(age_days)
 
             if recency < min_recency_weight:
                 continue
 
-            # Apply recency to score if enabled
             effective_score = r.score * recency if apply_recency_decay else r.score
 
             processed.append({

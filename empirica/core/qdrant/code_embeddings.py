@@ -145,7 +145,21 @@ def extract_module_api(file_path: Path, root_dir: Path | None = None) -> dict:
     if not functions and not classes:
         return {}
 
-    # Build searchable text summary
+    search_text = _build_search_text(module_path, module_docstring, functions, classes)
+
+    return {
+        "module_path": module_path,
+        "module_docstring": module_docstring[:500],
+        "functions": functions,
+        "classes": classes,
+        "search_text": search_text,
+        "file_path": str(file_path),
+    }
+
+
+def _build_search_text(module_path: str, module_docstring: str,
+                       functions: list, classes: list) -> str:
+    """Build a searchable text summary from extracted module API."""
     summary_parts = [f"Module: {module_path}"]
     if module_docstring:
         summary_parts.append(module_docstring[:200])
@@ -174,14 +188,7 @@ def extract_module_api(file_path: Path, root_dir: Path | None = None) -> dict:
                 )
                 summary_parts.append(f"  .{m['name']}({param_str})")
 
-    return {
-        "module_path": module_path,
-        "module_docstring": module_docstring[:500],
-        "functions": functions,
-        "classes": classes,
-        "search_text": "\n".join(summary_parts),
-        "file_path": str(file_path),
-    }
+    return "\n".join(summary_parts)
 
 
 def embed_code_api(
