@@ -145,11 +145,24 @@ empirica compliance-report --security         # Include OWASP scan
 empirica compliance-report --output json      # Machine-readable
 ```
 
-**Always-on checks:** lint (ruff), complexity (C901), type safety (pyright), repo hygiene, epistemic audit trail, grounded calibration.
+**10 always-on checks:**
 
-**Optional checks:** tests (pytest), dependency audit (pip-audit), OWASP security scan (semgrep).
+| Check | What it measures | EU AI Act |
+|-------|-----------------|-----------|
+| Lint (ruff) | Code quality | Art. 9 |
+| Complexity (C901) | Maintainability | Art. 15(1) |
+| Type safety (pyright) | Correctness | Art. 15(1) |
+| Tech documentation | Doc coverage (docs-assess) | Art. 11 |
+| Discipline trajectory | Process discipline (behavioral) | Art. 17 |
+| AI transparency | Git Co-Authored-By attribution | Art. 50 |
+| Decision transparency | Rationale coverage | Art. 13 |
+| Repo hygiene | License, changelog, secrets | Art. 10 |
+| Epistemic audit trail | Transaction + artifact history | Art. 12 |
+| Grounded calibration | Self-assessment accuracy | Art. 14 |
 
-**Mapped frameworks:** EU AI Act (2024/1689), GDPR (2016/679), ISO/IEC 42001:2023.
+**3 optional checks:** tests (pytest, `--tests`), dep audit (pip-audit, `--dep-audit`), OWASP scan (semgrep, `--security`).
+
+**Mapped frameworks:** EU AI Act (10 articles), GDPR (4 articles), ISO/IEC 42001 (10 clauses).
 
 ---
 

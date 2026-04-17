@@ -37,7 +37,34 @@ EXTRACTABLE_EXTENSIONS = {
 
 # Rate limit: don't re-extract same file within this window (seconds)
 EXTRACT_COOLDOWN = 5.0
-_last_extracted: dict = {}  # file_path -> timestamp
+_STATE_FILE = Path.home() / ".empirica" / "entity_extractor_state.json"
+
+
+def _load_last_extracted() -> dict:
+    """Load persisted extraction timestamps. Survives compaction."""
+    try:
+        if _STATE_FILE.exists():
+            with open(_STATE_FILE) as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+
+def _save_last_extracted(state: dict) -> None:
+    """Persist extraction timestamps."""
+    try:
+        _STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(_STATE_FILE, "w") as f:
+            # Only keep entries from last hour to prevent unbounded growth
+            cutoff = time.time() - 3600
+            trimmed = {k: v for k, v in state.items() if v > cutoff}
+            json.dump(trimmed, f)
+    except Exception:
+        pass
+
+
+_last_extracted: dict = _load_last_extracted()
 
 
 def _should_extract(file_path: str) -> bool:
@@ -211,6 +238,7 @@ def main():
     try:
         result = _extract_and_store(file_path, session_id)
         _last_extracted[file_path] = time.time()
+        _save_last_extracted(_last_extracted)
         logger.info(f"  Extracted: {result}")
     except Exception as e:
         logger.warning(f"  Extraction failed: {e}")

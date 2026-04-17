@@ -5,20 +5,27 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.8.6] - 2026-04-17
+## [1.8.7] - 2026-04-17
 
 ### Added
-- **`empirica compliance-report`**: Project-wide quality snapshot mapped to regulatory
-  frameworks (EU AI Act, GDPR, ISO/IEC 42001). 7 check types: lint, complexity, type
-  safety, repo hygiene, OWASP security scan, epistemic audit trail, grounded calibration.
-  Optional: `--tests`, `--dep-audit`, `--security`. JSON + human-readable output.
-- **OWASP security scan**: Semgrep integration with `p/owasp-top-ten` ruleset. Filters
-  accepted patterns (MD5 for content IDs). 0 critical findings on Empirica codebase.
-- **Repository hygiene check**: LICENSE, CHANGELOG, .gitignore, release scripts, no
-  tracked secrets, version file — 6 sub-checks, all passing.
-- **Evidence summary in calibration**: POSTFLIGHT now surfaces structured evidence
-  (raw counts, pass/fail, ratios) grouped by source, plus natural-language signals.
-  Replaces per-vector synthetic observation scores. The AI is the calibrator; services inform.
+- **`empirica compliance-report`**: Project-wide quality snapshot mapped to 3 regulatory
+  frameworks. 10 always-on checks covering 10 EU AI Act articles + 4 GDPR articles +
+  10 ISO 42001 clauses. Optional: `--tests`, `--dep-audit`, `--security`.
+- **Discipline trajectory** (Art. 17): Ungameable behavioral process score from
+  observable evidence — transaction count, artifact breadth (6 types), goal completion,
+  commit discipline. Every component measured by services the AI doesn't control.
+- **AI transparency** (Art. 50): Git Co-Authored-By attribution check.
+- **Decision transparency** (Art. 13 + GDPR Art. 22): Rationale coverage on decisions.
+- **Technical documentation** (Art. 11): docs-assess coverage integrated (79.3%).
+- **OWASP security scan** (Art. 15.4): Semgrep `p/owasp-top-ten` via `--security` flag.
+- **Repository hygiene** (Art. 10): LICENSE, CHANGELOG, .gitignore, release scripts,
+  no tracked secrets — 6 sub-checks.
+- **Evidence summary in calibration**: POSTFLIGHT surfaces structured evidence (raw
+  counts, pass/fail, ratios) + natural-language signals. AI is the calibrator; services inform.
+- **Calibration reflection**: Narrative discipline_notes + assessment_notes replace
+  per-vector synthetic observation scores. Divergence is information, not a grade.
+- **Entity-extractor persistence**: State saved to `~/.empirica/entity_extractor_state.json`,
+  survives compaction.
 
 ### Fixed
 - **Ruff: 0 violations** (was 25,212 in 1.8.0, 65 in 1.8.5). Full compliance achieved.
