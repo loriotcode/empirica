@@ -243,9 +243,10 @@ class TestConnectionPool:
 
         pool = ConnectionPool(create_conn, pool_size=2)
 
-        # Get all connections
-        pool.get_connection()
-        pool.get_connection()
+        # Get all connections — must hold references to prevent GC
+        # (id() reuse on GC'd objects causes set deduplication)
+        _conn1 = pool.get_connection()
+        _conn2 = pool.get_connection()
 
         # Next get should timeout
         with pytest.raises(TimeoutError):
