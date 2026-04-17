@@ -182,5 +182,7 @@ Mapped frameworks: EU AI Act, GDPR, ISO/IEC 42001
         help='Include test suite execution (slow)')
     compliance_parser.add_argument('--dep-audit', action='store_true',
         help='Include dependency CVE audit')
+    compliance_parser.add_argument('--security', action='store_true',
+        help='Include semgrep OWASP security scan')
     compliance_parser.add_argument('--output', choices=['text', 'json'], default='text',
         help='Output format (default: text)')

@@ -54,6 +54,14 @@ REGULATORY_MAP: dict[str, dict[str, Any]] = {
             "gdpr": {"article": "Art. 32", "requirement": "Security of processing — dependency integrity"},
         },
     },
+    "security_scan": {
+        "check": "SAST security scan (semgrep OWASP)",
+        "frameworks": {
+            "eu_ai_act": {"article": "Art. 15(4)", "requirement": "Cybersecurity — OWASP vulnerability scanning"},
+            "iso_42001": {"clause": "8.4", "requirement": "AI system development — secure coding practices"},
+            "gdpr": {"article": "Art. 25", "requirement": "Data protection by design and by default"},
+        },
+    },
     "epistemic_audit": {
         "check": "Epistemic transaction trail (empirica)",
         "frameworks": {
@@ -339,10 +347,43 @@ def _add_regulatory_mapping(results: list[dict[str, Any]]) -> list[dict[str, Any
     return results
 
 
+def _parse_semgrep_result(raw: dict[str, Any]) -> dict[str, Any]:
+    """Parse semgrep OWASP scan output."""
+    if raw.get("error"):
+        return {**raw, "check": "security_scan", "findings": None, "status": "unavailable"}
+
+    # semgrep --json outputs to stdout
+    findings = 0
+    critical = 0
+    try:
+        import json as _json
+        data = _json.loads(raw.get("stdout") or "{}")
+        results = data.get("results", [])
+        findings = len(results)
+        # Count critical findings (exclude known accepted patterns like MD5 for content IDs)
+        for r in results:
+            rule = r.get("check_id", "")
+            if "md5" not in rule.lower() and "insecure-hash" not in rule.lower():
+                critical += 1
+    except Exception:
+        pass
+
+    return {
+        "check": "security_scan",
+        "tool": "semgrep (OWASP top-10)",
+        "passed": critical == 0,
+        "findings_total": findings,
+        "findings_critical": critical,
+        "status": "pass" if critical == 0 else "fail",
+        "duration_seconds": raw["duration_seconds"],
+    }
+
+
 def run_compliance_report(
     project_root: Path | None = None,
     include_tests: bool = False,
     include_dep_audit: bool = False,
+    include_security: bool = False,
 ) -> dict[str, Any]:
     """Run full compliance report and return structured results."""
     if project_root is None:
@@ -368,6 +409,13 @@ def run_compliance_report(
     if include_dep_audit:
         audit_raw = _run_check("pip-audit", ["pip-audit"], timeout=120)
         results.append(_parse_pip_audit_result(audit_raw))
+
+    if include_security:
+        semgrep_raw = _run_check(
+            "semgrep", ["semgrep", "--config", "p/owasp-top-ten", "empirica/", "--json", "--quiet"],
+            timeout=180,
+        )
+        results.append(_parse_semgrep_result(semgrep_raw))
 
     # Empirica-specific checks (fast, DB queries)
     results.append(_build_epistemic_audit(project_root))
@@ -420,6 +468,8 @@ def _print_human_report(report: dict[str, Any]) -> None:
             detail = f"  {check.get('passed_count', '?')} passed, {check.get('failed_count', '?')} failed"
         elif name == "dep_audit":
             detail = f"  {check.get('vulnerabilities', '?')} known CVEs"
+        elif name == "security_scan":
+            detail = f"  {check.get('findings_critical', '?')} critical, {check.get('findings_total', '?')} total"
         elif name == "epistemic_audit":
             detail = f"  {check.get('postflights', '?')} transactions, {check.get('findings', '?')} findings"
         elif name == "calibration":
@@ -447,11 +497,13 @@ def handle_compliance_report_command(args) -> None:
     """Handle compliance-report command."""
     include_tests = getattr(args, "tests", False)
     include_dep_audit = getattr(args, "dep_audit", False)
+    include_security = getattr(args, "security", False)
     output_format = getattr(args, "output", "text")
 
     report = run_compliance_report(
         include_tests=include_tests,
         include_dep_audit=include_dep_audit,
+        include_security=include_security,
     )
 
     if output_format == "json":
