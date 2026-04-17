@@ -62,6 +62,13 @@ REGULATORY_MAP: dict[str, dict[str, Any]] = {
             "gdpr": {"article": "Art. 25", "requirement": "Data protection by design and by default"},
         },
     },
+    "tech_docs": {
+        "check": "Technical documentation (docs-assess)",
+        "frameworks": {
+            "eu_ai_act": {"article": "Art. 11 + Annex IV", "requirement": "Technical documentation — coverage and accuracy"},
+            "iso_42001": {"clause": "7.5.1", "requirement": "Documented information — creation and updating"},
+        },
+    },
     "repo_hygiene": {
         "check": "Repository hygiene (git compliance)",
         "frameworks": {
@@ -321,6 +328,34 @@ def _build_calibration_check(project_root: Path) -> dict[str, Any]:
     }
 
 
+def _parse_docs_result(raw: dict[str, Any]) -> dict[str, Any]:
+    """Parse empirica docs-assess JSON output."""
+    if raw.get("error"):
+        return {"check": "tech_docs", "passed": None, "status": "unavailable", "error": raw["error"]}
+
+    try:
+        import json as _json
+        data = _json.loads(raw.get("stdout") or "{}")
+        overall = data.get("overall", {})
+        coverage = overall.get("coverage", 0)
+        documented = overall.get("documented", 0)
+        total = overall.get("total_features", 0)
+        # Pass if coverage >= 70%
+        passed = coverage >= 70
+        return {
+            "check": "tech_docs",
+            "tool": "empirica docs-assess",
+            "passed": passed,
+            "coverage_percent": round(coverage, 1),
+            "documented": documented,
+            "total": total,
+            "status": "pass" if passed else "fail",
+            "duration_seconds": raw["duration_seconds"],
+        }
+    except Exception:
+        return {"check": "tech_docs", "passed": None, "status": "unavailable", "duration_seconds": raw.get("duration_seconds", 0)}
+
+
 def _build_repo_hygiene_check(project_root: Path) -> dict[str, Any]:
     """Check repository hygiene — files, structure, version consistency."""
     checks_passed = 0
@@ -504,6 +539,10 @@ def run_compliance_report(
         )
         results.append(_parse_semgrep_result(semgrep_raw))
 
+    # Technical documentation (runs docs-assess)
+    docs_raw = _run_check("docs-assess", ["empirica", "docs-assess", "--output", "json"], timeout=60)
+    results.append(_parse_docs_result(docs_raw))
+
     # Repository hygiene (fast, file checks)
     results.append(_build_repo_hygiene_check(project_root))
 
@@ -560,6 +599,8 @@ def _print_human_report(report: dict[str, Any]) -> None:
             detail = f"  {check.get('vulnerabilities', '?')} known CVEs"
         elif name == "security_scan":
             detail = f"  {check.get('findings_critical', '?')} critical, {check.get('findings_total', '?')} total"
+        elif name == "tech_docs":
+            detail = f"  {check.get('coverage_percent', '?')}% coverage ({check.get('documented', '?')}/{check.get('total', '?')})"
         elif name == "repo_hygiene":
             detail = f"  {check.get('checks_passed', '?')}/{check.get('checks_total', '?')} checks"
         elif name == "epistemic_audit":
