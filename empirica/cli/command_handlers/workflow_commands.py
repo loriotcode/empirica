@@ -3096,15 +3096,8 @@ def _build_postflight_result(
     _postflight_add_compliance_block(result, compliance_result, compliance_error)
 
     if postflight_grounded_vectors:
-        observed = {}
-        if grounded_verification:
-            for phase_key in ("noetic", "praxic", "combined"):
-                phase_data = grounded_verification.get("phases", {}).get(phase_key, {})
-                if phase_data:
-                    for vec_name, update in phase_data.get("updates", {}).items():
-                        observed[vec_name] = update.get("observation")
         result["three_vector"] = {
-            "self_assessed": vectors, "observed": observed,
+            "self_assessed": vectors,
             "grounded": postflight_grounded_vectors,
             "rationale_present": bool(postflight_grounded_rationale),
         }
@@ -3180,7 +3173,7 @@ def _cortex_read_calibration_summary():
             _gc = _bcd.get("grounded_calibration", {})
             if _gc:
                 return {
-                    "calibration_score": _gc.get("holistic_calibration_score", 0.5),
+                    "calibration_score": _gc.get("_internal_calibration_score", _gc.get("holistic_calibration_score", 0.5)),
                     "observations": _gc.get("observations", 0),
                     "grounded_coverage": _gc.get("grounded_coverage", 0),
                 }

@@ -929,6 +929,77 @@ def _merge_phase_evidence_summaries(
     return merged_evidence, merged_signals
 
 
+def _build_calibration_reflection(
+    phase_results: dict,
+    signals: list[str],
+    sources: list[str],
+    sources_failed: list[str],
+    evidence_count: int,
+    insights: list,
+) -> dict[str, Any]:
+    """Build narrative calibration reflection for the AI.
+
+    Instead of per-vector scores to optimize, this produces:
+    - discipline_notes: what to improve in work habits (artifact logging, commits)
+    - assessment_notes: where self-assessment and evidence diverge, with context
+    - trend: improving/stable/widening over recent transactions
+
+    The AI reads this, contemplates, and adjusts next PREFLIGHT.
+    Divergence is information, not a grade.
+    """
+    discipline_notes: list[str] = []
+    assessment_notes: list[str] = []
+
+    # Discipline: artifact breadth
+    for signal in signals:
+        if "artifact breadth" in signal.lower() or "no commits" in signal.lower() or "uncommitted" in signal.lower():
+            discipline_notes.append(signal)
+
+    # Discipline: source coverage
+    if sources_failed:
+        discipline_notes.append(
+            f"Evidence sources failed: {', '.join(sources_failed)} — "
+            "these couldn't contribute data this transaction"
+        )
+
+    # Assessment: note which phases had insufficient evidence
+    for phase_name, phase_data in phase_results.items():
+        insufficient = phase_data.get("insufficient_evidence_vectors", [])
+        if insufficient:
+            assessment_notes.append(
+                f"{phase_name} phase: no evidence for {', '.join(insufficient)} — "
+                "your self-assessment stands for these (evidence can't sample them here)"
+            )
+
+    # Assessment: evidence coverage context
+    for phase_name, phase_data in phase_results.items():
+        coverage = phase_data.get("grounded_coverage", 0)
+        if coverage < 0.3:
+            assessment_notes.append(
+                f"{phase_name} phase: low evidence coverage ({coverage:.0%}) — "
+                "most vectors have no independent evidence this transaction"
+            )
+        elif coverage > 0.7:
+            assessment_notes.append(
+                f"{phase_name} phase: good evidence coverage ({coverage:.0%})"
+            )
+
+    # Insights from CalibrationInsightsAnalyzer (chronic patterns)
+    for insight in insights:
+        suggestion = getattr(insight, 'suggestion', None) or (
+            insight.get('suggestion') if isinstance(insight, dict) else None
+        )
+        if suggestion:
+            assessment_notes.append(suggestion)
+
+    return {
+        "discipline_notes": discipline_notes or ["No discipline issues detected"],
+        "assessment_notes": assessment_notes or ["Evidence aligns with self-assessment"],
+        "evidence_sources_used": len(set(sources)),
+        "evidence_items_collected": evidence_count,
+    }
+
+
 def run_grounded_verification(
     session_id: str,
     postflight_vectors: dict[str, float],
@@ -1086,30 +1157,36 @@ def run_grounded_verification(
                 insights=calibration_insights,
             )
 
+        # Build calibration reflection — narrative for the AI to learn from
+        reflection = _build_calibration_reflection(
+            results, merged_signals, all_sources, all_failed,
+            total_evidence, calibration_insights,
+        )
+
         return {
-            'verification_ids': verification_ids,
-            'phase_aware': phase_boundary is not None and phase_boundary.get("has_check", False),
-            'phase_weights': phase_weights,
-            'holistic_calibration_score': holistic_calibration_score,
-            'holistic_gaps': holistic_gaps,
-            'phases': results,
-            'evidence_count': total_evidence,
-            'sources': list(set(all_sources)),
-            'sources_failed': list(set(all_failed)),
+            # === AI-facing output ===
             'evidence_summary': {
                 'sources': merged_evidence,
                 'signals': merged_signals,
                 'evidence_count': total_evidence,
             },
-            # Internal fields: kept for storage/trajectory/embedding consumers.
-            # Prefixed with underscore to signal they're not the primary
-            # calibration output. The AI sees evidence_summary instead.
+            'calibration_reflection': reflection,
+            'evidence_count': total_evidence,
+            'sources': list(set(all_sources)),
+            'sources_failed': list(set(all_failed)),
+            # === Metadata (structural, not scores) ===
+            'verification_ids': verification_ids,
+            'phase_aware': phase_boundary is not None and phase_boundary.get("has_check", False),
+            'phase_weights': phase_weights,
+            # === Internal storage (NOT for AI optimization) ===
+            # These feed trajectory tracking, Qdrant embedding, breadcrumbs export.
+            # They are NOT presented as targets. The AI sees evidence_summary instead.
+            '_internal_calibration_score': holistic_calibration_score,
             '_internal_gaps': all_gaps,
             '_internal_updates': all_updates,
-            # Backward compatibility aliases (same data, old key names)
-            'gaps': all_gaps,
-            'updates': all_updates,
-            'insights': [
+            '_internal_holistic_gaps': holistic_gaps,
+            '_internal_phases': results,
+            '_internal_insights': [
                 {
                     'vector': i.vector,
                     'phase': i.phase,
