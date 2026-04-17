@@ -62,6 +62,13 @@ REGULATORY_MAP: dict[str, dict[str, Any]] = {
             "gdpr": {"article": "Art. 25", "requirement": "Data protection by design and by default"},
         },
     },
+    "repo_hygiene": {
+        "check": "Repository hygiene (git compliance)",
+        "frameworks": {
+            "eu_ai_act": {"article": "Art. 10", "requirement": "Data governance — version control and traceability"},
+            "iso_42001": {"clause": "7.5", "requirement": "Documented information — configuration management"},
+        },
+    },
     "epistemic_audit": {
         "check": "Epistemic transaction trail (empirica)",
         "frameworks": {
@@ -314,6 +321,86 @@ def _build_calibration_check(project_root: Path) -> dict[str, Any]:
     }
 
 
+def _build_repo_hygiene_check(project_root: Path) -> dict[str, Any]:
+    """Check repository hygiene — files, structure, version consistency."""
+    checks_passed = 0
+    checks_total = 0
+    details: dict[str, str] = {}
+
+    # 1. LICENSE file
+    checks_total += 1
+    license_exists = (project_root / "LICENSE").exists() or (project_root / "LICENSE.md").exists()
+    if license_exists:
+        checks_passed += 1
+        details["license"] = "present"
+    else:
+        details["license"] = "MISSING"
+
+    # 2. CHANGELOG
+    checks_total += 1
+    changelog = project_root / "CHANGELOG.md"
+    if changelog.exists():
+        checks_passed += 1
+        details["changelog"] = "present"
+    else:
+        details["changelog"] = "MISSING"
+
+    # 3. .gitignore
+    checks_total += 1
+    gitignore = project_root / ".gitignore"
+    if gitignore.exists():
+        checks_passed += 1
+        details["gitignore"] = "present"
+    else:
+        details["gitignore"] = "MISSING"
+
+    # 4. Release scripts
+    checks_total += 1
+    release_script = (
+        (project_root / "scripts" / "release.py").exists()
+        or (project_root / "scripts" / "release.sh").exists()
+        or (project_root / "Makefile").exists()
+    )
+    if release_script:
+        checks_passed += 1
+        details["release_scripts"] = "present"
+    else:
+        details["release_scripts"] = "MISSING"
+
+    # 5. No secrets in tracked files
+    checks_total += 1
+    secret_patterns = [".env", "credentials.json", "secrets.yaml", "id_rsa", "id_ed25519"]
+    secrets_found = []
+    for pattern in secret_patterns:
+        for match in project_root.rglob(pattern):
+            if ".git" not in str(match) and "__pycache__" not in str(match):
+                secrets_found.append(str(match.relative_to(project_root)))
+    if not secrets_found:
+        checks_passed += 1
+        details["no_tracked_secrets"] = "clean"
+    else:
+        details["no_tracked_secrets"] = f"FOUND: {', '.join(secrets_found[:3])}"
+
+    # 6. Version file exists (pyproject.toml or setup.py)
+    checks_total += 1
+    has_version = (project_root / "pyproject.toml").exists() or (project_root / "setup.py").exists()
+    if has_version:
+        checks_passed += 1
+        details["version_file"] = "present"
+    else:
+        details["version_file"] = "MISSING"
+
+    passed = checks_passed == checks_total
+    return {
+        "check": "repo_hygiene",
+        "passed": passed,
+        "checks_passed": checks_passed,
+        "checks_total": checks_total,
+        "details": details,
+        "status": "pass" if passed else "fail",
+    }
+
+
 def _compute_overall_status(results: list[dict[str, Any]]) -> dict[str, Any]:
     """Compute overall compliance status."""
     total = len(results)
@@ -417,6 +504,9 @@ def run_compliance_report(
         )
         results.append(_parse_semgrep_result(semgrep_raw))
 
+    # Repository hygiene (fast, file checks)
+    results.append(_build_repo_hygiene_check(project_root))
+
     # Empirica-specific checks (fast, DB queries)
     results.append(_build_epistemic_audit(project_root))
     results.append(_build_calibration_check(project_root))
@@ -470,6 +560,8 @@ def _print_human_report(report: dict[str, Any]) -> None:
             detail = f"  {check.get('vulnerabilities', '?')} known CVEs"
         elif name == "security_scan":
             detail = f"  {check.get('findings_critical', '?')} critical, {check.get('findings_total', '?')} total"
+        elif name == "repo_hygiene":
+            detail = f"  {check.get('checks_passed', '?')}/{check.get('checks_total', '?')} checks"
         elif name == "epistemic_audit":
             detail = f"  {check.get('postflights', '?')} transactions, {check.get('findings', '?')} findings"
         elif name == "calibration":
