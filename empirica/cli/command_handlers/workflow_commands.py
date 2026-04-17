@@ -2473,7 +2473,9 @@ def _run_grounded_verification(
         db.close()
         return result
     except Exception as e:
-        logger.debug(f"Grounded verification skipped (non-fatal): {e}")
+        import traceback
+        logger.warning(f"Grounded verification failed (non-fatal): {e}")
+        logger.debug(f"Grounded verification traceback:\n{traceback.format_exc()}")
         return None
 
 
