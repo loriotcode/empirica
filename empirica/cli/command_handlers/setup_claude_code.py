@@ -27,7 +27,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 PLUGIN_NAME = "empirica"
-PLUGIN_VERSION = "1.8.5"
+PLUGIN_VERSION = "1.8.6"
 
 
 def _find_python() -> str:
