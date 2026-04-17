@@ -41,13 +41,14 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from .collector import EvidenceBundle, PostTestCollector
 from .mapper import (
     UNGROUNDABLE_VECTORS,
     EvidenceMapper,
     GroundedAssessment,
+    summarize_evidence,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,6 +98,15 @@ def _build_insufficient_evidence_response(
         'holistic_calibration_score': None,
         'calibration_status': status,
         'reason': reason,
+        'evidence_summary': {
+            'sources': {},
+            'signals': [],
+            'coverage': round(grounded_coverage, 2),
+            'evidence_count': len(bundle.items) if bundle else 0,
+        },
+        '_internal_gaps': {},
+        '_internal_updates': {},
+        # Backward compatibility aliases
         'gaps': {},
         'updates': {},
         'insufficient_evidence_vectors': sorted(vectors.keys()),
@@ -712,6 +722,10 @@ def _run_single_phase_verification(
         work_type=work_type,
     )
 
+    # Structured evidence summary for AI interpretation (replaces per-vector
+    # observation scores as the primary calibration output the AI sees).
+    evidence_summary = summarize_evidence(bundle, work_type=work_type)
+
     # Effective coverage: weight-aware coverage computation.
     # Raw coverage = grounded_vectors / 13 (all vectors equally).
     # Effective coverage = grounded_vectors weighted by category importance.
@@ -797,6 +811,21 @@ def _run_single_phase_verification(
         'grounded_coverage': round(assessment.grounded_coverage, 2),
         'calibration_score': assessment.overall_calibration_score,
         'calibration_status': 'grounded',
+        'evidence_summary': evidence_summary,
+        # Internal fields: kept for storage/trajectory/embedding consumers
+        # but prefixed with underscore to signal they're not the primary
+        # calibration output the AI should attend to. The AI sees
+        # evidence_summary (structured raw evidence + signals) instead.
+        '_internal_gaps': assessment.calibration_gaps,
+        '_internal_updates': {
+            v: {
+                'observation': u['observation'],
+                'self_assessed': u['self_assessed'],
+                'divergence': u['divergence'],
+            }
+            for v, u in updates.items()
+        },
+        # Backward compatibility aliases (same data, old key names)
         'gaps': assessment.calibration_gaps,
         # Vectors the instrument couldn't sample for this work_type.
         # Their self-assessment stands; no fabricated grounded value, no
@@ -873,6 +902,31 @@ def _compute_holistic_calibration(results: dict, phase_weights: dict) -> tuple:
         only = next(iter(grounded_results.values()))
         return (only.get('calibration_score') or 0), (only.get('gaps', {}) or {})
     return None, {}
+
+
+def _merge_phase_evidence_summaries(
+    results: dict,
+) -> tuple[dict[str, Any], list[str]]:
+    """Merge evidence summaries from multiple phase results.
+
+    Returns (merged_sources, merged_signals) where sources are combined
+    per evidence source key and signals are deduplicated.
+    """
+    merged_evidence: dict[str, Any] = {}
+    for _phase_name, phase_result in results.items():
+        phase_evidence = phase_result.get('evidence_summary', {})
+        for source, data in phase_evidence.get('sources', {}).items():
+            if source not in merged_evidence:
+                merged_evidence[source] = {}
+            merged_evidence[source].update(data)
+
+    merged_signals: list[str] = []
+    for _phase_name, phase_result in results.items():
+        for signal in phase_result.get('evidence_summary', {}).get('signals', []):
+            if signal not in merged_signals:
+                merged_signals.append(signal)
+
+    return merged_evidence, merged_signals
 
 
 def run_grounded_verification(
@@ -994,6 +1048,9 @@ def run_grounded_verification(
             for v, u in phase_result['updates'].items():
                 all_updates[f"{phase_name}:{v}"] = u
 
+        # Merge evidence summaries from all phases
+        merged_evidence, merged_signals = _merge_phase_evidence_summaries(results)
+
         # Phase-weighted holistic calibration
         phase_weights = _compute_phase_weights(phase_tool_counts, phase_boundary, results)
         holistic_calibration_score, holistic_gaps = _compute_holistic_calibration(results, phase_weights)
@@ -1039,6 +1096,17 @@ def run_grounded_verification(
             'evidence_count': total_evidence,
             'sources': list(set(all_sources)),
             'sources_failed': list(set(all_failed)),
+            'evidence_summary': {
+                'sources': merged_evidence,
+                'signals': merged_signals,
+                'evidence_count': total_evidence,
+            },
+            # Internal fields: kept for storage/trajectory/embedding consumers.
+            # Prefixed with underscore to signal they're not the primary
+            # calibration output. The AI sees evidence_summary instead.
+            '_internal_gaps': all_gaps,
+            '_internal_updates': all_updates,
+            # Backward compatibility aliases (same data, old key names)
             'gaps': all_gaps,
             'updates': all_updates,
             'insights': [

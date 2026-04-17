@@ -3072,11 +3072,19 @@ def _build_postflight_result(
 
     Returns result dict.
     """
+    # Extract evidence_summary from grounded verification to surface
+    # prominently — this is what the AI should attend to for calibration,
+    # not the per-vector observation scores buried in the calibration dict.
+    evidence_summary = None
+    if grounded_verification:
+        evidence_summary = grounded_verification.get('evidence_summary')
+
     result = {
         "ok": True,
         "session_id": session_id,
         "postflight_confidence": postflight_confidence,
         "internal_consistency": internal_consistency,
+        "evidence_summary": evidence_summary,
         "deltas": deltas,
         "trajectory_issues": trajectory_issues if trajectory_issues else None,
         "calibration": grounded_verification,
@@ -3278,6 +3286,13 @@ def _postflight_format_human_output(result, session_id, vectors, reasoning,
         if grounded_verification:
             cal_score = grounded_verification.get('calibration_score', 0)
             print(f"   Grounded calibration: {cal_score:.2f}")
+            # Display evidence summary signals if available
+            evidence_summary = grounded_verification.get('evidence_summary', {})
+            signals = evidence_summary.get('signals', [])
+            if signals:
+                print("   Evidence signals:")
+                for signal in signals:
+                    print(f"     • {signal}")
         if trajectory_issues:
             print(f"\n⚠️  Trajectory issues detected: {len(trajectory_issues)}")
             for issue in trajectory_issues:
