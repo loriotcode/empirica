@@ -153,7 +153,7 @@ class PersonaRegistry:
 
             logger.info(f"✓ Created collection: {self.COLLECTION_NAME}")
 
-    def register_persona(self, signing_persona: SigningPersona) -> str:
+    def register_persona(self, signing_persona: SigningPersona) -> int:
         """
         Register a persona in Qdrant
 
@@ -312,7 +312,7 @@ class PersonaRegistry:
             query_vector = [priors[key] for key in self.VECTOR_KEYS]
 
             # Search similar
-            results = self.client.search(
+            results = self.client.search(  # pyright: ignore[reportAttributeAccessIssue] — search() deprecated in newer stubs but still works
                 collection_name=self.COLLECTION_NAME,
                 query_vector=query_vector,
                 limit=limit + 1,  # +1 to exclude self

@@ -306,7 +306,7 @@ def extract_all_skills(skills_dir: Path, output_file: Path,
     skills_dir = Path(skills_dir).expanduser()
     output_file = Path(output_file)
 
-    config = {
+    config: dict[str, Any] = {
         'meta_agent': {
             'version': '1.0',
             'epistemic_thresholds': {

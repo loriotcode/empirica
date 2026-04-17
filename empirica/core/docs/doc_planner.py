@@ -8,15 +8,6 @@ from __future__ import annotations
 import os
 
 
-def _load_yaml(path: str) -> dict:
-    try:
-        import yaml  # type: ignore
-    except Exception as e:  # pragma: no cover
-        raise RuntimeError("pyyaml is required to use doc planner") from e
-    with open(path, encoding='utf-8') as f:
-        return yaml.safe_load(f) or {}
-
-
 def _load_semantic_index(root: str) -> dict[str, dict]:
     """Load semantic index (per-project, with graceful fallback)"""
     from empirica.config.semantic_index_loader import load_semantic_index

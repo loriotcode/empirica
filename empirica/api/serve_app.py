@@ -98,7 +98,7 @@ def create_serve_app() -> FastAPI:
     )
 
     @app.get("/api/v1/health", response_model=HealthResponse)
-    async def health():
+    async def health():  # pyright: ignore[reportUnusedFunction]
         """Health check — reports available integrations."""
         return HealthResponse(
             ollama=_check_ollama(),
@@ -106,7 +106,7 @@ def create_serve_app() -> FastAPI:
         )
 
     @app.post("/api/v1/artifacts/import", response_model=ArtifactImportResponse)
-    async def import_artifacts(req: ArtifactImportRequest):
+    async def import_artifacts(req: ArtifactImportRequest):  # pyright: ignore[reportUnusedFunction]
         """Import pre-extracted artifacts from the Chrome extension.
 
         The extension runs extraction client-side (TypeScript). This endpoint
@@ -120,7 +120,7 @@ def create_serve_app() -> FastAPI:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @app.get("/api/v1/profile/status", response_model=ProfileStatusResponse)
-    async def profile_status():
+    async def profile_status():  # pyright: ignore[reportUnusedFunction]
         """Get epistemic profile status — artifact counts and sync state."""
         try:
             result = _run_profile_status()
@@ -130,7 +130,7 @@ def create_serve_app() -> FastAPI:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @app.post("/api/v1/profile/sync", response_model=SyncResponse)
-    async def profile_sync():
+    async def profile_sync():  # pyright: ignore[reportUnusedFunction]
         """Trigger profile sync (fetch notes, import to SQLite)."""
         try:
             result = _run_profile_sync()
@@ -188,10 +188,11 @@ def _store_artifacts(artifacts: list[ArtifactPayload]) -> dict:
         # Dedup by content hash if provided
         if artifact.contentHash:
             try:
-                existing = db.fetch_one(
+                db.adapter.execute(
                     "SELECT id FROM project_findings WHERE finding = ? LIMIT 1",
                     (content,),
                 )
+                existing = db.adapter.fetchone()
                 if existing:
                     duplicates_skipped += 1
                     continue
@@ -200,35 +201,35 @@ def _store_artifacts(artifacts: list[ArtifactPayload]) -> dict:
 
         try:
             if atype == "finding":
-                db.execute(
+                db.adapter.execute(
                     "INSERT INTO project_findings (id, project_id, session_id, finding, impact, created_at) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
                     (artifact_id, "extension-import", None,
                      content, meta.get("impact", 0.5), now),
                 )
             elif atype == "decision":
-                db.execute(
+                db.adapter.execute(
                     "INSERT INTO project_findings (id, project_id, session_id, finding, impact, created_at) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
                     (artifact_id, "extension-import", None,
                      f"[decision] {content}", meta.get("impact", 0.5), now),
                 )
             elif atype == "dead_end":
-                db.execute(
+                db.adapter.execute(
                     "INSERT INTO project_dead_ends (id, project_id, session_id, approach, why_failed, created_at) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
                     (artifact_id, "extension-import", None,
                      content, meta.get("whyFailed", ""), now),
                 )
             elif atype == "mistake":
-                db.execute(
+                db.adapter.execute(
                     "INSERT INTO mistakes_made (id, project_id, session_id, mistake, why_wrong, prevention, created_at) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?)",
                     (artifact_id, "extension-import", None,
                      content, meta.get("whyFailed", ""), meta.get("prevention", ""), now),
                 )
             elif atype == "unknown":
-                db.execute(
+                db.adapter.execute(
                     "INSERT INTO project_unknowns (id, project_id, session_id, unknown, created_at) "
                     "VALUES (?, ?, ?, ?, ?)",
                     (artifact_id, "extension-import", None,
@@ -265,7 +266,8 @@ def _run_profile_status() -> dict:
         ("goals", "goals"),
     ]:
         try:
-            row = db.fetch_one(f"SELECT COUNT(*) as cnt FROM {table}")
+            db.adapter.execute(f"SELECT COUNT(*) as cnt FROM {table}")
+            row = db.adapter.fetchone()
             count = row["cnt"] if row else 0
             counts[label] = count
             total += count

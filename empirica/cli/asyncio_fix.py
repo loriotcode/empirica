@@ -42,14 +42,15 @@ def patch_asyncio_for_mcp():
     try:
         import httpx
         # Monkey-patch httpx AsyncClient.__del__ to ignore errors
-        original_del = httpx.AsyncClient.__del__
-        def safe_del(self) -> None:
-            """Safely cleanup AsyncClient, ignoring event loop closure errors."""
-            try:
-                original_del(self)
-            except Exception:
-                pass  # Ignore all cleanup errors
-        httpx.AsyncClient.__del__ = safe_del
+        original_del = getattr(httpx.AsyncClient, "__del__", None)
+        if original_del is not None:
+            def safe_del(self) -> None:
+                """Safely cleanup AsyncClient, ignoring event loop closure errors."""
+                try:
+                    original_del(self)
+                except Exception:
+                    pass  # Ignore all cleanup errors
+            httpx.AsyncClient.__del__ = safe_del  # pyright: ignore[reportAttributeAccessIssue]
     except (ImportError, AttributeError):
         pass  # httpx not installed or already patched
 

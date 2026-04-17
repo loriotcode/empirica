@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 # Import canonical structures
 try:
-    from canonical.reflex_frame import Action, EpistemicAssessment, VectorState  # noqa: F401, I001 — availability check for CANONICAL_AVAILABLE
+    from canonical.reflex_frame import Action, EpistemicAssessment, VectorState  # noqa: F401, I001 — availability check for CANONICAL_AVAILABLE  # pyright: ignore[reportUnusedImport,reportMissingImports]
     CANONICAL_AVAILABLE = True
 except ImportError:
     CANONICAL_AVAILABLE = False
@@ -471,7 +471,7 @@ class SessionDatabase:
 
     def log_preflight_assessment(self, session_id: str, cascade_id: str | None,
                                  prompt_summary: str, vectors: dict[str, float],
-                                 uncertainty_notes: str = "") -> str:
+                                 uncertainty_notes: str = "") -> int:
         """
         DEPRECATED: Use store_vectors() instead.
 
@@ -499,7 +499,7 @@ class SessionDatabase:
                                    notes: str = "",
                                    vectors: dict[str, float] | None = None,
                                    findings: list[str] | None = None,
-                                   remaining_unknowns: list[str] | None = None) -> str:
+                                   remaining_unknowns: list[str] | None = None) -> int:
         """
         DEPRECATED: Use store_vectors() instead.
 
@@ -533,7 +533,7 @@ class SessionDatabase:
                                   task_summary: str, vectors: dict[str, float],
                                   postflight_confidence: float,
                                   calibration_accuracy: str,
-                                  learning_notes: str = "") -> str:
+                                  learning_notes: str = "") -> int:
         """
         DEPRECATED: Use store_vectors() instead.
 

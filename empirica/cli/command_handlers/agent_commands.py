@@ -17,7 +17,7 @@ from empirica.core.agents import (
 from empirica.data.session_database import SessionDatabase
 
 
-def handle_agent_spawn_command(args) -> dict:
+def handle_agent_spawn_command(args) -> dict | int | None:
     """
     Spawn an epistemic agent (returns prompt for external execution).
 
@@ -119,7 +119,7 @@ def handle_agent_spawn_command(args) -> dict:
         print(f"  empirica agent-report --branch-id {result.branch_id} --postflight '<json>'")
 
 
-def handle_agent_report_command(args) -> dict:
+def handle_agent_report_command(args) -> dict | int | None:
     """
     Report agent postflight results.
 
@@ -250,7 +250,7 @@ def handle_agent_report_command(args) -> dict:
         db.close()
 
 
-def handle_agent_aggregate_command(args) -> dict:
+def handle_agent_aggregate_command(args) -> dict | int | None:
     """
     Aggregate results from multiple epistemic agents.
 
@@ -318,7 +318,7 @@ def handle_agent_aggregate_command(args) -> dict:
         db.close()
 
 
-def handle_agent_export_command(args) -> dict:
+def handle_agent_export_command(args) -> dict | int | None:
     """
     Export an epistemic agent as a shareable JSON package.
 
@@ -419,7 +419,7 @@ def handle_agent_export_command(args) -> dict:
         db.close()
 
 
-def handle_agent_import_command(args) -> dict:
+def handle_agent_import_command(args) -> dict | int | None:
     """
     Import an epistemic agent from a JSON package.
 
@@ -490,7 +490,7 @@ def handle_agent_import_command(args) -> dict:
         db.close()
 
 
-def handle_agent_discover_command(args) -> dict:
+def handle_agent_discover_command(args) -> dict | int | None:
     """
     Discover epistemic agents in the sharing network.
 
@@ -555,7 +555,7 @@ def handle_agent_discover_command(args) -> dict:
         return 1
 
 
-def handle_agent_parallel_command(args) -> dict:
+def handle_agent_parallel_command(args) -> dict | int | None:
     """
     Plan and orchestrate parallel epistemic agents with attention budget.
 

@@ -9,6 +9,7 @@ Commands:
 
 import json
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ def handle_sentinel_orchestrate_command(args):
         if dry_run:
             # Just select personas, don't spawn
             personas = sentinel.select_personas(task, max_personas=max_agents)
-            result = {
+            result: dict[str, Any] = {
                 "ok": True,
                 "dry_run": True,
                 "task": task,
@@ -58,14 +59,14 @@ def handle_sentinel_orchestrate_command(args):
             }
         else:
             # Full orchestration
-            result = sentinel.auto_orchestrate(
+            orch_result = sentinel.auto_orchestrate(
                 task=task,
                 max_agents=max_agents,
                 merge_strategy=merge_strategy,
                 scope_breadth=scope_breadth,
                 scope_duration=scope_duration
             )
-            result = result.to_dict()
+            result = orch_result.to_dict()
 
         if output_format == 'json':
             print(json.dumps(result, indent=2, default=str))
@@ -156,7 +157,7 @@ def handle_sentinel_status_command(args):
         # For now, create fresh and show what would be tracked
         sentinel = Sentinel(session_id=session_id)
 
-        result = {
+        result: dict[str, Any] = {
             "ok": True,
             "session_id": session_id,
             "domain_profile": sentinel.get_domain_stats(),

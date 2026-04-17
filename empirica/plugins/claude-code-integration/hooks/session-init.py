@@ -202,7 +202,6 @@ def _cortex_remote_sync(result: dict) -> None:
     if not (cortex_api_key and cortex_url):
         return
 
-    import urllib.error
     import urllib.request
 
     bootstrap_data = result.get("bootstrap_output", {})
@@ -824,7 +823,7 @@ def _init_context_budget(session_id: str, project_context: dict) -> dict:
         return {"error": str(e)}
 
 
-def _init_dashboard(session_id: str, ai_id: str) -> str:
+def _init_dashboard(session_id: str, ai_id: str) -> str | None:
     """Initialize System Dashboard. Returns summary string or None."""
     try:
         from empirica.core.system_dashboard import SystemDashboard

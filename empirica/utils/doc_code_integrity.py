@@ -13,6 +13,7 @@ import logging
 import re
 import subprocess
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +149,7 @@ class DocCodeIntegrityAnalyzer:
         """
         cli_analysis = self.analyze_cli_commands()
 
-        detailed_gaps = {
+        detailed_gaps: dict[str, Any] = {
             "cli_commands": cli_analysis,
             "missing_code_details": [],
             "missing_docs_details": []
@@ -223,3 +224,4 @@ def analyze_complete_integrity(project_root: str | None = None) -> dict:
     # Add superfluity analysis (placeholder for now - will implement fully)
     basic_analysis["superfluous"] = []
 
+    return basic_analysis

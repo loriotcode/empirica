@@ -63,7 +63,7 @@ class UsageMonitor:
 
         self.stats_file.parent.mkdir(parents=True, exist_ok=True)
 
-        self.stats = self._load_stats()
+        self.stats: dict[str, Any] = self._load_stats()
 
     def _load_stats(self) -> dict[str, Any]:
         """Load existing stats or create new."""

@@ -221,7 +221,7 @@ class EpistemicRollupGate:
     ) -> list[ScoredFinding]:
         """Semantic dedup via Qdrant (graceful degradation if unavailable)."""
         try:
-            from empirica.core.qdrant.vector_store import search_similar
+            from empirica.core.qdrant.vector_store import search_similar  # pyright: ignore[reportAttributeAccessIssue]
             kept = []
             for f in findings:
                 results = search_similar(

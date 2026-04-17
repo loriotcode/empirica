@@ -19,7 +19,7 @@ from pathlib import Path
 
 import yaml
 
-from .hot_cache import get_hot_cache
+from .hot_cache import HotLessonEntry, get_hot_cache
 from .schema import (
     Lesson,
 )
@@ -412,7 +412,7 @@ class LessonStorageManager:
 
     # ==================== READ ====================
 
-    def get_lesson(self, lesson_id: str, layer: str = 'auto') -> Lesson | None:
+    def get_lesson(self, lesson_id: str, layer: str = 'auto') -> Lesson | HotLessonEntry | None:
         """
         Get lesson by ID.
 
@@ -499,12 +499,14 @@ class LessonStorageManager:
             for lid in lesson_ids:
                 lesson = self.get_lesson(lid)
                 if lesson:
+                    epistemic = getattr(lesson, 'epistemic', None)
+                    delta_val = epistemic.expected_delta.to_dict().get(improves_vector, 0) if epistemic else 0
                     results.append({
                         'id': lesson.id,
                         'name': lesson.name,
-                        'description': lesson.description,
+                        'description': getattr(lesson, 'description', ''),
                         'improves': improves_vector,
-                        'delta': lesson.epistemic.expected_delta.to_dict().get(improves_vector, 0)
+                        'delta': delta_val
                     })
 
         # Domain filter
@@ -516,7 +518,7 @@ class LessonStorageManager:
                     results.append({
                         'id': lesson.id,
                         'name': lesson.name,
-                        'description': lesson.description,
+                        'description': getattr(lesson, 'description', ''),
                         'domain': domain
                     })
 
@@ -596,7 +598,7 @@ class LessonStorageManager:
                     'name': lesson.name,
                     'addresses': vector,
                     'expected_improvement': improvement,
-                    'description': lesson.description
+                    'description': getattr(lesson, 'description', '')
                 })
         return results
 
@@ -614,7 +616,7 @@ class LessonStorageManager:
         replay_id = str(uuid.uuid4())
 
         lesson = self.get_lesson(lesson_id)
-        total_steps = len(lesson.steps) if lesson else 0
+        total_steps = len(getattr(lesson, 'steps', [])) if lesson else 0
 
         cursor.execute("""
             INSERT INTO lesson_replays

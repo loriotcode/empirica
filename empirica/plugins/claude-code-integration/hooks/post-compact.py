@@ -18,6 +18,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 # Import shared utilities from plugin lib
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
@@ -578,7 +579,7 @@ def _load_dynamic_context(session_id: str, ai_id: str, pre_snapshot: dict) -> di
         row = cursor.fetchone()
         project_id = row[0] if row else None
 
-        context = {
+        context: dict[str, Any] = {
             "active_goals": [],
             "recent_findings": [],
             "open_unknowns": [],
@@ -700,7 +701,7 @@ def _load_dynamic_context(session_id: str, ai_id: str, pre_snapshot: dict) -> di
         }
 
 
-def _run_cli_json(cmd: list, timeout: int = 15) -> dict:
+def _run_cli_json(cmd: list, timeout: int = 15) -> dict | None:
     """Run an empirica CLI command and return parsed JSON output.
 
     Returns parsed JSON dict on success, None on failure.

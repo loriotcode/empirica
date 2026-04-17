@@ -10,6 +10,7 @@ Provides commands for:
 import json
 import logging
 from datetime import datetime
+from typing import Any
 
 from empirica.utils.session_resolver import InstanceResolver as R
 
@@ -758,7 +759,7 @@ def handle_transaction_adopt_command(args):
     dry_run = getattr(args, 'dry_run', False)
     output_json = getattr(args, 'output', 'human') == 'json'
 
-    result = {
+    result: dict[str, Any] = {
         "ok": False, "from_instance": from_instance, "to_instance": to_instance,
         "project_path": project_path, "dry_run": dry_run, "actions": []
     }

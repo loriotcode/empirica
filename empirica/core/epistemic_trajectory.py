@@ -87,13 +87,13 @@ def extract_trajectory(session_id: str, db: SessionDatabase) -> dict[str, Any] |
         return None
 
     # Get PREFLIGHT assessment
-    reflexes = db.get_reflexes(session_id=session_id, phase="PREFLIGHT")
+    reflexes = db.get_vectors_by_phase(session_id=session_id, phase="PREFLIGHT")
     if not reflexes:
         return None
     preflight = reflexes[-1]  # Latest PREFLIGHT
 
     # Get POSTFLIGHT assessment
-    reflexes = db.get_reflexes(session_id=session_id, phase="POSTFLIGHT")
+    reflexes = db.get_vectors_by_phase(session_id=session_id, phase="POSTFLIGHT")
     if not reflexes:
         return None
     postflight = reflexes[-1]  # Latest POSTFLIGHT

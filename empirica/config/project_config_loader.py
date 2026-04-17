@@ -134,7 +134,7 @@ class ProjectConfig:
         if not self.auto_detect.get('enabled', True):
             return None
 
-        current_path = Path(current_path).resolve()
+        resolved_path = Path(current_path).resolve()
 
         # Try to match current path to subject paths
         for subject_id, subject_config in self.subjects.items():
@@ -144,14 +144,14 @@ class ProjectConfig:
 
                 # Check if current path is within subject path
                 try:
-                    current_path.relative_to(subject_path)
+                    resolved_path.relative_to(subject_path)
                     logger.info(f"Auto-detected subject: {subject_id} (matched {path_pattern})")
                     return subject_id
                 except ValueError:
                     # Not a subpath, continue
                     continue
 
-        logger.debug(f"No subject auto-detected for path: {current_path}")
+        logger.debug(f"No subject auto-detected for path: {resolved_path}")
         return None
 
     def get_subject_info(self, subject_id: str) -> dict[str, Any] | None:

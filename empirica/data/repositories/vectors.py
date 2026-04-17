@@ -147,7 +147,7 @@ class VectorRepository(BaseRepository):
         ))
 
         self.commit()
-        return cursor.lastrowid
+        return cursor.lastrowid or 0
 
     def get_latest_vectors(
         self,

@@ -9,9 +9,11 @@ Part of the GitEnhancedReflexLogger refactoring (extracted from 1,156 line file)
 
 import json
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+UTC = timezone.utc
 
 logger = logging.getLogger(__name__)
 

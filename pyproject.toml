@@ -263,6 +263,9 @@ exclude = [
     "venv",
     "**/__pycache__",
 ]
+extraPaths = [
+    "empirica/plugins/claude-code-integration/lib",
+]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"
 reportMissingImports = true

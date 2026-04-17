@@ -116,9 +116,9 @@ def extract_persona_from_loop_tracker(
     # Calculate total findings and unknowns resolved
     total_findings = sum(loop.findings_count or 0 for loop in loop_tracker.loop_history)
     total_unknowns_resolved = sum(
-        (loop.unknowns_start or 0) - (loop.unknowns_count or 0)
+        max(0, loop.unknowns_count or 0)
         for loop in loop_tracker.loop_history
-        if loop.unknowns_start is not None and loop.unknowns_count is not None
+        if loop.unknowns_count is not None
     )
 
     # Extract domains from task description

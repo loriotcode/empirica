@@ -4,6 +4,7 @@ Investigation Commands - Analysis, investigation, and exploration functionality
 
 import json
 import os
+from typing import Any
 
 from ..cli_utils import handle_cli_error, parse_json_safely, run_empirica_subprocess
 
@@ -51,7 +52,7 @@ def _get_profile_thresholds():
 
         try:
             profile = loader.get_profile('balanced')
-            constraints = profile.constraints
+            constraints = profile.investigation
 
             return {
                 'confidence_low': getattr(constraints, 'confidence_low_threshold', 0.5),
@@ -214,7 +215,7 @@ def handle_analyze_command(args):
         context = parse_json_safely(getattr(args, 'context', None))
 
         # Run comprehensive analysis
-        result = analyzer.analyze(
+        result = analyzer.analyze_performance(
             subject=args.subject,
             context=context,
             analysis_type=getattr(args, 'type', 'general'),
@@ -266,7 +267,9 @@ def handle_analyze_command(args):
 def _investigate_file(file_path: str, verbose: bool = False) -> dict:
     """Investigate a specific file"""
     try:
-        from empirica.components.code_intelligence_analyzer import CodeIntelligenceAnalyzer
+        from empirica.components.code_intelligence_analyzer import (  # pyright: ignore[reportMissingImports]
+            CodeIntelligenceAnalyzer,
+        )
 
         analyzer = CodeIntelligenceAnalyzer()
         result = analyzer.analyze_file(file_path)
@@ -286,7 +289,7 @@ def _investigate_file(file_path: str, verbose: bool = False) -> dict:
 def _investigate_directory(dir_path: str, verbose: bool = False) -> dict:
     """Investigate a directory structure"""
     try:
-        from empirica.components.workspace_awareness import WorkspaceNavigator
+        from empirica.components.workspace_awareness import WorkspaceNavigator  # pyright: ignore[reportMissingImports]
 
         workspace = WorkspaceNavigator()
         result = workspace.analyze_directory(dir_path)
@@ -628,7 +631,7 @@ def handle_investigate_multi_command(args):
             }
 
         # Build response
-        response = {
+        response: dict[str, Any] = {
             "ok": True,
             "session_id": session_id,
             "task": task,

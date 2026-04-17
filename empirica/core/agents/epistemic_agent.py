@@ -24,11 +24,13 @@ Usage:
 
 import json
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from empirica.core.persona import PersonaManager, PersonaProfile
 from empirica.data.session_database import SessionDatabase
+
+UTC = timezone.utc
 
 
 @dataclass

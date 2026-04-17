@@ -8,6 +8,7 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 from empirica.utils.session_resolver import InstanceResolver as R
 
@@ -193,7 +194,7 @@ def _resolve_entity_defaults(entity_type, entity_id, project_id):
     return resolved_entity_type, resolved_entity_id
 
 
-def _resolve_artifact_context(config_data, args, required_fields=None):
+def _resolve_artifact_context(config_data, args, required_fields=None) -> dict[str, Any]:
     """Resolve common context needed by all artifact handlers.
 
     Consolidates session resolution, project resolution, entity params,
@@ -1499,8 +1500,8 @@ def handle_source_add_command(args):
 
         transaction_id = None
         try:
-            from empirica.cli.command_handlers.workflow_commands import read_active_transaction
-            tx = read_active_transaction()
+            from empirica.utils.session_resolver import read_active_transaction_full
+            tx = read_active_transaction_full()
             if tx:
                 transaction_id = tx.get('transaction_id')
         except Exception:

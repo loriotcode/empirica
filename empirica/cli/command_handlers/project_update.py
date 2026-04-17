@@ -11,12 +11,18 @@ Usage:
     empirica project-update --migrate  # Upgrade v1.0 to v2.0
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
+
+if TYPE_CHECKING:
+    from empirica.config.project_config_loader import ProjectConfig
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +175,7 @@ def handle_project_update_command(args):
         return None
 
 
-def _migrate_v1_to_v2(config: 'ProjectConfig', git_root: Path) -> list:  # noqa: F821
+def _migrate_v1_to_v2(config: ProjectConfig, git_root: Path) -> list:
     """Migrate v1.0 config to v2.0 with auto-detected values."""
     changes = []
 
@@ -233,7 +239,7 @@ def _soft_validate_edge(entity: str):
         pass  # Workspace may not be available
 
 
-def _sync_to_db(config: 'ProjectConfig', git_root: Path):  # noqa: F821
+def _sync_to_db(config: ProjectConfig, git_root: Path):
     """Sync updated config fields to sessions.db and workspace.db."""
     try:
         from empirica.data.session_database import SessionDatabase

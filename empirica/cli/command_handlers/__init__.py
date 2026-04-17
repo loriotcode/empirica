@@ -188,7 +188,6 @@ from .sync_commands import (
 from .training_commands import (
     handle_training_export_command,
 )
-from .vision_commands import add_vision_parsers as _add_vision_parsers
 
 # handle_goal_analysis_command removed - was in noetic_praxic_commands (deprecated)
 from .vision_commands import handle_vision_analyze, handle_vision_log
@@ -246,7 +245,6 @@ __all__ = [
     'handle_efficiency_report_command',
     'handle_engagement_focus_command',
     'handle_epistemics_list_command',
-    # '_add_vision_parsers',  # Internal - not exported
     # Epistemic trajectory commands
     'handle_epistemics_search_command',
     'handle_epistemics_stats_command',

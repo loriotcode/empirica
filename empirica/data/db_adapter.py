@@ -283,7 +283,7 @@ class PostgreSQLAdapter(DatabaseAdapter):
         """
         try:
             import psycopg2
-            import psycopg2.extras
+            import psycopg2.extras  # pyright: ignore[reportUnusedImport] — used in execute()
         except ImportError as e:
             raise ImportError(
                 "PostgreSQL support requires psycopg2. Install with: pip install psycopg2-binary"

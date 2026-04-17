@@ -178,16 +178,18 @@ def handle_lesson_load_command(args: Namespace) -> dict[str, Any]:
     steps_only = getattr(args, 'steps_only', False)
 
     if steps_only:
+        steps = getattr(lesson, 'steps', [])
         return {
             'ok': True,
             'lesson_id': lesson.id,
             'name': lesson.name,
-            'steps': [s.to_dict() for s in lesson.steps]
+            'steps': [s.to_dict() for s in steps]
         }
 
+    to_dict_fn = getattr(lesson, 'to_dict', None)
     return {
         'ok': True,
-        'lesson': lesson.to_dict()
+        'lesson': to_dict_fn() if to_dict_fn else {'id': lesson.id, 'name': lesson.name}
     }
 
 
@@ -334,7 +336,7 @@ def handle_lesson_path_command(args: Namespace) -> dict[str, Any]:
             path_details.append({
                 'id': lid,
                 'name': lesson.name,
-                'description': lesson.description
+                'description': getattr(lesson, 'description', '')
             })
 
     return {

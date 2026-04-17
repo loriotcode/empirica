@@ -570,7 +570,7 @@ def _locate_transaction_file(claude_session_id: str | None,
 
 def _classify_tool_phase(tool_name: str, tool_input: dict | None) -> bool:
     """Classify whether a tool call is noetic (True) or praxic (False)."""
-    return (
+    return bool(
         tool_name in NOETIC_TOOLS
         or tool_name in NOETIC_MCP_CHROME
         or tool_name in NOETIC_MCP_CORTEX
@@ -801,7 +801,7 @@ def find_empirica_package() -> Path | None:
     """
     # Check if already importable (pip installed)
     try:
-        import empirica.config.path_resolver  # noqa: F401 — availability check; type: ignore[import-not-found]
+        import empirica.config.path_resolver  # noqa: F401 — availability check  # pyright: ignore[reportUnusedImport]
         return None  # Already available, no path needed
     except ImportError:
         pass

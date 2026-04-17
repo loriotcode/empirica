@@ -152,7 +152,7 @@ def calculate_flow_trend(flow_scores: list[float]) -> tuple[str, str]:
         return ("Sharp decline", "📉")
 
 
-def get_flow_triggers() -> list[dict[str, str]]:
+def get_flow_triggers() -> list[dict[str, str | float]]:
     """
     Get flow state triggers (conditions that enable flow).
 

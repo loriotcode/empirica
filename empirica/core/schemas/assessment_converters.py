@@ -10,6 +10,8 @@ NEW Schema: empirica.core.schemas.epistemic_assessment.EpistemicAssessmentSchema
 Note: Some data loss is acceptable when converting NEW -> OLD (OLD format is less rich).
 """
 
+# Public API — _convert_action kept for external migration scripts
+__all__ = ["_convert_action", "_convert_action_to_old", "convert_new_to_old", "convert_old_to_new"]
 
 
 def convert_old_to_new(old_assessment):
@@ -97,7 +99,10 @@ def convert_new_to_old(new_assessment):
 
     This converter is for backwards compatibility during migration only.
     """
-    from empirica.core.canonical.reflex_frame import EpistemicAssessment, VectorState
+    from empirica.core.canonical.reflex_frame import (
+        EpistemicAssessment,  # pyright: ignore[reportAttributeAccessIssue]
+        VectorState,
+    )
 
     def convert_vector(vector_assessment) -> VectorState:
         """Convert NEW VectorAssessment to OLD VectorState."""

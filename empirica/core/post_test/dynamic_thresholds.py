@@ -31,6 +31,7 @@ References:
 """
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -312,7 +313,7 @@ def compute_dynamic_thresholds(
 
     try:
         cursor = db.conn.cursor()
-        result = {"source": "dynamic", "reason": "brier calibration"}
+        result: dict[str, Any] = {"source": "dynamic", "reason": "brier calibration"}
 
         for phase in ["noetic", "praxic"]:
             # Get recent trajectory points with both self-assessed and grounded

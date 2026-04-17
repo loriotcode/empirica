@@ -128,7 +128,7 @@ def handle_mistake_log_command(args):
 
         if entity_type and entity_type != 'project' and entity_id:
             try:
-                from .project_commands import _create_entity_artifact_link
+                from .artifact_log_commands import _create_entity_artifact_link
                 _create_entity_artifact_link(
                     artifact_type='mistake', artifact_id=mistake_id,
                     entity_type=entity_type, entity_id=entity_id,

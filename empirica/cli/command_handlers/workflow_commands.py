@@ -12,6 +12,7 @@ These commands provide JSON output for MCP v2 server integration.
 
 import json
 import logging
+from typing import Any
 
 from empirica.config.path_resolver import resolve_session_db_path
 from empirica.core.canonical.empirica_git.sentinel_hooks import SentinelDecision, SentinelHooks, auto_enable_sentinel
@@ -1417,7 +1418,7 @@ def _check_detect_diminishing_returns(previous_check_vectors, know, uncertainty)
 
     Returns a diminishing_returns dict with detection results.
     """
-    diminishing_returns = {
+    diminishing_returns: dict[str, Any] = {
         "detected": False,
         "rounds_analyzed": 0,
         "know_deltas": [],
@@ -1735,7 +1736,7 @@ def _check_run_blindspot_scan(result, decision, session_id, bootstrap_result,
     Modifies result in-place. Returns updated decision.
     """
     try:
-        from empirica_prediction.blindspots.predictor import BlindspotPredictor
+        from empirica_prediction.blindspots.predictor import BlindspotPredictor  # pyright: ignore[reportMissingImports]
         project_id = (bootstrap_result or {}).get('project_id') or bootstrap_status.get('project_id')
         if project_id:
             bs_predictor = BlindspotPredictor(project_id=project_id)
@@ -2033,31 +2034,6 @@ def handle_check_submit_command(args):
 
 # _check_goal_completion and _auto_postflight REMOVED (2026-03-02)
 # See comment in handle_check_submit_command for rationale.
-
-
-def _extract_numeric_value(value):
-    """
-    Extract numeric value from vector data.
-
-    Handles two formats:
-    - Simple float: 0.85
-    - Nested dict: {"score": 0.85, "rationale": "...", "evidence": "..."}
-
-    Returns:
-        float or None if value cannot be extracted
-    """
-    if isinstance(value, (int, float)):
-        return float(value)
-    elif isinstance(value, dict):
-        # Extract 'score' key if present
-        if 'score' in value:
-            return float(value['score'])
-        # Fallback: try to get any numeric value
-        for _k, v in value.items():
-            if isinstance(v, (int, float)):
-                return float(v)
-    return None
-
 
 
 def _extract_numeric_value(value):
@@ -2666,7 +2642,7 @@ def _postflight_resolve_preflight_session(session_id):
     return preflight_session_id
 
 
-def _parse_postflight_input(args):
+def _parse_postflight_input(args) -> dict[str, Any]:
     """Parse and validate postflight input from config file or CLI args.
 
     Returns dict with keys: session_id, vectors, reasoning, preflight_session_id,
@@ -2867,7 +2843,7 @@ def _close_postflight_transaction(session_id):
     context_shifts, tool_trace, work_context, work_type, entity_context,
     resolved_project_path.
     """
-    result = {
+    result: dict[str, Any] = {
         "transaction_id": None, "tool_call_count": 0, "avg_turns": 0,
         "phase_tool_counts": None,
         "context_shifts": {'solicited_prompts': 0, 'unsolicited_prompts': 0},
@@ -2999,7 +2975,7 @@ def _run_postflight_compliance(session_id, transaction_id, work_type, resolved_p
             # Goal-scoped: read edited_files from hook counters
             _edited = []
             try:
-                _hc = R.hook_counters_read() if hasattr(R, 'hook_counters_read') else None
+                _hc = R.hook_counters_read() if hasattr(R, 'hook_counters_read') else None  # pyright: ignore[reportAttributeAccessIssue]
                 if _hc:
                     _edited = _hc.get('edited_files', [])
                 elif _tx:

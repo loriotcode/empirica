@@ -469,8 +469,9 @@ class SystemDashboard(EpistemicObserver):
         try:
             from empirica.core.attention_budget import AttentionBudgetCalculator
             calc = AttentionBudgetCalculator(session_id=self.session_id)
-            if calc._current_budget:
-                b = calc._current_budget
+            budget = getattr(calc, '_current_budget', None)
+            if budget:
+                b = budget
                 return AttentionStatus(
                     has_budget=True,
                     total_budget=b.total_budget,

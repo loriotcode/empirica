@@ -11,6 +11,22 @@ import os
 
 logger = logging.getLogger(__name__)
 
+# Public API — these underscore-prefixed functions are intentionally imported
+# by other qdrant modules (vector_store, calibration, decay, memory, etc.)
+__all__ = [
+    "_check_qdrant_available",
+    "_extract_vector_size",
+    "_get_embedding_for_collection",
+    "_get_embedding_safe",
+    "_get_embeddings_batch",
+    "_get_embeddings_batch_for_collection",
+    "_get_provider_context",
+    "_get_qdrant_client",
+    "_get_qdrant_imports",
+    "_get_vector_size",
+    "_rest_search",
+]
+
 # Lazy imports - Qdrant is optional
 _qdrant_available = None
 _qdrant_warned = False
@@ -33,7 +49,7 @@ def _check_qdrant_available() -> bool:
         return False
 
     try:
-        from qdrant_client import QdrantClient  # noqa: F401 — availability check
+        from qdrant_client import QdrantClient  # noqa: F401 — availability check  # pyright: ignore[reportUnusedImport]
         _qdrant_available = True
         return True
     except ImportError:

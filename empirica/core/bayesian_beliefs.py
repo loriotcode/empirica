@@ -24,7 +24,7 @@ Date: 2025-12-30
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import ClassVar
+from typing import Any, ClassVar
 
 
 @dataclass
@@ -350,7 +350,7 @@ class BayesianBeliefManager:
         beliefs = self.get_beliefs(ai_id)
         adjustments = self.get_calibration_adjustments(ai_id)
 
-        report = {
+        report: dict[str, Any] = {
             'ai_id': ai_id,
             'total_evidence': sum(b.evidence_count for b in beliefs.values()),
             'vectors': {},

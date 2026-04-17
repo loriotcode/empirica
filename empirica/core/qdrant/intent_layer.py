@@ -308,7 +308,7 @@ def search_assumptions(
 
         # Filter by urgency threshold
         if min_urgency > 0:
-            items = [i for i in items if i["urgency_signal"] >= min_urgency]
+            items = [i for i in items if (i["urgency_signal"] or 0) >= min_urgency]
 
         return items[:limit]
     except Exception as e:

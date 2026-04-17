@@ -478,7 +478,7 @@ def validate_tty_session(session: dict[str, Any] | None = None) -> dict[str, Any
     """
     from datetime import datetime, timedelta
 
-    result = {
+    result: dict[str, Any] = {
         'valid': True,
         'warnings': [],
         'session': None

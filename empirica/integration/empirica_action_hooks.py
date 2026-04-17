@@ -32,18 +32,6 @@ class EmpiricaActionHooks:
     def update_12d_monitor(state: dict[str, Any]):
         """Update 12D epistemic monitor JSON feed"""
         try:
-            # Extract full 12D state with flexible key handling
-            def get_nested_value(data, path, fallback=0.5):
-                """Get nested dict value with multiple key variations"""
-                if not isinstance(data, dict):
-                    return fallback
-                for section, key in [path]:
-                    section_data = data.get(section, {})
-                    if not isinstance(section_data, dict):
-                        return fallback
-                    # Try both uppercase and lowercase keys
-                    return section_data.get(key.upper(), section_data.get(key.lower(), fallback))
-
             # Handle both uppercase and lowercase input keys
             unc = state.get("epistemic_uncertainty", {})
             comp = state.get("epistemic_comprehension", {})
@@ -397,7 +385,7 @@ def log_statusline(
 def initialize_tmux_dashboard():
     """Initialize tmux dashboard for real-time monitoring"""
     try:
-        from tmux_dashboard_manager import TMuxDashboardManager
+        from tmux_dashboard_manager import TMuxDashboardManager  # pyright: ignore[reportMissingImports]
         manager = TMuxDashboardManager()
 
         # Only create if session doesn't exist

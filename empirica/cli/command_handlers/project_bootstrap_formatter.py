@@ -630,7 +630,7 @@ def _format_workflow_suggestions_section(workflow_suggestions):
 def _format_workspace_context_section(project_id, breadcrumbs):
     """Print workspace context section if empirica-workspace is installed."""
     try:
-        from empirica_workspace.bootstrap.project_context import (
+        from empirica_workspace.bootstrap.project_context import (  # pyright: ignore[reportMissingImports]
             get_project_bootstrap_context,
             render_workspace_context,
         )

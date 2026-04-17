@@ -78,7 +78,7 @@ class SlideProcessor:
         img_cv = cv2.imread(str(slide_path))
 
         # Extract text via OCR
-        text_content = pytesseract.image_to_string(img)
+        text_content = str(pytesseract.image_to_string(img))
         word_count = len(text_content.split())
 
         # Detect visual elements
@@ -130,7 +130,7 @@ class SlideProcessor:
         edge_ratio = np.sum(edges > 0) / edges.size
 
         # Heuristic: >5% edge pixels suggests diagram
-        return edge_ratio > 0.05
+        return bool(edge_ratio > 0.05)
 
     def _detect_code(self, text: str) -> bool:
         """Detect if slide contains code snippets"""
@@ -157,7 +157,7 @@ class SlideProcessor:
 
         h_line_ratio = np.sum(horizontal_lines > 0) / horizontal_lines.size
 
-        return aligned_lines > 3 or h_line_ratio > 0.01
+        return bool(aligned_lines > 3 or h_line_ratio > 0.01)
 
     def _assess_clarity(self, img_cv: np.ndarray, text: str, has_diagram: bool) -> float:
         """Assess visual clarity (0.0-1.0)"""
