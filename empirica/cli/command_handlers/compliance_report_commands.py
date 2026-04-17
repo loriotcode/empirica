@@ -248,9 +248,9 @@ def _build_epistemic_audit(project_root: Path) -> dict[str, Any]:
     conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT COUNT(*) FROM assessments WHERE assessment_type='postflight'")
+        cursor.execute("SELECT COUNT(*) FROM reflexes WHERE phase = 'POSTFLIGHT'")
         postflights = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM findings")
+        cursor.execute("SELECT COUNT(*) FROM project_findings")
         findings = cursor.fetchone()[0]
         cursor.execute("SELECT COUNT(*) FROM decisions")
         decisions = cursor.fetchone()[0]
@@ -285,9 +285,9 @@ def _build_calibration_check(project_root: Path) -> dict[str, Any]:
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            SELECT COUNT(*), AVG(calibration_score)
-            FROM grounded_verification
-            WHERE calibration_status = 'grounded'
+            SELECT COUNT(*), AVG(overall_calibration_score)
+            FROM grounded_verifications
+            WHERE compliance_status = 'grounded'
         """)
         row = cursor.fetchone()
         count = row[0] if row else 0
