@@ -40,6 +40,9 @@ from .code_embed import (
     handle_code_embed_command,
 )
 from .compact_analysis import handle_compact_analysis
+from .compliance_report_commands import (
+    handle_compliance_report_command,
+)
 from .config_commands import (
     handle_config_command,
     handle_config_get_command,
@@ -229,6 +232,7 @@ __all__ = [
     'handle_checkpoint_verify_command',
     'handle_code_embed_command',
     'handle_compact_analysis',
+    'handle_compliance_report_command',
     # Config commands
     'handle_config_command',
     'handle_config_get_command',

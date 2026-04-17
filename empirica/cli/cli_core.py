@@ -475,6 +475,7 @@ def main(args=None):
             'compact-analysis': handle_compact_analysis,
             'calibration-report': handle_calibration_report_command,
             'calibration-dispute': handle_calibration_dispute_command,
+            'compliance-report': handle_compliance_report_command,
 
             # Checkpoint commands
             'checkpoint-create': handle_checkpoint_create_command,
