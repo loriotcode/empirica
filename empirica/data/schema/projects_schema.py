@@ -22,7 +22,7 @@ SCHEMAS = [
                     last_activity_timestamp REAL,
                     status TEXT DEFAULT 'active',
                     metadata TEXT,
-                    
+
                     total_sessions INTEGER DEFAULT 0,
                     total_goals INTEGER DEFAULT 0,
                     total_epistemic_deltas TEXT,
@@ -50,7 +50,7 @@ SCHEMAS = [
                     repos_touched TEXT,
                     next_session_bootstrap TEXT,
                     handoff_data TEXT NOT NULL,
-                    
+
                     FOREIGN KEY (project_id) REFERENCES projects(id)
                 )
     """,
@@ -76,7 +76,7 @@ SCHEMAS = [
                     compressed_json TEXT,
                     markdown_report TEXT,
                     created_at REAL NOT NULL,
-                    
+
                     FOREIGN KEY (session_id) REFERENCES sessions(session_id)
                 )
     """,
@@ -161,7 +161,7 @@ SCHEMAS = [
                     description TEXT,
                     created_timestamp REAL NOT NULL,
                     doc_data TEXT NOT NULL,
-    
+
                     FOREIGN KEY (project_id) REFERENCES projects(id)
                 )
     """,

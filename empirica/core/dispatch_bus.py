@@ -29,10 +29,11 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 try:
     import yaml  # type: ignore[import-untyped]
@@ -95,11 +96,11 @@ class DispatchMessage:
     from_instance: str               # instance_id of sender
     to_instance: str                 # instance_id of target (or "*" for any-capable)
     payload: dict[str, Any] = field(default_factory=dict)
-    correlation_id: Optional[str] = None   # For request/response matching
+    correlation_id: str | None = None   # For request/response matching
     priority: DispatchPriority = DispatchPriority.NORMAL
-    deadline: Optional[float] = None       # Unix timestamp, None = no deadline
+    deadline: float | None = None       # Unix timestamp, None = no deadline
     required_capabilities: list[str] = field(default_factory=list)
-    callback_channel: Optional[str] = None  # Where to send results back
+    callback_channel: str | None = None  # Where to send results back
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_message_body(self) -> str:
@@ -118,7 +119,7 @@ class DispatchMessage:
         })
 
     @classmethod
-    def from_message_body(cls, body: str) -> Optional["DispatchMessage"]:
+    def from_message_body(cls, body: str) -> DispatchMessage | None:
         """Parse from GitMessageStore body field."""
         try:
             data = json.loads(body)
@@ -154,8 +155,8 @@ class DispatchResult:
     status: DispatchStatus
     from_instance: str               # Who completed it
     payload: dict[str, Any] = field(default_factory=dict)
-    error: Optional[str] = None
-    duration_ms: Optional[int] = None
+    error: str | None = None
+    duration_ms: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_message_body(self) -> str:
@@ -170,7 +171,7 @@ class DispatchResult:
         })
 
     @classmethod
-    def from_message_body(cls, body: str) -> Optional["DispatchResult"]:
+    def from_message_body(cls, body: str) -> DispatchResult | None:
         try:
             data = json.loads(body)
             return cls(
@@ -196,9 +197,9 @@ class InstanceInfo:
     instance_type: str               # "claude-code-cli", "cowork-web", "desktop-app", "cortex-server"
     capabilities: list[str] = field(default_factory=list)
     subscribes: list[str] = field(default_factory=list)  # Channels to poll
-    machine: Optional[str] = None
-    registered_at: Optional[float] = None
-    last_seen: Optional[float] = None
+    machine: str | None = None
+    registered_at: float | None = None
+    last_seen: float | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def has_capability(self, capability: str) -> bool:
@@ -220,7 +221,7 @@ class InstanceRegistry:
     Each instance declares capabilities and subscribed channels.
     """
 
-    def __init__(self, path: Optional[Path] = None):
+    def __init__(self, path: Path | None = None):
         self.path = path or DEFAULT_REGISTRY_PATH
         self._instances: dict[str, InstanceInfo] = {}
         self._load()
@@ -282,9 +283,9 @@ class InstanceRegistry:
         instance_id: str,
         instance_type: str,
         capabilities: list[str],
-        subscribes: Optional[list[str]] = None,
-        machine: Optional[str] = None,
-        metadata: Optional[dict] = None,
+        subscribes: list[str] | None = None,
+        machine: str | None = None,
+        metadata: dict | None = None,
     ) -> InstanceInfo:
         """Register or update an instance."""
         info = InstanceInfo(
@@ -309,7 +310,7 @@ class InstanceRegistry:
             return True
         return False
 
-    def get(self, instance_id: str) -> Optional[InstanceInfo]:
+    def get(self, instance_id: str) -> InstanceInfo | None:
         return self._instances.get(instance_id)
 
     def list_all(self) -> list[InstanceInfo]:
@@ -349,8 +350,8 @@ class DispatchBus:
     def __init__(
         self,
         instance_id: str,
-        message_store: Optional[GitMessageStore] = None,
-        registry: Optional[InstanceRegistry] = None,
+        message_store: GitMessageStore | None = None,
+        registry: InstanceRegistry | None = None,
         default_channel: str = DEFAULT_DISPATCH_CHANNEL,
     ):
         """
@@ -371,8 +372,8 @@ class DispatchBus:
         self,
         instance_type: str,
         capabilities: list[str],
-        subscribes: Optional[list[str]] = None,
-        metadata: Optional[dict] = None,
+        subscribes: list[str] | None = None,
+        metadata: dict | None = None,
     ) -> InstanceInfo:
         """Register this instance in the shared registry."""
         return self.registry.register(
@@ -389,14 +390,14 @@ class DispatchBus:
         self,
         to_instance: str,
         action: str,
-        payload: Optional[dict] = None,
+        payload: dict | None = None,
         priority: DispatchPriority = DispatchPriority.NORMAL,
-        deadline_seconds: Optional[int] = None,
-        required_capabilities: Optional[list[str]] = None,
-        callback_channel: Optional[str] = None,
+        deadline_seconds: int | None = None,
+        required_capabilities: list[str] | None = None,
+        callback_channel: str | None = None,
         ttl: int = 86400,
-        metadata: Optional[dict] = None,
-    ) -> Optional[str]:
+        metadata: dict | None = None,
+    ) -> str | None:
         """
         Send a typed dispatch to another instance.
 
@@ -471,10 +472,10 @@ class DispatchBus:
         original_channel: str,
         correlation_id: str,
         status: DispatchStatus,
-        payload: Optional[dict] = None,
-        error: Optional[str] = None,
-        duration_ms: Optional[int] = None,
-    ) -> Optional[str]:
+        payload: dict | None = None,
+        error: str | None = None,
+        duration_ms: int | None = None,
+    ) -> str | None:
         """
         Send a DispatchResult back to the originator.
 
@@ -502,7 +503,7 @@ class DispatchBus:
 
     def poll_inbox(
         self,
-        channel: Optional[str] = None,
+        channel: str | None = None,
         status: str = "unread",
         include_expired: bool = False,
         limit: int = 50,
@@ -539,8 +540,8 @@ class DispatchBus:
 
     def poll_results(
         self,
-        channel: Optional[str] = None,
-        correlation_id: Optional[str] = None,
+        channel: str | None = None,
+        correlation_id: str | None = None,
         limit: int = 50,
     ) -> list[DispatchResult]:
         """
@@ -575,7 +576,7 @@ class DispatchBus:
         correlation_id: str,
         timeout_seconds: int = 60,
         poll_interval: float = 2.0,
-    ) -> Optional[DispatchResult]:
+    ) -> DispatchResult | None:
         """
         Block until a DispatchResult with the given correlation_id arrives,
         or timeout. Polls self.store at poll_interval.
@@ -593,8 +594,8 @@ class DispatchBus:
     def handle_dispatch(
         self,
         dispatch: DispatchMessage,
-        handler: Callable[[DispatchMessage], tuple[DispatchStatus, dict, Optional[str]]],
-    ) -> Optional[str]:
+        handler: Callable[[DispatchMessage], tuple[DispatchStatus, dict, str | None]],
+    ) -> str | None:
         """
         Execute a handler for a received dispatch and send back the result.
 
@@ -635,10 +636,10 @@ class DispatchBus:
 # Module-level convenience
 # ---------------------------------------------------------------------------
 
-_global_bus: Optional[DispatchBus] = None
+_global_bus: DispatchBus | None = None
 
 
-def get_global_bus() -> Optional[DispatchBus]:
+def get_global_bus() -> DispatchBus | None:
     """Get the module-level global bus, if set."""
     return _global_bus
 

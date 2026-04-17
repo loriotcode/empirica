@@ -22,7 +22,7 @@ def decay_eidetic_fact(
     content_hash: str,
     decay_amount: float = 0.05,
     min_confidence: float = 0.3,
-    reason: str = None,
+    reason: str | None = None,
 ) -> bool:
     """Decay an eidetic fact's confidence when contradicted by new findings.
 
@@ -80,7 +80,7 @@ def decay_eidetic_fact(
 def decay_eidetic_by_finding(
     project_id: str,
     finding_text: str,
-    domain: str = None,
+    domain: str | None = None,
     decay_amount: float = 0.03,
     min_confidence: float = 0.3,
     similarity_threshold: float = 0.85,

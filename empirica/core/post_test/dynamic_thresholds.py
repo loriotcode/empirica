@@ -31,7 +31,6 @@ References:
 """
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -222,7 +221,7 @@ def compute_brier_decomposition(
     # Reliability: weighted average of (forecast_mean - observed_mean)^2 per bin
     reliability = 0.0
     resolution = 0.0
-    for bin_idx, bin_items in bins.items():
+    for _bin_idx, bin_items in bins.items():
         n_k = len(bin_items)
         f_k = sum(p for p, _ in bin_items) / n_k   # Mean forecast in bin
         o_k = sum(o for _, o in bin_items) / n_k    # Mean observed in bin

@@ -59,7 +59,7 @@ SCHEMAS = [
                     context_json TEXT,
                     goal_id TEXT,
                     goal_json TEXT,
-                    
+
                     preflight_completed BOOLEAN DEFAULT 0,
                     think_completed BOOLEAN DEFAULT 0,
                     plan_completed BOOLEAN DEFAULT 0,
@@ -67,15 +67,15 @@ SCHEMAS = [
                     check_completed BOOLEAN DEFAULT 0,
                     act_completed BOOLEAN DEFAULT 0,
                     postflight_completed BOOLEAN DEFAULT 0,
-                    
+
                     final_action TEXT,
                     final_confidence REAL,
                     investigation_rounds INTEGER DEFAULT 0,
-                    
+
                     duration_ms INTEGER,
                     started_at TIMESTAMP NOT NULL,
                     completed_at TIMESTAMP,
-                    
+
                     engagement_gate_passed BOOLEAN,
                     bayesian_active BOOLEAN DEFAULT 0,
                     drift_monitored BOOLEAN DEFAULT 0,

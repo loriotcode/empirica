@@ -577,10 +577,11 @@ Learning delta will be calculated from PREFLIGHT baseline.
                 if project_root:
                     project_yaml = project_root / '.empirica' / 'project.yaml'
                     if project_yaml.exists():
-                        for line in open(project_yaml):
-                            if line.startswith('project_id:'):
-                                push_project_id = line.split(':', 1)[1].strip()
-                                break
+                        with open(project_yaml) as pyf:
+                            for line in pyf:
+                                if line.startswith('project_id:'):
+                                    push_project_id = line.split(':', 1)[1].strip()
+                                    break
             except Exception:
                 pass
 

@@ -7,7 +7,7 @@ import os
 import subprocess
 import time
 from collections.abc import Sequence
-from typing import Any, Optional
+from typing import Any
 
 
 def safe_print(*args, **kwargs):
@@ -157,7 +157,7 @@ def handle_cli_error(error: Exception, command: str, verbose: bool = False, sess
                     else:
                         session_id = None
                     db.close()
-                except Exception:
+                except Exception:  # noqa: S110 — best-effort session DB lookup for error capture
                     pass
 
             # Initialize service if we have a session_id
@@ -167,7 +167,7 @@ def handle_cli_error(error: Exception, command: str, verbose: bool = False, sess
         # Capture the error if service is available
         if service:
             issue_id = service.capture_error(
-                message=f"{command} command failed: {str(error)}",
+                message=f"{command} command failed: {error!s}",
                 severity=IssueSeverity.HIGH,
                 category=IssueCategory.ERROR,
                 context={"command": command},
@@ -181,7 +181,7 @@ def handle_cli_error(error: Exception, command: str, verbose: bool = False, sess
             safe_print(f"⚠️  Auto-capture failed: {capture_error}")
 
 
-def parse_json_safely(json_string: str | None, default: dict = None) -> dict[str, Any]:
+def parse_json_safely(json_string: str | None, default: dict | None = None) -> dict[str, Any]:
     """Safely parse JSON string with fallback and escape sequence repair"""
     if not json_string:
         return default or {}
@@ -264,63 +264,29 @@ def format_execution_time(start_time: float, end_time: float | None = None) -> s
         return f"{duration:.3f}s"
 
 
-def validate_confidence_threshold(threshold: float) -> bool:
-    """Validate confidence threshold is in valid range"""
-    return 0.0 <= threshold <= 1.0
-
-
 def print_header(title: str, emoji: str = "🎯") -> None:
     """Print a formatted header for CLI sections"""
     safe_print(f"\n{emoji} {title}")
     safe_print("=" * (len(title) + 3))
 
 
-def print_separator(char: str = "-", length: int = 50) -> None:
-    """Print a separator line"""
-    safe_print(char * length)
-
-
-def format_component_list(components: list[dict[str, Any]], show_details: bool = False) -> str:
-    """Format component list for display"""
-    if not components:
-        return "No components available"
-
-    output = []
-    working_count = sum(1 for c in components if c.get('status') == 'working')
-    total_count = len(components)
-
-    output.append(f"📊 Component Status: {working_count}/{total_count} working")
-
-    if show_details:
-        output.append("\n📋 Component Details:")
-        for component in components:
-            status_emoji = "✅" if component.get('status') == 'working' else "❌"
-            name = component.get('name', 'Unknown')
-            output.append(f"   {status_emoji} {name}")
-
-            if component.get('error') and component.get('status') != 'working':
-                output.append(f"      Error: {component['error']}")
-
-    return "\n".join(output)
-
-
 def print_project_context(quiet: bool = False, verbose: bool = False) -> dict[str, str] | None:
     """
     Print current project context banner.
-    
+
     Shows:
     - Project name
     - Project ID
     - Current location
     - Database path
-    
+
     This helps AI agents understand which project they're working in,
     preventing accidental writes to wrong project databases.
-    
+
     Args:
         quiet: If True, only print minimal info (single line)
         verbose: If True, show additional details (git remote, etc.)
-    
+
     Returns:
         dict with project info (name, project_id, git_root, db_path),
         or None if not in a project
@@ -341,7 +307,7 @@ def print_project_context(quiet: bool = False, verbose: bool = False) -> dict[st
             project_path = context.get('project_path')
             if project_path:
                 git_root = Path(project_path)
-        except Exception:
+        except Exception:  # noqa: S110 — best-effort context resolution; CWD fallback below
             pass
 
         # Fallback: CWD-based git root detection

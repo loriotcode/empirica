@@ -14,7 +14,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ except ImportError:
     YAML_AVAILABLE = False
     logger.warning("PyYAML not installed, YAML support disabled. Install with: pip install pyyaml")
 
-import json
+import json  # noqa: E402 — intentionally after conditional yaml import
 
 
 class CredentialsLoader:

@@ -34,7 +34,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ class EvidenceProfile:
     INSUFFICIENT = "insufficient"
     AUTO = "auto"
 
-    VALID = {CODE, PROSE, WEB, HYBRID, INSUFFICIENT, AUTO}
+    VALID: ClassVar[set[str]] = {CODE, PROSE, WEB, HYBRID, INSUFFICIENT, AUTO}
 
     @staticmethod
     def resolve(explicit: str | None = None,
@@ -713,6 +713,57 @@ class PostTestCollector:
 
         return items
 
+    def _query_scope_weighted_unknowns(self, cursor, goal_ids, has_goals, tx_sql, tx_params, tx_sql_u, tx_params_u):
+        """Query scope-weighted unknown counts. Returns (weighted_total, weighted_resolved, scoped_total, unscoped_total)."""
+        if has_goals:
+            placeholders = ",".join("?" for _ in goal_ids)
+            cursor.execute(f"""
+                SELECT COUNT(*) as total, SUM(CASE WHEN u.is_resolved = 1 THEN 1 ELSE 0 END) as resolved
+                FROM project_unknowns u LEFT JOIN goals g ON u.goal_id = g.id
+                WHERE u.session_id = ? AND u.goal_id IN ({placeholders})
+                  AND NOT (u.is_resolved = 0 AND g.status = 'completed') {tx_sql_u}
+            """, (self.session_id, *goal_ids, *tx_params_u))
+            row = cursor.fetchone()
+            scoped_total = row[0] if row else 0
+            scoped_resolved = row[1] or 0 if row else 0
+            cursor.execute(f"""
+                SELECT COUNT(*) as total, SUM(CASE WHEN is_resolved = 1 THEN 1 ELSE 0 END) as resolved
+                FROM project_unknowns WHERE session_id = ?
+                  AND (goal_id IS NULL OR goal_id = '' OR goal_id NOT IN ({placeholders})) {tx_sql}
+            """, (self.session_id, *goal_ids, *tx_params))
+            row = cursor.fetchone()
+            unscoped_total = row[0] if row else 0
+            unscoped_resolved = row[1] or 0 if row else 0
+            w = UNSCOPED_ARTIFACT_WEIGHT
+            return scoped_total + (unscoped_total * w), scoped_resolved + (unscoped_resolved * w), scoped_total, unscoped_total
+        else:
+            cursor.execute(f"""
+                SELECT COUNT(*) as total, SUM(CASE WHEN is_resolved = 1 THEN 1 ELSE 0 END) as resolved
+                FROM project_unknowns WHERE session_id = ? {tx_sql}
+            """, (self.session_id, *tx_params))
+            row = cursor.fetchone()
+            wt = row[0] if row else 0
+            wr = row[1] or 0 if row else 0
+            return wt, wr, 0, wt
+
+    def _query_scope_weighted_count(self, cursor, table, goal_ids, has_goals, tx_sql, tx_params):
+        """Query scope-weighted count for a table. Returns (weighted_count, scoped, unscoped)."""
+        if has_goals:
+            placeholders = ",".join("?" for _ in goal_ids)
+            cursor.execute(f"""
+                SELECT SUM(CASE WHEN goal_id IN ({placeholders}) THEN 1 ELSE 0 END),
+                       SUM(CASE WHEN goal_id IS NULL OR goal_id = '' OR goal_id NOT IN ({placeholders}) THEN 1 ELSE 0 END)
+                FROM {table} WHERE session_id = ? {tx_sql}
+            """, (*goal_ids, *goal_ids, self.session_id, *tx_params))
+            row = cursor.fetchone()
+            scoped = row[0] or 0 if row else 0
+            unscoped = row[1] or 0 if row else 0
+            return scoped + (unscoped * UNSCOPED_ARTIFACT_WEIGHT), scoped, unscoped
+        else:
+            cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE session_id = ? {tx_sql}", (self.session_id, *tx_params))
+            total = cursor.fetchone()[0]
+            return total, 0, total
+
     def _collect_artifact_metrics(self) -> list[EvidenceItem]:
         """Collect scope-weighted noetic artifact counts for this transaction.
 
@@ -733,106 +784,16 @@ class PostTestCollector:
         tx_sql_u, tx_params_u = self._tx_filter("u")
 
         # --- Scope-weighted unknowns ---
-        # Unknowns linked to COMPLETED goals are intentionally deferred —
-        # they represent future work, not current knowledge gaps.
-        # Exclude them from the resolution ratio to avoid depressing know.
-        if has_goals:
-            placeholders = ",".join("?" for _ in goal_ids)
-            # Goal-scoped unknowns (full weight), excluding deferred
-            # (deferred = unresolved unknown linked to a completed goal)
-            cursor.execute(f"""
-                SELECT
-                    COUNT(*) as total,
-                    SUM(CASE WHEN u.is_resolved = 1 THEN 1 ELSE 0 END) as resolved
-                FROM project_unknowns u
-                LEFT JOIN goals g ON u.goal_id = g.id
-                WHERE u.session_id = ?
-                  AND u.goal_id IN ({placeholders})
-                  AND NOT (u.is_resolved = 0 AND g.status = 'completed')
-                  {tx_sql_u}
-            """, (self.session_id, *goal_ids, *tx_params_u))
-            row = cursor.fetchone()
-            scoped_total = row[0] if row else 0
-            scoped_resolved = row[1] or 0 if row else 0
-
-            # Unscoped unknowns (reduced weight)
-            cursor.execute(f"""
-                SELECT
-                    COUNT(*) as total,
-                    SUM(CASE WHEN is_resolved = 1 THEN 1 ELSE 0 END) as resolved
-                FROM project_unknowns
-                WHERE session_id = ?
-                  AND (goal_id IS NULL OR goal_id = ''
-                       OR goal_id NOT IN ({placeholders}))
-                  {tx_sql}
-            """, (self.session_id, *goal_ids, *tx_params))
-            row = cursor.fetchone()
-            unscoped_total = row[0] if row else 0
-            unscoped_resolved = row[1] or 0 if row else 0
-
-            w = UNSCOPED_ARTIFACT_WEIGHT
-            unknowns_weighted_total = scoped_total + (unscoped_total * w)
-            unknowns_weighted_resolved = scoped_resolved + (unscoped_resolved * w)
-        else:
-            # No goals in session — all artifacts count equally (no scope info)
-            cursor.execute(f"""
-                SELECT
-                    COUNT(*) as total,
-                    SUM(CASE WHEN is_resolved = 1 THEN 1 ELSE 0 END) as resolved
-                FROM project_unknowns
-                WHERE session_id = ? {tx_sql}
-            """, (self.session_id, *tx_params))
-            row = cursor.fetchone()
-            unknowns_weighted_total = row[0] if row else 0
-            unknowns_weighted_resolved = row[1] or 0 if row else 0
-            scoped_total = 0
-            unscoped_total = unknowns_weighted_total
+        unknowns_weighted_total, unknowns_weighted_resolved, scoped_total, unscoped_total = \
+            self._query_scope_weighted_unknowns(cursor, goal_ids, has_goals, tx_sql, tx_params, tx_sql_u, tx_params_u)
 
         # --- Scope-weighted findings ---
-        if has_goals:
-            placeholders = ",".join("?" for _ in goal_ids)
-            cursor.execute(f"""
-                SELECT
-                    SUM(CASE WHEN goal_id IN ({placeholders}) THEN 1 ELSE 0 END),
-                    SUM(CASE WHEN goal_id IS NULL OR goal_id = ''
-                             OR goal_id NOT IN ({placeholders}) THEN 1 ELSE 0 END)
-                FROM project_findings
-                WHERE session_id = ? {tx_sql}
-            """, (*goal_ids, *goal_ids, self.session_id, *tx_params))
-            row = cursor.fetchone()
-            scoped_findings = row[0] or 0 if row else 0
-            unscoped_findings = row[1] or 0 if row else 0
-            findings_count = scoped_findings + (unscoped_findings * UNSCOPED_ARTIFACT_WEIGHT)
-        else:
-            cursor.execute(f"""
-                SELECT COUNT(*) FROM project_findings
-                WHERE session_id = ? {tx_sql}
-            """, (self.session_id, *tx_params))
-            findings_count = cursor.fetchone()[0]
-            scoped_findings = 0
-            unscoped_findings = findings_count
+        findings_count, scoped_findings, unscoped_findings = \
+            self._query_scope_weighted_count(cursor, "project_findings", goal_ids, has_goals, tx_sql, tx_params)
 
         # --- Scope-weighted dead-ends ---
-        if has_goals:
-            placeholders = ",".join("?" for _ in goal_ids)
-            cursor.execute(f"""
-                SELECT
-                    SUM(CASE WHEN goal_id IN ({placeholders}) THEN 1 ELSE 0 END),
-                    SUM(CASE WHEN goal_id IS NULL OR goal_id = ''
-                             OR goal_id NOT IN ({placeholders}) THEN 1 ELSE 0 END)
-                FROM project_dead_ends
-                WHERE session_id = ? {tx_sql}
-            """, (*goal_ids, *goal_ids, self.session_id, *tx_params))
-            row = cursor.fetchone()
-            scoped_dead_ends = row[0] or 0 if row else 0
-            unscoped_dead_ends = row[1] or 0 if row else 0
-            dead_ends_count = scoped_dead_ends + (unscoped_dead_ends * UNSCOPED_ARTIFACT_WEIGHT)
-        else:
-            cursor.execute(f"""
-                SELECT COUNT(*) FROM project_dead_ends
-                WHERE session_id = ? {tx_sql}
-            """, (self.session_id, *tx_params))
-            dead_ends_count = cursor.fetchone()[0]
+        dead_ends_count, _scoped_de, _unscoped_de = \
+            self._query_scope_weighted_count(cursor, "project_dead_ends", goal_ids, has_goals, tx_sql, tx_params)
 
         # Mistakes count (not scope-weighted — all mistakes are relevant)
         cursor.execute(f"""
@@ -1303,6 +1264,42 @@ class PostTestCollector:
 
         return items
 
+    def _gather_non_git_files(self, git_root: str | None) -> set:
+        """Gather file paths edited outside the git repository from transaction and DB sources."""
+        non_git_files: set = set()
+        for fp in self._get_transaction_edited_files():
+            if self._is_outside_git(fp, git_root):
+                non_git_files.add(fp)
+        try:
+            db = self._get_db()
+            cursor = db.conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='codebase_entities'")
+            if cursor.fetchone():
+                cursor.execute("SELECT DISTINCT file_path FROM codebase_entities WHERE session_id = ? AND file_path IS NOT NULL", (self.session_id,))
+                for row in cursor.fetchall():
+                    if row[0] and self._is_outside_git(row[0], git_root):
+                        non_git_files.add(row[0])
+        except Exception:
+            pass
+        return non_git_files
+
+    def _verify_recently_modified(self, file_paths: set) -> list[str]:
+        """Filter file paths to those that exist and were modified after transaction start."""
+        existing_files = []
+        tx_start = self.preflight_timestamp or self.check_timestamp
+        for fp in file_paths:
+            p = Path(fp)
+            if p.exists():
+                if tx_start:
+                    try:
+                        if p.stat().st_mtime >= (tx_start - 1.0):
+                            existing_files.append(fp)
+                    except OSError:
+                        pass
+                else:
+                    existing_files.append(fp)
+        return existing_files
+
     def _collect_non_git_file_metrics(self) -> list[EvidenceItem]:
         """Collect evidence of file changes outside the git repository.
 
@@ -1333,53 +1330,11 @@ class PostTestCollector:
             except (subprocess.TimeoutExpired, FileNotFoundError):
                 pass
 
-        # Source 1: edited_files from transaction file
-        non_git_files: set = set()
-        tx_edited = self._get_transaction_edited_files()
-        for fp in tx_edited:
-            if self._is_outside_git(fp, git_root):
-                non_git_files.add(fp)
-
-        # Source 2: codebase_entities file_path for this session
-        try:
-            db = self._get_db()
-            cursor = db.conn.cursor()
-            cursor.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='codebase_entities'"
-            )
-            if cursor.fetchone():
-                cursor.execute(
-                    "SELECT DISTINCT file_path FROM codebase_entities WHERE session_id = ? AND file_path IS NOT NULL",
-                    (self.session_id,),
-                )
-                for row in cursor.fetchall():
-                    fp = row[0]
-                    if fp and self._is_outside_git(fp, git_root):
-                        non_git_files.add(fp)
-        except Exception:
-            pass
-
+        non_git_files = self._gather_non_git_files(git_root)
         if not non_git_files:
             return items
 
-        # Verify files actually exist and were recently modified
-        existing_files = []
-        tx_start = self.preflight_timestamp or self.check_timestamp
-        for fp in non_git_files:
-            p = Path(fp)
-            if p.exists():
-                # If we have a transaction start time, check mtime
-                if tx_start:
-                    try:
-                        mtime = p.stat().st_mtime
-                        # 1s buffer for float precision loss in JSON serialization
-                        if mtime >= (tx_start - 1.0):
-                            existing_files.append(fp)
-                    except OSError:
-                        pass
-                else:
-                    existing_files.append(fp)
-
+        existing_files = self._verify_recently_modified(non_git_files)
         if not existing_files:
             return items
 
@@ -1408,7 +1363,7 @@ class PostTestCollector:
         """Read edited_files list from the hook counters JSON.
 
         The Sentinel's _try_increment_tool_count appends file_path for
-        every Edit/Write tool call to the hook_counters file (since v1.8.4).
+        every Edit/Write tool call to the hook_counters file (since v1.8.5).
         Falls back to reading from active_transaction for backward compat.
         """
         from empirica.utils.session_resolver import InstanceResolver as R
@@ -1416,14 +1371,14 @@ class PostTestCollector:
         suffix = R.instance_suffix()
         project_root = self._resolve_project_root()
 
-        # Try hook_counters file first (v1.8.4+), then fall back to transaction file
+        # Try hook_counters file first (v1.8.5+), then fall back to transaction file
         search_dirs = []
         if project_root:
             search_dirs.append(Path(project_root) / '.empirica')
         search_dirs.append(Path.home() / '.empirica')
 
         for empirica_dir in search_dirs:
-            # Primary: hook_counters file (hook-owned since v1.8.4)
+            # Primary: hook_counters file (hook-owned since v1.8.5)
             counters_path = empirica_dir / f'hook_counters{suffix}.json'
             if counters_path.exists():
                 try:
@@ -1431,7 +1386,7 @@ class PostTestCollector:
                         return json.load(f).get('edited_files', [])
                 except Exception:
                     pass
-            # Fallback: active_transaction (pre-v1.8.4 compat)
+            # Fallback: active_transaction (pre-v1.8.5 compat)
             tx_path = empirica_dir / f'active_transaction{suffix}.json'
             if tx_path.exists():
                 try:
@@ -1602,6 +1557,38 @@ class PostTestCollector:
                 pass
         return None
 
+    def _collect_git_loc_amd_tree(self, since: str, project_root: str) -> list[EvidenceItem]:
+        """Collect LOC delta, A/M/D file ratio, and working-tree cleanliness evidence."""
+        import re
+        items = []
+        result = subprocess.run(["git", "log", "--shortstat", "--format=", "--since=" + since],
+                                capture_output=True, text=True, timeout=5, cwd=project_root)
+        if result.returncode == 0 and result.stdout.strip():
+            insertions = sum(int(m.group(1)) for m in re.finditer(r'(\d+) insertion', result.stdout))
+            deletions = sum(int(m.group(1)) for m in re.finditer(r'(\d+) deletion', result.stdout))
+            total_loc = insertions + deletions
+            if total_loc > 0:
+                items.append(EvidenceItem(source="git", metric_name="loc_delta", value=min(1.0, total_loc / 500.0),
+                    raw_value={"insertions": insertions, "deletions": deletions, "total": total_loc},
+                    quality=EvidenceQuality.OBJECTIVE, supports_vectors=["change", "do"]))
+        amd_counts = {}
+        for filter_code, label in [("A", "added"), ("M", "modified"), ("D", "deleted")]:
+            result = subprocess.run(["git", "log", "--name-only", "--format=", f"--diff-filter={filter_code}", "--since=" + since],
+                                    capture_output=True, text=True, timeout=5, cwd=project_root)
+            amd_counts[label] = len({f.strip() for f in result.stdout.strip().split('\n') if f.strip()}) if result.returncode == 0 else 0
+        total_amd = sum(amd_counts.values())
+        if total_amd > 0:
+            weighted = amd_counts["added"] * 1.0 + amd_counts["modified"] * 0.5 + amd_counts["deleted"] * 0.3
+            items.append(EvidenceItem(source="git", metric_name="amd_file_ratio", value=min(1.0, weighted / max(total_amd, 1)),
+                raw_value=amd_counts, quality=EvidenceQuality.OBJECTIVE, supports_vectors=["state", "change"]))
+        result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, timeout=5, cwd=project_root)
+        if result.returncode == 0:
+            uncommitted = len([l for l in result.stdout.strip().split('\n') if l.strip()])
+            items.append(EvidenceItem(source="git", metric_name="working_tree_cleanliness",
+                value=max(0.0, 1.0 - min(1.0, uncommitted / 10.0)),
+                raw_value={"uncommitted_files": uncommitted}, quality=EvidenceQuality.OBJECTIVE, supports_vectors=["state"]))
+        return items
+
     def _collect_git_metrics(self) -> list[EvidenceItem]:
         """Collect git-based metrics scoped to the current transaction.
 
@@ -1698,92 +1685,8 @@ class PostTestCollector:
                         supports_vectors=["state", "change"],
                     ))
 
-            # LOC delta: insertions + deletions for richer change signal
-            # Use git log --stat (not git diff, which doesn't support --since)
-            result = subprocess.run(
-                ["git", "log", "--shortstat", "--format=", "--since=" + since],
-                capture_output=True, text=True, timeout=5,
-                cwd=project_root,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                import re
-                # Aggregate across all commits in the period
-                insertions = sum(int(m.group(1)) for m in
-                                 re.finditer(r'(\d+) insertion', result.stdout))
-                deletions = sum(int(m.group(1)) for m in
-                                re.finditer(r'(\d+) deletion', result.stdout))
-                total_loc = insertions + deletions
-                if total_loc > 0:
-                    # Normalize: 50 LOC = 0.3, 200 = 0.6, 500+ = 1.0
-                    loc_score = min(1.0, total_loc / 500.0)
-                    items.append(EvidenceItem(
-                        source="git",
-                        metric_name="loc_delta",
-                        value=loc_score,
-                        raw_value={
-                            "insertions": insertions,
-                            "deletions": deletions,
-                            "total": total_loc,
-                        },
-                        quality=EvidenceQuality.OBJECTIVE,
-                        supports_vectors=["change", "do"],
-                    ))
-
-            # A/M/D file ratio: character of changes
-            # Use git log (not git diff, which doesn't support --since)
-            amd_counts = {}
-            for filter_code, label in [("A", "added"), ("M", "modified"), ("D", "deleted")]:
-                result = subprocess.run(
-                    ["git", "log", "--name-only", "--format=",
-                     f"--diff-filter={filter_code}", "--since=" + since],
-                    capture_output=True, text=True, timeout=5,
-                    cwd=project_root,
-                )
-                if result.returncode == 0:
-                    amd_counts[label] = len({
-                        f.strip() for f in result.stdout.strip().split('\n')
-                        if f.strip()
-                    })
-                else:
-                    amd_counts[label] = 0
-
-            total_amd = sum(amd_counts.values())
-            if total_amd > 0:
-                # State awareness: knowing what was added vs modified vs removed
-                # Weighted: new files = high state change, modify = medium, delete = lower
-                weighted = (amd_counts["added"] * 1.0 +
-                            amd_counts["modified"] * 0.5 +
-                            amd_counts["deleted"] * 0.3)
-                amd_score = min(1.0, weighted / max(total_amd, 1))
-                items.append(EvidenceItem(
-                    source="git",
-                    metric_name="amd_file_ratio",
-                    value=amd_score,
-                    raw_value=amd_counts,
-                    quality=EvidenceQuality.OBJECTIVE,
-                    supports_vectors=["state", "change"],
-                ))
-
-            # Working tree cleanliness: committed everything = state awareness
-            result = subprocess.run(
-                ["git", "status", "--porcelain"],
-                capture_output=True, text=True, timeout=5,
-                cwd=project_root,
-            )
-            if result.returncode == 0:
-                uncommitted = len([
-                    l for l in result.stdout.strip().split('\n') if l.strip()
-                ])
-                # Clean tree = 1.0, progressively lower with more uncommitted files
-                clean_score = max(0.0, 1.0 - min(1.0, uncommitted / 10.0))
-                items.append(EvidenceItem(
-                    source="git",
-                    metric_name="working_tree_cleanliness",
-                    value=clean_score,
-                    raw_value={"uncommitted_files": uncommitted},
-                    quality=EvidenceQuality.OBJECTIVE,
-                    supports_vectors=["state"],
-                ))
+            # LOC, AMD, and working-tree evidence
+            items.extend(self._collect_git_loc_amd_tree(since, project_root))
 
         except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
             pass
@@ -1857,6 +1760,38 @@ class PostTestCollector:
             "modules_touched": len(touched_dirs),
         }
 
+    def _collect_ruff_evidence(self, py_files: list[str], project_root: str) -> list[EvidenceItem]:
+        """Run ruff on changed Python files and return clarity/coherence/signal evidence."""
+        items = []
+        try:
+            result = subprocess.run(["ruff", "check", "--output-format", "json", "--quiet"] + py_files,
+                                    capture_output=True, text=True, timeout=30, cwd=project_root)
+            if result.stdout.strip():
+                import json as _json
+                violations = _json.loads(result.stdout)
+                violation_count = len(violations)
+                lines_total = self._count_lines(py_files)
+                if lines_total > 0:
+                    density_per_100 = (violation_count / lines_total) * 100
+                    clarity_score = max(0.0, 1.0 - (density_per_100 / 10.0))
+                    items.append(EvidenceItem(source="code_quality", metric_name="ruff_violation_density",
+                        value=clarity_score, raw_value={"violations": violation_count, "lines": lines_total,
+                            "per_100_lines": round(density_per_100, 2), "files_checked": len(py_files)},
+                        quality=EvidenceQuality.SEMI_OBJECTIVE, supports_vectors=["clarity", "coherence"]))
+                    error_count = sum(1 for v in violations if v.get("code", "").startswith(("E", "F")))
+                    if violation_count > 0:
+                        items.append(EvidenceItem(source="code_quality", metric_name="ruff_error_ratio",
+                            value=max(0.0, 1.0 - error_count / violation_count),
+                            raw_value={"errors": error_count, "style": violation_count - error_count, "total": violation_count},
+                            quality=EvidenceQuality.SEMI_OBJECTIVE, supports_vectors=["signal"]))
+            elif result.returncode == 0:
+                items.append(EvidenceItem(source="code_quality", metric_name="ruff_violation_density", value=1.0,
+                    raw_value={"violations": 0, "files_checked": len(py_files)},
+                    quality=EvidenceQuality.SEMI_OBJECTIVE, supports_vectors=["clarity", "coherence"]))
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            pass
+        return items
+
     def _collect_code_quality_metrics(self) -> list[EvidenceItem]:
         """Collect code quality evidence from static analysis tools.
 
@@ -1880,74 +1815,7 @@ class PostTestCollector:
             return items
 
         # --- Ruff: linting violations → clarity, coherence ---
-        try:
-            result = subprocess.run(
-                ["ruff", "check", "--output-format", "json", "--quiet"] + py_files,
-                capture_output=True, text=True, timeout=30,
-                cwd=project_root,
-            )
-            # ruff exits non-zero when violations found — that's expected
-            if result.stdout.strip():
-                import json as _json
-                violations = _json.loads(result.stdout)
-                violation_count = len(violations)
-                lines_total = self._count_lines(py_files)
-
-                if lines_total > 0:
-                    # Violations per 100 lines — lower is better
-                    density_per_100 = (violation_count / lines_total) * 100
-                    # Normalize: 0 violations = 1.0, 10+ per 100 lines = 0.0
-                    clarity_score = max(0.0, 1.0 - (density_per_100 / 10.0))
-
-                    # SEMI_OBJECTIVE: static analysis of in-progress code measures
-                    # snapshot quality, not delta quality. New files during active
-                    # development score lower than mature code regardless of skill.
-                    items.append(EvidenceItem(
-                        source="code_quality",
-                        metric_name="ruff_violation_density",
-                        value=clarity_score,
-                        raw_value={
-                            "violations": violation_count,
-                            "lines": lines_total,
-                            "per_100_lines": round(density_per_100, 2),
-                            "files_checked": len(py_files),
-                        },
-                        quality=EvidenceQuality.SEMI_OBJECTIVE,
-                        supports_vectors=["clarity", "coherence"],
-                    ))
-
-                    # Categorize violations by severity
-                    error_count = sum(1 for v in violations
-                                      if v.get("code", "").startswith(("E", "F")))
-                    style_count = violation_count - error_count
-                    if violation_count > 0:
-                        error_ratio = error_count / violation_count
-                        # More errors vs style = worse signal quality
-                        signal_score = max(0.0, 1.0 - error_ratio)
-                        items.append(EvidenceItem(
-                            source="code_quality",
-                            metric_name="ruff_error_ratio",
-                            value=signal_score,
-                            raw_value={
-                                "errors": error_count,
-                                "style": style_count,
-                                "total": violation_count,
-                            },
-                            quality=EvidenceQuality.SEMI_OBJECTIVE,
-                            supports_vectors=["signal"],
-                        ))
-            elif result.returncode == 0:
-                # No violations at all — perfect clarity
-                items.append(EvidenceItem(
-                    source="code_quality",
-                    metric_name="ruff_violation_density",
-                    value=1.0,
-                    raw_value={"violations": 0, "files_checked": len(py_files)},
-                    quality=EvidenceQuality.SEMI_OBJECTIVE,
-                    supports_vectors=["clarity", "coherence"],
-                ))
-        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-            pass
+        items.extend(self._collect_ruff_evidence(py_files, project_root))
 
         # --- Radon: cyclomatic complexity → density, signal ---
         try:

@@ -7,7 +7,7 @@ loaded dynamically from cascade_styles.yaml (MCO architecture).
 Usage:
     # Legacy code (still works):
     from empirica.core.thresholds import ENGAGEMENT_THRESHOLD
-    
+
     # New code (recommended):
     from empirica.config import get_threshold_config
     config = get_threshold_config()
@@ -46,7 +46,7 @@ def _get_config():
 def _get_threshold(key_path: str, hardcoded_default: Any) -> Any:
     """
     Get threshold value from dynamic config, fallback to hardcoded default.
-    
+
     This provides backwards compatibility - existing code importing constants
     will get values from the current active profile.
     """
@@ -131,7 +131,7 @@ def get_check_confidence_threshold() -> float:
 def reload_thresholds():
     """
     Reload thresholds from configuration.
-    
+
     Call this after switching profiles to update module-level constants.
     Note: This only affects NEW imports. Already-imported constants won't change.
     """

@@ -23,7 +23,7 @@ Docker Example:
     Set in docker-compose.yml:
       environment:
         - EMPIRICA_WORKSPACE_ROOT=/workspace
-    
+
     This ensures all containers use the same workspace for empirica data.
 
 Author: Claude Code
@@ -35,7 +35,6 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 import yaml
 

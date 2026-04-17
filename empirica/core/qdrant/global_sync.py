@@ -24,11 +24,11 @@ def embed_to_global(
     text: str,
     item_type: str,
     project_id: str,
-    session_id: str = None,
-    impact: float = None,
-    resolved_by: str = None,
-    timestamp: str = None,
-    tags: list[str] = None
+    session_id: str | None = None,
+    impact: float | None = None,
+    resolved_by: str | None = None,
+    timestamp: str | None = None,
+    tags: list[str] | None = None
 ) -> bool:
     """
     Embed a high-impact item to global learnings collection.
@@ -81,8 +81,8 @@ def embed_to_global(
 
 def search_global(
     query_text: str,
-    item_types: list[str] = None,
-    min_impact: float = None,
+    item_types: list[str] | None = None,
+    min_impact: float | None = None,
     limit: int = 10
 ) -> list[dict]:
     """
@@ -152,8 +152,8 @@ def search_global(
 
 def search_cross_project(
     query_text: str,
-    exclude_project_id: str = None,
-    collections_to_search: list[str] = None,
+    exclude_project_id: str | None = None,
+    collections_to_search: list[str] | None = None,
     limit: int = 5,
     min_points: int = 1,
 ) -> list[dict]:
@@ -373,13 +373,13 @@ def embed_dead_end_with_branch_context(
     dead_end_id: str,
     approach: str,
     why_failed: str,
-    session_id: str = None,
-    branch_id: str = None,
-    winning_branch_id: str = None,
-    score_diff: float = None,
-    preflight_vectors: dict = None,
-    postflight_vectors: dict = None,
-    timestamp: str = None
+    session_id: str | None = None,
+    branch_id: str | None = None,
+    winning_branch_id: str | None = None,
+    score_diff: float | None = None,
+    preflight_vectors: dict | None = None,
+    postflight_vectors: dict | None = None,
+    timestamp: str | None = None
 ) -> bool:
     """
     Embed a dead end with full branch context for similarity search.

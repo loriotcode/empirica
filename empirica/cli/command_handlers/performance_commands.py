@@ -17,7 +17,7 @@ def _get_profile_performance_thresholds():
 
         try:
             profile = loader.get_profile('balanced')
-            constraints = profile.constraints
+            constraints = profile.investigation
 
             return {
                 'performance_low': getattr(constraints, 'performance_low_threshold', 0.6),

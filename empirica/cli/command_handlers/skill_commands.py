@@ -235,7 +235,7 @@ def handle_skill_extract_command(args):
                 for domain in result['domains']:
                     print(f"  - {domain}")
             else:
-                domain_name = list(domain_data.keys())[0] if domain_data else 'unknown'
+                domain_name = next(iter(domain_data.keys())) if domain_data else 'unknown'
                 print(f"Extracted skill: {domain_name}")
 
         return result

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "empirica"
-version = "1.8.4"
+version = "1.8.5"
 description = "Measurement and calibration layer for AI — track what it knows, gate what it does"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -201,11 +201,27 @@ extend-select = [
     "C4",  # flake8-comprehensions
     "SIM", # flake8-simplify
     "RUF", # ruff-specific rules
+    "S",   # flake8-bandit (security)
 ]
 ignore = [
-    "E501",  # line too long (handled by formatter)
-    "E741",  # ambiguous variable name
-    "B008",  # function call in argument defaults
+    "E501",   # line too long (handled by formatter)
+    "E741",   # ambiguous variable name
+    "B008",   # function call in argument defaults
+    # Zealous style rules — low signal, high noise
+    "SIM105", # suppressible-exception (contextlib.suppress not always clearer)
+    "SIM108", # if-else-to-ternary (often less readable)
+    "SIM102", # collapsible-if (often less readable)
+    "RUF001", # ambiguous unicode in string (intentional: × in formulas)
+    "RUF002", # ambiguous unicode in docstring (intentional)
+    "RUF005", # collection-literal-concatenation (style preference)
+    "B905",   # zip-without-strict (pedantic for internal code)
+    # Security false-positive heavy
+    "S324",   # hashlib-insecure-hash (MD5 used for content IDs/dedup, not crypto)
+    "S608",   # hardcoded-sql (false positive: f-string SQL uses internal fragments, not user input; params use ?)
+    "S607",   # start-process-with-partial-path (we legitimately call git, python3)
+    "S603",   # subprocess-without-shell-equals-true (subprocess is core to our hooks)
+    "S112",   # try-except-continue (style variant of S110, too noisy)
+    "S310",   # suspicious-url-open (legitimate URL handling)
 ]
 
 [tool.ruff.lint.mccabe]
@@ -217,7 +233,26 @@ section-order = ["future", "standard-library", "third-party", "first-party", "lo
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = ["S101"]  # allow assert in tests
-"__init__.py" = ["F401"]  # allow unused imports in __init__
+"tests/**/*.py" = ["S101"]  # allow assert in nested tests
+"empirica/core/schemas/*.py" = ["S101"]  # validation asserts in schema converters
+"__init__.py" = ["F401", "E402"]  # allow unused imports and late imports in __init__
+"empirica/cli/cli_core.py" = ["F405", "E402", "S110"]  # star import + conditional imports + graceful startup
+"empirica/cli/command_handlers/*.py" = ["S110"]  # command handlers use try-except-pass for graceful fallback on context resolution
+"empirica/cli/command_handlers/monitor_commands.py" = ["E402"]  # conditional imports
+"empirica/utils/session_resolver.py" = ["S110"]  # cascading context resolution — try-except-pass is the designed pattern
+"empirica/core/epistemic_brief.py" = ["S110"]  # best-effort context enrichment
+"empirica/core/post_test/collector.py" = ["S110"]  # evidence collection — missing evidence is normal, not an error
+"empirica/core/system_dashboard.py" = ["S110"]  # dashboard aggregation — partial data is acceptable
+"empirica/core/memory_manager.py" = ["S110"]  # memory operations — graceful degradation
+"empirica/config/path_resolver.py" = ["S110"]  # path resolution with fallback chains
+"empirica/core/statusline_cache.py" = ["S110"]  # cache reads — stale/missing cache is normal
+"empirica/core/canonical/*.py" = ["S110"]  # artifact extraction — partial extraction is fine
+"empirica/data/*.py" = ["S110"]  # database operations — graceful fallback on schema/data issues
+"empirica/cli/asyncio_fix.py" = ["S110"]  # asyncio patching — errors are expected on some platforms
+"empirica/core/qdrant/*.py" = ["S110"]  # vector store — Qdrant down is a normal condition
+"empirica/utils/memory_swap.py" = ["S110"]  # memory swap — fallback on swap issues
+"empirica/plugins/**/*.py" = ["S108", "S110"]  # hooks: temp paths + resilient try-except-pass (crash = CLI block)
+"scripts/*.py" = ["S108"]  # scripts use temp paths
 
 [tool.pyright]
 include = ["empirica", "tests"]
@@ -238,6 +273,20 @@ reportUnusedFunction = true
 reportDuplicateImport = true
 strictListInference = true
 strictDictionaryInference = true
+# Suppress noisy categories — too many false positives from dynamic Python patterns
+reportOptionalMemberAccess = false  # try/except patterns handle None at runtime
+reportArgumentType = false          # dynamic dispatch, variable reuse across branches
+reportOptionalSubscript = false     # same pattern as OptionalMemberAccess
+reportCallIssue = false             # overloaded constructors, optional params
+reportOperatorIssue = false         # dynamic types in aggregation code
+reportIndexIssue = false            # dict access on union types
+reportAssignmentType = false        # Path/str interop, intentional type widening
+# Keep these — they catch real bugs
+reportUndefinedVariable = true      # catches missing imports, typos
+reportReturnType = true             # catches wrong return types
+reportRedeclaration = true          # catches shadowing bugs
+reportAttributeAccessIssue = true   # catches typos in attribute names
+reportGeneralTypeIssues = true      # general type safety
 
 [tool.pyright.defineConstant]
 TESTING = true

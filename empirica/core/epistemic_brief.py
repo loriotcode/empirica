@@ -13,12 +13,11 @@ The brief is generated at bootstrap time and surfaced at project-switch.
 
 import logging
 import time
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
-def generate_epistemic_brief(project_id: str, db_path: str = None, limit: int = 5) -> dict:
+def generate_epistemic_brief(project_id: str, db_path: str | None = None, limit: int = 5) -> dict:
     """Generate a quantified epistemic brief for a project.
 
     Composes from SQLite (artifact counts, calibration) and Qdrant (semantic
@@ -82,7 +81,7 @@ def _resolve_local_project_id(db, workspace_project_id: str) -> str:
     return workspace_project_id
 
 
-def _build_knowledge_state(project_id: str, db_path: str = None) -> dict:
+def _build_knowledge_state(project_id: str, db_path: str | None = None) -> dict:
     """Quantify what the project knows."""
     try:
         db = _get_db(db_path)
@@ -93,9 +92,7 @@ def _build_knowledge_state(project_id: str, db_path: str = None) -> dict:
                              'dead_ends': 'project_dead_ends', 'mistakes': 'mistakes_made',
                              'goals': 'goals', 'sessions': 'sessions'}.items():
             try:
-                if name == 'sessions':
-                    cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE project_id = ?", (project_id,))
-                elif name in ('findings', 'unknowns', 'dead_ends'):
+                if name == 'sessions' or name in ('findings', 'unknowns', 'dead_ends'):
                     cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE project_id = ?", (project_id,))
                 elif name == 'mistakes':
                     cursor.execute(f"""SELECT COUNT(*) FROM {table} m
@@ -149,7 +146,7 @@ def _build_knowledge_state(project_id: str, db_path: str = None) -> dict:
         return {'artifact_counts': {}, 'domains': [], 'total_artifacts': 0}
 
 
-def _build_risk_profile(project_id: str, db_path: str = None, limit: int = 5) -> dict:
+def _build_risk_profile(project_id: str, db_path: str | None = None, limit: int = 5) -> dict:
     """Quantify what the project doesn't know or got wrong."""
     try:
         db = _get_db(db_path)
@@ -196,12 +193,13 @@ def _build_risk_profile(project_id: str, db_path: str = None, limit: int = 5) ->
         return {'unresolved_unknowns': [], 'unresolved_count': 0, 'stale_assumptions': []}
 
 
-def _build_calibration_health(project_id: str, db_path: str = None) -> dict:
+def _build_calibration_health(project_id: str, db_path: str | None = None) -> dict:
     """Quantify calibration accuracy."""
     try:
         # Read from .breadcrumbs.yaml (canonical calibration source)
-        from empirica.config.path_resolver import get_empirica_root
         import yaml
+
+        from empirica.config.path_resolver import get_empirica_root
 
         calibration = {}
         try:
@@ -229,7 +227,7 @@ def _build_calibration_health(project_id: str, db_path: str = None) -> dict:
         return {}
 
 
-def _build_active_work(project_id: str, db_path: str = None) -> dict:
+def _build_active_work(project_id: str, db_path: str | None = None) -> dict:
     """Quantify active work state."""
     try:
         db = _get_db(db_path)
@@ -269,7 +267,7 @@ def _build_active_work(project_id: str, db_path: str = None) -> dict:
         return {'open_goals': 0, 'stale_goals': 0, 'recent_transactions_7d': 0}
 
 
-def _build_anti_patterns(project_id: str, db_path: str = None, limit: int = 5) -> dict:
+def _build_anti_patterns(project_id: str, db_path: str | None = None, limit: int = 5) -> dict:
     """Surface dead-ends and mistakes as explicit warnings."""
     try:
         db = _get_db(db_path)
@@ -321,7 +319,7 @@ def _build_anti_patterns(project_id: str, db_path: str = None, limit: int = 5) -
         return {'dead_ends': [], 'mistakes': [], 'total_warnings': 0}
 
 
-def _build_learning_velocity(project_id: str, db_path: str = None) -> dict:
+def _build_learning_velocity(project_id: str, db_path: str | None = None) -> dict:
     """Measure learning trajectory across recent transactions."""
     try:
         db = _get_db(db_path)

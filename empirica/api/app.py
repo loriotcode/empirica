@@ -119,4 +119,4 @@ if __name__ == "__main__":
     app = create_app()
     # Security: Use environment variable for debug mode, default to False
     debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
-    app.run(host="0.0.0.0", port=8000, debug=debug_mode)
+    app.run(host="0.0.0.0", port=8000, debug=debug_mode)  # noqa: S104 — dev server; production uses gunicorn

@@ -18,7 +18,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from empirica.core.sentinel.orchestrator import EpistemicLoopTracker
@@ -78,7 +78,7 @@ def extract_persona_from_loop_tracker(
     session_id: str,
     loop_tracker: EpistemicLoopTracker,
     task_description: str = "",
-    branch_id: str = None
+    branch_id: str | None = None
 ) -> EmergedPersona | None:
     """
     Extract an emerged persona from a successful loop tracker.
@@ -209,7 +209,7 @@ class EmergedPersonaStore:
     Format: emerged_{persona_id}.yaml
     """
 
-    def __init__(self, base_path: str = None):
+    def __init__(self, base_path: str | None = None):
         """Initialize persona store with optional custom base path."""
         if base_path:
             self.base_path = Path(base_path)
@@ -305,8 +305,8 @@ def extract_and_store_persona(
     session_id: str,
     loop_tracker: EpistemicLoopTracker,
     task_description: str = "",
-    branch_id: str = None,
-    store_path: str = None
+    branch_id: str | None = None,
+    store_path: str | None = None
 ) -> str | None:
     """
     Convenience function to extract and store a persona in one call.
@@ -332,9 +332,9 @@ def extract_and_store_persona(
 
 def sentinel_match_persona(
     task: str,
-    grounding_vectors: dict[str, float] = None,
+    grounding_vectors: dict[str, float] | None = None,
     min_reputation: float = 0.5,
-    store_path: str = None
+    store_path: str | None = None
 ) -> EmergedPersona | None:
     """
     Sentinel-level persona matching: finds best persona for task + grounding.
@@ -396,9 +396,9 @@ def sentinel_match_persona(
 def match_or_decompose(
     task: str,
     session_id: str,
-    grounding_vectors: dict[str, float] = None,
+    grounding_vectors: dict[str, float] | None = None,
     min_reputation: float = 0.3,
-    store_path: str = None
+    store_path: str | None = None
 ) -> dict[str, Any]:
     """
     Attempt to match a persona for a task. If no match, trigger decomposition.
@@ -549,8 +549,8 @@ def convert_emerged_to_persona_json(emerged: EmergedPersona) -> dict[str, Any]:
 
 def promote_emerged_to_personas_dir(
     persona_id: str,
-    personas_dir: str = None,
-    store_path: str = None
+    personas_dir: str | None = None,
+    store_path: str | None = None
 ) -> str | None:
     """
     Promote an emerged persona to the standard personas directory,

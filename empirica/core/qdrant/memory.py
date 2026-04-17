@@ -28,14 +28,14 @@ def embed_single_memory_item(
     item_id: str,
     text: str,
     item_type: str,
-    session_id: str = None,
-    goal_id: str = None,
-    subtask_id: str = None,
-    subject: str = None,
-    impact: float = None,
-    is_resolved: bool = None,
-    resolved_by: str = None,
-    timestamp: str = None
+    session_id: str | None = None,
+    goal_id: str | None = None,
+    subtask_id: str | None = None,
+    subject: str | None = None,
+    impact: float | None = None,
+    is_resolved: bool | None = None,
+    resolved_by: str | None = None,
+    timestamp: str | None = None
 ) -> bool:
     """
     Embed a single memory item (finding, unknown, mistake, dead_end) to Qdrant.
@@ -266,7 +266,7 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
     _intelligence_filter = None
     if kind == "intelligence":
         try:
-            from qdrant_client.models import Filter, FieldCondition, MatchValue
+            from qdrant_client.models import FieldCondition, Filter, MatchValue
             _intelligence_filter = Filter(
                 must_not=[FieldCondition(key="type", match=MatchValue(value="code_api"))]
             )

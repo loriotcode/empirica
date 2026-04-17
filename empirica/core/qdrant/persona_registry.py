@@ -28,7 +28,7 @@ Design:
 
 import logging
 from hashlib import sha256
-from typing import Any, Optional
+from typing import Any, ClassVar
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
@@ -78,7 +78,7 @@ class PersonaRegistry:
     VECTOR_SIZE = 13
 
     # Epistemic vectors in order
-    VECTOR_KEYS = [
+    VECTOR_KEYS: ClassVar[list[str]] = [
         "engagement",
         "know",
         "do",
@@ -127,7 +127,7 @@ class PersonaRegistry:
 
         except Exception as e:
             logger.error(f"Failed to connect to Qdrant: {e}")
-            raise ConnectionError(f"Cannot connect to Qdrant: {e}")
+            raise ConnectionError(f"Cannot connect to Qdrant: {e}") from e
 
         # Ensure collection exists
         self._ensure_collection()
@@ -211,7 +211,7 @@ class PersonaRegistry:
 
         except Exception as e:
             logger.error(f"Failed to register persona: {e}")
-            raise ValueError(f"Cannot register persona: {e}")
+            raise ValueError(f"Cannot register persona: {e}") from e
 
     def find_personas_by_domain(
         self,
@@ -564,7 +564,7 @@ class PersonaRegistry:
 
         except Exception as e:
             logger.error(f"Failed to register agent: {e}")
-            raise ValueError(f"Cannot register agent: {e}")
+            raise ValueError(f"Cannot register agent: {e}") from e
 
     def find_agents_by_domain(
         self,

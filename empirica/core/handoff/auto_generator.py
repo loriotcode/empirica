@@ -15,16 +15,16 @@ logger = logging.getLogger(__name__)
 def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/sessions.db") -> dict:
     """
     Auto-generate handoff report from cascades data in database.
-    
+
     Token efficiency: ~500 tokens vs 2000+ if storing full cascade data
-    
+
     Args:
         session_id: Session UUID
         db_path: Path to session database
-        
+
     Returns:
         dict: Handoff report data ready for storage
-        
+
     Raises:
         ValueError: If session not found or no cascades exist
     """
@@ -45,7 +45,7 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
         if not session:
             raise ValueError(f"Session {session_id} not found")
 
-        ai_id, start_time, end_time, bootstrap_level, total_cascades = session
+        ai_id, start_time, end_time, _, _ = session
 
         # 2. Get all cascades for this session
         cursor.execute("""
@@ -201,11 +201,11 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
 def _get_artifacts_from_session(session_id: str, start_time: str) -> list[str]:
     """
     Get list of files modified during session using git diff.
-    
+
     Args:
         session_id: Session UUID
         start_time: Session start timestamp
-        
+
     Returns:
         List of modified file paths
     """
@@ -235,7 +235,7 @@ def _get_artifacts_from_session(session_id: str, start_time: str) -> list[str]:
 def close_session(session_id: str, db_path: str = "./.empirica/sessions/sessions.db") -> None:
     """
     Close session by setting end_time in database.
-    
+
     Args:
         session_id: Session UUID
         db_path: Path to session database

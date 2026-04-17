@@ -8,7 +8,7 @@ All methods gracefully handle missing bd CLI (returns None/empty).
 import json
 import logging
 import subprocess
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -50,14 +50,14 @@ class BeadsAdapter:
         labels: list[str] | None = None
     ) -> str | None:
         """Create BEADS issue, return hash ID (e.g., bd-a1b2)
-        
+
         Args:
             title: Issue title (required)
             description: Issue description (optional)
             priority: Priority 1-3 (1=high, 2=medium, 3=low)
             issue_type: task, feature, bug, epic
             labels: Optional labels list
-        
+
         Returns:
             BEADS issue ID (e.g., "bd-a1b2") or None if bd not available
         """
@@ -102,12 +102,12 @@ class BeadsAdapter:
         dep_type: str = 'blocks'
     ) -> bool:
         """Add dependency between BEADS issues
-        
+
         Args:
             child_id: Child issue ID
             parent_id: Parent issue ID
             dep_type: Dependency type (blocks, related, discovered-from)
-        
+
         Returns:
             True if successful, False otherwise
         """
@@ -130,11 +130,11 @@ class BeadsAdapter:
 
     def get_ready_work(self, limit: int = 10, priority: int | None = None) -> list[dict[str, Any]]:
         """Get ready work from BEADS (issues with no open blockers)
-        
+
         Args:
             limit: Maximum number of issues to return
             priority: Filter by priority (1, 2, or 3)
-        
+
         Returns:
             List of issue dicts or empty list if not available
         """
@@ -168,11 +168,11 @@ class BeadsAdapter:
 
     def update_status(self, issue_id: str, status: str) -> bool:
         """Update BEADS issue status
-        
+
         Args:
             issue_id: BEADS issue ID
             status: Status (open, in_progress, blocked, closed)
-        
+
         Returns:
             True if successful, False otherwise
         """
@@ -195,11 +195,11 @@ class BeadsAdapter:
 
     def close_issue(self, issue_id: str, reason: str = "Completed") -> bool:
         """Close BEADS issue
-        
+
         Args:
             issue_id: BEADS issue ID
             reason: Close reason (optional)
-        
+
         Returns:
             True if successful, False otherwise
         """
@@ -222,10 +222,10 @@ class BeadsAdapter:
 
     def get_issue(self, issue_id: str) -> dict[str, Any] | None:
         """Get BEADS issue details
-        
+
         Args:
             issue_id: BEADS issue ID
-        
+
         Returns:
             Issue dict or None if not found/not available
         """
@@ -253,10 +253,10 @@ class BeadsAdapter:
 
     def get_dependency_tree(self, issue_id: str) -> str | None:
         """Get dependency tree for an issue (ASCII tree output)
-        
+
         Args:
             issue_id: BEADS issue ID
-        
+
         Returns:
             ASCII tree string or None if not available
         """

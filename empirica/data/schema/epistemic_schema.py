@@ -12,16 +12,16 @@ SCHEMAS = [
                     belief_id TEXT PRIMARY KEY,
                     cascade_id TEXT NOT NULL,
                     vector_name TEXT NOT NULL,
-                    
+
                     mean REAL NOT NULL,
                     variance REAL NOT NULL,
                     evidence_count INTEGER DEFAULT 0,
-                    
+
                     prior_mean REAL NOT NULL,
                     prior_variance REAL NOT NULL,
-                    
+
                     last_updated TIMESTAMP,
-                    
+
                     FOREIGN KEY (cascade_id) REFERENCES cascades(cascade_id)
                 )
     """,
@@ -33,30 +33,30 @@ SCHEMAS = [
                     session_id TEXT NOT NULL,
                     ai_id TEXT NOT NULL,
                     timestamp TEXT NOT NULL,
-    
+
                     cascade_phase TEXT,
                     cascade_id TEXT,
-    
+
                     vectors TEXT NOT NULL,
                     delta TEXT,
                     previous_snapshot_id TEXT,
-    
+
                     context_summary TEXT,
                     evidence_refs TEXT,
                     db_session_ref TEXT,
-    
+
                     domain_vectors TEXT,
-    
+
                     original_context_tokens INTEGER DEFAULT 0,
                     snapshot_tokens INTEGER DEFAULT 0,
                     compression_ratio REAL DEFAULT 0.0,
-    
+
                     information_loss_estimate REAL DEFAULT 0.0,
                     fidelity_score REAL DEFAULT 1.0,
-    
+
                     transfer_count INTEGER DEFAULT 0,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    
+
                     FOREIGN KEY (session_id) REFERENCES sessions(session_id),
                     FOREIGN KEY (cascade_id) REFERENCES cascades(cascade_id),
                     FOREIGN KEY (previous_snapshot_id) REFERENCES epistemic_snapshots(snapshot_id)
@@ -72,7 +72,7 @@ SCHEMAS = [
                     phase TEXT NOT NULL,
                     round INTEGER DEFAULT 1,
                     timestamp REAL NOT NULL,
-    
+
                     -- 13 epistemic vectors
                     engagement REAL,
                     know REAL,
@@ -87,7 +87,7 @@ SCHEMAS = [
                     completion REAL,
                     impact REAL,
                     uncertainty REAL,
-    
+
                     -- Metadata
                     reflex_data TEXT,
                     reasoning TEXT,

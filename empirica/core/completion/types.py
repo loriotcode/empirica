@@ -15,7 +15,7 @@ from typing import Any
 class CompletionRecord:
     """
     Completion status for a goal
-    
+
     Tracks progress, completed/remaining tasks, and evidence.
     """
     goal_id: str
@@ -62,7 +62,7 @@ class CompletionRecord:
 class CompletionMetrics:
     """
     Aggregate completion metrics across goals
-    
+
     Useful for session-level or project-level tracking.
     """
     goals_completed: int

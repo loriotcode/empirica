@@ -164,7 +164,7 @@ def handle_project_update_command(args):
         return None
 
 
-def _migrate_v1_to_v2(config: 'ProjectConfig', git_root: Path) -> list:
+def _migrate_v1_to_v2(config: 'ProjectConfig', git_root: Path) -> list:  # noqa: F821
     """Migrate v1.0 config to v2.0 with auto-detected values."""
     changes = []
 
@@ -228,7 +228,7 @@ def _soft_validate_edge(entity: str):
         pass  # Workspace may not be available
 
 
-def _sync_to_db(config: 'ProjectConfig', git_root: Path):
+def _sync_to_db(config: 'ProjectConfig', git_root: Path):  # noqa: F821
     """Sync updated config fields to sessions.db and workspace.db."""
     try:
         from empirica.data.session_database import SessionDatabase

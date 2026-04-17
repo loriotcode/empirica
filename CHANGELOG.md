@@ -5,6 +5,37 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.5] - 2026-04-16
+
+### Fixed
+- **Ruff compliance**: 25,212 violations → 65 (99.7% reduction). All rule categories
+  except C901 complexity at zero. Added S (bandit) security rules, configured sensible
+  ignores for zealous rules, per-file ignores for intentional patterns.
+- **C901 complexity**: Max function CC 158 → 29. All functions over CC 30 eliminated.
+  20 monolithic handlers refactored into orchestrators with ~120 extracted helpers.
+  Key handlers: POSTFLIGHT 158→33, CHECK 129→10, PREFLIGHT 109→7, bootstrap 146→17.
+- **Dead code**: 450 LOC removed (1 dead module, 9 dead functions, 2 duplicate wrappers).
+- **Type safety**: 248 implicit-optional annotations fixed (RUF013: `str=None` → `str|None=None`).
+- **Traceback preservation**: 18 `raise X` inside except blocks fixed to `raise X from e` (B904).
+- **goals-activate bug**: GoalDataRepository instantiated without DB connection.
+- **EMPIRICA_SESSION_ID post-compact**: Recovery messages now surface export command for
+  shell env var restoration.
+- **Security**: Removed `claude-safe` (sudoers file) accidentally committed in 1.6.7.
+
+### Changed
+- **Pyright config**: Suppressed noisy categories (Optional/Argument/Subscript/Call/Operator/
+  Index/Assignment), kept bug-catchers (UndefinedVariable, ReturnType, AttributeAccess).
+- **EMPIRICA_SESSION_ID deprecated**: CLI auto-resolves sessions via InstanceResolver.
+  Env var no longer needed, `set-session-env.sh` shows deprecation warning.
+- **Security rules active**: S (bandit) rules enabled in ruff — S110 try-except-pass,
+  S608 SQL injection, S105 hardcoded passwords, S324 insecure hash all categorized.
+
+### Added
+- **`/dispatch-agent` skill**: Epistemic subagent context inheritance via Cortex.
+  Enriches Agent tool prompts with relevant dead-ends, findings, decisions, and
+  anti-patterns before dispatch. Validated: enriched agents fixed 19 C901 violations
+  cleanly while blank agent on same task broke 20 files.
+
 ## [1.8.4] - 2026-04-15
 
 ### Fixed

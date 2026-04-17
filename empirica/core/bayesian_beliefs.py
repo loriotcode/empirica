@@ -24,7 +24,7 @@ Date: 2025-12-30
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
+from typing import ClassVar
 
 
 @dataclass
@@ -59,7 +59,7 @@ class BayesianBeliefManager:
     MAX_CORRECTION_MAGNITUDE = 0.25
 
     # Vectors to track
-    TRACKED_VECTORS = [
+    TRACKED_VECTORS: ClassVar[list[str]] = [
         'engagement', 'know', 'do', 'context',
         'clarity', 'coherence', 'signal', 'density',
         'state', 'change', 'completion', 'impact', 'uncertainty'
@@ -402,7 +402,7 @@ def apply_calibration_to_vectors(vectors: dict[str, float],
     return calibrated
 
 
-def export_calibration_to_breadcrumbs(ai_id: str, db, git_root: str = None) -> bool:
+def export_calibration_to_breadcrumbs(ai_id: str, db, git_root: str | None = None) -> bool:
     """
     Export calibration data to .breadcrumbs.yaml for instant session-start availability.
 
@@ -549,7 +549,7 @@ learning_trajectory:
         return False
 
 
-def load_bias_corrections(git_root: str = None) -> dict[str, float]:
+def load_bias_corrections(git_root: str | None = None) -> dict[str, float]:
     """
     Load bias corrections from .breadcrumbs.yaml calibration cache.
 
@@ -613,7 +613,7 @@ def load_bias_corrections(git_root: str = None) -> dict[str, float]:
         return {}
 
 
-def load_grounded_corrections(git_root: str = None) -> dict[str, float]:
+def load_grounded_corrections(git_root: str | None = None) -> dict[str, float]:
     """
     Load GROUNDED bias corrections from .breadcrumbs.yaml.
 

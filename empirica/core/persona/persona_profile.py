@@ -11,8 +11,7 @@ Defines the structure of an AI persona with:
 """
 
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
-from typing import Optional
+from datetime import UTC, datetime  # type: ignore[reportAttributeAccessIssue]
 
 
 @dataclass

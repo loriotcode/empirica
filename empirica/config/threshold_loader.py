@@ -9,21 +9,21 @@ Architecture:
     - MCO Components: personas, cascade_styles (this), protocols, models
     - This loader manages CASCADE style thresholds (Theta in EP framework)
     - Sentinel uses this to program AI cognitive flow control
-    
+
 Usage:
     # Get singleton instance
     loader = ThresholdLoader.get_instance()
-    
+
     # Load profile
     loader.load_profile('exploratory')
-    
+
     # Get threshold value
     engagement = loader.get('engagement_threshold')  # Returns: 0.50
     max_rounds = loader.get('cascade.max_investigation_rounds')  # Returns: 10
-    
+
     # Override specific threshold
     loader.override('uncertainty.high', 0.65)
-    
+
     # For Sentinel: Create custom profile
     loader.create_custom_profile('task-123', base='default', overrides={
         'uncertainty.high': 0.60,
@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 class ThresholdLoader:
     """
     Dynamic threshold configuration loader with singleton pattern.
-    
+
     Loads threshold profiles from cascade_styles.yaml and provides:
     - Profile switching (default, exploratory, rigorous, rapid, expert, novice)
     - Runtime overrides for specific thresholds
@@ -58,10 +58,10 @@ class ThresholdLoader:
     def __init__(self, config_path: Path | None = None):
         """
         Initialize threshold loader.
-        
+
         Args:
             config_path: Optional path to cascade_styles.yaml (defaults to mco/cascade_styles.yaml)
-        
+
         Note: Use get_instance() instead of direct instantiation for singleton pattern
         """
         if config_path is None:
@@ -81,10 +81,10 @@ class ThresholdLoader:
     def get_instance(cls, config_path: Path | None = None) -> 'ThresholdLoader':
         """
         Get singleton instance of ThresholdLoader.
-        
+
         Args:
             config_path: Optional path to cascade_styles.yaml (only used on first call)
-        
+
         Returns:
             Singleton ThresholdLoader instance
         """
@@ -138,7 +138,7 @@ class ThresholdLoader:
     def _load_hardcoded_defaults(self):
         """
         Fallback to hardcoded defaults if YAML loading fails.
-        
+
         This ensures backwards compatibility - if cascade_styles.yaml is missing,
         we fall back to the original hardcoded values from thresholds.py.
         """
@@ -203,10 +203,10 @@ class ThresholdLoader:
     def load_profile(self, profile_name: str) -> bool:
         """
         Load a specific profile by name.
-        
+
         Args:
             profile_name: Name of profile (default, exploratory, rigorous, rapid, expert, novice)
-        
+
         Returns:
             True if profile loaded successfully, False otherwise
         """
@@ -275,14 +275,14 @@ class ThresholdLoader:
     def get(self, key_path: str, default: Any = None) -> Any:
         """
         Get threshold value by dot-notation path.
-        
+
         Args:
             key_path: Dot-separated path (e.g., 'engagement_threshold', 'critical.coherence_min')
             default: Default value if key not found
-        
+
         Returns:
             Threshold value or default
-        
+
         Examples:
             >>> loader.get('engagement_threshold')
             0.60
@@ -312,13 +312,13 @@ class ThresholdLoader:
     def override(self, key_path: str, value: Any):
         """
         Override a specific threshold value for current session.
-        
+
         Args:
             key_path: Dot-separated path to threshold
             value: New value to set
-        
+
         Note: Overrides are cleared when switching profiles
-        
+
         Examples:
             >>> loader.override('uncertainty.high', 0.65)
             >>> loader.override('cascade.max_investigation_rounds', 5)
@@ -336,18 +336,18 @@ class ThresholdLoader:
                             overrides: dict[str, Any] | None = None) -> bool:
         """
         Create a custom profile based on existing profile with overrides.
-        
+
         This is the primary method for Sentinel to create task-specific or
         AI-specific threshold profiles.
-        
+
         Args:
             name: Name for custom profile
             base: Base profile to copy from
             overrides: Dictionary of threshold overrides
-        
+
         Returns:
             True if profile created successfully, False otherwise
-        
+
         Example (Sentinel usage):
             >>> # Sentinel analyzes task: "Explore new API patterns"
             >>> loader.create_custom_profile(
@@ -389,7 +389,7 @@ class ThresholdLoader:
     def get_profile_info(self) -> dict[str, Any]:
         """
         Get current profile metadata.
-        
+
         Returns:
             Dictionary with profile name, description, and active overrides
         """
@@ -403,7 +403,7 @@ class ThresholdLoader:
     def list_profiles(self) -> dict[str, str]:
         """
         List all available profiles with descriptions.
-        
+
         Returns:
             Dictionary mapping profile names to descriptions
         """
@@ -415,7 +415,7 @@ class ThresholdLoader:
     def get_all_thresholds(self) -> dict[str, Any]:
         """
         Get all thresholds from current profile (including overrides).
-        
+
         Returns:
             Dictionary of all threshold values
         """
@@ -431,10 +431,10 @@ class ThresholdLoader:
     def export_for_handoff(self) -> dict[str, Any]:
         """
         Export threshold configuration for epistemic handoff.
-        
+
         Returns profile name and overrides (not full profile data) so that
         receiving AI can reload appropriate thresholds for its capabilities.
-        
+
         Returns:
             Minimal handoff data (profile name + overrides)
         """
@@ -448,10 +448,10 @@ class ThresholdLoader:
 def get_threshold_config() -> ThresholdLoader:
     """
     Get global ThresholdLoader instance.
-    
+
     Returns:
         Singleton ThresholdLoader instance
-    
+
     Usage:
         >>> from empirica.config.threshold_loader import get_threshold_config
         >>> config = get_threshold_config()

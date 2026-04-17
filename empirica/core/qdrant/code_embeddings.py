@@ -104,7 +104,7 @@ def _extract_class_info(node: ast.ClassDef) -> dict:
     }
 
 
-def extract_module_api(file_path: Path, root_dir: Path = None) -> dict:
+def extract_module_api(file_path: Path, root_dir: Path | None = None) -> dict:
     """
     Extract the public API surface from a Python file using AST.
 
@@ -311,7 +311,7 @@ def embed_project_code(
     project_id: str,
     root_dir: Path,
     glob_pattern: str = "**/*.py",
-    exclude_patterns: list[str] = None,
+    exclude_patterns: list[str] | None = None,
 ) -> dict:
     """
     Extract and embed all Python module API surfaces for a project.

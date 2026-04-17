@@ -27,7 +27,7 @@ Usage:
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from empirica.core.attention_budget import (
     AttentionBudget,
@@ -475,7 +475,7 @@ class ParallelOrchestrator:
             )
             if persona:
                 return persona.persona_id
-        except Exception:
+        except Exception:  # noqa: S110 — persona lookup optional; static fallback below
             pass
         return f"{domain}_expert"
 

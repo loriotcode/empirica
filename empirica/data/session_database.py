@@ -32,19 +32,19 @@ import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Import canonical structures
 try:
-    from canonical.reflex_frame import Action, EpistemicAssessment, VectorState
+    from canonical.reflex_frame import Action, EpistemicAssessment, VectorState  # noqa: F401, I001 — availability check for CANONICAL_AVAILABLE
     CANONICAL_AVAILABLE = True
 except ImportError:
     CANONICAL_AVAILABLE = False
 
 # Import formatters
-from .formatters import generate_context_markdown
+from .formatters import generate_context_markdown  # noqa: E402 — after conditional canonical import
 
 
 class SessionDatabase:
@@ -172,11 +172,11 @@ class SessionDatabase:
         """
         try:
             uuid.UUID(session_id)
-        except (ValueError, AttributeError, TypeError):
+        except (ValueError, AttributeError, TypeError) as e:
             raise ValueError(
                 f"Invalid session_id: '{session_id}'. "
                 f"Session IDs must be valid UUIDs (e.g., '550e8400-e29b-41d4-a716-446655440000')"
-            )
+            ) from e
 
     def _create_tables(self):
         """Create all database tables from schema modules (dialect-aware)"""
@@ -374,7 +374,7 @@ class SessionDatabase:
                                 phase: str):
         """
         DEPRECATED: Use store_vectors() instead.
-        
+
         This method is kept for backward compatibility with canonical structures.
         """
         if not CANONICAL_AVAILABLE:
@@ -460,7 +460,7 @@ class SessionDatabase:
     def get_cascade_assessments(self, cascade_id: str) -> list[dict]:
         """
         DEPRECATED: Use reflexes table queries instead.
-        
+
         Get all assessments for a cascade from reflexes table.
         """
         cursor = self.conn.cursor()
@@ -474,7 +474,7 @@ class SessionDatabase:
                                  uncertainty_notes: str = "") -> str:
         """
         DEPRECATED: Use store_vectors() instead.
-        
+
         This method redirects to store_vectors() for backward compatibility.
         """
         # Store metadata in reflex_data
@@ -502,7 +502,7 @@ class SessionDatabase:
                                    remaining_unknowns: list[str] | None = None) -> str:
         """
         DEPRECATED: Use store_vectors() instead.
-        
+
         This method redirects to store_vectors() for backward compatibility.
         """
         # Store CHECK-specific data in metadata
@@ -536,7 +536,7 @@ class SessionDatabase:
                                   learning_notes: str = "") -> str:
         """
         DEPRECATED: Use store_vectors() instead.
-        
+
         This method redirects to store_vectors() for backward compatibility.
         """
         # Store postflight-specific data in metadata
@@ -558,7 +558,7 @@ class SessionDatabase:
     def get_preflight_assessment(self, session_id: str) -> dict | None:
         """
         DEPRECATED: Use get_latest_vectors(session_id, phase='PREFLIGHT') instead.
-        
+
         This method redirects to reflexes table for backward compatibility.
         """
         return self.get_latest_vectors(session_id, phase="PREFLIGHT")
@@ -566,7 +566,7 @@ class SessionDatabase:
     def get_check_phase_assessments(self, session_id: str) -> list[dict]:
         """
         DEPRECATED: Use get_vectors_by_phase(session_id, phase='CHECK') instead.
-        
+
         This method redirects to reflexes table for backward compatibility.
         """
         return self.get_vectors_by_phase(session_id, phase="CHECK")
@@ -574,7 +574,7 @@ class SessionDatabase:
     def get_postflight_assessment(self, session_id: str) -> dict | None:
         """
         DEPRECATED: Use get_latest_vectors(session_id, phase='POSTFLIGHT') instead.
-        
+
         This method redirects to reflexes table for backward compatibility.
         """
         return self.get_latest_vectors(session_id, phase="POSTFLIGHT")
@@ -603,9 +603,9 @@ class SessionDatabase:
         """Get most recent session for an AI agent"""
         cursor = self.conn.cursor()
         cursor.execute("""
-            SELECT * FROM sessions 
-            WHERE ai_id = ? 
-            ORDER BY start_time DESC 
+            SELECT * FROM sessions
+            WHERE ai_id = ?
+            ORDER BY start_time DESC
             LIMIT 1
         """, (ai_id,))
         row = cursor.fetchone()
@@ -614,10 +614,10 @@ class SessionDatabase:
     def get_session_snapshot(self, session_id: str) -> dict | None:
         """
         Get git-native session snapshot showing where you left off
-        
+
         Args:
             session_id: Session identifier
-            
+
         Returns:
             Dictionary with git state, epistemic trajectory, learning delta, goals, sources
         """
@@ -829,15 +829,15 @@ class SessionDatabase:
     def get_git_checkpoint(self, session_id: str, phase: str | None = None) -> dict | None:
         """
         Retrieve checkpoint from git notes with SQLite fallback (Phase 2).
-        
+
         Priority:
         1. Try git notes first (via GitEnhancedReflexLogger)
         2. Fall back to SQLite reflexes if git unavailable
-        
+
         Args:
             session_id: Session identifier
             phase: Optional phase filter (PREFLIGHT, CHECK, POSTFLIGHT)
-        
+
         Returns:
             Checkpoint dict or None if not found
         """
@@ -860,12 +860,12 @@ class SessionDatabase:
     def list_git_checkpoints(self, session_id: str, limit: int = 10, phase: str | None = None) -> list[dict]:
         """
         List all checkpoints for session from git notes (Phase 2).
-        
+
         Args:
             session_id: Session identifier
             limit: Maximum number of checkpoints to return
             phase: Optional phase filter
-        
+
         Returns:
             List of checkpoint dicts
         """
@@ -887,11 +887,11 @@ class SessionDatabase:
     def get_checkpoint_diff(self, session_id: str, threshold: float = 0.15) -> dict:
         """
         Calculate vector differences between current state and last checkpoint (Phase 2).
-        
+
         Args:
             session_id: Session identifier
             threshold: Significance threshold for reporting changes
-        
+
         Returns:
             Dict with vector diffs and significant changes
         """
@@ -917,7 +917,7 @@ class SessionDatabase:
 
         checkpoint_vectors = last_checkpoint.get('vectors', {})
 
-        for key in current_vectors.keys():
+        for key in current_vectors:
             old_val = checkpoint_vectors.get(key, 0.5)
             new_val = current_vectors[key]
             if old_val is not None and new_val is not None:
@@ -954,7 +954,7 @@ class SessionDatabase:
 
         # Query reflexes table (unified storage)
         query = """
-            SELECT 
+            SELECT
                 id,
                 phase,
                 engagement,
@@ -1027,8 +1027,8 @@ class SessionDatabase:
     # Goal and Subtask Management (for decision quality + continuity + audit)
     # =========================================================================
 
-    def create_goal(self, session_id: str, objective: str, scope_breadth: float = None,
-                   scope_duration: float = None, scope_coordination: float = None) -> str:
+    def create_goal(self, session_id: str, objective: str, scope_breadth: float | None = None,
+                   scope_duration: float | None = None, scope_coordination: float | None = None) -> str:
         """Create a new goal for this session (delegates to GoalRepository)
 
         Args:
@@ -1323,14 +1323,14 @@ class SessionDatabase:
 
     def get_ai_epistemic_handoff(self, project_id: str, ai_id: str) -> dict | None:
         """Get latest epistemic handoff (POSTFLIGHT checkpoint) for a specific AI.
-        
+
         Enables epistemic continuity by loading the previous session's ending epistemic state.
         """
         return self.projects.get_ai_epistemic_handoff(project_id, ai_id)
 
     def get_auto_captured_issues(self, project_id: str, limit: int = 10) -> list[dict]:
         """Get auto-captured issues for project.
-        
+
         Returns list of issues sorted by severity and recency.
         """
         cursor = self.conn.cursor()
@@ -1375,7 +1375,7 @@ class SessionDatabase:
 
     def get_git_status(self, project_root: str) -> dict | None:
         """Get git status information for the project.
-        
+
         Returns dict with:
         - current_branch: Current branch name
         - commits_ahead: Number of commits ahead of remote
@@ -1436,6 +1436,40 @@ class SessionDatabase:
             logger.debug(f"Error getting git status: {e}")
             return None
 
+    @staticmethod
+    def _analyze_py_file_imports(py_file, root_path, package_prefixes, reverse_graph, external_deps, entry_points):
+        """Analyze a single Python file for imports and entry points."""
+        import ast
+        try:
+            file_content = py_file.read_text(errors='replace')
+            tree = ast.parse(file_content)
+        except (SyntaxError, UnicodeDecodeError):
+            return
+        try:
+            rel_parts = list(py_file.relative_to(root_path).parts)
+            if rel_parts[-1] == "__init__.py": rel_parts = rel_parts[:-1]
+            else: rel_parts[-1] = rel_parts[-1].replace(".py", "")
+            module_name = ".".join(rel_parts)
+        except ValueError:
+            return
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    top = alias.name.split('.')[0]
+                    if top in package_prefixes: reverse_graph[alias.name].add(module_name)
+                    else: external_deps.add(top)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                top = node.module.split('.')[0]
+                if top in package_prefixes: reverse_graph[node.module].add(module_name)
+                elif node.level == 0: external_deps.add(top)
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.If) and isinstance(node.test, ast.Compare) and len(node.test.comparators) == 1):
+                left = node.test.left
+                comp = node.test.comparators[0]
+                if isinstance(left, ast.Name) and left.id == '__name__' and isinstance(comp, ast.Constant) and comp.value == '__main__':
+                    entry_points.append(module_name)
+                    break
+
     def _generate_dependency_summary(self, project_root: str) -> dict | None:
         """Generate lightweight dependency summary using AST import analysis.
 
@@ -1451,7 +1485,6 @@ class SessionDatabase:
           - entry_points: CLI/main modules
           - module_count: Total .py files analyzed
         """
-        import ast
         import json
         import time
         from collections import defaultdict
@@ -1501,52 +1534,7 @@ class SessionDatabase:
             module_count += 1
             all_module_basenames.add(py_file.stem)
 
-            try:
-                content = py_file.read_text(errors='replace')
-                tree = ast.parse(content)
-            except (SyntaxError, UnicodeDecodeError):
-                continue
-
-            # Convert path to module name
-            try:
-                rel_parts = list(py_file.relative_to(root_path).parts)
-                if rel_parts[-1] == "__init__.py":
-                    rel_parts = rel_parts[:-1]
-                else:
-                    rel_parts[-1] = rel_parts[-1].replace(".py", "")
-                module_name = ".".join(rel_parts)
-            except ValueError:
-                continue
-
-            # Extract imports
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Import):
-                    for alias in node.names:
-                        top = alias.name.split('.')[0]
-                        if top in package_prefixes:
-                            reverse_graph[alias.name].add(module_name)
-                        else:
-                            external_deps.add(top)
-                elif isinstance(node, ast.ImportFrom):
-                    if node.module:
-                        top = node.module.split('.')[0]
-                        if top in package_prefixes:
-                            reverse_graph[node.module].add(module_name)
-                        elif node.level == 0:
-                            # Only count absolute from-imports as external
-                            # (relative imports like "from .foo import bar" are internal)
-                            external_deps.add(top)
-
-            # Detect entry points
-            for node in ast.walk(tree):
-                if (isinstance(node, ast.If) and isinstance(node.test, ast.Compare)
-                        and len(node.test.comparators) == 1):
-                    left = node.test.left
-                    comp = node.test.comparators[0]
-                    if (isinstance(left, ast.Name) and left.id == '__name__'
-                            and isinstance(comp, ast.Constant) and comp.value == '__main__'):
-                        entry_points.append(module_name)
-                        break
+            self._analyze_py_file_imports(py_file, root_path, package_prefixes, reverse_graph, external_deps, entry_points)
 
         # Build hotspots (top 10 by importer count)
         hotspots = sorted(
@@ -1728,14 +1716,116 @@ class SessionDatabase:
         return result
 
 
+    def _build_project_metadata(self, project: dict) -> dict:
+        """Build project metadata dict from a resolved project row."""
+        repos = project.get('repos', []) or []
+        if isinstance(repos, str):
+            try:
+                repos = json.loads(repos)
+            except Exception:
+                repos = []
+
+        return {
+            'id': project['id'],
+            'name': project.get('name', 'Unknown'),
+            'description': project.get('description', ''),
+            'status': project.get('status', 'active'),
+            'repos': repos,
+            'total_sessions': project.get('total_sessions', 0),
+            'total_goals': project.get('total_goals', 0),
+        }
+
+    @staticmethod
+    def _enrich_project_from_yaml(project_meta: dict) -> dict:
+        """Enrich project metadata from project.yaml (v2.0 identity fields).
+
+        Returns the enriched dict. Non-fatal — returns original on any error.
+        """
+        try:
+            from empirica.config.project_config_loader import load_project_config
+            project_config = load_project_config()
+            if not project_config:
+                return project_meta
+
+            yaml_enrichment = {'type': project_config.type}
+            for attr in ('domain', 'languages', 'tags', 'contacts', 'engagements', 'edges'):
+                value = getattr(project_config, attr, None)
+                if value:
+                    yaml_enrichment[attr] = value
+            if project_config.classification != 'internal':
+                yaml_enrichment['classification'] = project_config.classification
+            yaml_enrichment['evidence_profile'] = project_config.evidence_profile
+            project_meta.update(yaml_enrichment)
+        except Exception:
+            pass  # project.yaml enrichment is non-fatal
+        return project_meta
+
+    def _attach_optional_metrics(self, breadcrumbs: dict, resolved_id: str, project_root: str) -> None:
+        """Compute and attach optional metrics (flow, health, feature status) to breadcrumbs."""
+        # Flow state metrics (AI productivity patterns)
+        try:
+            flow_metrics = self.calculate_flow_metrics(resolved_id, limit=5)
+            if flow_metrics and flow_metrics.get('current_flow'):
+                breadcrumbs['flow_metrics'] = flow_metrics
+        except Exception as e:
+            logger.debug(f"Flow metrics calculation skipped: {e}")
+
+        # Health score (epistemic quality and completeness)
+        try:
+            health_score = self.calculate_health_score(resolved_id, limit=5)
+            if health_score:
+                breadcrumbs['health_score'] = health_score
+        except Exception as e:
+            logger.debug(f"Health score calculation skipped: {e}")
+
+        # Feature status from FEATURE_STATUS.md
+        try:
+            feature_status = self._load_feature_status(project_root)
+            if feature_status:
+                breadcrumbs['feature_status'] = feature_status
+                if 'health_score' in breadcrumbs:
+                    breadcrumbs['health_score']['feature_completion'] = feature_status
+        except Exception as e:
+            logger.debug(f"Feature status load skipped: {e}")
+
+    def _attach_supplementary_data(
+        self,
+        breadcrumbs: dict,
+        resolved_id: str,
+        project_root: str,
+        session_id: str | None,
+        include_live_state: bool,
+        fresh_assess: bool,
+        trigger: str | None,
+    ) -> None:
+        """Attach dependency graph, git status, issues, and live state to breadcrumbs."""
+        dep_graph = self._generate_dependency_summary(project_root)
+        if dep_graph:
+            breadcrumbs['dependency_graph'] = dep_graph
+
+        git_status = self.get_git_status(project_root)
+        if git_status:
+            breadcrumbs['git_status'] = git_status
+
+        auto_issues = self.get_auto_captured_issues(resolved_id, limit=10)
+        if auto_issues:
+            breadcrumbs['auto_captured_issues'] = auto_issues
+
+        live_state = self._capture_live_state_if_requested(
+            session_id, resolved_id, include_live_state, fresh_assess, trigger
+        )
+        if live_state:
+            breadcrumbs['live_state'] = live_state
+            breadcrumbs['session_id'] = session_id or live_state.get('session_id')
+
     def bootstrap_project_breadcrumbs(
         self,
         project_id: str,
         mode: str = "session_start",
-        project_root: str = None,
+        project_root: str | None = None,
         check_integrity: bool = False,
-        task_description: str = None,
-        epistemic_state: dict[str, float] = None,
+        task_description: str | None = None,
+        epistemic_state: dict[str, float] | None = None,
         context_to_inject: bool = False,
         subject: str | None = None,
         session_id: str | None = None,
@@ -1789,130 +1879,42 @@ class SessionDatabase:
         # 3. Load all breadcrumbs based on mode
         breadcrumbs = self._load_breadcrumbs_for_mode(resolved_id, mode, subject)
 
-        # 4. Load goals
+        # 4. Load goals and merge truncation warnings
         goals_data = self._load_goals_for_project(resolved_id)
-
-        # Merge truncation warnings from both sources
         all_warnings = breadcrumbs.pop('truncation_warnings', []) + goals_data.pop('truncation_warnings', [])
         breadcrumbs.update(goals_data)
         if all_warnings:
             breadcrumbs['truncation_warnings'] = all_warnings
 
-        # 5. Generate dependency graph (replaces file tree)
-        dep_graph = self._generate_dependency_summary(project_root)
-        if dep_graph:
-            breadcrumbs['dependency_graph'] = dep_graph
-
-        # 5b. Capture git status
-        git_status = self.get_git_status(project_root)
-        if git_status:
-            breadcrumbs['git_status'] = git_status
-
-        # 5c. Load auto-captured issues
-        auto_issues = self.get_auto_captured_issues(resolved_id, limit=10)
-        if auto_issues:
-            breadcrumbs['auto_captured_issues'] = auto_issues
-
-        # 6. Capture live state if requested
-        live_state = self._capture_live_state_if_requested(
-            session_id, resolved_id, include_live_state, fresh_assess, trigger
+        # 5. Attach supplementary data (deps, git, issues, live state)
+        self._attach_supplementary_data(
+            breadcrumbs, resolved_id, project_root,
+            session_id, include_live_state, fresh_assess, trigger,
         )
-        if live_state:
-            breadcrumbs['live_state'] = live_state
-            breadcrumbs['session_id'] = session_id or live_state.get('session_id')
 
-        # 7. Add project metadata
-        repos = project.get('repos', []) or []
-        if isinstance(repos, str):
-            try:
-                import json
-                repos = json.loads(repos)
-            except Exception:
-                repos = []
-
-        breadcrumbs['project'] = {
-            'id': project['id'],
-            'name': project.get('name', 'Unknown'),
-            'description': project.get('description', ''),
-            'status': project.get('status', 'active'),
-            'repos': repos,
-            'total_sessions': project.get('total_sessions', 0),
-            'total_goals': project.get('total_goals', 0),
-        }
-
-        # Enrich from project.yaml if available (v2.0 identity fields)
-        try:
-            from empirica.config.project_config_loader import load_project_config
-            project_config = load_project_config()
-            if project_config:
-                yaml_enrichment = {'type': project_config.type}
-                if project_config.domain:
-                    yaml_enrichment['domain'] = project_config.domain
-                if project_config.classification != 'internal':
-                    yaml_enrichment['classification'] = project_config.classification
-                yaml_enrichment['evidence_profile'] = project_config.evidence_profile
-                if project_config.languages:
-                    yaml_enrichment['languages'] = project_config.languages
-                if project_config.tags:
-                    yaml_enrichment['tags'] = project_config.tags
-                if project_config.contacts:
-                    yaml_enrichment['contacts'] = project_config.contacts
-                if project_config.engagements:
-                    yaml_enrichment['engagements'] = project_config.engagements
-                if project_config.edges:
-                    yaml_enrichment['edges'] = project_config.edges
-                breadcrumbs['project'].update(yaml_enrichment)
-        except Exception:
-            pass  # project.yaml enrichment is non-fatal
+        # 6. Build and enrich project metadata
+        breadcrumbs['project'] = self._enrich_project_from_yaml(
+            self._build_project_metadata(project)
+        )
 
         if latest_handoff:
             breadcrumbs['latest_handoff'] = latest_handoff
-
-        # 7b. Add AI-specific epistemic handoff if loaded
         if ai_epistemic_handoff:
             breadcrumbs['ai_epistemic_handoff'] = ai_epistemic_handoff
 
-        # 7c. Add last activity summary
         breadcrumbs['last_activity'] = {
             'summary': f"Last activity: {project.get('last_activity_timestamp', 'Unknown')}",
             'next_focus': 'Continue with incomplete work and unknown resolutions'
         }
 
-        # 8. Generate context markdown if requested
+        # 7. Generate context markdown if requested
         if context_to_inject:
-            context_markdown = generate_context_markdown(breadcrumbs)
-            breadcrumbs['context_markdown'] = context_markdown
+            breadcrumbs['context_markdown'] = generate_context_markdown(breadcrumbs)
 
-        # 9. Calculate flow state metrics (AI productivity patterns)
-        try:
-            flow_metrics = self.calculate_flow_metrics(resolved_id, limit=5)
-            if flow_metrics and flow_metrics.get('current_flow'):
-                breadcrumbs['flow_metrics'] = flow_metrics
-        except Exception as e:
-            logger.debug(f"Flow metrics calculation skipped: {e}")
-            # Flow metrics are optional - don't fail bootstrap if calculation errors
+        # 8. Attach optional metrics (flow, health, feature status)
+        self._attach_optional_metrics(breadcrumbs, resolved_id, project_root)
 
-        # 10. Calculate health score (epistemic quality and completeness)
-        try:
-            health_score = self.calculate_health_score(resolved_id, limit=5)
-            if health_score:
-                breadcrumbs['health_score'] = health_score
-        except Exception as e:
-            logger.debug(f"Health score calculation skipped: {e}")
-            # Health score is optional - don't fail bootstrap if calculation errors
-
-        # 11. Load feature status from FEATURE_STATUS.md
-        try:
-            feature_status = self._load_feature_status(project_root)
-            if feature_status:
-                breadcrumbs['feature_status'] = feature_status
-                # Integrate into health score if present
-                if 'health_score' in breadcrumbs:
-                    breadcrumbs['health_score']['feature_completion'] = feature_status
-        except Exception as e:
-            logger.debug(f"Feature status load skipped: {e}")
-
-        # 12. Apply adaptive depth filtering LAST (after all fields populated)
+        # 9. Apply adaptive depth filtering LAST (after all fields populated)
         if depth != "auto" or trigger == "post_compact":
             breadcrumbs = self._apply_depth_filter(breadcrumbs, depth, trigger)
 
@@ -2088,6 +2090,33 @@ class SessionDatabase:
         except Exception as e:
             return {"error": str(e)}
 
+    @staticmethod
+    def _resolve_auto_depth(breadcrumbs: dict) -> str:
+        """Resolve 'auto' depth by computing drift from pre-compact snapshot."""
+        try:
+            import json
+            from pathlib import Path
+            ref_docs_dir = Path.cwd() / ".empirica" / "ref-docs"
+            snapshots = sorted(ref_docs_dir.glob("pre_summary_*.json"), reverse=True)
+            if snapshots and breadcrumbs.get('live_state'):
+                with open(snapshots[0]) as f:
+                    pre_snapshot = json.load(f)
+                pre_vectors = pre_snapshot.get('checkpoint', {}).get('vectors', {})
+                post_vectors = breadcrumbs['live_state'].get('vectors', {})
+                drift, count = 0.0, 0
+                for key in ['know', 'uncertainty', 'engagement', 'impact', 'completion']:
+                    if key in pre_vectors and key in post_vectors:
+                        if pre_vectors[key] is not None and post_vectors[key] is not None:
+                            drift += abs(pre_vectors[key] - post_vectors[key])
+                            count += 1
+                drift = drift / count if count > 0 else 0.0
+                if drift > 0.3: return "full"
+                elif drift > 0.1: return "moderate"
+                else: return "minimal"
+        except Exception:
+            pass
+        return "moderate"
+
     def _apply_depth_filter(self, breadcrumbs: dict, depth: str, trigger: str | None) -> dict:
         """
         Apply adaptive depth filtering to breadcrumbs based on drift or explicit depth.
@@ -2105,40 +2134,7 @@ class SessionDatabase:
         - Limit active_goals (often stale accumulation)
         """
         if depth == "auto" and trigger == "post_compact":
-            # Calculate drift from pre-snapshot to current
-            try:
-                import json
-                from pathlib import Path
-                ref_docs_dir = Path.cwd() / ".empirica" / "ref-docs"
-                snapshots = sorted(ref_docs_dir.glob("pre_summary_*.json"), reverse=True)
-
-                if snapshots and breadcrumbs.get('live_state'):
-                    with open(snapshots[0]) as f:
-                        pre_snapshot = json.load(f)
-
-                    pre_vectors = pre_snapshot.get('checkpoint', {}).get('vectors', {})
-                    post_vectors = breadcrumbs['live_state'].get('vectors', {})
-
-                    # Calculate drift (simple average of vector changes)
-                    drift = 0.0
-                    count = 0
-                    for key in ['know', 'uncertainty', 'engagement', 'impact', 'completion']:
-                        if key in pre_vectors and key in post_vectors:
-                            if pre_vectors[key] is not None and post_vectors[key] is not None:
-                                drift += abs(pre_vectors[key] - post_vectors[key])
-                                count += 1
-
-                    drift = drift / count if count > 0 else 0.0
-
-                    # Choose depth based on drift
-                    if drift > 0.3:
-                        depth = "full"
-                    elif drift > 0.1:
-                        depth = "moderate"
-                    else:
-                        depth = "minimal"
-            except Exception:
-                depth = "moderate"  # Fallback to moderate on error
+            depth = self._resolve_auto_depth(breadcrumbs)
 
         # Shared slimming helpers for depth filtering
         def _slim_finding(f: dict) -> dict:
@@ -2402,14 +2398,14 @@ class SessionDatabase:
     ) -> list[dict]:
         """
         Get all findings for a project with deprecation filtering.
-        
+
         Args:
             project_id: Project identifier
             limit: Optional limit on results
             subject: Optional subject filter
             depth: Relevance depth ("minimal", "moderate", "full", "complete", "auto")
             uncertainty: Epistemic uncertainty for auto-depth (0.0-1.0)
-            
+
         Returns:
             Filtered list of findings
         """
@@ -2449,7 +2445,7 @@ class SessionDatabase:
         source_metadata: dict | None = None
     ) -> str:
         """Add an epistemic source to ground project knowledge
-        
+
         Args:
             project_id: Project identifier
             source_type: Type of source ('url', 'doc', 'code_ref', 'paper', 'api_doc', 'git_commit', 'chat_transcript', 'epistemic_snapshot')
@@ -2463,7 +2459,7 @@ class SessionDatabase:
             related_findings: Optional list of finding IDs
             discovered_by_ai: Optional AI identifier
             source_metadata: Optional metadata dict
-            
+
         Returns:
             source_id: UUID string
         """
@@ -2503,14 +2499,14 @@ class SessionDatabase:
         limit: int | None = None
     ) -> list[dict]:
         """Get epistemic sources for a project
-        
+
         Args:
             project_id: Project identifier
             session_id: Optional filter by session
             source_type: Optional filter by type
             min_confidence: Minimum confidence threshold (default 0.0)
             limit: Optional limit on results
-            
+
         Returns:
             List of source dictionaries
         """

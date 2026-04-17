@@ -9,7 +9,7 @@ import json
 import logging
 import time
 import uuid
-from typing import Optional
+from typing import ClassVar
 
 from .base import BaseRepository
 
@@ -20,7 +20,7 @@ class ProjectRepository(BaseRepository):
     """Repository for project-level management and context"""
 
     # Valid project types (v2.0 universal taxonomy)
-    PROJECT_TYPES = [
+    PROJECT_TYPES: ClassVar[list[str]] = [
         'software', 'content', 'research', 'data', 'design',
         'operations', 'strategic', 'engagement', 'legal',
         # Legacy types (backward compat)
@@ -306,16 +306,16 @@ class ProjectRepository(BaseRepository):
 
     def get_ai_epistemic_handoff(self, project_id: str, ai_id: str) -> dict | None:
         """Get latest epistemic handoff (POSTFLIGHT checkpoint) for a specific AI in this project.
-        
+
         This loads the most recent session's POSTFLIGHT checkpoint for the given AI ID,
         enabling epistemic continuity across session boundaries.
-        
+
         Includes delta calculation: Shows what changed from PREFLIGHT → POSTFLIGHT.
-        
+
         Args:
             project_id: Project UUID
             ai_id: AI identifier (e.g., 'claude-code')
-            
+
         Returns:
             Dictionary with epistemic vectors, deltas, and reasoning, or None if no checkpoint exists
         """

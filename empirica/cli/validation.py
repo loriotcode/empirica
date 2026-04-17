@@ -12,7 +12,7 @@ Usage:
 """
 
 import json
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -334,7 +334,7 @@ def validate_json_input(raw_json: str, model: type[T]) -> T:
     try:
         data = json.loads(raw_json)
     except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON: {e}")
+        raise ValueError(f"Invalid JSON: {e}") from e
 
     return model.model_validate(data)
 

@@ -29,18 +29,17 @@ Related but NOT consumed here:
   uses raw vectors. See workflow_commands.py for where this flag is consumed.
 """
 import json
-import sys
 import os
-from pathlib import Path
+import sys
 from datetime import datetime
-from typing import Optional
+from pathlib import Path
 
 # Add lib folder to path for shared modules
 _lib_path = Path(__file__).parent.parent / 'lib'
 if str(_lib_path) not in sys.path:
     sys.path.insert(0, str(_lib_path))
 
-from project_resolver import get_active_project_path, get_instance_id, get_active_session_id, detect_environment
+from project_resolver import detect_environment, get_active_project_path, get_instance_id  # noqa: E402, I001 — after sys.path setup
 
 # Noetic tools - read/investigate/search - always allowed (whitelist)
 NOETIC_TOOLS = {
@@ -145,7 +144,8 @@ DANGEROUS_SHELL_OPERATORS = (
 )
 
 # Safe redirection patterns (stderr suppression, etc.)
-import re
+import re  # noqa: E402 — grouped with related patterns below
+
 SAFE_REDIRECT_PATTERN = re.compile(r'2>/dev/null|2>&1|>/dev/null|2>\s*/dev/null')
 
 # Safe pipe targets - read-only commands that can receive piped input
@@ -240,8 +240,9 @@ def _get_domain_scaled_thresholds(
         return base_unc
 
     try:
-        from empirica.config.domain_registry import DomainKey, DomainRegistry
         from pathlib import Path
+
+        from empirica.config.domain_registry import DomainKey, DomainRegistry
         reg = DomainRegistry(
             project_path=Path(project_path) if project_path else None,
         )
@@ -403,11 +404,7 @@ def is_safe_empirica_command(command: str) -> bool:
             return True
 
     # Tier 2: State-changing - allowed (these enable the workflow)
-    for prefix in EMPIRICA_TIER2_PREFIXES:
-        if cmd.startswith(prefix):
-            return True
-
-    return False
+    return any(cmd.startswith(prefix) for prefix in EMPIRICA_TIER2_PREFIXES)
 
 
 def is_toggle_command(command: str) -> str | None:
@@ -508,7 +505,7 @@ def _find_transaction_file(empirica_dir: Path, suffix: str,
         try:
             for tx_file in sorted(empirica_dir.glob('active_transaction*.json')):
                 try:
-                    with open(tx_file, 'r') as f:
+                    with open(tx_file) as f:
                         tx_data = json.load(f)
                     if tx_data.get('session_id') == session_id:
                         return tx_file
@@ -527,7 +524,7 @@ def _resolve_empirica_session_id(claude_session_id: str | None) -> str | None:
     try:
         aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if aw_file.exists():
-            with open(aw_file, 'r') as f:
+            with open(aw_file) as f:
                 return json.load(f).get('empirica_session_id')
     except Exception:
         pass
@@ -559,7 +556,7 @@ def _try_increment_tool_count(claude_session_id: str | None = None,
         aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if aw_file.exists():
             try:
-                with open(aw_file, 'r') as f:
+                with open(aw_file) as f:
                     pp = json.load(f).get('project_path')
                 if pp:
                     tx_path = _find_transaction_file(
@@ -584,7 +581,7 @@ def _try_increment_tool_count(claude_session_id: str | None = None,
 
     try:
         # READ transaction file (read-only — never write back)
-        with open(tx_path, 'r') as f:
+        with open(tx_path) as f:
             tx = json.load(f)
 
         if tx.get('status') != 'open':
@@ -597,7 +594,7 @@ def _try_increment_tool_count(claude_session_id: str | None = None,
         counters = {}
         if counters_path.exists():
             try:
-                with open(counters_path, 'r') as f:
+                with open(counters_path) as f:
                     counters = json.load(f)
             except Exception:
                 counters = {}
@@ -652,9 +649,7 @@ def _try_increment_tool_count(claude_session_id: str | None = None,
             elif tool_name == 'Bash' and tool_input:
                 cmd = tool_input.get('command', '')
                 target = cmd.split()[0] if cmd else ''  # First word of command
-            elif tool_name == 'Grep' and tool_input:
-                target = tool_input.get('pattern', '')[:30]
-            elif tool_name == 'Glob' and tool_input:
+            elif (tool_name == 'Grep' and tool_input) or (tool_name == 'Glob' and tool_input):
                 target = tool_input.get('pattern', '')[:30]
             phase = 'n' if _is_noetic else 'p'
             trace = counters.get('tool_trace', [])
@@ -765,7 +760,7 @@ def find_empirica_package() -> Path | None:
     """
     # Check if already importable (pip installed)
     try:
-        import empirica.config.path_resolver  # type: ignore[import-not-found]
+        import empirica.config.path_resolver  # noqa: F401 — availability check; type: ignore[import-not-found]
         return None  # Already available, no path needed
     except ImportError:
         pass
@@ -898,9 +893,7 @@ def _has_dangerous_redirects(command: str) -> bool:
     cmd_clean = SAFE_REDIRECT_PATTERN.sub('', command)
     if '>' in cmd_clean or '>>' in cmd_clean:
         return True
-    if '<' in cmd_clean and '<<' not in command:
-        return True
-    return False
+    return '<' in cmd_clean and '<<' not in command
 
 
 def is_safe_bash_command(tool_input: dict) -> bool:
@@ -985,12 +978,7 @@ def is_safe_sqlite_command(command: str) -> bool:
 
     # Safe SQL operations (read-only)
     safe_sql = ('SELECT', 'PRAGMA', 'EXPLAIN', 'ANALYZE')
-    for sql in safe_sql:
-        if query.startswith(sql):
-            return True
-
-    # Everything else is potentially write (INSERT, UPDATE, DELETE, etc.)
-    return False
+    return any(query.startswith(sql) for sql in safe_sql)
 
 
 def is_safe_python_command(command: str) -> bool:
@@ -1042,12 +1030,8 @@ def is_safe_python_command(command: str) -> bool:
         "EXEC(", "EVAL(", "__IMPORT__(",
     )
 
-    for pattern in write_patterns:
-        if pattern in code_upper:
-            return False
-
     # Allow: anything that's not writing is investigation
-    return True
+    return all(pattern not in code_upper for pattern in write_patterns)
 
 
 def is_safe_remote_command(command: str) -> bool:
@@ -1300,7 +1284,7 @@ def _classify_rsync(command: str) -> bool:
     non_option_args = []
     skip_next = False
 
-    for i, part in enumerate(parts[1:], 1):
+    for _i, part in enumerate(parts[1:], 1):
         if skip_next:
             skip_next = False
             continue
@@ -1337,11 +1321,8 @@ def _classify_rsync(command: str) -> bool:
         return False
 
     # If any source has ':' and dest is local → downloading → noetic
-    if any(':' in src and not src.startswith('/') for src in sources):
-        return True
-
     # Both local (or can't tell) → praxic (conservative)
-    return False
+    return any(':' in src and not src.startswith('/') for src in sources)
 
 
 def _classify_scp(command: str) -> bool:
@@ -1376,11 +1357,8 @@ def _classify_scp(command: str) -> bool:
     dest = non_option_args[-1]
 
     # If destination contains ':' (and isn't an absolute path) → uploading → praxic
-    if ':' in dest and not dest.startswith('/'):
-        return False
-
     # Otherwise → downloading or local copy → noetic
-    return True
+    return not (':' in dest and not dest.startswith('/'))
 
 
 def is_safe_pipe_chain(command: str) -> bool:
@@ -1458,13 +1436,11 @@ def _is_praxic_remote_command(command: str) -> bool:
     if not cmd.startswith(('ssh ', 'scp ', 'rsync ')):
         return False
     # If is_safe_remote_command says it's noetic, it's not praxic
-    if is_safe_remote_command(cmd):
-        return False
     # It's a remote command that's NOT read-only → praxic remote
-    return True
+    return not is_safe_remote_command(cmd)
 
 
-def _confidence_gate_remote(claude_session_id: str = None) -> str:
+def _confidence_gate_remote(claude_session_id: str | None = None) -> str:
     """Apply ConfidenceGate threshold check using latest vectors.
 
     Reads the most recent PREFLIGHT or CHECK vectors from the session DB.
@@ -1599,7 +1575,7 @@ def _detect_subagent(claude_session_id: str) -> bool:
             if _as_file.exists():
                 # Read the active_session to get its empirica_session_id
                 try:
-                    with open(_as_file, 'r') as _asf:
+                    with open(_as_file) as _asf:
                         _as_data = json.load(_asf)
                     _as_session_id = _as_data.get('empirica_session_id')
 
@@ -1609,7 +1585,7 @@ def _detect_subagent(claude_session_id: str) -> bool:
                         # Check if any active_work file has this session
                         for _aw_candidate in Path.home().glob('.empirica/active_work_*.json'):
                             try:
-                                with open(_aw_candidate, 'r') as _awf:
+                                with open(_aw_candidate) as _awf:
                                     _aw_data = json.load(_awf)
                                 if _aw_data.get('empirica_session_id') == _as_session_id:
                                     _tx_session_match = True
@@ -1792,7 +1768,7 @@ def _check_goalless_work(cursor, session_id: str, preflight_project_id, claude_s
                 empirica_root, suffix,
                 _resolve_empirica_session_id(claude_session_id))
             if _gl_tx_file:
-                with open(_gl_tx_file, 'r') as _gl_f:
+                with open(_gl_tx_file) as _gl_f:
                     _gl_count = json.load(_gl_f).get('tool_call_count', 0)
 
         if _gl_count < 5:
@@ -1856,7 +1832,7 @@ def _handle_no_preflight(tool_name: str, tool_input: dict, session_id: str, env_
         counter_file = Path.home() / '.empirica' / f'pre_tx_calls{suffix}.json'
         count = 0
         if counter_file.exists():
-            with open(counter_file, 'r') as f:
+            with open(counter_file) as f:
                 count = json.load(f).get('count', 0)
         count += 1
         with open(counter_file, 'w') as f:
@@ -1915,7 +1891,7 @@ def _handle_investigate_continuation(decision: str, tool_name: str, tool_input: 
         if not _inv_counters_path or not _inv_counters_path.exists():
             return {}
         try:
-            with open(_inv_counters_path, 'r') as _f:
+            with open(_inv_counters_path) as _f:
                 return json.load(_f)
         except Exception:
             return {}
@@ -1959,18 +1935,13 @@ def _handle_investigate_continuation(decision: str, tool_name: str, tool_input: 
     return ("allow", "ADVISORY: CHECK returned 'investigate'. Predictions in this domain may be ungrounded. Sentinel recommends noetic (read-only) work to gather grounding evidence before acting.")
 
 
-def main():
-    try:
-        hook_input = json.loads(sys.stdin.read() or '{}')
-    except Exception:
-        hook_input = {}
+def _track_tool_usage(hook_input: dict, tool_name: str, tool_input: dict) -> None:
+    """Track tool call counts and re-read advisory nudges.
 
-    tool_name = hook_input.get('tool_name', 'unknown')
-    tool_input = hook_input.get('tool_input', {})
-
-    # === AUTONOMY CALIBRATION: Track tool calls per transaction ===
-    # Counts PARENT tool calls only (subagent work counted via SubagentStop delegation).
-    # Nudge thresholds are informational — Claude decides when to POSTFLIGHT.
+    Counts PARENT tool calls only (subagent work counted via SubagentStop delegation).
+    Nudge thresholds are informational — Claude decides when to POSTFLIGHT.
+    Also sets re-read advisory when Read tool targets already-read file.
+    """
     global _autonomy_nudge, _reread_nudge
     try:
         _claude_sid = hook_input.get('session_id')
@@ -1984,7 +1955,6 @@ def main():
     except Exception:
         pass  # Counter failure is non-fatal
 
-    # === READ DEDUP ADVISORY: Nudge on re-reads ===
     # _try_increment_tool_count sets _last_read_count when tracking Read tool calls.
     # Advisory only — never blocks. Helps AI conserve context window.
     if tool_name == 'Read' and _last_read_count > 1:
@@ -1992,26 +1962,20 @@ def main():
         _short = Path(_rd_fp).name if _rd_fp else 'file'
         _reread_nudge = f"Re-reading {_short} ({_last_read_count}x this tx). Consider using cached knowledge."
 
-    # === NOETIC FIREWALL: Whitelist-based access control ===
-    # Rules 1, 2, 2b, 2c: noetic tools, safe bash, plan files, remote confidence gate
-    _noetic_result = _noetic_firewall_check(tool_name, tool_input, hook_input)
-    if _noetic_result:
-        respond("allow", _noetic_result[1])
-        sys.exit(0)
 
-    # Rule 3: Everything else is PRAXIC - requires CHECK authorization
-    # This includes: Edit, Write, NotebookEdit, unsafe Bash, unknown tools
+def _check_exemptions(hook_input: dict, tool_name: str) -> tuple | None:
+    """Check for praxic tool exemptions: subagent, paused, sentinel disabled.
 
+    Returns (decision, reason) if an exemption applies, or None to continue gating.
+    """
     # Rule 3a: SUBAGENT EXEMPTION - subagents bypass gating (parent CHECK authorized spawn)
-    claude_session_id_early = hook_input.get('session_id')
-    if claude_session_id_early and _detect_subagent(claude_session_id_early):
-        respond("allow", f"Subagent exemption: {tool_name} (no active_work for {claude_session_id_early[:8]})")
-        sys.exit(0)
+    claude_session_id = hook_input.get('session_id')
+    if claude_session_id and _detect_subagent(claude_session_id):
+        return ("allow", f"Subagent exemption: {tool_name} (no active_work for {claude_session_id[:8]})")
 
     # OFF-RECORD CHECK: If Empirica is paused, allow everything (cheapest check first)
     if is_empirica_paused():
-        respond("allow", "Empirica paused (off-record)")
-        sys.exit(0)
+        return ("allow", "Empirica paused (off-record)")
 
     # Check if sentinel looping is disabled (escape hatch)
     # Priority: file flag > env var (file is dynamically settable, env var requires restart)
@@ -2019,39 +1983,41 @@ def main():
     if sentinel_flag.exists():
         flag_val = sentinel_flag.read_text().strip().lower()
         if flag_val == 'false':
-            respond("allow", "Sentinel disabled (file flag)")
-            sys.exit(0)
+            return ("allow", "Sentinel disabled (file flag)")
     elif os.getenv('EMPIRICA_SENTINEL_LOOPING', 'true').lower() == 'false':
-        respond("allow", "Sentinel disabled (env var)")
-        sys.exit(0)
+        return ("allow", "Sentinel disabled (env var)")
 
-    # === ENVIRONMENT CONTEXT ===
-    # Detect remote/container/CI environments and check trusted_hosts
+    return None
+
+
+def _build_env_annotation() -> str:
+    """Detect remote/container/CI environments and build annotation string."""
     env_context = detect_environment()
-    env_annotation = ""
-    if env_context['is_remote'] or env_context['is_container'] or env_context['is_ci']:
-        env_type = (
-            "SSH" if env_context['is_remote']
-            else "container" if env_context['is_container']
-            else "CI"
-        )
-        if env_context['is_trusted']:
-            env_annotation = f" [REMOTE:{env_type}:trusted ({env_context['trust_source']})]"
-        else:
-            env_annotation = (
-                f" [REMOTE:{env_type}:UNTRUSTED — {env_context['trust_source']}. "
-                f"Add '{env_context['hostname']}' to ~/.empirica/trusted_hosts to trust this host]"
-            )
+    if not (env_context['is_remote'] or env_context['is_container'] or env_context['is_ci']):
+        return ""
+    env_type = (
+        "SSH" if env_context['is_remote']
+        else "container" if env_context['is_container']
+        else "CI"
+    )
+    if env_context['is_trusted']:
+        return f" [REMOTE:{env_type}:trusted ({env_context['trust_source']})]"
+    return (
+        f" [REMOTE:{env_type}:UNTRUSTED — {env_context['trust_source']}. "
+        f"Add '{env_context['hostname']}' to ~/.empirica/trusted_hosts to trust this host]"
+    )
 
-    # === AUTHORIZATION CHECK ===
 
+def _resolve_empirica_root(claude_session_id: str | None) -> Path | None:
+    """Resolve .empirica root directory, setting up imports and CWD.
+
+    Returns the empirica_root Path, or None (after responding allow + exit)
+    if imports cannot be resolved.
+    """
     # Setup imports - find empirica package if not already installed
     package_path = find_empirica_package()
     if package_path:
         sys.path.insert(0, str(package_path))
-
-    # Get Claude session_id from hook input (available for ALL users)
-    claude_session_id = hook_input.get('session_id')
 
     # Resolve project root using priority chain (claude_session → transaction → instance → TTY → CWD)
     # This is critical for multi-project scenarios where CWD may be reset
@@ -2064,82 +2030,124 @@ def main():
     if project_root:
         empirica_root = project_root / '.empirica'
         os.chdir(project_root)  # Set CWD to the correct project
-    else:
-        # Fallback to path_resolver if priority chain fails
-        try:
-            from empirica.config.path_resolver import get_empirica_root  # type: ignore[import-not-found]
-            empirica_root = get_empirica_root()
-            if empirica_root.exists():
-                os.chdir(empirica_root.parent)
-        except ImportError as e:
-            respond("allow", f"Cannot import path_resolver: {e}")
+        return empirica_root
+
+    # Fallback to path_resolver if priority chain fails
+    try:
+        from empirica.config.path_resolver import get_empirica_root  # type: ignore[import-not-found]
+        empirica_root = get_empirica_root()
+        if empirica_root.exists():
+            os.chdir(empirica_root.parent)
+        return empirica_root
+    except ImportError as e:
+        respond("allow", f"Cannot import path_resolver: {e}")
+        sys.exit(0)
+
+
+def _read_transaction_state(empirica_root: Path | None, claude_session_id: str | None,
+                            tool_name: str, tool_input: dict) -> dict:
+    """Read active transaction file and handle closed transactions.
+
+    Returns dict with keys: current_transaction_id, tx_session_id, tx_file,
+    suffix, _current_work_type, _current_domain, _current_criticality.
+
+    If the transaction is closed, responds and exits directly (closed-tx short-circuit).
+    """
+    result = {
+        'current_transaction_id': None,
+        'tx_session_id': None,
+        'tx_file': None,
+        'suffix': '',
+        '_current_work_type': None,
+        '_current_domain': None,
+        '_current_criticality': None,
+    }
+
+    if not empirica_root:
+        return result
+
+    from empirica.utils.session_resolver import InstanceResolver as R
+    suffix = R.instance_suffix()
+    result['suffix'] = suffix
+    empirica_session_id = _resolve_empirica_session_id(claude_session_id)
+    tx_file = _find_transaction_file(empirica_root, suffix, empirica_session_id)
+    result['tx_file'] = tx_file
+
+    if not tx_file:
+        return result
+
+    try:
+        with open(tx_file) as f:
+            tx_data = json.load(f)
+
+        # CLOSED TRANSACTION CHECK: Closed transactions persist as project anchors.
+        # POSTFLIGHT sets status="closed" but does NOT delete the file.
+        # This allows post-compact to resolve the correct project even after
+        # the loop closes. The file is overwritten by the next PREFLIGHT.
+        # See: docs/architecture/instance_isolation/KNOWN_ISSUES.md
+        tx_candidate_session = tx_data.get('session_id')
+        _tx_closed = tx_data.get('status') != 'open'
+
+        # Only use open transactions for gating; closed ones are just project anchors
+        if not _tx_closed:
+            result['current_transaction_id'] = tx_data.get('transaction_id')
+            result['tx_session_id'] = tx_candidate_session
+            # Extract work_type, domain, criticality for domain-aware gating
+            result['_current_work_type'] = tx_data.get('work_type')
+            result['_current_domain'] = tx_data.get('domain')
+            result['_current_criticality'] = tx_data.get('criticality')
+            # Set module-level work_type for is_safe_bash_command() expansion
+            global _current_work_type
+            _current_work_type = result['_current_work_type']
+        else:
+            # CLOSED TRANSACTION SHORT-CIRCUIT: Don't fall through to
+            # stale session fallback which produces confusing errors
+            # like "No valid CHECK found" when the real issue is
+            # "loop closed, run new PREFLIGHT".
+            _handle_closed_transaction(tool_name, tool_input)
+    except Exception:
+        pass
+
+    return result
+
+
+def _handle_closed_transaction(tool_name: str, tool_input: dict) -> None:
+    """Handle tool calls against a closed transaction. Responds and exits.
+
+    Allow noetic tools (Read, Grep, Glob, etc.) and safe Bash
+    to pass — only block praxic actions.
+    """
+    if tool_name == 'Bash':
+        if is_safe_bash_command(tool_input):
+            respond("allow", "Safe Bash (transaction closed, artifact lifecycle)")
             sys.exit(0)
+        command = tool_input.get('command', '')
+        if is_transition_command(command):
+            respond("allow", "Transition command (starting new cycle)")
+            sys.exit(0)
+    elif tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME or tool_name in NOETIC_MCP_CORTEX:
+        respond("allow", "Noetic tool (transaction closed)")
+        sys.exit(0)
+    # Praxic tool with closed transaction → correct error message
+    respond("deny", "Epistemic loop closed (POSTFLIGHT completed). Run new PREFLIGHT to start next goal. Command: empirica preflight-submit - (JSON with vectors on stdin)")
+    sys.exit(0)
 
-    # Read active transaction first (transactions can span compaction boundaries)
-    # The transaction file's session_id is authoritative when a transaction is open
-    # Uses _find_transaction_file() for suffix-mismatch resilience (KNOWN_ISSUES 11.21)
-    current_transaction_id = None
-    tx_session_id = None
-    if empirica_root:
-        from empirica.utils.session_resolver import InstanceResolver as R
-        suffix = R.instance_suffix()
-        empirica_session_id = _resolve_empirica_session_id(claude_session_id)
-        tx_file = _find_transaction_file(empirica_root, suffix, empirica_session_id)
-        if tx_file:
-            try:
-                with open(tx_file, 'r') as f:
-                    tx_data = json.load(f)
 
-                # CLOSED TRANSACTION CHECK: Closed transactions persist as project anchors.
-                # POSTFLIGHT sets status="closed" but does NOT delete the file.
-                # This allows post-compact to resolve the correct project even after
-                # the loop closes. The file is overwritten by the next PREFLIGHT.
-                # See: docs/architecture/instance_isolation/KNOWN_ISSUES.md
-                tx_candidate_session = tx_data.get('session_id')
-                _tx_closed = tx_data.get('status') != 'open'
+def _resolve_session(tx_session_id: str | None, claude_session_id: str | None,
+                     env_annotation: str) -> str | None:
+    """Resolve empirica session_id from transaction, active_work, or TTY fallback.
 
-                # Only use open transactions for gating; closed ones are just project anchors
-                if not _tx_closed:
-                    current_transaction_id = tx_data.get('transaction_id')
-                    tx_session_id = tx_candidate_session
-                    # Extract work_type, domain, criticality for domain-aware gating
-                    _current_work_type = tx_data.get('work_type')
-                    _current_domain = tx_data.get('domain')
-                    _current_criticality = tx_data.get('criticality')
-                else:
-                    # CLOSED TRANSACTION SHORT-CIRCUIT: Don't fall through to
-                    # stale session fallback which produces confusing errors
-                    # like "No valid CHECK found" when the real issue is
-                    # "loop closed, run new PREFLIGHT".
-                    # Allow noetic tools (Read, Grep, Glob, etc.) and safe Bash
-                    # to pass — only block praxic actions.
-                    if tool_name == 'Bash':
-                        command = tool_input.get('command', '')
-                        if is_safe_bash_command(tool_input):
-                            respond("allow", "Safe Bash (transaction closed, artifact lifecycle)")
-                            sys.exit(0)
-                        if is_transition_command(command):
-                            respond("allow", "Transition command (starting new cycle)")
-                            sys.exit(0)
-                    elif tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME or tool_name in NOETIC_MCP_CORTEX:
-                        respond("allow", "Noetic tool (transaction closed)")
-                        sys.exit(0)
-                    # Praxic tool with closed transaction → correct error message
-                    respond("deny", "Epistemic loop closed (POSTFLIGHT completed). Run new PREFLIGHT to start next goal. Command: empirica preflight-submit - (JSON with vectors on stdin)")
-                    sys.exit(0)
-            except Exception:
-                pass
-
-    # Get session_id - transaction file takes priority (survives compaction)
-    # Fallback to active_work file for when no transaction is open
-    session_id = tx_session_id  # Priority 0: transaction file (authoritative during transaction)
+    Returns session_id, or None after responding with a warning and exiting.
+    """
+    # Priority 0: transaction file (authoritative during transaction)
+    session_id = tx_session_id
 
     if not session_id and claude_session_id:
         # Priority 1: active_work file (updated by PREFLIGHT, project-switch)
         try:
             active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
             if active_work_file.exists():
-                with open(active_work_file, 'r') as f:
+                with open(active_work_file) as f:
                     work_data = json.load(f)
                 session_id = work_data.get('empirica_session_id')
         except Exception:
@@ -2158,6 +2166,146 @@ def main():
         respond("allow", f"WARNING: No session found. Run: empirica session-create --ai-id claude-code && empirica preflight-submit -{env_annotation}")
         sys.exit(0)
 
+    return session_id
+
+
+def _lookup_preflight(cursor, session_id: str, current_transaction_id: str | None):
+    """Query DB for the latest PREFLIGHT record.
+
+    Returns the preflight row (know, uncertainty, timestamp, project_id)
+    or None if no PREFLIGHT found.
+    """
+    if current_transaction_id:
+        cursor.execute("""
+            SELECT know, uncertainty, timestamp, project_id FROM reflexes
+            WHERE session_id = ? AND phase = 'PREFLIGHT' AND transaction_id = ?
+            ORDER BY timestamp DESC LIMIT 1
+        """, (session_id, current_transaction_id))
+    else:
+        cursor.execute("""
+            SELECT know, uncertainty, timestamp, project_id FROM reflexes
+            WHERE session_id = ? AND phase = 'PREFLIGHT'
+            ORDER BY timestamp DESC LIMIT 1
+        """, (session_id,))
+    return cursor.fetchone()
+
+
+def _check_auto_proceed(raw_know: float, raw_unc: float, db, tx_file,
+                        _current_domain: str | None, _current_criticality: str | None,
+                        env_annotation: str) -> tuple | None:
+    """Check if PREFLIGHT vectors pass the auto-proceed threshold.
+
+    Returns (decision, reason) if auto-proceed applies, or None to continue.
+    Also returns the computed thresholds for use by CHECK evaluation.
+    """
+    _dyn_know, _dyn_unc = _get_dynamic_thresholds(db)
+    _domain_unc = _get_domain_scaled_thresholds(
+        _dyn_unc,
+        _current_domain,
+        _current_criticality,
+        project_path=str(Path(tx_file).parent.parent) if tx_file else None,
+    )
+    if raw_know >= _dyn_know and raw_unc <= _domain_unc:
+        _domain_info = ""
+        if _current_domain or _current_criticality:
+            _domain_info = f" [{_current_domain or 'default'}/{_current_criticality or 'medium'}]"
+        return ("allow", f"PREFLIGHT confidence sufficient - proceeding (threshold: U<={_domain_unc:.0%}{_domain_info}){env_annotation}")
+    return None
+
+
+def _check_expiry_and_compact(check_timestamp, empirica_root: Path | None) -> tuple | None:
+    """Check optional CHECK expiry and compact invalidation.
+
+    Returns (decision, reason) if CHECK is expired/invalidated, or None to continue.
+    """
+    check_time = None
+
+    if os.getenv('EMPIRICA_SENTINEL_CHECK_EXPIRY', 'false').lower() == 'true':
+        try:
+            if isinstance(check_timestamp, (int, float)) or (isinstance(check_timestamp, str) and check_timestamp.replace('.', '').isdigit()):
+                check_time = datetime.fromtimestamp(float(check_timestamp))
+            else:
+                check_time = datetime.fromisoformat(check_timestamp.replace('Z', '+00:00').replace('+00:00', ''))
+            age_minutes = (datetime.now() - check_time).total_seconds() / 60
+
+            if age_minutes > MAX_CHECK_AGE_MINUTES:
+                return ("deny", f"CHECK expired ({age_minutes:.0f}min). Refresh epistemic state.")
+        except Exception:
+            pass
+
+    if os.getenv('EMPIRICA_SENTINEL_COMPACT_INVALIDATION', 'false').lower() == 'true':
+        if empirica_root:
+            last_compact = get_last_compact_timestamp(empirica_root.parent)
+            if last_compact and check_time and last_compact > check_time:
+                return ("deny", "Context compacted. Recalibrate with fresh CHECK.")
+
+    return None
+
+
+def _evaluate_check_threshold(know, uncertainty, db, env_annotation: str) -> tuple:
+    """Evaluate CHECK vectors against dynamic thresholds.
+
+    Returns (decision, reason) — always produces a final decision.
+    """
+    raw_check_know = know or 0
+    raw_check_unc = uncertainty or 1
+    _dyn_know, _dyn_unc = _get_dynamic_thresholds(db)
+
+    if raw_check_know >= _dyn_know and raw_check_unc <= _dyn_unc:
+        return ("allow", f"CHECK passed - proceeding (threshold: K>={_dyn_know:.0%} U<={_dyn_unc:.0%}){env_annotation}")
+    # ADVISORY MODE: Surface the gap but let the AI proceed with awareness.
+    return ("allow", f"ADVISORY: Prediction groundedness below threshold (K={raw_check_know:.0%} vs {_dyn_know:.0%}, U={raw_check_unc:.0%} vs {_dyn_unc:.0%}). Consider gathering more grounding evidence.{env_annotation}")
+
+
+def main():
+    try:
+        hook_input = json.loads(sys.stdin.read() or '{}')
+    except Exception:
+        hook_input = {}
+
+    tool_name = hook_input.get('tool_name', 'unknown')
+    tool_input = hook_input.get('tool_input', {})
+
+    # === AUTONOMY CALIBRATION + READ DEDUP ===
+    _track_tool_usage(hook_input, tool_name, tool_input)
+
+    # === NOETIC FIREWALL: Whitelist-based access control ===
+    # Rules 1, 2, 2b, 2c: noetic tools, safe bash, plan files, remote confidence gate
+    _noetic_result = _noetic_firewall_check(tool_name, tool_input, hook_input)
+    if _noetic_result:
+        respond("allow", _noetic_result[1])
+        sys.exit(0)
+
+    # Rule 3: Everything else is PRAXIC - requires CHECK authorization
+    # This includes: Edit, Write, NotebookEdit, unsafe Bash, unknown tools
+
+    # === EXEMPTIONS: subagent, paused, sentinel disabled ===
+    exemption = _check_exemptions(hook_input, tool_name)
+    if exemption:
+        respond(exemption[0], exemption[1])
+        sys.exit(0)
+
+    # === ENVIRONMENT CONTEXT ===
+    env_annotation = _build_env_annotation()
+
+    # === AUTHORIZATION CHECK ===
+    claude_session_id = hook_input.get('session_id')
+
+    # Resolve project root and .empirica directory
+    empirica_root = _resolve_empirica_root(claude_session_id)
+
+    # Read active transaction (transactions can span compaction boundaries)
+    # The transaction file's session_id is authoritative when a transaction is open
+    # Uses _find_transaction_file() for suffix-mismatch resilience (KNOWN_ISSUES 11.21)
+    tx_state = _read_transaction_state(empirica_root, claude_session_id, tool_name, tool_input)
+    current_transaction_id = tx_state['current_transaction_id']
+    suffix = tx_state['suffix']
+    tx_file = tx_state['tx_file']
+
+    # Get session_id - transaction file takes priority (survives compaction)
+    # Fallback to active_work file for when no transaction is open
+    session_id = _resolve_session(tx_state['tx_session_id'], claude_session_id, env_annotation)
+
     # SessionDatabase uses path_resolver internally for DB location
     from empirica.data.session_database import SessionDatabase  # type: ignore[import-not-found]
     db = SessionDatabase()
@@ -2173,21 +2321,7 @@ def main():
             sys.exit(0)
 
     # Check for PREFLIGHT (authentication) - with vectors for auto-proceed
-    # Include project_id to check for project context switches
-    # Scope by transaction_id if available (current transaction only)
-    if current_transaction_id:
-        cursor.execute("""
-            SELECT know, uncertainty, timestamp, project_id FROM reflexes
-            WHERE session_id = ? AND phase = 'PREFLIGHT' AND transaction_id = ?
-            ORDER BY timestamp DESC LIMIT 1
-        """, (session_id, current_transaction_id))
-    else:
-        cursor.execute("""
-            SELECT know, uncertainty, timestamp, project_id FROM reflexes
-            WHERE session_id = ? AND phase = 'PREFLIGHT'
-            ORDER BY timestamp DESC LIMIT 1
-        """, (session_id,))
-    preflight_row = cursor.fetchone()
+    preflight_row = _lookup_preflight(cursor, session_id, current_transaction_id)
 
     if not preflight_row:
         result = _handle_no_preflight(tool_name, tool_input, session_id, env_annotation)
@@ -2232,19 +2366,12 @@ def main():
     # AUTO-PROCEED: If PREFLIGHT passes readiness gate, skip CHECK requirement
     # Uses Brier-based dynamic thresholds when available (miscalibration raises the bar)
     # B1: Domain-aware scaling — higher criticality = stricter uncertainty threshold
-    _dyn_know, _dyn_unc = _get_dynamic_thresholds(db)
-    _domain_unc = _get_domain_scaled_thresholds(
-        _dyn_unc,
-        locals().get('_current_domain'),
-        locals().get('_current_criticality'),
-        project_path=str(Path(tx_file).parent.parent) if tx_file else None,
-    )
-    if raw_know >= _dyn_know and raw_unc <= _domain_unc:
+    auto_result = _check_auto_proceed(
+        raw_know, raw_unc, db, tx_file,
+        tx_state['_current_domain'], tx_state['_current_criticality'], env_annotation)
+    if auto_result:
         db.close()
-        _domain_info = ""
-        if locals().get('_current_domain') or locals().get('_current_criticality'):
-            _domain_info = f" [{locals().get('_current_domain', 'default')}/{locals().get('_current_criticality', 'medium')}]"
-        respond("allow", f"PREFLIGHT confidence sufficient - proceeding (threshold: U<={_domain_unc:.0%}{_domain_info}){env_annotation}")
+        respond(auto_result[0], auto_result[1])
         sys.exit(0)
 
     # VALIDATE CHECK: lookup, sequence, rushed assessment, decision parse
@@ -2265,41 +2392,18 @@ def main():
         respond(_investigate_result[0], _investigate_result[1])
         sys.exit(0)
 
-    # Optional: Check age expiry
-    check_time = None
-    if os.getenv('EMPIRICA_SENTINEL_CHECK_EXPIRY', 'false').lower() == 'true':
-        try:
-            if isinstance(check_timestamp, (int, float)) or (isinstance(check_timestamp, str) and check_timestamp.replace('.', '').isdigit()):
-                check_time = datetime.fromtimestamp(float(check_timestamp))
-            else:
-                check_time = datetime.fromisoformat(check_timestamp.replace('Z', '+00:00').replace('+00:00', ''))
-            age_minutes = (datetime.now() - check_time).total_seconds() / 60
-
-            if age_minutes > MAX_CHECK_AGE_MINUTES:
-                respond("deny", f"CHECK expired ({age_minutes:.0f}min). Refresh epistemic state.")
-                sys.exit(0)
-        except Exception:
-            pass
-
-    # Optional: Compact invalidation
-    if os.getenv('EMPIRICA_SENTINEL_COMPACT_INVALIDATION', 'false').lower() == 'true':
-        last_compact = get_last_compact_timestamp(empirica_root.parent)
-        if last_compact and check_time and last_compact > check_time:
-            respond("deny", "Context compacted. Recalibrate with fresh CHECK.")
-            sys.exit(0)
-
-    # Use RAW vectors - what AI sees = what sentinel evaluates
-    raw_check_know = know or 0
-    raw_check_unc = uncertainty or 1
-
-    # Uses same Brier-based dynamic thresholds as PREFLIGHT auto-proceed
-    if raw_check_know >= _dyn_know and raw_check_unc <= _dyn_unc:
-        respond("allow", f"CHECK passed - proceeding (threshold: K>={_dyn_know:.0%} U<={_dyn_unc:.0%}){env_annotation}")
+    # Optional: Check age expiry and compact invalidation
+    expiry_result = _check_expiry_and_compact(check_timestamp, empirica_root)
+    if expiry_result:
+        db.close()
+        respond(expiry_result[0], expiry_result[1])
         sys.exit(0)
-    else:
-        # ADVISORY MODE: Surface the gap but let the AI proceed with awareness.
-        respond("allow", f"ADVISORY: Prediction groundedness below threshold (K={raw_check_know:.0%} vs {_dyn_know:.0%}, U={raw_check_unc:.0%} vs {_dyn_unc:.0%}). Consider gathering more grounding evidence.{env_annotation}")
-        sys.exit(0)
+
+    # Final CHECK threshold evaluation
+    final_result = _evaluate_check_threshold(know, uncertainty, db, env_annotation)
+    db.close()
+    respond(final_result[0], final_result[1])
+    sys.exit(0)
 
 
 if __name__ == '__main__':

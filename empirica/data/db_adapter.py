@@ -21,7 +21,7 @@ Usage:
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +124,7 @@ class DatabaseAdapter(ABC):
         if row is None:
             return False
         # Row is a dict — get the first value
-        return list(row.values())[0] > 0
+        return next(iter(row.values())) > 0
 
     def table_exists(self, table: str) -> bool:
         """Check if a table exists (dialect-aware)"""
@@ -142,7 +142,7 @@ class DatabaseAdapter(ABC):
         row = self.fetchone()
         if row is None:
             return False
-        return list(row.values())[0] > 0
+        return next(iter(row.values())) > 0
 
 
 class SQLiteAdapter(DatabaseAdapter):
@@ -284,10 +284,10 @@ class PostgreSQLAdapter(DatabaseAdapter):
         try:
             import psycopg2
             import psycopg2.extras
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "PostgreSQL support requires psycopg2. Install with: pip install psycopg2-binary"
-            )
+            ) from e
 
         self._conn = psycopg2.connect(
             host=host,

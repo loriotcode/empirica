@@ -10,10 +10,10 @@ from .repository import GoalRepository
 from .types import Dependency, DependencyType, Goal, ScopeVector, SuccessCriterion
 
 __all__ = [
-    'Goal',
-    'SuccessCriterion',
     'Dependency',
-    'ScopeVector',
     'DependencyType',
-    'GoalRepository'
+    'Goal',
+    'GoalRepository',
+    'ScopeVector',
+    'SuccessCriterion'
 ]

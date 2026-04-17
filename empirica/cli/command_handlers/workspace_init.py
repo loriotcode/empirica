@@ -21,7 +21,6 @@ import logging
 import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,7 @@ logger = logging.getLogger(__name__)
 class EpistemicDecisionEngine:
     """
     Makes epistemic decisions during workspace initialization.
-    
+
     Decision rules:
     - uncertainty > 0.7 + context < 0.3 → INVESTIGATE (blindly exploring)
     - uncertainty > 0.4 + context > 0.5 → ASK_USER (have enough context to ask)
@@ -253,7 +252,7 @@ class WorkspaceScanner:
 def handle_workspace_init_command(args):
     """
     Handle workspace-init command - Epistemic workspace initialization.
-    
+
     Uses CASCADE workflow:
     1. PREFLIGHT: Initial scan, assess epistemic state
     2. CHECK #1: Should we investigate deeper?

@@ -1,5 +1,8 @@
-# Set EMPIRICA_SESSION_ID to latest active claude-code session (PowerShell version)
-# Dot-source this in your PowerShell: . ~/.claude/plugins/local/empirica-integration/hooks/set-session-env.ps1
+# DEPRECATED: EMPIRICA_SESSION_ID is no longer needed.
+# All CLI commands auto-resolve sessions via InstanceResolver.
+# This script will be removed in a future version.
+Write-Host "⚠ DEPRECATED: EMPIRICA_SESSION_ID env var is no longer needed." -ForegroundColor Yellow
+Write-Host "  CLI commands auto-resolve sessions. Remove this from your profile." -ForegroundColor Gray
 
 try {
     $output = empirica sessions-list --output json 2>$null | ConvertFrom-Json

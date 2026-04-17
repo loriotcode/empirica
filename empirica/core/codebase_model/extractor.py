@@ -9,7 +9,6 @@ Adapted from world-model-mcp's extraction.py (MIT license).
 
 import os
 import re
-from typing import Optional
 
 from .types import Entity, Fact, Relationship
 

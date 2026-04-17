@@ -14,7 +14,6 @@ Future enhancements: Playwright MCP, vision APIs, video analysis
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Optional
 
 try:
     from PIL import Image

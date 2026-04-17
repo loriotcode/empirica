@@ -56,7 +56,7 @@ def handle_lesson_create_command(args: Namespace) -> dict[str, Any]:
         get_lesson_storage,
     )
 
-    output_format = getattr(args, 'output', 'json')
+    getattr(args, 'output', 'json')
 
     try:
         # Get input data
@@ -472,7 +472,7 @@ def handle_lesson_embed_command(args: Namespace) -> dict[str, Any]:
     if not storage._qdrant:
         return {'ok': False, 'error': 'Qdrant not available. Install qdrant-client.'}
 
-    force = getattr(args, 'force', False)
+    getattr(args, 'force', False)
     embedded = []
     failed = []
 

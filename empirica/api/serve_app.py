@@ -15,7 +15,6 @@ API contract matches empirica-extension/src/api/empirica-client.ts:
 """
 
 import logging
-from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -118,7 +117,7 @@ def create_serve_app() -> FastAPI:
             return ArtifactImportResponse(ok=True, **result)
         except Exception as e:
             logger.error(f"Import failed: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     @app.get("/api/v1/profile/status", response_model=ProfileStatusResponse)
     async def profile_status():
@@ -128,7 +127,7 @@ def create_serve_app() -> FastAPI:
             return ProfileStatusResponse(ok=True, **result)
         except Exception as e:
             logger.error(f"Profile status failed: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     @app.post("/api/v1/profile/sync", response_model=SyncResponse)
     async def profile_sync():
@@ -138,7 +137,7 @@ def create_serve_app() -> FastAPI:
             return SyncResponse(ok=True, **result)
         except Exception as e:
             logger.error(f"Profile sync failed: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     return app
 
@@ -196,8 +195,8 @@ def _store_artifacts(artifacts: list[ArtifactPayload]) -> dict:
                 if existing:
                     duplicates_skipped += 1
                     continue
-            except Exception:
-                pass  # Table may not have this column, proceed with insert
+            except Exception:  # noqa: S110 — table schema may lack column; proceed with insert
+                pass
 
         try:
             if atype == "finding":

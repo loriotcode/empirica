@@ -28,7 +28,7 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class IssueStatus(Enum):
 class AutoIssueCaptureService:
     """
     Central service for capturing and managing auto-discovered issues.
-    
+
     Integrates with logging system to capture errors/warnings without
     interrupting work flow. Enables handoff to other AIs with full context.
     """
@@ -74,7 +74,7 @@ class AutoIssueCaptureService:
     def __init__(self, session_id: str, db_path: str | None = None, enable: bool = True):
         """
         Initialize issue capture service.
-        
+
         Args:
             session_id: Current session ID for tracking
             db_path: Path to SQLite database (uses session DB by default)
@@ -153,14 +153,14 @@ class AutoIssueCaptureService:
     ) -> str:
         """
         Capture an error/exception without raising it.
-        
+
         Args:
             message: Error description
             severity: How critical is this issue?
             category: What type of issue?
             context: Additional context (locals, state, etc.)
             exc_info: Exception object if applicable
-            
+
         Returns:
             Issue ID for tracking
         """
@@ -215,7 +215,7 @@ class AutoIssueCaptureService:
     ) -> str:
         """
         Capture assertion failure without interrupting flow.
-        
+
         Usage:
             if not expected_condition:
                 auto_capture.capture_assertion_failure("expected_condition", "Why it matters")
@@ -236,7 +236,7 @@ class AutoIssueCaptureService:
     ) -> str:
         """
         Capture performance degradation.
-        
+
         Args:
             operation: What operation was slow?
             actual_ms: Actual time in milliseconds
@@ -277,18 +277,18 @@ class AutoIssueCaptureService:
     def classify_issue_type(message: str, category: str) -> str:
         """
         Classify issue into type: 'genuine_mistake', 'system_prompt', or 'project_specific'
-        
+
         This is important for general-purpose usage - allows filtering what's worth learning from.
-        
+
         Classifications:
         - genuine_mistake: Real bugs, performance issues, etc. (applicable to any repo)
         - system_prompt: TODOs, documentation, known limitations (from instructions)
         - project_specific: Framework/tool-specific design decisions (not general)
-        
+
         Args:
             message: Issue message
             category: Issue category
-            
+
         Returns:
             Issue type: 'genuine_mistake', 'system_prompt', or 'project_specific'
         """
@@ -338,8 +338,8 @@ class AutoIssueCaptureService:
 
             # Update issue_category field
             cursor.execute("""
-                UPDATE auto_captured_issues 
-                SET issue_category = ? 
+                UPDATE auto_captured_issues
+                SET issue_category = ?
                 WHERE id = ?
             """, (issue_type, issue_id))
 
@@ -406,13 +406,13 @@ class AutoIssueCaptureService:
     ) -> list[dict[str, Any]]:
         """
         List captured issues with optional filtering.
-        
+
         Args:
             status: Filter by status (new, investigating, handoff, resolved, wontfix)
             category: Filter by category
             severity: Filter by severity
             limit: Maximum results
-            
+
         Returns:
             List of issue dictionaries
         """
@@ -453,11 +453,11 @@ class AutoIssueCaptureService:
     def mark_for_handoff(self, issue_id: str, assigned_to_ai: str) -> bool:
         """
         Mark issue as ready for handoff to another AI.
-        
+
         Args:
             issue_id: Issue to hand off
             assigned_to_ai: AI ID to receive the issue
-            
+
         Returns:
             Success status
         """
@@ -489,11 +489,11 @@ class AutoIssueCaptureService:
     def resolve_issue(self, issue_id: str, resolution: str) -> bool:
         """
         Mark issue as resolved with explanation.
-        
+
         Args:
             issue_id: Issue that was fixed
             resolution: How it was resolved
-            
+
         Returns:
             Success status
         """
@@ -523,7 +523,7 @@ class AutoIssueCaptureService:
     def export_for_handoff(self, assigned_to_ai: str) -> dict[str, Any]:
         """
         Export all issues assigned to another AI in portable format.
-        
+
         Perfect for passing to another AI agent with full context.
         """
         # Get all handoff issues for this AI
@@ -591,7 +591,7 @@ class AutoCaptureLoggingHandler(logging.Handler):
     """
 
     # Patterns that indicate an error even at WARNING level
-    ERROR_PATTERNS = [
+    ERROR_PATTERNS: ClassVar[list[str]] = [
         'failed', 'error', 'exception', 'traceback', 'attribute error',
         'not found', 'missing', 'invalid', 'timeout', 'connection',
         'pydantic', 'validation', 'type error', 'value error', 'key error',
@@ -673,11 +673,11 @@ class AutoCaptureLoggingHandler(logging.Handler):
 def install_auto_capture_hooks(service: AutoIssueCaptureService) -> None:
     """
     Install logging handler and exception hook for automatic error capture.
-    
+
     This enables true "auto-capture" by hooking into Python's logging system
     and sys.excepthook. Errors will be captured automatically without
     explicit calls to capture_error().
-    
+
     Args:
         service: AutoIssueCaptureService instance to use for capture
     """
@@ -699,8 +699,7 @@ def install_auto_capture_hooks(service: AutoIssueCaptureService) -> None:
                     category=IssueCategory.ERROR,
                     exc_info=exc_value
                 )
-            except Exception:
-                # Don't let capture errors break exception handling
+            except Exception:  # noqa: S110 — capture errors must not break exception handling
                 pass
 
         # Always call original hook

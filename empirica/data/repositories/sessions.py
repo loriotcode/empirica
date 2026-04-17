@@ -6,7 +6,6 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 from .base import BaseRepository
 
@@ -138,7 +137,7 @@ class SessionRepository(BaseRepository):
             instance_id = R.instance_id()
 
         session_id = str(uuid.uuid4())
-        cursor = self._execute("""
+        self._execute("""
             INSERT INTO sessions (
                 session_id, ai_id, user_id, start_time, components_loaded,
                 subject, bootstrap_level, instance_id, parent_session_id
@@ -498,7 +497,7 @@ class SessionRepository(BaseRepository):
         assessments = {}
         cascade_tasks = {}
         for row in cursor.fetchall():
-            phase, vectors_json, cascade_id, timestamp = row
+            phase, vectors_json, cascade_id, _ = row
             if vectors_json:
                 # Convert phase to the expected key format
                 key = f"{phase.lower()}_vectors"

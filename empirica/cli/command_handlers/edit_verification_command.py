@@ -86,7 +86,7 @@ def atomic_edit_sync(file_path, old_str, new_str):
         return {
             "success": False,
             "strategy_used": "atomic_edit",
-            "message": f"Error: {str(e)}",
+            "message": f"Error: {e!s}",
             "changes_made": False
         }
 
@@ -148,7 +148,7 @@ def bash_line_replacement_sync(file_path, old_str, new_str):
         return {
             "success": False,
             "strategy_used": "bash_fallback",
-            "message": f"Error: {str(e)}",
+            "message": f"Error: {e!s}",
             "changes_made": False
         }
 
@@ -176,7 +176,7 @@ def re_read_then_edit_sync(file_path, old_str, new_str):
         return {
             "success": False,
             "strategy_used": "re_read_first",
-            "message": f"Error: {str(e)}",
+            "message": f"Error: {e!s}",
             "changes_made": False
         }
 

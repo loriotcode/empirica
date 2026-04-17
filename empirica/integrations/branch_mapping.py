@@ -13,7 +13,6 @@ This enables:
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 
 class BranchMapping:
@@ -22,7 +21,7 @@ class BranchMapping:
     def __init__(self, repo_root: str | None = None):
         """
         Initialize branch mapping manager.
-        
+
         Args:
             repo_root: Git repository root. If None, searches from cwd.
         """
@@ -75,14 +74,14 @@ class BranchMapping:
     ) -> bool:
         """
         Add a branch-to-goal mapping.
-        
+
         Args:
             branch_name: Git branch name
             goal_id: Empirica goal UUID
             beads_issue_id: Optional BEADS issue ID
             ai_id: Optional AI identifier
             session_id: Optional session UUID
-            
+
         Returns:
             True if mapping added, False if branch already mapped
         """
@@ -115,11 +114,11 @@ class BranchMapping:
     def remove_mapping(self, branch_name: str, archive: bool = True) -> bool:
         """
         Remove a branch mapping.
-        
+
         Args:
             branch_name: Branch to remove
             archive: If True, moves to history instead of deleting
-            
+
         Returns:
             True if removed, False if not found
         """
@@ -157,10 +156,10 @@ class BranchMapping:
 def get_branch_mapping(repo_root: str | None = None) -> BranchMapping:
     """
     Get branch mapping instance.
-    
+
     Args:
         repo_root: Optional git repository root
-        
+
     Returns:
         BranchMapping instance
     """

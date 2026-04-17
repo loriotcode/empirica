@@ -16,7 +16,6 @@ import logging
 import time
 import uuid
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
@@ -417,9 +416,9 @@ class LessonStorageManager:
 
     def search_lessons(
         self,
-        query: str = None,
-        domain: str = None,
-        improves_vector: str = None,
+        query: str | None = None,
+        domain: str | None = None,
+        improves_vector: str | None = None,
         limit: int = 10
     ) -> list[dict]:
         """
@@ -509,7 +508,7 @@ class LessonStorageManager:
     def get_learning_path(
         self,
         target_lesson_id: str,
-        completed_lessons: set[str] = None
+        completed_lessons: set[str] | None = None
     ) -> list[str]:
         """
         Get ordered list of lessons to complete before target.
@@ -551,8 +550,8 @@ class LessonStorageManager:
         self,
         lesson_id: str,
         session_id: str,
-        ai_id: str = None,
-        epistemic_before: dict[str, float] = None
+        ai_id: str | None = None,
+        epistemic_before: dict[str, float] | None = None
     ) -> str:
         """Start tracking a lesson replay"""
         cursor = self._conn.cursor()
@@ -578,8 +577,8 @@ class LessonStorageManager:
         replay_id: str,
         success: bool,
         steps_completed: int,
-        epistemic_after: dict[str, float] = None,
-        error_message: str = None
+        epistemic_after: dict[str, float] | None = None,
+        error_message: str | None = None
     ):
         """Mark a lesson replay as complete"""
         cursor = self._conn.cursor()
@@ -1082,8 +1081,8 @@ def _try_get_qdrant_client():
             with urllib.request.urlopen(req, timeout=1) as resp:
                 if resp.status == 200:
                     return QdrantClient(url=default_url)
-        except Exception:
-            pass  # Server not available
+        except Exception:  # noqa: S110 — Qdrant server may not be running; graceful fallback
+            pass
 
         logger.debug("Qdrant server not available for lessons storage")
         return None

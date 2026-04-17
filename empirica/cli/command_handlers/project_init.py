@@ -11,7 +11,7 @@ Usage:
     cd my-new-project
     git init
     empirica project-init
-    
+
 Author: Rovo Dev
 Date: 2025-12-19
 """
@@ -29,7 +29,6 @@ def _resolve_or_create_project(db, args, project_name, project_description,
                                 project_config_path, git_url, project_type, tags, output_format):
     """Resolve existing project or create new one. Returns project_id."""
     import yaml
-    project_id = None
 
     # Explicit --project-id flag
     explicit_id = getattr(args, 'project_id', None)
@@ -69,6 +68,7 @@ def _register_project_in_workspace(project_id, project_name, project_description
     """Register project in global workspace.db. Non-fatal on failure."""
     try:
         import json as _json_ws
+
         from .workspace_init import _register_in_workspace_db
         ws_metadata = _json_ws.dumps({
             k: project_config.get(k, d) for k, d in [

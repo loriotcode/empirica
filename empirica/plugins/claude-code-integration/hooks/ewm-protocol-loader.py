@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 try:
-    import yaml as _yaml_check  # noqa: F401
+    import yaml as _yaml_check  # noqa: F401 — availability check for HAS_YAML
     HAS_YAML = True
 except ImportError:
     HAS_YAML = False

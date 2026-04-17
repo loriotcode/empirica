@@ -7,6 +7,7 @@ This is DYNAMIC context (what's in THIS project), not static prescription.
 
 import logging
 from pathlib import Path
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class StructureHealthAnalyzer:
     """Analyze project structure and detect patterns"""
 
     # Known project patterns (static knowledge)
-    PATTERNS = {
+    PATTERNS: ClassVar[dict[str, dict[str, Any]]] = {
         'python_package': {
             'name': 'Python Package',
             'expected_folders': ['src/', 'tests/', 'docs/'],
@@ -62,7 +63,7 @@ class StructureHealthAnalyzer:
 
     def analyze(self) -> dict:
         """Analyze project structure and detect pattern
-        
+
         Returns:
             Dict with:
                 - detected_type: Best matching pattern
@@ -136,7 +137,7 @@ class StructureHealthAnalyzer:
 
     def _calculate_pattern_match(self, folders: list[str], files: list[str], pattern: dict) -> float:
         """Calculate how well structure matches a pattern
-        
+
         Returns:
             Score 0.0-1.0
         """
@@ -166,7 +167,7 @@ class StructureHealthAnalyzer:
 
     def _check_conformance(self, folders: list[str], files: list[str], pattern: dict) -> tuple[float, list[str]]:
         """Check conformance to detected pattern
-        
+
         Returns:
             (conformance_score, violations)
         """
@@ -211,10 +212,10 @@ class StructureHealthAnalyzer:
 
 def analyze_structure_health(project_root: str) -> dict:
     """Convenience function to analyze project structure
-    
+
     Args:
         project_root: Path to project root
-        
+
     Returns:
         Structure health report dict
     """

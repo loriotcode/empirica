@@ -34,15 +34,15 @@ from .orchestrator import (
 )
 
 __all__ = [
+    'ComplianceGate',
     'DecisionLogic',
+    'DomainProfile',
+    'EpistemicLoopTracker',
+    'GateAction',
+    'LoopMode',
+    'LoopRecord',
+    'MergeStrategy',
+    'OrchestrationResult',
     'PersonaMatch',
     'Sentinel',
-    'OrchestrationResult',
-    'EpistemicLoopTracker',
-    'LoopRecord',
-    'LoopMode',
-    'DomainProfile',
-    'ComplianceGate',
-    'GateAction',
-    'MergeStrategy',
 ]

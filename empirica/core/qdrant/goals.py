@@ -20,16 +20,16 @@ def embed_goal(
     project_id: str,
     goal_id: str,
     objective: str,
-    session_id: str = None,
-    ai_id: str = None,
-    scope_breadth: float = None,
-    scope_duration: float = None,
-    scope_coordination: float = None,
-    estimated_complexity: float = None,
-    success_criteria: list[str] = None,
+    session_id: str | None = None,
+    ai_id: str | None = None,
+    scope_breadth: float | None = None,
+    scope_duration: float | None = None,
+    scope_coordination: float | None = None,
+    estimated_complexity: float | None = None,
+    success_criteria: list[str] | None = None,
     status: str = "in_progress",
-    tags: list[str] = None,
-    timestamp: float = None,
+    tags: list[str] | None = None,
+    timestamp: float | None = None,
 ) -> bool:
     """
     Embed a goal to Qdrant for semantic search across sessions.
@@ -118,15 +118,15 @@ def embed_subtask(
     subtask_id: str,
     description: str,
     goal_id: str,
-    goal_objective: str = None,
-    session_id: str = None,
-    ai_id: str = None,
+    goal_objective: str | None = None,
+    session_id: str | None = None,
+    ai_id: str | None = None,
     epistemic_importance: str = "medium",
     status: str = "pending",
-    completion_evidence: str = None,
-    findings: list[str] = None,
-    unknowns: list[str] = None,
-    timestamp: float = None,
+    completion_evidence: str | None = None,
+    findings: list[str] | None = None,
+    unknowns: list[str] | None = None,
+    timestamp: float | None = None,
 ) -> bool:
     """
     Embed a subtask to Qdrant for semantic search.
@@ -212,9 +212,9 @@ def embed_subtask(
 def search_goals(
     project_id: str,
     query: str,
-    item_type: str = None,
-    status: str = None,
-    ai_id: str = None,
+    item_type: str | None = None,
+    status: str | None = None,
+    ai_id: str | None = None,
     include_subtasks: bool = True,
     limit: int = 10,
 ) -> list[dict]:
@@ -310,7 +310,7 @@ def update_goal_status(
     project_id: str,
     goal_id: str,
     status: str,
-    completion_evidence: str = None,
+    completion_evidence: str | None = None,
 ) -> bool:
     """
     Update goal status in Qdrant (e.g., when completed).

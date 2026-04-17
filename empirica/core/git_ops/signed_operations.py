@@ -27,9 +27,9 @@ import subprocess
 # Import GitPython - handle naming conflict with empirica.core.git package
 # We import git commands but need to be careful of the package name conflict
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime  # type: ignore[reportAttributeAccessIssue]
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # Temporarily remove empirica.core.git from sys.modules to import GitPython 'git' module
 _empirica_git_module = sys.modules.pop('empirica.core.git', None)
@@ -50,7 +50,7 @@ finally:
     if _empirica_git_module is not None:
         sys.modules['empirica.core.git'] = _empirica_git_module
 
-from empirica.core.persona.signing_persona import SigningPersona
+from empirica.core.persona.signing_persona import SigningPersona  # noqa: E402 — after sys.modules guard
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +211,7 @@ class SignedGitOperations:
 
         except subprocess.CalledProcessError as e:
             logger.error(f"Git command failed: {e.stderr}")
-            raise GitCommandError("git notes add", e.returncode, e.stderr)
+            raise GitCommandError("git notes add", e.returncode, e.stderr) from e
 
     def get_signed_state_from_commit(self, commit_sha: str) -> dict[str, Any] | None:
         """
@@ -363,10 +363,10 @@ class SignedGitOperations:
                                 )
 
                         except Exception as e:
-                            verification["error"] = f"Signature verification error: {str(e)}"
+                            verification["error"] = f"Signature verification error: {e!s}"
 
                 except Exception as e:
-                    verification["error"] = f"State parsing error: {str(e)}"
+                    verification["error"] = f"State parsing error: {e!s}"
 
                 results.append(verification)
 
@@ -414,8 +414,8 @@ class SignedGitOperations:
             "commits": results,
             "summary": {
                 "all_verified": all(r.get("state_verified") for r in results),
-                "phases_covered": list(set(r.get("phase") for r in results if r.get("phase"))),
-                "personas_involved": list(set(r.get("persona_id") for r in results if r.get("persona_id")))
+                "phases_covered": list({r.get("phase") for r in results if r.get("phase")}),
+                "personas_involved": list({r.get("persona_id") for r in results if r.get("persona_id")})
             }
         }
 

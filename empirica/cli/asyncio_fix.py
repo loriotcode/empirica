@@ -29,7 +29,7 @@ def suppress_asyncio_warnings():
 def patch_asyncio_for_mcp():
     """
     Apply patches to prevent asyncio event loop issues with MCP servers.
-    
+
     This should be called early in CLI startup before any MCP connections.
     """
     import asyncio

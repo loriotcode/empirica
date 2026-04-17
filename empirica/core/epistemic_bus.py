@@ -15,7 +15,7 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class EpistemicEvent:
     """
     Simple epistemic event structure
-    
+
     Events are just data - no behavior, no routing logic
     """
     def __init__(
@@ -59,7 +59,7 @@ class EpistemicEvent:
 class EpistemicObserver(ABC):
     """
     Interface for external systems that observe epistemic events
-    
+
     Examples:
     - RoutingSentinel: Suggests routing based on epistemic state
     - MCO: Coordinates multiple agents
@@ -70,10 +70,10 @@ class EpistemicObserver(ABC):
     def handle_event(self, event: EpistemicEvent) -> None:
         """
         React to epistemic event
-        
+
         Args:
             event: The epistemic event
-            
+
         Note: Observers should be fast and non-blocking.
               Heavy processing should be async or queued.
         """
@@ -83,13 +83,13 @@ class EpistemicObserver(ABC):
 class EpistemicBus:
     """
     Simple pub/sub bus for epistemic events
-    
+
     Design principles:
     - Synchronous and simple (no queues, no async complexity)
     - Observers are called in order
     - Errors in observers are logged but don't block
     - Optional - system works without any observers
-    
+
     Usage:
         bus = EpistemicBus()
         bus.subscribe(MyObserver())
@@ -105,7 +105,7 @@ class EpistemicBus:
     def subscribe(self, observer: EpistemicObserver) -> None:
         """
         Register an observer to receive epistemic events
-        
+
         Args:
             observer: Observer instance implementing EpistemicObserver interface
         """
@@ -124,10 +124,10 @@ class EpistemicBus:
     def publish(self, event: EpistemicEvent) -> None:
         """
         Publish an epistemic event to all observers
-        
+
         Args:
             event: The epistemic event to publish
-            
+
         Note: Observer errors are caught and logged but don't block other observers
         """
         self._event_count += 1
@@ -203,7 +203,7 @@ class EventTypes:
 class LoggingObserver(EpistemicObserver):
     """
     Simple observer that logs all events
-    
+
     Useful for debugging and development
     """
 
@@ -222,7 +222,7 @@ class LoggingObserver(EpistemicObserver):
 class CallbackObserver(EpistemicObserver):
     """
     Observer that calls a function for each event
-    
+
     Useful for testing and simple integrations
     """
 

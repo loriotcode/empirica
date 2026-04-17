@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,7 @@ def _check_qdrant_available() -> bool:
         return False
 
     try:
-        from qdrant_client import QdrantClient  # noqa
+        from qdrant_client import QdrantClient  # noqa: F401 — availability check
         _qdrant_available = True
         return True
     except ImportError:

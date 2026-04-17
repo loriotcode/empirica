@@ -46,7 +46,7 @@ class _C:
 
 
 # Status constants
-PASS = "PASS"
+PASS = "PASS"  # noqa: S105
 FAIL = "FAIL"
 WARN = "WARN"
 SKIP = "SKIP"

@@ -5,7 +5,7 @@ project:
   name: "empirica-development"
   description: "Using Empirica to manage Empirica itself - dogfooding at its finest"
   repository: "https://github.com/Nubaeon/empirica"
-  version: "1.8.4"
+  version: "1.8.5"
   
 bootstrap:
   # What contributors should know when starting work
@@ -69,6 +69,12 @@ workflow:
       command: "empirica postflight-submit /tmp/postflight.json"
       description: "Measure what you learned"
       compare_to: "PREFLIGHT vectors"
+
+transaction:
+  # Configurable thresholds for transaction enforcement
+  max_transaction_turns: 20          # Hard limit — forces POSTFLIGHT (env: EMPIRICA_TX_HARD_TURNS)
+  soft_reminder_turns: 12            # Soft reminder — suggests POSTFLIGHT (env: EMPIRICA_TX_SOFT_TURNS)
+  log_artifacts_reminder_turns: 15   # Remind about artifact logging if none logged yet
 
 testing:
   # Always test your changes

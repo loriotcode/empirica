@@ -48,10 +48,10 @@ class UsageMonitor:
         >>> summary = mon.get_summary()
     """
 
-    def __init__(self, stats_file: Path = None):
+    def __init__(self, stats_file: Path | None = None):
         """
         Initialize UsageMonitor.
-        
+
         Args:
             stats_file: Path to stats file (default from config)
         """
@@ -208,141 +208,10 @@ def handle_monitor_command(args):
         handle_cli_error(e, "Monitor", getattr(args, 'verbose', False))
 
 
-def _display_turtle_health():
-    """Display epistemic health metrics (the turtle view)."""
-    print("\n" + "=" * 70)
-    print("🐢 Epistemic Health (Turtles All The Way Down)")
-    print("=" * 70)
-
-    try:
-        from empirica.data.flow_state_calculator import (
-            calculate_flow_score,
-            classify_flow_state,
-            identify_flow_blockers,
-        )
-        from empirica.data.session_database import SessionDatabase
-
-        db = SessionDatabase()
-
-        # Get current session
-        try:
-            session_id = R.latest_session_id(ai_id='claude-code', active_only=True)
-        except ValueError:
-            session_id = None
-
-        if not session_id:
-            print("\n   ⚠️  No active session found")
-            print("   Run: empirica session-create --ai-id <your-id>")
-            return
-
-        # Get project_id for this session
-        cursor = db.conn.cursor()
-        cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
-        row = cursor.fetchone()
-        project_id = row[0] if row else None
-
-        # Get latest vectors for flow calculation
-        cursor.execute("""
-            SELECT engagement, know, do, context, clarity, coherence,
-                   signal, density, state, change, completion, impact, uncertainty
-            FROM reflexes
-            WHERE session_id = ?
-            ORDER BY timestamp DESC LIMIT 1
-        """, (session_id,))
-        row = cursor.fetchone()
-
-        vectors = {}
-        if row:
-            vector_names = ['engagement', 'know', 'do', 'context', 'clarity', 'coherence',
-                           'signal', 'density', 'state', 'change', 'completion', 'impact', 'uncertainty']
-            vectors = {name: val for name, val in zip(vector_names, row) if val is not None}
-
-        # Flow State (using vector-based calculator)
-        print("\n   ✨ Flow State")
-        print("   " + "-" * 40)
-
-        if vectors:
-            flow_score = calculate_flow_score(vectors)
-            flow_state, flow_emoji = classify_flow_state(flow_score)
-            print(f"   Current: {flow_emoji} {flow_state} ({flow_score:.1f}/100)")
-
-            # Show blockers if any
-            blockers = identify_flow_blockers(vectors)
-            if blockers:
-                print(f"   Blockers: {blockers[0]}")
-        else:
-            print("   ⚠️  No vectors recorded - run PREFLIGHT first")
-
-        # Transaction Completeness
-        print("\n   🔄 Transaction Completeness")
-        print("   " + "-" * 40)
-        cursor.execute("""
-            SELECT phase, COUNT(*) as count
-            FROM reflexes
-            WHERE session_id = ?
-            GROUP BY phase
-        """, (session_id,))
-        phases = {row[0]: row[1] for row in cursor.fetchall()}
-
-        has_preflight = phases.get('PREFLIGHT', 0) > 0
-        has_check = phases.get('CHECK', 0) > 0
-        has_postflight = phases.get('POSTFLIGHT', 0) > 0
-
-        cascade_parts = []
-        cascade_parts.append("✅ PREFLIGHT" if has_preflight else "⬜ PREFLIGHT")
-        cascade_parts.append("✅ CHECK" if has_check else "⬜ CHECK")
-        cascade_parts.append("✅ POSTFLIGHT" if has_postflight else "⬜ POSTFLIGHT")
-        print(f"   {' → '.join(cascade_parts)}")
-
-        completeness = sum([has_preflight, has_postflight]) / 2 * 100
-        print(f"   Completeness: {completeness:.0f}%")
-
-        # Unknowns/Findings Ratio
-        if project_id:
-            print("\n   📊 Knowledge State")
-            print("   " + "-" * 40)
-            cursor.execute("SELECT COUNT(*) FROM project_findings WHERE project_id = ?", (project_id,))
-            findings_count = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM project_unknowns WHERE project_id = ? AND is_resolved = 0", (project_id,))
-            unknowns_count = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM project_unknowns WHERE project_id = ? AND is_resolved = 1", (project_id,))
-            resolved_count = cursor.fetchone()[0]
-
-            print(f"   Findings: {findings_count} | Unknowns: {unknowns_count} open, {resolved_count} resolved")
-
-            if unknowns_count + findings_count > 0:
-                knowledge_ratio = findings_count / (unknowns_count + findings_count) * 100
-                bar_len = int(knowledge_ratio / 5)
-                bar = "█" * bar_len + "░" * (20 - bar_len)
-                print(f"   Knowledge: [{bar}] {knowledge_ratio:.0f}%")
-
-        # Latest vectors
-        print("\n   📈 Latest Vectors")
-        print("   " + "-" * 40)
-        cursor.execute("""
-            SELECT know, uncertainty, engagement, completion
-            FROM reflexes
-            WHERE session_id = ?
-            ORDER BY timestamp DESC LIMIT 1
-        """, (session_id,))
-        row = cursor.fetchone()
-        if row:
-            know, unc, eng, comp = row
-            print(f"   know={know:.2f}  uncertainty={unc:.2f}  engagement={eng:.2f}  completion={comp:.2f}")
-        else:
-            print("   No vectors recorded yet")
-
-        db.close()
-
-    except Exception as e:
-        logger.warning(f"Turtle health check failed: {e}")
-        print(f"\n   ⚠️  Could not load epistemic health: {e}")
-
-
 def handle_monitor_export_command(args):
     """
     Export monitoring data to file.
-    
+
     Supports JSON and CSV formats.
     """
     try:
@@ -392,7 +261,7 @@ def handle_monitor_export_command(args):
 def handle_monitor_reset_command(args):
     """
     Reset monitoring statistics.
-    
+
     Clears all recorded data.
     """
     try:
@@ -420,7 +289,7 @@ def handle_monitor_reset_command(args):
 def handle_monitor_cost_command(args):
     """
     Display cost analysis.
-    
+
     Shows detailed cost breakdown by adapter and time period.
     """
     try:
@@ -614,6 +483,63 @@ def handle_mco_load_command(args):
         handle_cli_error(e, "MCO Load", getattr(args, 'verbose', False))
 
 
+def _load_checkpoint_vectors(session_id: str | None, verbose: bool) -> tuple[dict, dict]:
+    """Load last checkpoint vectors for a session, trying git notes then reflexes table.
+
+    Returns (vectors, checkpoint_data) tuple. Both empty dicts if no data found.
+    """
+    vectors: dict = {}
+    checkpoint_data: dict = {}
+
+    if not session_id:
+        return vectors, checkpoint_data
+
+    # Try git notes first (canonical source)
+    try:
+        from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
+        git_logger = GitEnhancedReflexLogger(session_id=session_id, enable_git_notes=True)
+        checkpoints = git_logger.list_checkpoints(limit=1)
+
+        if checkpoints and checkpoints[0] is not None:
+            checkpoint_data = checkpoints[0]
+            vectors = checkpoint_data.get('vectors', {}) or {}
+    except Exception as e:
+        if verbose:
+            logger.warning(f"Could not load checkpoint from git notes: {e}")
+
+    # Fallback to reflexes table if git notes empty
+    if not vectors:
+        try:
+            from empirica.data.session_database import SessionDatabase
+            db = SessionDatabase()
+            cursor = db.conn.cursor()
+            cursor.execute("""
+                SELECT engagement, know, do, context, clarity, coherence,
+                       signal, density, state, change, completion, impact, uncertainty
+                FROM reflexes
+                WHERE session_id = ?
+                ORDER BY timestamp DESC LIMIT 1
+            """, (session_id,))
+            row = cursor.fetchone()
+            db.close()
+
+            if row:
+                vectors = {
+                    'engagement': row[0], 'know': row[1], 'do': row[2],
+                    'context': row[3], 'clarity': row[4], 'coherence': row[5],
+                    'signal': row[6], 'density': row[7], 'state': row[8],
+                    'change': row[9], 'completion': row[10], 'impact': row[11],
+                    'uncertainty': row[12]
+                }
+                vectors = {k: v for k, v in vectors.items() if v is not None}
+                checkpoint_data = {'vectors': vectors, 'source': 'reflexes_table'}
+        except Exception as e:
+            if verbose:
+                logger.warning(f"Could not load checkpoint from reflexes: {e}")
+
+    return vectors, checkpoint_data
+
+
 def handle_assess_state_command(args):
     """
     Capture sessionless epistemic state (fresh measurement without session context).
@@ -651,53 +577,7 @@ def handle_assess_state_command(args):
             print("=" * 70)
 
         # If session_id provided, load last checkpoint as reference
-        vectors = {}
-        checkpoint_data = {}
-
-        if session_id:
-            # Try git notes first (canonical source)
-            try:
-                from empirica.core.canonical.git_enhanced_reflex_logger import GitEnhancedReflexLogger
-                git_logger = GitEnhancedReflexLogger(session_id=session_id, enable_git_notes=True)
-                checkpoints = git_logger.list_checkpoints(limit=1)
-
-                if checkpoints and checkpoints[0] is not None:
-                    checkpoint_data = checkpoints[0]
-                    vectors = checkpoint_data.get('vectors', {}) or {}
-            except Exception as e:
-                if verbose:
-                    logger.warning(f"Could not load checkpoint from git notes: {e}")
-
-            # Fallback to reflexes table if git notes empty
-            if not vectors:
-                try:
-                    from empirica.data.session_database import SessionDatabase
-                    db = SessionDatabase()
-                    cursor = db.conn.cursor()
-                    cursor.execute("""
-                        SELECT engagement, know, do, context, clarity, coherence,
-                               signal, density, state, change, completion, impact, uncertainty
-                        FROM reflexes
-                        WHERE session_id = ?
-                        ORDER BY timestamp DESC LIMIT 1
-                    """, (session_id,))
-                    row = cursor.fetchone()
-                    db.close()
-
-                    if row:
-                        vectors = {
-                            'engagement': row[0], 'know': row[1], 'do': row[2],
-                            'context': row[3], 'clarity': row[4], 'coherence': row[5],
-                            'signal': row[6], 'density': row[7], 'state': row[8],
-                            'change': row[9], 'completion': row[10], 'impact': row[11],
-                            'uncertainty': row[12]
-                        }
-                        # Filter None values
-                        vectors = {k: v for k, v in vectors.items() if v is not None}
-                        checkpoint_data = {'vectors': vectors, 'source': 'reflexes_table'}
-                except Exception as e:
-                    if verbose:
-                        logger.warning(f"Could not load checkpoint from reflexes: {e}")
+        vectors, checkpoint_data = _load_checkpoint_vectors(session_id, verbose)
 
         # Capture fresh state
         # In production, this would call into an LLM or use cached epistemic state
@@ -728,7 +608,7 @@ def handle_assess_state_command(args):
                         bar = "█" * bar_length + "░" * (20 - bar_length)
                         print(f"   {key:20s} {value:5.2f}  {bar}")
                     else:
-                        print(f"   {key:20s} {str(value)}")
+                        print(f"   {key:20s} {value!s}")
             else:
                 print("   ⚠️  No vectors available")
                 print("   Run PREFLIGHT or CHECK to establish baseline")
@@ -746,7 +626,7 @@ def handle_assess_state_command(args):
         handle_cli_error(e, "Assess State", getattr(args, 'verbose', False))
 
 
-def _display_turtle_stack(vectors: dict, session_id: str = None, prompt: str = None):
+def _display_turtle_stack(vectors: dict, session_id: str | None = None, prompt: str | None = None):
     """
     Display recursive grounding stack trace (the Noetic Handshake).
 
@@ -944,10 +824,120 @@ def _resolve_current_vectors(db, session_id=None) -> tuple:
             pass
 
     if not vectors:
-        vectors = {k: 0.5 for k in ['know', 'do', 'context', 'clarity', 'coherence', 'signal',
-                                      'density', 'engagement', 'state', 'change', 'completion',
-                                      'impact', 'uncertainty']}
+        vectors = dict.fromkeys(['know', 'do', 'context', 'clarity', 'coherence', 'signal', 'density', 'engagement', 'state', 'change', 'completion', 'impact', 'uncertainty'], 0.5)
     return vectors, project_id
+
+
+def _calculate_trajectory_paths(
+    layer0_score: float, layer1_score: float, layer2_score: float, layer3_score: float,
+    overall_grounding: float, unknowns_count: int, sentinel_status: str | None,
+) -> list[dict]:
+    """Calculate viability of each epistemic path based on grounding scores.
+
+    Returns sorted list of path dicts (most viable first).
+    """
+    paths = []
+
+    # PRAXIC path - can we execute?
+    praxic_confidence = min(layer1_score, layer2_score, layer3_score)
+    praxic_viable = praxic_confidence >= 0.70 and unknowns_count <= 3
+    praxic_blockers = []
+    if layer1_score < 0.70:
+        praxic_blockers.append(f"NOETIC GRASP too low ({layer1_score:.2f})")
+    if layer2_score < 0.70:
+        praxic_blockers.append(f"PRAXIC PATH unclear ({layer2_score:.2f})")
+    if unknowns_count > 3:
+        praxic_blockers.append(f"{unknowns_count} unknowns blocking")
+    paths.append({
+        'name': 'PRAXIC',
+        'icon': '🟢' if praxic_viable else '🟡' if praxic_confidence >= 0.50 else '🔴',
+        'confidence': praxic_confidence,
+        'viable': praxic_viable,
+        'description': 'Execute with confidence. Grounding supports action.',
+        'blockers': praxic_blockers,
+        'action': 'Enter praxic phase, implement the planned changes'
+    })
+
+    # NOETIC-SHALLOW path - quick investigation
+    noetic_shallow_confidence = (layer0_score + layer1_score) / 2
+    noetic_shallow_viable = 0.50 <= overall_grounding < 0.70 or (unknowns_count > 0 and unknowns_count <= 5)
+    paths.append({
+        'name': 'NOETIC-SHALLOW',
+        'icon': '🟢' if noetic_shallow_viable else '🟡',
+        'confidence': noetic_shallow_confidence,
+        'viable': noetic_shallow_viable,
+        'description': 'Quick targeted investigation. Address specific unknowns.',
+        'blockers': [] if noetic_shallow_viable else ['Grounding too low for shallow investigation'],
+        'action': f'Investigate {min(unknowns_count, 3)} unknowns, then re-CHECK'
+    })
+
+    # NOETIC-DEEP path - thorough investigation
+    noetic_deep_confidence = layer0_score
+    noetic_deep_viable = overall_grounding < 0.50 or unknowns_count > 5
+    paths.append({
+        'name': 'NOETIC-DEEP',
+        'icon': '🟢' if noetic_deep_viable else '🟡',
+        'confidence': noetic_deep_confidence,
+        'viable': noetic_deep_viable,
+        'description': 'Thorough investigation required. Many unknowns or low grounding.',
+        'blockers': [] if noetic_deep_viable else ['Grounding sufficient for shallower path'],
+        'action': 'Deep exploration, log findings, resolve unknowns before proceeding'
+    })
+
+    # SCOPE-EXPAND path - broaden task scope
+    scope_expand_confidence = overall_grounding * (1 - (unknowns_count / 10)) if unknowns_count <= 10 else 0
+    scope_expand_viable = overall_grounding >= 0.75 and unknowns_count <= 2 and scope_expand_confidence is not None
+    scope_blockers = []
+    if overall_grounding < 0.75:
+        scope_blockers.append(f"Grounding ({overall_grounding:.2f}) < 0.75 threshold")
+    if unknowns_count > 2:
+        scope_blockers.append(f"{unknowns_count} unknowns would expand further")
+    paths.append({
+        'name': 'SCOPE-EXPAND',
+        'icon': '🟢' if scope_expand_viable else '🔴',
+        'confidence': max(0, scope_expand_confidence),
+        'viable': scope_expand_viable,
+        'description': 'Broaden task scope. Current grounding supports expansion.',
+        'blockers': scope_blockers,
+        'action': 'Add subtasks or related goals, then re-baseline with PREFLIGHT'
+    })
+
+    # HANDOFF path - transfer to different AI
+    handoff_confidence = 1 - overall_grounding
+    handoff_viable = overall_grounding < 0.40 or (sentinel_status and sentinel_status in ['forming', 'dark'])
+    paths.append({
+        'name': 'HANDOFF',
+        'icon': '🟡' if handoff_viable else '⚪',
+        'confidence': handoff_confidence,
+        'viable': handoff_viable,
+        'description': 'Transfer to different AI/session. Observer stability questionable.',
+        'blockers': [] if handoff_viable else ['Observer stable enough to continue'],
+        'action': 'Create handoff artifact, transfer context to fresh session/AI'
+    })
+
+    # HALT path - stop and seek guidance
+    halt_confidence = 1 - min(layer3_score, overall_grounding)
+    halt_viable = layer3_score < 0.30 or overall_grounding < 0.25
+    paths.append({
+        'name': 'HALT',
+        'icon': '🔴' if halt_viable else '⚪',
+        'confidence': halt_confidence,
+        'viable': halt_viable,
+        'description': 'Stop and seek human guidance. Critical grounding issues.',
+        'blockers': [] if halt_viable else ['No critical issues detected'],
+        'action': 'Escalate to human, do not proceed without guidance'
+    })
+
+    # Ensure all paths have valid viable values (defensive)
+    for p in paths:
+        if p['viable'] is None:
+            p['viable'] = False
+        if p['confidence'] is None:
+            p['confidence'] = 0.0
+
+    # Sort paths by viability first, then confidence (descending)
+    paths.sort(key=lambda p: (-int(bool(p['viable'])), -p['confidence']))
+    return paths
 
 
 def handle_trajectory_project_command(args):
@@ -1037,108 +1027,10 @@ def handle_trajectory_project_command(args):
             sentinel_moon = turtle_result.get('moon')
 
         # Calculate path viabilities
-        paths = []
-
-        # PRAXIC path - can we execute?
-        praxic_confidence = min(layer1_score, layer2_score, layer3_score)
-        praxic_viable = praxic_confidence >= 0.70 and unknowns_count <= 3
-        praxic_blockers = []
-        if layer1_score < 0.70:
-            praxic_blockers.append(f"NOETIC GRASP too low ({layer1_score:.2f})")
-        if layer2_score < 0.70:
-            praxic_blockers.append(f"PRAXIC PATH unclear ({layer2_score:.2f})")
-        if unknowns_count > 3:
-            praxic_blockers.append(f"{unknowns_count} unknowns blocking")
-
-        paths.append({
-            'name': 'PRAXIC',
-            'icon': '🟢' if praxic_viable else '🟡' if praxic_confidence >= 0.50 else '🔴',
-            'confidence': praxic_confidence,
-            'viable': praxic_viable,
-            'description': 'Execute with confidence. Grounding supports action.',
-            'blockers': praxic_blockers,
-            'action': 'Enter praxic phase, implement the planned changes'
-        })
-
-        # NOETIC-SHALLOW path - quick investigation
-        noetic_shallow_confidence = (layer0_score + layer1_score) / 2
-        noetic_shallow_viable = 0.50 <= overall_grounding < 0.70 or (unknowns_count > 0 and unknowns_count <= 5)
-        paths.append({
-            'name': 'NOETIC-SHALLOW',
-            'icon': '🟢' if noetic_shallow_viable else '🟡',
-            'confidence': noetic_shallow_confidence,
-            'viable': noetic_shallow_viable,
-            'description': 'Quick targeted investigation. Address specific unknowns.',
-            'blockers': [] if noetic_shallow_viable else ['Grounding too low for shallow investigation'],
-            'action': f'Investigate {min(unknowns_count, 3)} unknowns, then re-CHECK'
-        })
-
-        # NOETIC-DEEP path - thorough investigation
-        noetic_deep_confidence = layer0_score  # Only need USER INTENT to start deep investigation
-        noetic_deep_viable = overall_grounding < 0.50 or unknowns_count > 5
-        paths.append({
-            'name': 'NOETIC-DEEP',
-            'icon': '🟢' if noetic_deep_viable else '🟡',
-            'confidence': noetic_deep_confidence,
-            'viable': noetic_deep_viable,
-            'description': 'Thorough investigation required. Many unknowns or low grounding.',
-            'blockers': [] if noetic_deep_viable else ['Grounding sufficient for shallower path'],
-            'action': 'Deep exploration, log findings, resolve unknowns before proceeding'
-        })
-
-        # SCOPE-EXPAND path - broaden task scope
-        scope_expand_confidence = overall_grounding * (1 - (unknowns_count / 10)) if unknowns_count <= 10 else 0
-        scope_expand_viable = overall_grounding >= 0.75 and unknowns_count <= 2 and scope_expand_confidence is not None
-        scope_blockers = []
-        if overall_grounding < 0.75:
-            scope_blockers.append(f"Grounding ({overall_grounding:.2f}) < 0.75 threshold")
-        if unknowns_count > 2:
-            scope_blockers.append(f"{unknowns_count} unknowns would expand further")
-        paths.append({
-            'name': 'SCOPE-EXPAND',
-            'icon': '🟢' if scope_expand_viable else '🔴',
-            'confidence': max(0, scope_expand_confidence),
-            'viable': scope_expand_viable,
-            'description': 'Broaden task scope. Current grounding supports expansion.',
-            'blockers': scope_blockers,
-            'action': 'Add subtasks or related goals, then re-baseline with PREFLIGHT'
-        })
-
-        # HANDOFF path - transfer to different AI
-        handoff_confidence = 1 - overall_grounding  # Inverse - more confident to handoff when grounding low
-        handoff_viable = overall_grounding < 0.40 or (sentinel_status and sentinel_status in ['forming', 'dark'])
-        paths.append({
-            'name': 'HANDOFF',
-            'icon': '🟡' if handoff_viable else '⚪',
-            'confidence': handoff_confidence,
-            'viable': handoff_viable,
-            'description': 'Transfer to different AI/session. Observer stability questionable.',
-            'blockers': [] if handoff_viable else ['Observer stable enough to continue'],
-            'action': 'Create handoff artifact, transfer context to fresh session/AI'
-        })
-
-        # HALT path - stop and seek guidance
-        halt_confidence = 1 - min(layer3_score, overall_grounding)  # High when safety/grounding low
-        halt_viable = layer3_score < 0.30 or overall_grounding < 0.25
-        paths.append({
-            'name': 'HALT',
-            'icon': '🔴' if halt_viable else '⚪',
-            'confidence': halt_confidence,
-            'viable': halt_viable,
-            'description': 'Stop and seek human guidance. Critical grounding issues.',
-            'blockers': [] if halt_viable else ['No critical issues detected'],
-            'action': 'Escalate to human, do not proceed without guidance'
-        })
-
-        # Ensure all paths have valid viable values (defensive)
-        for p in paths:
-            if p['viable'] is None:
-                p['viable'] = False
-            if p['confidence'] is None:
-                p['confidence'] = 0.0
-
-        # Sort paths by viability first, then confidence (descending)
-        paths.sort(key=lambda p: (-int(bool(p['viable'])), -p['confidence']))
+        paths = _calculate_trajectory_paths(
+            layer0_score, layer1_score, layer2_score, layer3_score,
+            overall_grounding, unknowns_count, sentinel_status
+        )
 
         # Determine recommendation
         recommendation = paths[0]['name']
@@ -1392,6 +1284,74 @@ def _show_brier_profile(args, ai_id: str, output_format: str):
             print("Hint: Run POSTFLIGHT sessions to collect calibration data")
 
 
+def _print_grounded_calibration_human(
+    total_grounded_evidence: int, open_disputes: dict, divergence: dict, grounded_adjustments: dict
+) -> None:
+    """Print human-readable grounded calibration report."""
+    print("=" * 70)
+    print("🔬 CALIBRATION REPORT (grounded evidence)")
+    print("=" * 70)
+    print()
+    print("Compares POSTFLIGHT self-assessment against objective evidence")
+    print("(test results, git metrics, artifact counts, goal completion)")
+    print()
+    print(f"Total evidence observations: {total_grounded_evidence}")
+    if open_disputes:
+        print(f"Open disputes: {len(open_disputes)} vector(s)")
+    print()
+
+    if divergence:
+        print("📊 CALIBRATION (self-assessment vs evidence):")
+        print("-" * 70)
+        print(f"{'Vector':<15} {'Self-Assessed':>12} {'Grounded':>10} {'Gap':>8} {'Evidence':>10}")
+        print("-" * 70)
+
+        sorted_div = sorted(
+            divergence.items(),
+            key=lambda x: abs(x[1]['gap']),
+            reverse=True,
+        )
+        for vector, data in sorted_div:
+            gap = data['gap']
+            sign = "+" if gap >= 0 else ""
+            disputed = vector in open_disputes
+            prefix = "⚖️ " if disputed else ("⚠️ " if abs(gap) >= 0.15 else "   ")
+            suffix = " [DISPUTED]" if disputed else ""
+            print(
+                f"{prefix}{vector:<12} "
+                f"{data['self_referential_mean']:>12.2f} "
+                f"{data['grounded_mean']:>10.2f} "
+                f"{sign}{gap:>7.2f} "
+                f"{data['grounded_evidence']:>10}"
+                f"{suffix}"
+            )
+        print("-" * 70)
+
+        # Show dispute details
+        if open_disputes:
+            print()
+            print("⚖️  OPEN DISPUTES (measurement artifacts flagged by AI):")
+            for vector, dispute in open_disputes.items():
+                print(f"   {vector}: reported={dispute['reported']:.2f}, "
+                      f"expected={dispute['expected']:.2f} — {dispute['reason']}")
+            print("   (Disputed vectors have reduced weight in Bayesian updates)")
+    else:
+        print("   No grounded data yet. Run POSTFLIGHT sessions to collect evidence.")
+
+    if grounded_adjustments:
+        print()
+        print("📋 BIAS CORRECTIONS (apply to self-assessment):")
+        for vector, adj in sorted(
+            grounded_adjustments.items(),
+            key=lambda x: abs(x[1]),
+            reverse=True,
+        ):
+            sign = "+" if adj >= 0 else ""
+            disputed = " [DISPUTED]" if vector in open_disputes else ""
+            print(f"   {vector}: {sign}{adj:.2f}{disputed}")
+    print()
+
+
 def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str, show_trajectory: bool):
     """Show grounded calibration (POSTFLIGHT → POST-TEST evidence comparison).
 
@@ -1433,68 +1393,9 @@ def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str,
                 }
             print(json.dumps(result, indent=2))
         else:
-            print("=" * 70)
-            print("🔬 CALIBRATION REPORT (grounded evidence)")
-            print("=" * 70)
-            print()
-            print("Compares POSTFLIGHT self-assessment against objective evidence")
-            print("(test results, git metrics, artifact counts, goal completion)")
-            print()
-            print(f"Total evidence observations: {total_grounded_evidence}")
-            if open_disputes:
-                print(f"Open disputes: {len(open_disputes)} vector(s)")
-            print()
-
-            if divergence:
-                print("📊 CALIBRATION (self-assessment vs evidence):")
-                print("-" * 70)
-                print(f"{'Vector':<15} {'Self-Assessed':>12} {'Grounded':>10} {'Gap':>8} {'Evidence':>10}")
-                print("-" * 70)
-
-                sorted_div = sorted(
-                    divergence.items(),
-                    key=lambda x: abs(x[1]['gap']),
-                    reverse=True,
-                )
-                for vector, data in sorted_div:
-                    gap = data['gap']
-                    sign = "+" if gap >= 0 else ""
-                    disputed = vector in open_disputes
-                    prefix = "⚖️ " if disputed else ("⚠️ " if abs(gap) >= 0.15 else "   ")
-                    suffix = " [DISPUTED]" if disputed else ""
-                    print(
-                        f"{prefix}{vector:<12} "
-                        f"{data['self_referential_mean']:>12.2f} "
-                        f"{data['grounded_mean']:>10.2f} "
-                        f"{sign}{gap:>7.2f} "
-                        f"{data['grounded_evidence']:>10}"
-                        f"{suffix}"
-                    )
-                print("-" * 70)
-
-                # Show dispute details
-                if open_disputes:
-                    print()
-                    print("⚖️  OPEN DISPUTES (measurement artifacts flagged by AI):")
-                    for vector, dispute in open_disputes.items():
-                        print(f"   {vector}: reported={dispute['reported']:.2f}, "
-                              f"expected={dispute['expected']:.2f} — {dispute['reason']}")
-                    print("   (Disputed vectors have reduced weight in Bayesian updates)")
-            else:
-                print("   No grounded data yet. Run POSTFLIGHT sessions to collect evidence.")
-
-            if grounded_adjustments:
-                print()
-                print("📋 BIAS CORRECTIONS (apply to self-assessment):")
-                for vector, adj in sorted(
-                    grounded_adjustments.items(),
-                    key=lambda x: abs(x[1]),
-                    reverse=True,
-                ):
-                    sign = "+" if adj >= 0 else ""
-                    disputed = " [DISPUTED]" if vector in open_disputes else ""
-                    print(f"   {vector}: {sign}{adj:.2f}{disputed}")
-            print()
+            _print_grounded_calibration_human(
+                total_grounded_evidence, open_disputes, divergence, grounded_adjustments
+            )
 
         # Optional trajectory trend
         if show_trajectory:
@@ -1535,21 +1436,312 @@ def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str,
             print("   Hint: Run POSTFLIGHT sessions to collect evidence")
 
 
+_VECTOR_EXPECTED = {
+    'engagement': 1.0, 'know': 1.0, 'do': 1.0, 'context': 1.0,
+    'clarity': 1.0, 'coherence': 1.0, 'signal': 1.0, 'density': 1.0,
+    'state': 1.0, 'change': 1.0, 'completion': 1.0, 'impact': 1.0,
+    'uncertainty': 0.0  # Special: should be 0, not 1
+}
+
+
+def _fetch_trajectory_rows(weeks, include_tests):
+    """Fetch vector trajectory rows from the sessions database.
+
+    Returns (rows, cutoff_str) or raises if no DB found.
+    """
+    import json
+    import sqlite3
+    from datetime import datetime, timedelta
+
+    from empirica.config.path_resolver import get_session_db_path
+
+    db_path = str(get_session_db_path())
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cutoff_date = datetime.now() - timedelta(weeks=weeks)
+    cutoff_str = cutoff_date.strftime('%Y-%m-%d')
+
+    test_filter = "" if include_tests else """
+        AND (ai_id IS NULL OR (
+            ai_id NOT LIKE 'test%'
+            AND ai_id NOT LIKE '%%-test'
+            AND ai_id NOT LIKE 'storage-%%'
+        ))
+    """
+
+    query = f"""
+        SELECT trajectory_id, session_id, ai_id, end_vectors, pattern, created_at
+        FROM vector_trajectories
+        WHERE end_vectors IS NOT NULL
+            AND pattern != 'unknown'
+            AND created_at >= ?
+            {test_filter}
+        ORDER BY created_at DESC
+    """
+
+    cursor.execute(query, (cutoff_str,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows, cutoff_str
+
+
+def _collect_vector_data(rows):
+    """Parse trajectory rows into per-vector and per-week data.
+
+    Returns (vector_data, weekly_data, valid_trajectories, filtered_trajectories).
+    """
+    import json
+    from collections import defaultdict
+    from datetime import datetime
+
+    vector_data = defaultdict(list)
+    weekly_data = defaultdict(lambda: defaultdict(list))
+    valid_trajectories = 0
+    filtered_trajectories = 0
+
+    for row in rows:
+        _, _, _, end_vectors_json, _, created_at = row
+
+        try:
+            end_vectors = json.loads(end_vectors_json)
+        except json.JSONDecodeError:
+            continue
+
+        values = list(end_vectors.values())
+        if values and all(v == 0.5 for v in values):
+            filtered_trajectories += 1
+            continue
+
+        valid_trajectories += 1
+
+        try:
+            dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            week_key = dt.strftime('%Y-W%W')
+        except Exception:
+            week_key = 'unknown'
+
+        for vector_name, value in end_vectors.items():
+            if vector_name in _VECTOR_EXPECTED and isinstance(value, (int, float)):
+                vector_data[vector_name].append(value)
+                weekly_data[week_key][vector_name].append(value)
+
+    return vector_data, weekly_data, valid_trajectories, filtered_trajectories
+
+
+def _compute_trajectory_metrics(vector_data, weekly_data, min_samples):
+    """Calculate per-vector learning trajectory metrics.
+
+    Returns dict mapping vector_name -> metrics dict.
+    """
+    trajectory = {}
+    for vector_name, expected in _VECTOR_EXPECTED.items():
+        values = vector_data.get(vector_name, [])
+        if not values:
+            continue
+
+        count = len(values)
+        mean = sum(values) / count
+
+        if expected == 1.0:
+            correction = expected - mean
+        else:
+            correction = -mean
+
+        variance = sum((v - mean) ** 2 for v in values) / count if count > 1 else 0
+        std_dev = variance ** 0.5
+        std_error = std_dev / (count ** 0.5) if count > 0 else 0
+
+        trend = _compute_trend(weekly_data, vector_name)
+
+        if count >= min_samples:
+            confidence = "high"
+        elif count >= min_samples // 2:
+            confidence = "medium"
+        else:
+            confidence = "low"
+
+        trajectory[vector_name] = {
+            "correction": round(correction, 2),
+            "end_mean": round(mean, 2),
+            "expected": expected,
+            "count": count,
+            "std_error": round(std_error, 3),
+            "trend": trend,
+            "confidence": confidence
+        }
+    return trajectory
+
+
+def _compute_trend(weekly_data, vector_name):
+    """Determine trend direction from weekly data for a given vector."""
+    weeks_list = sorted(weekly_data.keys())
+    if len(weeks_list) < 2:
+        return "→ stable"
+
+    early_weeks = weeks_list[:len(weeks_list)//2]
+    late_weeks = weeks_list[len(weeks_list)//2:]
+
+    early_values = []
+    late_values = []
+    for w in early_weeks:
+        early_values.extend(weekly_data[w].get(vector_name, []))
+    for w in late_weeks:
+        late_values.extend(weekly_data[w].get(vector_name, []))
+
+    early_mean = sum(early_values) / len(early_values) if early_values else 0
+    late_mean = sum(late_values) / len(late_values) if late_values else 0
+
+    delta = late_mean - early_mean
+    if delta > 0.05:
+        return "↑ improving"
+    elif delta < -0.05:
+        return "↓ declining"
+    return "→ stable"
+
+
+def _identify_key_issues(sorted_vectors):
+    """Identify vectors with |correction| >= 0.15."""
+    key_issues = []
+    for vector_name, data in sorted_vectors:
+        if abs(data['correction']) >= 0.15:
+            if vector_name == 'uncertainty':
+                meaning = "Residual doubt (should be ~0)"
+            elif data['correction'] > 0:
+                meaning = f"Underestimate {vector_name}"
+            else:
+                meaning = f"Overestimate {vector_name}"
+            key_issues.append({
+                "vector": vector_name,
+                "correction": data['correction'],
+                "meaning": meaning
+            })
+    return key_issues
+
+
+def _correction_meaning(vector_name, correction):
+    """Return human-readable meaning for a correction value."""
+    if vector_name == 'uncertainty':
+        return "Residual doubt (should be ~0)"
+    elif abs(correction) < 0.08:
+        return "Well calibrated"
+    elif correction > 0:
+        return f"Underestimate {vector_name}"
+    else:
+        return f"Overestimate {vector_name}"
+
+
+def _format_correction_str(correction):
+    """Format correction with sign and optional bold for markdown."""
+    corr_str = f"+{correction:.2f}" if correction >= 0 else f"{correction:.2f}"
+    if abs(correction) >= 0.15:
+        corr_str = f"**{corr_str}**"
+    return corr_str
+
+
+def _print_markdown_table(sorted_vectors, valid_trajectories, weeks):
+    """Print markdown-formatted learning trajectory table."""
+    print(f"## Learning Trajectory ({valid_trajectories} trajectories over {weeks} weeks)")
+    print()
+    print("*PREFLIGHT→POSTFLIGHT deltas. NOT calibration (use grounded evidence for that).*")
+    print()
+    print("| Vector | Correction | End Mean | Trend | Meaning |")
+    print("|--------|------------|----------|-------|---------|")
+
+    for vector_name, data in sorted_vectors:
+        corr_str = _format_correction_str(data['correction'])
+        meaning = _correction_meaning(vector_name, data['correction'])
+        print(f"| {vector_name} | {corr_str} | {data['end_mean']:.2f} | {data['trend']} | {meaning} |")
+
+    print()
+    print("**Apply corrections:** ADD the correction to your self-assessment.")
+    print("**Readiness gate:** uncertainty <= 0.35 (meta uncertainty)")
+
+
+def _print_human_trajectory(result, sorted_vectors, key_issues, filtered_trajectories,
+                             valid_trajectories, weeks, weekly_data, verbose, update_prompt):
+    """Print human-readable learning trajectory output."""
+    print("=" * 70)
+    print("📊 LEARNING TRAJECTORY (PREFLIGHT→POSTFLIGHT)")
+    print("=" * 70)
+    print("NOTE: This is learning data, NOT calibration. For grounded calibration,")
+    print("      run: empirica calibration-report (without --learning-trajectory)")
+    print()
+    print(f"Data source: vector_trajectories ({valid_trajectories} trajectories)")
+    print(f"Period: {result['date_range']} ({weeks} weeks)")
+    if filtered_trajectories:
+        print(f"Filtered: {filtered_trajectories} placeholder sessions excluded")
+    print()
+
+    if key_issues:
+        print("🎯 KEY PATTERNS (|delta| >= 0.15):")
+        for issue in key_issues:
+            sign = "+" if issue['correction'] >= 0 else ""
+            print(f"   {issue['vector']}: {sign}{issue['correction']:.2f} - {issue['meaning']}")
+        print()
+
+    print("📈 PER-VECTOR LEARNING DELTAS:")
+    print("-" * 70)
+    print(f"{'Vector':<15} {'Correction':>10} {'End Mean':>10} {'Samples':>8} {'Trend':>15}")
+    print("-" * 70)
+
+    for vector_name, data in sorted_vectors:
+        correction = data['correction']
+        sign = "+" if correction >= 0 else ""
+        prefix = "⚠️ " if abs(correction) >= 0.15 else "   "
+        print(f"{prefix}{vector_name:<12} {sign}{correction:>8.2f} {data['end_mean']:>10.2f} {data['count']:>8} {data['trend']:>15}")
+
+    print("-" * 70)
+    print()
+    print("📋 READINESS GATE:")
+    print("   uncertainty <= 0.35 (meta uncertainty, after bias correction)")
+    print("   Apply: ADD corrections to your self-assessment")
+    print()
+
+    if verbose:
+        print("📊 WEEKLY TREND DATA:")
+        weeks_list = sorted(weekly_data.keys())
+        for week in weeks_list[-4:]:
+            week_vectors = weekly_data[week]
+            if week_vectors:
+                know_vals = week_vectors.get('know', [])
+                unc_vals = week_vectors.get('uncertainty', [])
+                know_mean = sum(know_vals) / len(know_vals) if know_vals else 0
+                unc_mean = sum(unc_vals) / len(unc_vals) if unc_vals else 0
+                print(f"   {week}: know={know_mean:.2f}, uncertainty={unc_mean:.2f} (n={len(know_vals)})")
+
+    if update_prompt:
+        print()
+        print("=" * 70)
+        print("📝 COPY-PASTE FOR SYSTEM PROMPT:")
+        print("=" * 70)
+        print()
+        print("| Vector | Correction | End Mean | Trend | Meaning |")
+        print("|--------|------------|----------|-------|---------|")
+        for vector_name, data in sorted_vectors:
+            corr_str = _format_correction_str(data['correction'])
+            meaning = _correction_meaning(vector_name, data['correction'])
+            print(f"| {vector_name} | {corr_str} | {data['end_mean']:.2f} | {data['trend']} | {meaning} |")
+
+    print()
+    print("=" * 70)
+    print()
+    print("Note: This shows learning trajectory (PREFLIGHT→POSTFLIGHT deltas).")
+    print("      For actual calibration (grounded evidence), run without --learning-trajectory.")
+
+
 def handle_calibration_report_command(args):
     """Handle calibration-report command.
 
-    Default: Shows grounded calibration (POSTFLIGHT → POST-TEST evidence comparison).
+    Default: Shows grounded calibration (POSTFLIGHT -> POST-TEST evidence comparison).
     This is real calibration - measuring accuracy of self-assessment against reality.
 
-    Use --learning-trajectory to see PREFLIGHT→POSTFLIGHT deltas (learning, not calibration).
+    Use --learning-trajectory to see PREFLIGHT->POSTFLIGHT deltas (learning, not calibration).
     """
     try:
         import json
-        import sqlite3
-        from collections import defaultdict
-        from datetime import datetime, timedelta
+        from datetime import datetime
 
-        # Get arguments
         ai_id = getattr(args, 'ai_id', None) or 'claude-code'
         weeks = getattr(args, 'weeks', 8)
         include_tests = getattr(args, 'include_tests', False)
@@ -1558,72 +1750,24 @@ def handle_calibration_report_command(args):
         update_prompt = getattr(args, 'update_prompt', False)
         verbose = getattr(args, 'verbose', False)
 
-        # Check mode: grounded (default) vs learning-trajectory vs list-disputes vs brier
         show_learning_trajectory = getattr(args, 'learning_trajectory', False)
         show_trajectory_trend = getattr(args, 'trajectory', False)
         list_disputes = getattr(args, 'list_disputes', False)
         show_brier = getattr(args, 'brier', False)
 
-        # --list-disputes: show all disputes
         if list_disputes:
             return _show_disputes(output_format)
-
-        # --brier: show Brier score decomposition per phase
         if show_brier:
             return _show_brier_profile(args, ai_id, output_format)
-
-        # DEFAULT: Show grounded calibration (the real calibration)
         if not show_learning_trajectory:
             return _show_grounded_calibration(args, ai_id, weeks, output_format, show_trajectory_trend)
 
-        # LEGACY: Show learning trajectory (PREFLIGHT→POSTFLIGHT deltas)
-        # This is NOT calibration - it's learning data
-
-        # Find the sessions database via unified context resolver
-        from empirica.config.path_resolver import get_session_db_path
+        # LEGACY: Show learning trajectory (PREFLIGHT->POSTFLIGHT deltas)
         try:
-            db_path = str(get_session_db_path())
+            rows, cutoff_str = _fetch_trajectory_rows(weeks, include_tests)
         except FileNotFoundError:
-            result = {"ok": False, "error": "No sessions database found"}
-            print(json.dumps(result, indent=2))
+            print(json.dumps({"ok": False, "error": "No sessions database found"}, indent=2))
             return
-
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        # Calculate date range
-        cutoff_date = datetime.now() - timedelta(weeks=weeks)
-        cutoff_str = cutoff_date.strftime('%Y-%m-%d')
-
-        # Query vector_trajectories for end vectors
-        # Filter out test sessions unless include_tests is True
-        test_filter = "" if include_tests else """
-            AND (ai_id IS NULL OR (
-                ai_id NOT LIKE 'test%'
-                AND ai_id NOT LIKE '%%-test'
-                AND ai_id NOT LIKE 'storage-%%'
-            ))
-        """
-
-        query = f"""
-            SELECT
-                trajectory_id,
-                session_id,
-                ai_id,
-                end_vectors,
-                pattern,
-                created_at
-            FROM vector_trajectories
-            WHERE end_vectors IS NOT NULL
-                AND pattern != 'unknown'
-                AND created_at >= ?
-                {test_filter}
-            ORDER BY created_at DESC
-        """
-
-        cursor.execute(query, (cutoff_str,))
-        rows = cursor.fetchall()
-        conn.close()
 
         if not rows:
             result = {
@@ -1637,61 +1781,8 @@ def handle_calibration_report_command(args):
                 print(f"❌ No calibration data found in last {weeks} weeks")
             return
 
-        # Define vectors and their expected values
-        # Most vectors should end at 1.0 (full capability)
-        # uncertainty should end at 0.0 (no remaining doubt)
-        vector_expected = {
-            'engagement': 1.0,
-            'know': 1.0,
-            'do': 1.0,
-            'context': 1.0,
-            'clarity': 1.0,
-            'coherence': 1.0,
-            'signal': 1.0,
-            'density': 1.0,
-            'state': 1.0,
-            'change': 1.0,
-            'completion': 1.0,
-            'impact': 1.0,
-            'uncertainty': 0.0  # Special: should be 0, not 1
-        }
-
-        # Collect all end vectors
-        vector_data = defaultdict(list)
-        weekly_data = defaultdict(lambda: defaultdict(list))
-
-        valid_trajectories = 0
-        filtered_trajectories = 0
-
-        for row in rows:
-            trajectory_id, session_id, row_ai_id, end_vectors_json, pattern, created_at = row
-
-            try:
-                end_vectors = json.loads(end_vectors_json)
-            except json.JSONDecodeError:
-                continue
-
-            # Filter out 0.5 default values (placeholder data)
-            # A session with all 0.5 values is likely a test/placeholder
-            values = list(end_vectors.values())
-            if values and all(v == 0.5 for v in values):
-                filtered_trajectories += 1
-                continue
-
-            valid_trajectories += 1
-
-            # Parse week from created_at
-            try:
-                dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                week_key = dt.strftime('%Y-W%W')
-            except Exception:
-                week_key = 'unknown'
-
-            # Collect per-vector data
-            for vector_name, value in end_vectors.items():
-                if vector_name in vector_expected and isinstance(value, (int, float)):
-                    vector_data[vector_name].append(value)
-                    weekly_data[week_key][vector_name].append(value)
+        vector_data, weekly_data, valid_trajectories, filtered_trajectories = \
+            _collect_vector_data(rows)
 
         if valid_trajectories == 0:
             result = {
@@ -1706,81 +1797,18 @@ def handle_calibration_report_command(args):
                 print(f"❌ No valid calibration data (filtered {filtered_trajectories} placeholder sessions)")
             return
 
-        # Calculate learning trajectory metrics (PREFLIGHT→POSTFLIGHT deltas)
-        trajectory = {}
-        for vector_name, expected in vector_expected.items():
-            values = vector_data.get(vector_name, [])
-            if not values:
-                continue
+        trajectory = _compute_trajectory_metrics(vector_data, weekly_data, min_samples)
 
-            count = len(values)
-            mean = sum(values) / count
-
-            # Gap from expected (correction to ADD to self-assessment)
-            # If expected is 1.0 and mean is 0.8, correction is +0.2
-            # If expected is 0.0 (uncertainty) and mean is 0.2, correction is -0.2
-            if expected == 1.0:
-                correction = expected - mean
-            else:  # uncertainty (expected = 0.0)
-                correction = -mean  # Negative means reduce uncertainty
-
-            # Calculate variance and std error
-            variance = sum((v - mean) ** 2 for v in values) / count if count > 1 else 0
-            std_dev = variance ** 0.5
-            std_error = std_dev / (count ** 0.5) if count > 0 else 0
-
-            # Determine trend from weekly data
-            weeks_list = sorted(weekly_data.keys())
-            if len(weeks_list) >= 2:
-                early_weeks = weeks_list[:len(weeks_list)//2]
-                late_weeks = weeks_list[len(weeks_list)//2:]
-
-                early_values = []
-                late_values = []
-                for w in early_weeks:
-                    early_values.extend(weekly_data[w].get(vector_name, []))
-                for w in late_weeks:
-                    late_values.extend(weekly_data[w].get(vector_name, []))
-
-                early_mean = sum(early_values) / len(early_values) if early_values else 0
-                late_mean = sum(late_values) / len(late_values) if late_values else 0
-
-                delta = late_mean - early_mean
-                if delta > 0.05:
-                    trend = "↑ improving"
-                elif delta < -0.05:
-                    trend = "↓ declining"
-                else:
-                    trend = "→ stable"
-            else:
-                trend = "→ stable"
-
-            # Confidence based on sample size
-            if count >= min_samples:
-                confidence = "high"
-            elif count >= min_samples // 2:
-                confidence = "medium"
-            else:
-                confidence = "low"
-
-            trajectory[vector_name] = {
-                "correction": round(correction, 2),
-                "end_mean": round(mean, 2),
-                "expected": expected,
-                "count": count,
-                "std_error": round(std_error, 3),
-                "trend": trend,
-                "confidence": confidence
-            }
-
-        # Sort by absolute correction (biggest issues first)
         sorted_vectors = sorted(
             trajectory.items(),
             key=lambda x: abs(x[1]['correction']),
             reverse=True
         )
 
-        # Build result
+        key_issues = _identify_key_issues(sorted_vectors)
+
+        know_data = trajectory.get('know', {})
+        uncertainty_data = trajectory.get('uncertainty', {})
         result = {
             "ok": True,
             "type": "learning_trajectory",
@@ -1791,168 +1819,25 @@ def handle_calibration_report_command(args):
             "weeks_analyzed": weeks,
             "date_range": f"{cutoff_str} to {datetime.now().strftime('%Y-%m-%d')}",
             "ai_id_filter": ai_id if ai_id else "all",
-            "learning_trajectory": {v: d for v, d in sorted_vectors}
+            "learning_trajectory": dict(sorted_vectors),
+            "key_issues": key_issues,
+            "readiness_gate": {
+                "threshold": "uncertainty <= 0.35 (meta uncertainty gate)",
+                "know_correction": know_data.get('correction', 0),
+                "uncertainty_correction": uncertainty_data.get('correction', 0),
+                "note": "Apply corrections: ADD to self-assessment"
+            }
         }
 
-        # Identify key issues
-        key_issues = []
-        for vector_name, data in sorted_vectors:
-            if abs(data['correction']) >= 0.15:
-                if vector_name == 'uncertainty':
-                    meaning = "Residual doubt (should be ~0)"
-                elif data['correction'] > 0:
-                    meaning = f"Underestimate {vector_name}"
-                else:
-                    meaning = f"Overestimate {vector_name}"
-                key_issues.append({
-                    "vector": vector_name,
-                    "correction": data['correction'],
-                    "meaning": meaning
-                })
-
-        result["key_issues"] = key_issues
-
-        # Readiness gate info
-        know_data = trajectory.get('know', {})
-        uncertainty_data = trajectory.get('uncertainty', {})
-        result["readiness_gate"] = {
-            "threshold": "uncertainty <= 0.35 (meta uncertainty gate)",
-            "know_correction": know_data.get('correction', 0),
-            "uncertainty_correction": uncertainty_data.get('correction', 0),
-            "note": "Apply corrections: ADD to self-assessment"
-        }
-
-        # Output
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         elif output_format == 'markdown' or update_prompt:
-            # Generate markdown table for system prompt
-            print(f"## Learning Trajectory ({valid_trajectories} trajectories over {weeks} weeks)")
-            print()
-            print("*PREFLIGHT→POSTFLIGHT deltas. NOT calibration (use grounded evidence for that).*")
-            print()
-            print("| Vector | Correction | End Mean | Trend | Meaning |")
-            print("|--------|------------|----------|-------|---------|")
-
-            for vector_name, data in sorted_vectors:
-                correction = data['correction']
-                # Format correction with sign
-                if correction >= 0:
-                    corr_str = f"+{correction:.2f}"
-                else:
-                    corr_str = f"{correction:.2f}"
-
-                # Bold significant corrections
-                if abs(correction) >= 0.15:
-                    corr_str = f"**{corr_str}**"
-
-                # Meaning
-                if vector_name == 'uncertainty':
-                    meaning = "Residual doubt (should be ~0)"
-                elif abs(correction) < 0.08:
-                    meaning = "Well calibrated"
-                elif correction > 0:
-                    meaning = f"Underestimate {vector_name}"
-                else:
-                    meaning = f"Overestimate {vector_name}"
-
-                print(f"| {vector_name} | {corr_str} | {data['end_mean']:.2f} | {data['trend']} | {meaning} |")
-
-            print()
-            print("**Apply corrections:** ADD the correction to your self-assessment.")
-            print("**Readiness gate:** uncertainty <= 0.35 (meta uncertainty)")
+            _print_markdown_table(sorted_vectors, valid_trajectories, weeks)
         else:
-            # Human-readable output
-            print("=" * 70)
-            print("📊 LEARNING TRAJECTORY (PREFLIGHT→POSTFLIGHT)")
-            print("=" * 70)
-            print("NOTE: This is learning data, NOT calibration. For grounded calibration,")
-            print("      run: empirica calibration-report (without --learning-trajectory)")
-            print()
-            print(f"Data source: vector_trajectories ({valid_trajectories} trajectories)")
-            print(f"Period: {result['date_range']} ({weeks} weeks)")
-            if filtered_trajectories:
-                print(f"Filtered: {filtered_trajectories} placeholder sessions excluded")
-            print()
-
-            if key_issues:
-                print("🎯 KEY PATTERNS (|delta| >= 0.15):")
-                for issue in key_issues:
-                    sign = "+" if issue['correction'] >= 0 else ""
-                    print(f"   {issue['vector']}: {sign}{issue['correction']:.2f} - {issue['meaning']}")
-                print()
-
-            print("📈 PER-VECTOR LEARNING DELTAS:")
-            print("-" * 70)
-            print(f"{'Vector':<15} {'Correction':>10} {'End Mean':>10} {'Samples':>8} {'Trend':>15}")
-            print("-" * 70)
-
-            for vector_name, data in sorted_vectors:
-                correction = data['correction']
-                sign = "+" if correction >= 0 else ""
-
-                # Highlight significant corrections
-                if abs(correction) >= 0.15:
-                    prefix = "⚠️ "
-                else:
-                    prefix = "   "
-
-                print(f"{prefix}{vector_name:<12} {sign}{correction:>8.2f} {data['end_mean']:>10.2f} {data['count']:>8} {data['trend']:>15}")
-
-            print("-" * 70)
-            print()
-            print("📋 READINESS GATE:")
-            print("   uncertainty <= 0.35 (meta uncertainty, after bias correction)")
-            print("   Apply: ADD corrections to your self-assessment")
-            print()
-
-            if verbose:
-                print("📊 WEEKLY TREND DATA:")
-                weeks_list = sorted(weekly_data.keys())
-                for week in weeks_list[-4:]:  # Last 4 weeks
-                    week_vectors = weekly_data[week]
-                    if week_vectors:
-                        know_vals = week_vectors.get('know', [])
-                        unc_vals = week_vectors.get('uncertainty', [])
-                        know_mean = sum(know_vals) / len(know_vals) if know_vals else 0
-                        unc_mean = sum(unc_vals) / len(unc_vals) if unc_vals else 0
-                        print(f"   {week}: know={know_mean:.2f}, uncertainty={unc_mean:.2f} (n={len(know_vals)})")
-
-            if update_prompt:
-                print()
-                print("=" * 70)
-                print("📝 COPY-PASTE FOR SYSTEM PROMPT:")
-                print("=" * 70)
-                print()
-                print("| Vector | Correction | End Mean | Trend | Meaning |")
-                print("|--------|------------|----------|-------|---------|")
-
-                for vector_name, data in sorted_vectors:
-                    correction = data['correction']
-                    if correction >= 0:
-                        corr_str = f"+{correction:.2f}"
-                    else:
-                        corr_str = f"{correction:.2f}"
-
-                    if abs(correction) >= 0.15:
-                        corr_str = f"**{corr_str}**"
-
-                    if vector_name == 'uncertainty':
-                        meaning = "Residual doubt (should be ~0)"
-                    elif abs(correction) < 0.08:
-                        meaning = "Well calibrated"
-                    elif correction > 0:
-                        meaning = f"Underestimate {vector_name}"
-                    else:
-                        meaning = f"Overestimate {vector_name}"
-
-                    print(f"| {vector_name} | {corr_str} | {data['end_mean']:.2f} | {data['trend']} | {meaning} |")
-
-            print()
-            print("=" * 70)
-            print()
-            print("Note: This shows learning trajectory (PREFLIGHT→POSTFLIGHT deltas).")
-            print("      For actual calibration (grounded evidence), run without --learning-trajectory.")
+            _print_human_trajectory(
+                result, sorted_vectors, key_issues, filtered_trajectories,
+                valid_trajectories, weeks, weekly_data, verbose, update_prompt
+            )
 
     except Exception as e:
         handle_cli_error(e, "Calibration Report", getattr(args, 'verbose', False))
@@ -2108,8 +1993,12 @@ def handle_workflow_patterns_command(args):
 
         from empirica.config.path_resolver import get_session_db_path
         from empirica.core.workflow_patterns import (
-            detect_patterns, format_patterns_human, format_suggestions_human,
-            generate_suggestions, load_traces_from_db, load_transaction_outcomes,
+            detect_patterns,
+            format_patterns_human,
+            format_suggestions_human,
+            generate_suggestions,
+            load_traces_from_db,
+            load_transaction_outcomes,
         )
 
         db_path = str(get_session_db_path())

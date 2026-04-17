@@ -17,7 +17,7 @@ class BranchRepository(BaseRepository):
 
     def create_branch(self, session_id: str, branch_name: str, investigation_path: str,
                      git_branch_name: str, preflight_vectors: dict,
-                     transaction_id: str = None) -> str:
+                     transaction_id: str | None = None) -> str:
         """Create a new investigation branch
 
         Args:

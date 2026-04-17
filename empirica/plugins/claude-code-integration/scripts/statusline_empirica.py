@@ -24,14 +24,13 @@ Version: 2.1.0 (Unified Signaling)
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 # Add empirica to path
 EMPIRICA_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(EMPIRICA_ROOT))
 
-from empirica.core.signaling import format_vectors_compact
-from empirica.data.session_database import SessionDatabase
+from empirica.core.signaling import format_vectors_compact  # noqa: E402 — after sys.path setup
+from empirica.data.session_database import SessionDatabase  # noqa: E402 — after sys.path setup
 
 
 # ANSI color codes
@@ -424,7 +423,7 @@ def calculate_phase_composite(vectors: dict, phase: str) -> float:
     return sum(values) / len(values) if values else 0.0
 
 
-def determine_work_phase(phase: str, gate_decision: str = None) -> str:
+def determine_work_phase(phase: str, gate_decision: str | None = None) -> str:
     """Determine if AI is in noetic (investigating) or praxic (acting) mode.
 
     Logic:
@@ -444,7 +443,7 @@ def determine_work_phase(phase: str, gate_decision: str = None) -> str:
     return 'noetic'
 
 
-def format_phase_state(phase: str, work_phase: str, composite: float, gate_decision: str = None) -> str:
+def format_phase_state(phase: str, work_phase: str, composite: float, gate_decision: str | None = None) -> str:
     """Format transaction phase + work state as compact indicator.
 
     Examples: PRE 🔍65% | CHK 🔍82%→ | CHK ⚙65%… | POST ⚙92% Δ ✓
@@ -562,12 +561,14 @@ def _resolve_project_path(stdin_claude_session_id=None) -> str | None:
     # Priority 0: instance_projects
     try:
         import json as _json
+
         from empirica.utils.session_resolver import InstanceResolver as R
         inst_id = R.instance_id()
         if inst_id:
             inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{inst_id}.json'
             if inst_file.exists():
-                pp = _json.load(open(inst_file)).get('project_path')
+                with open(inst_file) as _f:
+                    pp = _json.load(_f).get('project_path')
                 if pp and (Path(pp) / '.empirica' / 'sessions' / 'sessions.db').exists():
                     return pp
     except Exception:
@@ -579,7 +580,8 @@ def _resolve_project_path(stdin_claude_session_id=None) -> str | None:
             import json as _json
             aw = Path.home() / '.empirica' / f'active_work_{stdin_claude_session_id}.json'
             if aw.exists():
-                pp = _json.load(open(aw)).get('project_path')
+                with open(aw) as _f:
+                    pp = _json.load(_f).get('project_path')
                 if pp and (Path(pp) / '.empirica' / 'sessions' / 'sessions.db').exists():
                     return pp
         except Exception:
@@ -685,6 +687,7 @@ def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id:
     # Priority 0: instance_projects → empirica_session_id
     try:
         import json as _json
+
         from empirica.utils.session_resolver import InstanceResolver as R
         _gas_inst_id = R.instance_id()
         if _gas_inst_id:
@@ -999,7 +1002,7 @@ def format_statusline(
     # Threshold indicator (user-facing only — AI doesn't see this)
     threshold_str = ""
     if threshold_info:
-        know_t, unc_t, t_color = threshold_info
+        know_t, _, t_color = threshold_info
         threshold_str = f" {format_threshold(know_t, t_color)}"
 
     parts = [f"{Colors.GREEN}[{label}]{Colors.RESET} {conf_str}{threshold_str}"]
@@ -1254,12 +1257,10 @@ def main():
 
         # Auto-detect project from active context (6-tier priority chain)
         project_path = _resolve_project_path(stdin_claude_session_id)
-        is_local_project = project_path is not None
 
         if project_path:
             db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
             db = SessionDatabase(db_path=str(db_path))
-            is_local_project = True
         else:
             # No local .empirica/ found - show "no project" instead of using global data
             # This prevents showing Empirica project data in unrelated projects
@@ -1385,6 +1386,7 @@ def main():
         print(f"{Colors.GRAY}[empirica:error]{Colors.RESET}")
         # Log error
         try:
+            from empirica.config.path_resolver import get_empirica_root
             with open(get_empirica_root() / 'statusline.log', 'a') as f:
                 f.write(f"ERROR: {e}\n")
         except Exception:

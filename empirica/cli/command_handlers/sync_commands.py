@@ -13,7 +13,7 @@ import json
 import logging
 import subprocess
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -126,13 +126,6 @@ def _get_remote_url(remote: str = 'origin') -> str | None:
     return None
 
 
-def _is_public_repo() -> bool | None:
-    """Try to detect if repo is public (best effort, may return None)"""
-    # This is a heuristic - we can't truly know without API calls
-    # For now, return None (unknown) and rely on user config
-    return None
-
-
 def _list_remotes() -> dict[str, str]:
     """List all git remotes and their URLs"""
     try:
@@ -226,6 +219,64 @@ def _count_local_notes() -> dict[str, int]:
     return counts
 
 
+
+
+def _handle_sync_config_command_helper(key, output_format, sync_config, value):
+    """Extracted from handle_sync_config_command to reduce complexity."""
+    if key and value is not None:
+        valid_keys = ['enabled', 'remote', 'visibility', 'provider', 'code_remote', 'notes_remote']
+        if key not in valid_keys:
+            result = {
+                "ok": False,
+                "error": f"Unknown config key: {key}",
+                "valid_keys": valid_keys
+            }
+            print(json.dumps(result, indent=2))
+            return 1
+
+        # Parse boolean values
+        if key == 'enabled':
+            value = value.lower() in ('true', '1', 'yes', 'on')
+
+        # Validate visibility
+        if key == 'visibility' and value not in ('public', 'private'):
+            result = {
+                "ok": False,
+                "error": f"visibility must be 'public' or 'private', got '{value}'"
+            }
+            print(json.dumps(result, indent=2))
+            return 1
+
+        # Validate provider
+        if key == 'provider' and value not in ('github', 'gitlab', 'forgejo', 'gitea', 'bitbucket', 'auto', 'other'):
+            result = {
+                "ok": False,
+                "error": "provider must be one of: github, gitlab, forgejo, gitea, bitbucket, auto, other"
+            }
+            print(json.dumps(result, indent=2))
+            return 1
+
+        # Update and save
+        sync_config[key] = value
+        if _save_sync_config(sync_config):
+            result = {
+                "ok": True,
+                "message": f"Set sync.{key} = {value}",
+                "config": sync_config
+            }
+        else:
+            result = {
+                "ok": False,
+                "error": "Failed to save config"
+            }
+
+        if output_format == 'json':
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"✅ Set sync.{key} = {value}")
+
+        return 0 if result['ok'] else 1
+
 def handle_sync_config_command(args):
     """Handle sync config command - show/set sync configuration"""
     try:
@@ -237,59 +288,7 @@ def handle_sync_config_command(args):
         sync_config = _load_sync_config()
 
         # If setting a value
-        if key and value is not None:
-            valid_keys = ['enabled', 'remote', 'visibility', 'provider', 'code_remote', 'notes_remote']
-            if key not in valid_keys:
-                result = {
-                    "ok": False,
-                    "error": f"Unknown config key: {key}",
-                    "valid_keys": valid_keys
-                }
-                print(json.dumps(result, indent=2))
-                return 1
-
-            # Parse boolean values
-            if key == 'enabled':
-                value = value.lower() in ('true', '1', 'yes', 'on')
-
-            # Validate visibility
-            if key == 'visibility' and value not in ('public', 'private'):
-                result = {
-                    "ok": False,
-                    "error": f"visibility must be 'public' or 'private', got '{value}'"
-                }
-                print(json.dumps(result, indent=2))
-                return 1
-
-            # Validate provider
-            if key == 'provider' and value not in ('github', 'gitlab', 'forgejo', 'gitea', 'bitbucket', 'auto', 'other'):
-                result = {
-                    "ok": False,
-                    "error": "provider must be one of: github, gitlab, forgejo, gitea, bitbucket, auto, other"
-                }
-                print(json.dumps(result, indent=2))
-                return 1
-
-            # Update and save
-            sync_config[key] = value
-            if _save_sync_config(sync_config):
-                result = {
-                    "ok": True,
-                    "message": f"Set sync.{key} = {value}",
-                    "config": sync_config
-                }
-            else:
-                result = {
-                    "ok": False,
-                    "error": "Failed to save config"
-                }
-
-            if output_format == 'json':
-                print(json.dumps(result, indent=2))
-            else:
-                print(f"✅ Set sync.{key} = {value}")
-
-            return 0 if result['ok'] else 1
+        _handle_sync_config_command_helper(key, output_format, sync_config, value)
 
         # Show config (with optional key filter)
         if key:
@@ -367,6 +366,23 @@ def handle_sync_config_command(args):
         return 1
 
 
+
+
+def _handle_sync_push_command_helper(errors, output_format, push_results, remote, result, success):
+    """Extracted from handle_sync_push_command to reduce complexity."""
+    if output_format == 'json':
+        print(json.dumps(result, indent=2))
+    else:
+        if success:
+            print(f"✅ Pushed epistemic notes to {remote}")
+            for ref, ok in push_results.items():
+                status = "✓" if ok else "✗"
+                print(f"   {status} {ref}")
+        else:
+            print(f"❌ Push failed to {remote}")
+            for err in errors:
+                print(f"   Error: {err}")
+
 def handle_sync_push_command(args):
     """Handle sync push command - push all epistemic notes to remote"""
     try:
@@ -377,7 +393,7 @@ def handle_sync_push_command(args):
         remote = getattr(args, 'remote', None) or sync_config.get('remote', 'origin')
         output_format = getattr(args, 'output', 'json')
         dry_run = getattr(args, 'dry_run', False)
-        verbose = getattr(args, 'verbose', False)
+        getattr(args, 'verbose', False)
         force = getattr(args, 'force', False)
 
         # Check if sync is enabled
@@ -496,18 +512,7 @@ def handle_sync_push_command(args):
             "message": f"Pushed epistemic notes to {remote}" if success else "Push failed"
         }
 
-        if output_format == 'json':
-            print(json.dumps(result, indent=2))
-        else:
-            if success:
-                print(f"✅ Pushed epistemic notes to {remote}")
-                for ref, ok in push_results.items():
-                    status = "✓" if ok else "✗"
-                    print(f"   {status} {ref}")
-            else:
-                print(f"❌ Push failed to {remote}")
-                for err in errors:
-                    print(f"   Error: {err}")
+        _handle_sync_push_command_helper(errors, output_format, push_results, remote, result, success)
 
         return 0 if success else 1
 
@@ -515,6 +520,27 @@ def handle_sync_push_command(args):
         handle_cli_error(e, "Sync push", getattr(args, 'verbose', False))
         return 1
 
+
+
+
+def _handle_sync_pull_command_helper(changes, errors, output_format, rebuild, remote, result, success):
+    """Extracted from handle_sync_pull_command to reduce complexity."""
+    if output_format == 'json':
+        print(json.dumps(result, indent=2))
+    else:
+        if success:
+            print(f"✅ Pulled epistemic notes from {remote}")
+            if changes:
+                for ref, change in changes.items():
+                    print(f"   {ref}: {change['before']} → {change['after']} ({change['delta']:+d})")
+            else:
+                print("   No changes (already up to date)")
+            if rebuild and 'rebuild' in result:
+                print("   🔄 Rebuilt SQLite from notes")
+        else:
+            print(f"❌ Pull failed from {remote}")
+            for err in errors:
+                print(f"   Error: {err}")
 
 def handle_sync_pull_command(args):
     """Handle sync pull command - pull all epistemic notes from remote"""
@@ -526,7 +552,7 @@ def handle_sync_pull_command(args):
         remote = getattr(args, 'remote', None) or sync_config.get('remote', 'origin')
         output_format = getattr(args, 'output', 'json')
         rebuild = getattr(args, 'rebuild', False)
-        verbose = getattr(args, 'verbose', False)
+        getattr(args, 'verbose', False)
         force = getattr(args, 'force', False)
 
         # Check if sync is enabled
@@ -618,22 +644,7 @@ def handle_sync_pull_command(args):
             rebuild_result = _rebuild_from_notes()
             result['rebuild'] = rebuild_result
 
-        if output_format == 'json':
-            print(json.dumps(result, indent=2))
-        else:
-            if success:
-                print(f"✅ Pulled epistemic notes from {remote}")
-                if changes:
-                    for ref, change in changes.items():
-                        print(f"   {ref}: {change['before']} → {change['after']} ({change['delta']:+d})")
-                else:
-                    print("   No changes (already up to date)")
-                if rebuild and 'rebuild' in result:
-                    print("   🔄 Rebuilt SQLite from notes")
-            else:
-                print(f"❌ Pull failed from {remote}")
-                for err in errors:
-                    print(f"   Error: {err}")
+        _handle_sync_pull_command_helper(changes, errors, output_format, rebuild, remote, result, success)
 
         return 0 if success else 1
 
@@ -689,6 +700,177 @@ def handle_sync_status_command(args):
         return 1
 
 
+def _rebuild_collect_ids(all_items_lists):
+    """Collect unique project_ids, session_ids, goal_ids from all breadcrumbs."""
+    project_ids = set()
+    session_ids = set()
+    goal_ids_needed = set()
+    for items in all_items_lists:
+        for item in items:
+            pid = item.get('project_id')
+            sid = item.get('session_id')
+            gid = item.get('goal_id')
+            if pid:
+                project_ids.add(pid)
+            if sid:
+                session_ids.add(sid)
+            if gid:
+                goal_ids_needed.add(gid)
+    return project_ids, session_ids, goal_ids_needed
+
+
+def _rebuild_ensure_projects(db, project_ids, now, rebuilt):
+    """Create stub project records to satisfy FK constraints."""
+    import json as _json
+
+    for pid in project_ids:
+        try:
+            db.adapter.execute(
+                "INSERT INTO projects (id, name, description, created_timestamp, project_data) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (pid, f"project-{pid[:8]}", "Rebuilt from git notes", now, _json.dumps({"rebuilt": True}))
+            )
+            db.adapter.commit()
+            rebuilt['projects'] += 1
+        except Exception:
+            db.adapter.conn.rollback() if hasattr(db.adapter, 'conn') else None
+
+
+def _rebuild_ensure_sessions(db, session_ids, all_items_lists, rebuilt):
+    """Create stub session records to satisfy FK constraints."""
+    from datetime import datetime
+
+    for sid in session_ids:
+        try:
+            pid = None
+            for items in all_items_lists:
+                for item in items:
+                    if item.get('session_id') == sid and item.get('project_id'):
+                        pid = item.get('project_id')
+                        break
+                if pid:
+                    break
+
+            now_ts = datetime.utcnow().isoformat()
+            db.adapter.execute(
+                "INSERT INTO sessions (session_id, ai_id, start_time, "
+                "components_loaded, project_id) VALUES (?, ?, ?, ?, ?)",
+                (sid, "rebuilt", now_ts, 0, pid)
+            )
+            db.adapter.commit()
+            rebuilt['sessions'] += 1
+        except Exception:
+            try:
+                db.adapter.conn.rollback()
+            except Exception:
+                pass
+
+
+def _rebuild_ensure_goals(db, now, rebuilt):
+    """Insert goals from git notes. Returns set of inserted goal IDs."""
+    import json as _json
+
+    from empirica.core.canonical.empirica_git.goal_store import GitGoalStore
+
+    goal_store = GitGoalStore()
+    goals = goal_store.discover_goals()
+    for g in goals:
+        try:
+            gid = g.get('goal_id')
+            gsid = g.get('session_id', '')
+            gdata = g.get('goal_data', {})
+            db.adapter.execute(
+                "INSERT INTO goals (id, session_id, objective, scope, estimated_complexity, "
+                "created_timestamp, goal_data, status, project_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    gid, gsid,
+                    gdata.get('objective', 'Rebuilt from notes'),
+                    _json.dumps(gdata.get('scope', {})),
+                    gdata.get('estimated_complexity'),
+                    now,
+                    _json.dumps(gdata),
+                    gdata.get('status', 'in_progress'),
+                    gdata.get('project_id')
+                )
+            )
+            db.adapter.commit()
+            rebuilt['goals'] += 1
+        except Exception:
+            try:
+                db.adapter.conn.rollback()
+            except Exception:
+                pass
+
+    return goals, {g.get('goal_id') for g in goals}
+
+
+def _rebuild_ensure_orphan_goals(db, orphan_goal_ids, all_items_lists, now, rebuilt):
+    """Create stub goal records for goal IDs referenced by breadcrumbs but not in git notes."""
+    import json as _json
+
+    for gid in orphan_goal_ids:
+        try:
+            gsid = ''
+            for items in all_items_lists:
+                for item in items:
+                    if item.get('goal_id') == gid and item.get('session_id'):
+                        gsid = item.get('session_id')
+                        break
+                if gsid:
+                    break
+            db.adapter.execute(
+                "INSERT INTO goals (id, session_id, objective, scope, "
+                "created_timestamp, goal_data) VALUES (?, ?, ?, ?, ?, ?)",
+                (gid, gsid, "Rebuilt stub (orphaned ref)", "{}", now,
+                 _json.dumps({"rebuilt": True, "orphan": True}))
+            )
+            db.adapter.commit()
+            rebuilt['goals'] += 1
+        except Exception:
+            try:
+                db.adapter.conn.rollback()
+            except Exception:
+                pass
+
+
+def _rebuild_insert_breadcrumbs(db, findings, unknowns, dead_ends, mistakes,
+                                valid_goal_ids, rebuilt):
+    """Insert breadcrumb records using table-driven approach."""
+    handlers = [
+        ('findings', findings, lambda db, item, vg: db.log_finding(
+            project_id=item.get('project_id'), session_id=item.get('session_id'),
+            finding=item.get('finding'), subject=item.get('subject'), impact=item.get('impact'),
+            goal_id=item.get('goal_id') if item.get('goal_id') in vg else None,
+            subtask_id=None)),
+        ('unknowns', unknowns, lambda db, item, vg: db.log_unknown(
+            project_id=item.get('project_id'), session_id=item.get('session_id'),
+            unknown=item.get('unknown'), subtask_id=None,
+            goal_id=item.get('goal_id') if item.get('goal_id') in vg else None)),
+        ('dead_ends', dead_ends, lambda db, item, vg: db.log_dead_end(
+            project_id=item.get('project_id'), session_id=item.get('session_id'),
+            approach=item.get('approach'), why_failed=item.get('why_failed'), subtask_id=None,
+            goal_id=item.get('goal_id') if item.get('goal_id') in vg else None)),
+        ('mistakes', mistakes, lambda db, item, vg: db.log_mistake(
+            session_id=item.get('session_id'), project_id=item.get('project_id'),
+            mistake=item.get('mistake'), why_wrong=item.get('why_wrong'),
+            prevention=item.get('prevention'), cost_estimate=item.get('cost_estimate'),
+            root_cause_vector=item.get('root_cause_vector'),
+            goal_id=item.get('goal_id') if item.get('goal_id') in vg else None)),
+    ]
+    for key, items, handler in handlers:
+        for item in items:
+            try:
+                handler(db, item, valid_goal_ids)
+                rebuilt[key] += 1
+            except Exception as e:
+                logger.debug(f"{key} rebuild skip: {e}")
+                try:
+                    db.adapter.conn.rollback()
+                except Exception:
+                    pass
+
+
 def _rebuild_from_notes() -> dict[str, Any]:
     """
     Rebuild database from git notes.
@@ -708,20 +890,16 @@ def _rebuild_from_notes() -> dict[str, Any]:
     }
 
     try:
-        import json
         import time
 
         from empirica.core.canonical.empirica_git.dead_end_store import GitDeadEndStore
         from empirica.core.canonical.empirica_git.finding_store import GitFindingStore
-        from empirica.core.canonical.empirica_git.goal_store import GitGoalStore
         from empirica.core.canonical.empirica_git.mistake_store import GitMistakeStore
         from empirica.core.canonical.empirica_git.unknown_store import GitUnknownStore
         from empirica.data.session_database import SessionDatabase
 
         db = SessionDatabase()
 
-        # Phase 0: Collect all referenced project_ids and session_ids
-        # then create stub records to satisfy FK constraints
         finding_store = GitFindingStore()
         unknown_store = GitUnknownStore()
         dead_end_store = GitDeadEndStore()
@@ -732,167 +910,28 @@ def _rebuild_from_notes() -> dict[str, Any]:
         dead_ends = dead_end_store.discover_dead_ends()
         mistakes = mistake_store.discover_mistakes()
 
-        # Collect unique project_ids, session_ids, goal_ids from all breadcrumbs
-        project_ids = set()
-        session_ids = set()
-        goal_ids_needed = set()
-        for items in [findings, unknowns, dead_ends, mistakes]:
-            for item in items:
-                pid = item.get('project_id')
-                sid = item.get('session_id')
-                gid = item.get('goal_id')
-                if pid:
-                    project_ids.add(pid)
-                if sid:
-                    session_ids.add(sid)
-                if gid:
-                    goal_ids_needed.add(gid)
+        all_items_lists = [findings, unknowns, dead_ends, mistakes]
 
-        # Ensure projects exist (stub records)
+        # Phase 0: Collect IDs and create stub records for FK constraints
+        project_ids, session_ids, goal_ids_needed = _rebuild_collect_ids(all_items_lists)
+
         now = time.time()
-        for pid in project_ids:
-            try:
-                db.adapter.execute(
-                    "INSERT INTO projects (id, name, description, created_timestamp, project_data) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (pid, f"project-{pid[:8]}", "Rebuilt from git notes", now, json.dumps({"rebuilt": True}))
-                )
-                db.adapter.commit()
-                rebuilt['projects'] += 1
-            except Exception:
-                # Already exists or other constraint - OK for rebuild
-                db.adapter.conn.rollback() if hasattr(db.adapter, 'conn') else None
+        _rebuild_ensure_projects(db, project_ids, now, rebuilt)
+        _rebuild_ensure_sessions(db, session_ids, all_items_lists, rebuilt)
+        goals, inserted_goal_ids = _rebuild_ensure_goals(db, now, rebuilt)
 
-        # Ensure sessions exist (stub records)
-        for sid in session_ids:
-            try:
-                pid = None
-                # Find which project this session belongs to
-                for items in [findings, unknowns, dead_ends, mistakes]:
-                    for item in items:
-                        if item.get('session_id') == sid and item.get('project_id'):
-                            pid = item.get('project_id')
-                            break
-                    if pid:
-                        break
-
-                from datetime import datetime
-                now_ts = datetime.utcnow().isoformat()
-                db.adapter.execute(
-                    "INSERT INTO sessions (session_id, ai_id, start_time, "
-                    "components_loaded, project_id) VALUES (?, ?, ?, ?, ?)",
-                    (sid, "rebuilt", now_ts, 0, pid)
-                )
-                db.adapter.commit()
-                rebuilt['sessions'] += 1
-            except Exception:
-                try:
-                    db.adapter.conn.rollback()
-                except Exception:
-                    pass
-
-        # Ensure goals exist (from git notes)
-        goal_store = GitGoalStore()
-        goals = goal_store.discover_goals()
-        for g in goals:
-            try:
-                gid = g.get('goal_id')
-                gsid = g.get('session_id', '')
-                gdata = g.get('goal_data', {})
-                db.adapter.execute(
-                    "INSERT INTO goals (id, session_id, objective, scope, estimated_complexity, "
-                    "created_timestamp, goal_data, status, project_id) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        gid, gsid,
-                        gdata.get('objective', 'Rebuilt from notes'),
-                        json.dumps(gdata.get('scope', {})),
-                        gdata.get('estimated_complexity'),
-                        now,
-                        json.dumps(gdata),
-                        gdata.get('status', 'in_progress'),
-                        gdata.get('project_id')
-                    )
-                )
-                db.adapter.commit()
-                rebuilt['goals'] += 1
-            except Exception:
-                try:
-                    db.adapter.conn.rollback()
-                except Exception:
-                    pass
-
-        # Ensure any goal_ids referenced by breadcrumbs also exist as stubs
-        inserted_goal_ids = {g.get('goal_id') for g in goals}
         orphan_goal_ids = goal_ids_needed - inserted_goal_ids
-        for gid in orphan_goal_ids:
-            try:
-                # Pick a session_id from the breadcrumbs that reference this goal
-                gsid = ''
-                for items in [findings, unknowns, dead_ends, mistakes]:
-                    for item in items:
-                        if item.get('goal_id') == gid and item.get('session_id'):
-                            gsid = item.get('session_id')
-                            break
-                    if gsid:
-                        break
-                db.adapter.execute(
-                    "INSERT INTO goals (id, session_id, objective, scope, "
-                    "created_timestamp, goal_data) VALUES (?, ?, ?, ?, ?, ?)",
-                    (gid, gsid, "Rebuilt stub (orphaned ref)", "{}", now,
-                     json.dumps({"rebuilt": True, "orphan": True}))
-                )
-                db.adapter.commit()
-                rebuilt['goals'] += 1
-            except Exception:
-                try:
-                    db.adapter.conn.rollback()
-                except Exception:
-                    pass
+        _rebuild_ensure_orphan_goals(db, orphan_goal_ids, all_items_lists, now, rebuilt)
 
         logger.info(
             f"Rebuild Phase 0: {rebuilt['projects']} projects, "
             f"{rebuilt['sessions']} sessions, {rebuilt['goals']} goals"
         )
 
-        # Phase 1: Insert breadcrumbs (already discovered in Phase 0)
-        # Note: psycopg2 requires rollback after failed queries before next query
-        # Goal IDs are set only if the goal was successfully inserted in Phase 0
-        inserted_all_goal_ids = inserted_goal_ids | {gid for gid in orphan_goal_ids}
-
-        # Phase 1: Insert breadcrumbs using table-driven approach
-        _REBUILD_HANDLERS = [
-            ('findings', findings, lambda db, item, valid_gids: db.log_finding(
-                project_id=item.get('project_id'), session_id=item.get('session_id'),
-                finding=item.get('finding'), subject=item.get('subject'), impact=item.get('impact'),
-                goal_id=item.get('goal_id') if item.get('goal_id') in valid_gids else None,
-                subtask_id=None)),
-            ('unknowns', unknowns, lambda db, item, valid_gids: db.log_unknown(
-                project_id=item.get('project_id'), session_id=item.get('session_id'),
-                unknown=item.get('unknown'), subtask_id=None,
-                goal_id=item.get('goal_id') if item.get('goal_id') in valid_gids else None)),
-            ('dead_ends', dead_ends, lambda db, item, valid_gids: db.log_dead_end(
-                project_id=item.get('project_id'), session_id=item.get('session_id'),
-                approach=item.get('approach'), why_failed=item.get('why_failed'), subtask_id=None,
-                goal_id=item.get('goal_id') if item.get('goal_id') in valid_gids else None)),
-            ('mistakes', mistakes, lambda db, item, valid_gids: db.log_mistake(
-                session_id=item.get('session_id'), project_id=item.get('project_id'),
-                mistake=item.get('mistake'), why_wrong=item.get('why_wrong'),
-                prevention=item.get('prevention'), cost_estimate=item.get('cost_estimate'),
-                root_cause_vector=item.get('root_cause_vector'),
-                goal_id=item.get('goal_id') if item.get('goal_id') in valid_gids else None)),
-        ]
-        for key, items, handler in _REBUILD_HANDLERS:
-            for item in items:
-                try:
-                    handler(db, item, inserted_all_goal_ids)
-                    rebuilt[key] += 1
-                except Exception as e:
-                    logger.debug(f"{key} rebuild skip: {e}")
-                    try:
-                        db.adapter.conn.rollback()
-                    except Exception:
-                        pass
+        # Phase 1: Insert breadcrumbs
+        inserted_all_goal_ids = inserted_goal_ids | set(orphan_goal_ids)
+        _rebuild_insert_breadcrumbs(db, findings, unknowns, dead_ends, mistakes,
+                                    inserted_all_goal_ids, rebuilt)
 
         db.close()
 

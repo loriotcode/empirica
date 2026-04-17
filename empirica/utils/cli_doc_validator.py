@@ -21,7 +21,7 @@ from pathlib import Path
 def get_actual_cli_commands() -> set[str]:
     """
     Extract all actual CLI commands from cli_core.py
-    
+
     Returns:
         Set of command names (e.g., 'session-create', 'preflight-submit')
     """
@@ -37,10 +37,10 @@ def get_actual_cli_commands() -> set[str]:
     return commands
 
 
-def extract_documented_commands(docs_dir: Path = None) -> dict[str, list[tuple[str, int]]]:
+def extract_documented_commands(docs_dir: Path | None = None) -> dict[str, list[tuple[str, int]]]:
     """
     Extract all commands referenced in documentation
-    
+
     Returns:
         Dict mapping command -> list of (file, line_number) where it's referenced
     """
@@ -77,7 +77,7 @@ def extract_documented_commands(docs_dir: Path = None) -> dict[str, list[tuple[s
 def find_phantom_commands() -> list[dict]:
     """
     Find commands documented but not implemented
-    
+
     Returns:
         List of phantom command dictionaries with details
     """
@@ -100,7 +100,7 @@ def find_phantom_commands() -> list[dict]:
 def find_undocumented_commands() -> list[str]:
     """
     Find implemented commands not documented anywhere
-    
+
     Returns:
         List of undocumented command names
     """
@@ -119,10 +119,10 @@ def find_undocumented_commands() -> list[str]:
 def validate_cli_documentation(output_format: str = 'text') -> dict:
     """
     Run complete CLI documentation validation
-    
+
     Args:
         output_format: 'text' or 'json'
-    
+
     Returns:
         Validation results dictionary
     """
@@ -150,10 +150,10 @@ def validate_cli_documentation(output_format: str = 'text') -> dict:
 def calculate_accuracy_score(actual: set[str], documented: dict, phantoms: list) -> float:
     """
     Calculate documentation accuracy percentage
-    
+
     Score = (correctly documented) / (total documented) * 100
     """
-    correctly_documented = len([cmd for cmd in documented.keys() if cmd in actual])
+    correctly_documented = len([cmd for cmd in documented if cmd in actual])
     total_documented = len(documented)
 
     if total_documented == 0:

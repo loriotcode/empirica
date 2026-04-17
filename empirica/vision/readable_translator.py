@@ -31,16 +31,12 @@ class HumanReadableTranslator:
         # Overall quality
         if assessment.context_value >= 0.7:
             quality = "🌟 Excellent"
-            quality_emoji = "🌟"
         elif assessment.context_value >= 0.5:
             quality = "✅ Good"
-            quality_emoji = "✅"
         elif assessment.context_value >= 0.3:
             quality = "⚠️ Fair"
-            quality_emoji = "⚠️"
         else:
             quality = "⛔ Needs Work"
-            quality_emoji = "⛔"
 
         # Reading experience (clarity)
         if assessment.clarity >= 0.7:
@@ -241,12 +237,18 @@ class HumanReadableTranslator:
 
     def _score_to_grade(self, score: float) -> str:
         """Convert score to letter grade"""
-        if score >= 0.9: return "A+"
-        elif score >= 0.8: return "A "
-        elif score >= 0.7: return "B+"
-        elif score >= 0.6: return "B "
-        elif score >= 0.5: return "C+"
-        else: return "C "
+        if score >= 0.9:
+            return "A+"
+        elif score >= 0.8:
+            return "A "
+        elif score >= 0.7:
+            return "B+"
+        elif score >= 0.6:
+            return "B "
+        elif score >= 0.5:
+            return "C+"
+        else:
+            return "C "
 
     def _density_to_description(self, density: float) -> str:
         """Convert density score to description"""

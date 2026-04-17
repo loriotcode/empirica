@@ -28,8 +28,8 @@ from .signature import create_eep1_payload, sign_assessment, verify_eep1_payload
 __all__ = [
     'AIIdentity',
     'IdentityManager',
-    'sign_assessment',
-    'verify_signature',
     'create_eep1_payload',
-    'verify_eep1_payload'
+    'sign_assessment',
+    'verify_eep1_payload',
+    'verify_signature'
 ]

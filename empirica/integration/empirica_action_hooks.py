@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 # Ensure realtime directory exists
-REALTIME_DIR = Path("/tmp/empirica_realtime")
+REALTIME_DIR = Path("/tmp/empirica_realtime")  # noqa: S108 — ephemeral IPC dir for tmux panels
 REALTIME_DIR.mkdir(exist_ok=True)
 
 class EmpiricaActionHooks:
@@ -135,7 +135,7 @@ class EmpiricaActionHooks:
             print(f"Warning: Could not update cascade status feed: {e}")
 
     @staticmethod
-    def update_chain_of_thought(thought: str, phase: str, goal: str = None):
+    def update_chain_of_thought(thought: str, phase: str, goal: str | None = None):
         """Update chain of thought with user-facing reasoning step"""
         try:
             # Read existing chain
@@ -212,12 +212,12 @@ class EmpiricaActionHooks:
         session_id: str,
         ai_id: str,
         phase: str,
-        vectors: dict[str, float] = None,
-        gate_decision: str = None,
-        project_path: str = None,
-        project_name: str = None,
+        vectors: dict[str, float] | None = None,
+        gate_decision: str | None = None,
+        project_path: str | None = None,
+        project_name: str | None = None,
         drift_detected: bool = False,
-        drift_severity: str = None,
+        drift_severity: str | None = None,
         open_goals: int = 0,
         open_unknowns: int = 0,
     ):
@@ -300,7 +300,7 @@ def track_component_usage(component_name: str):
         return wrapper
     return decorator
 
-def track_cascade_phase(phase: str, goal: str = None):
+def track_cascade_phase(phase: str, goal: str | None = None):
     """Decorator to track metacognitive cascade phases"""
     def decorator(func: Callable) -> Callable:
         """Wrap function with cascade phase tracking."""
@@ -335,7 +335,7 @@ def track_cascade_phase(phase: str, goal: str = None):
     return decorator
 
 # Convenience functions for direct usage
-def log_cascade_phase(phase: str, goal: str, context: dict[str, Any] = None):
+def log_cascade_phase(phase: str, goal: str, context: dict[str, Any] | None = None):
     """Directly log a cascade phase"""
     hooks = EmpiricaActionHooks()
     hooks.update_cascade_status(phase, goal, context or {})
@@ -345,7 +345,7 @@ def log_12d_state(state: dict[str, Any]):
     hooks = EmpiricaActionHooks()
     hooks.update_12d_monitor(state)
 
-def log_thought(thought: str, phase: str = "ACT", goal: str = None):
+def log_thought(thought: str, phase: str = "ACT", goal: str | None = None):
     """Directly log a thought to chain"""
     hooks = EmpiricaActionHooks()
     hooks.update_chain_of_thought(thought, phase, goal)
@@ -354,12 +354,12 @@ def log_statusline(
     session_id: str,
     ai_id: str,
     phase: str,
-    vectors: dict[str, float] = None,
-    gate_decision: str = None,
-    project_path: str = None,
-    project_name: str = None,
+    vectors: dict[str, float] | None = None,
+    gate_decision: str | None = None,
+    project_path: str | None = None,
+    project_name: str | None = None,
     drift_detected: bool = False,
-    drift_severity: str = None,
+    drift_severity: str | None = None,
     open_goals: int = 0,
     open_unknowns: int = 0,
 ):
@@ -448,6 +448,6 @@ def trigger_pane_update(pane_name: str):
         # Suppress stderr to avoid "can't find session" messages when tmux session doesn't exist
         subprocess.run(['tmux', 'send-keys', '-t', pane, 'C-l'], check=False, capture_output=True)
 
-    except Exception as e:
-        pass  # Silent fail if tmux not available
+    except Exception:  # noqa: S110 — tmux pane refresh is best-effort; silent fail OK
+        pass
 

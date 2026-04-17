@@ -6,7 +6,7 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from empirica.utils.session_resolver import InstanceResolver as R
 
@@ -184,7 +184,7 @@ def get_workspace_projects() -> list[dict[str, Any]]:
 
 
 
-def _update_active_work(project_path: str, folder_name: str, empirica_session_id: str = None, claude_session_id: str = None) -> bool:
+def _update_active_work(project_path: str, folder_name: str, empirica_session_id: str | None = None, claude_session_id: str | None = None) -> bool:
     """
     Update active_work markers AND TTY session for cross-project continuity.
 
@@ -827,291 +827,412 @@ def _handle_transaction_on_switch(dest_project_path, output_format) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+def _resolve_project_path(trajectory_path):
+    """Derive project root from trajectory path.
+
+    Two formats exist:
+    1. Old format: /home/user/project/.empirica -> project_path = /home/user/project
+    2. New format: /home/user/project (no .empirica suffix) -> use as-is
+
+    Returns Path or None.
+    """
+    if not trajectory_path:
+        return None
+    traj = Path(trajectory_path)
+    if traj.name == '.empirica':
+        return traj.parent
+    return traj
+
+
+def _attach_session_from_global_registry(project_id, project_path, output_format):
+    """Update global session registry with new project and mirror session to target DB.
+
+    Sessions are per-conversation (global), not per-project.
+    Project-switch just updates which project the session is working on.
+
+    Returns attached_session dict or None.
+    """
+    import sqlite3
+
+    from empirica.core.statusline_cache import get_instance_id
+    from empirica.data.repositories.sessions import update_session_project
+
+    current_instance_id = get_instance_id()
+    attached_session = None
+
+    # Get current session from global registry
+    workspace_db = Path.home() / '.empirica' / 'workspace' / 'workspace.db'
+    if not workspace_db.exists():
+        return None
+
+    conn = sqlite3.connect(str(workspace_db))
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    # Find active session for this instance
+    if current_instance_id:
+        cursor.execute("""
+            SELECT session_id, ai_id, created_at
+            FROM global_sessions
+            WHERE instance_id = ? AND status = 'active'
+            ORDER BY last_activity DESC NULLS LAST, created_at DESC
+            LIMIT 1
+        """, (current_instance_id,))
+    else:
+        cursor.execute("""
+            SELECT session_id, ai_id, created_at
+            FROM global_sessions
+            WHERE status = 'active'
+            ORDER BY last_activity DESC NULLS LAST, created_at DESC
+            LIMIT 1
+        """)
+
+    row = cursor.fetchone()
+    if row:
+        attached_session = {
+            'session_id': row['session_id'],
+            'ai_id': row['ai_id'],
+            'start_time': row['created_at']
+        }
+        update_session_project(row['session_id'], project_id)
+    conn.close()
+
+    # Mirror session to target project's DB
+    if attached_session and project_path:
+        _mirror_session_to_target_db(
+            attached_session, project_path, project_id,
+            current_instance_id, output_format
+        )
+
+    return attached_session
+
+
+def _mirror_session_to_target_db(attached_session, project_path, project_id,
+                                  current_instance_id, output_format):
+    """Ensure session exists in target project's per-project sessions.db.
+
+    The session from global_sessions may not exist in the target project's
+    per-project sessions.db (it was created in a different project).
+    The statusline reads from per-project DB, so a missing session = "inactive".
+    """
+    import sqlite3
+
+    target_db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
+    if not target_db_path.exists():
+        return
+
+    target_conn = sqlite3.connect(str(target_db_path))
+    target_cursor = target_conn.cursor()
+
+    target_cursor.execute(
+        "SELECT session_id FROM sessions WHERE session_id = ?",
+        (attached_session['session_id'],)
+    )
+    if not target_cursor.fetchone():
+        from datetime import datetime, timezone
+        target_cursor.execute("""
+            INSERT INTO sessions (
+                session_id, ai_id, start_time, bootstrap_level,
+                components_loaded, project_id, instance_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            attached_session['session_id'],
+            attached_session['ai_id'],
+            attached_session.get('start_time') or datetime.now(timezone.utc).isoformat(),
+            1, 0, project_id, current_instance_id
+        ))
+        target_conn.commit()
+        if output_format == 'human':
+            print("📎 Session mirrored to target project database")
+    else:
+        target_cursor.execute(
+            "UPDATE sessions SET project_id = ? WHERE session_id = ?",
+            (project_id, attached_session['session_id'])
+        )
+        target_conn.commit()
+    target_conn.close()
+
+
+def _ensure_local_project_record(project_path, project_id, project, output_format):
+    """Ensure project exists in target's local projects table.
+
+    Domain projects created via redistribution/workspace.db may have an empty
+    local projects table, causing finding-log, project-bootstrap, and other
+    commands to fail with "Project not found". Fix: auto-populate from workspace.db.
+    """
+    import sqlite3
+    import time
+
+    target_db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
+    if not target_db_path.exists():
+        return
+
+    target_conn = sqlite3.connect(str(target_db_path))
+    target_cursor = target_conn.cursor()
+
+    target_cursor.execute("SELECT id FROM projects WHERE id = ?", (project_id,))
+    if not target_cursor.fetchone():
+        now = time.time()
+        target_cursor.execute("""
+            INSERT INTO projects (
+                id, name, description, repos, created_timestamp,
+                last_activity_timestamp, status, metadata,
+                total_sessions, total_goals, total_epistemic_deltas,
+                project_data, project_type, project_tags, parent_project_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            project_id,
+            project.get('name') or project.get('folder_name', ''),
+            project.get('description', ''),
+            None,
+            project.get('created_timestamp', now),
+            now,
+            'active',
+            None, 0, 0, None,
+            '{}',
+            project.get('project_type', 'software'),
+            project.get('project_tags', ''),
+            None
+        ))
+        target_conn.commit()
+        if output_format == 'human':
+            print("📦 Project record created in local database")
+    target_conn.close()
+
+
+def _handle_active_work_update(project_path, project_id, folder_name,
+                                attached_session, cli_claude_session_id,
+                                output_format):
+    """Update active_work markers and auto-heal session into target project DB.
+
+    Returns the attached_session_id (may be recovered from active_work file).
+    """
+    attached_session_id = attached_session['session_id'] if attached_session else None
+
+    # AUTO-HEAL: recover session_id from active_work file if global registry failed
+    if not attached_session_id and cli_claude_session_id:
+        try:
+            aw_file = Path.home() / '.empirica' / f'active_work_{cli_claude_session_id}.json'
+            if aw_file.exists():
+                with open(aw_file) as f:
+                    existing_aw = json.load(f)
+                attached_session_id = existing_aw.get('empirica_session_id')
+                if attached_session_id and output_format == 'human':
+                    print(f"🔄 Recovered session {attached_session_id[:8]} from active_work file")
+        except Exception as e:
+            logger.debug(f"Active_work session_id recovery failed (non-fatal): {e}")
+
+    # Auto-heal: ensure session exists in target project's local sessions.db
+    if attached_session_id and project_path:
+        try:
+            target_db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
+            if target_db_path.exists():
+                from empirica.data.session_database import SessionDatabase
+                target_db = SessionDatabase(db_path=target_db_path)
+                healed = target_db.ensure_session_exists(
+                    session_id=attached_session_id,
+                    ai_id='claude-code',
+                    project_id=project_id,
+                )
+                target_db.close()
+                if healed and output_format == 'human':
+                    print(f"🩹 Auto-healed session {attached_session_id[:8]} into target project DB")
+        except Exception as e:
+            logger.debug(f"project-switch auto-heal failed (non-fatal): {e}")
+
+    _update_active_work(str(project_path), folder_name,
+                        empirica_session_id=attached_session_id,
+                        claude_session_id=cli_claude_session_id)
+    return attached_session_id
+
+
+def _query_live_counts(project_path, project_id):
+    """Query live artifact counts from per-project sessions.db.
+
+    Returns (findings, unknowns, goals) counts.
+    """
+    findings, unknowns, goals = 0, 0, 0
+    if not project_path:
+        return findings, unknowns, goals
+    try:
+        import sqlite3 as _sql
+        db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
+        if db_path.exists():
+            conn = _sql.connect(str(db_path))
+            c = conn.cursor()
+            try:
+                findings = c.execute("SELECT COUNT(*) FROM project_findings WHERE project_id = ?", (project_id,)).fetchone()[0]
+            except Exception:
+                pass
+            try:
+                unknowns = c.execute("SELECT COUNT(*) FROM project_unknowns WHERE project_id = ? AND is_resolved = 0", (project_id,)).fetchone()[0]
+            except Exception:
+                pass
+            try:
+                goals = c.execute("SELECT COUNT(*) FROM goals WHERE project_id = ? AND is_completed = 0", (project_id,)).fetchone()[0]
+            except Exception:
+                pass
+            conn.close()
+    except Exception:
+        pass
+    return findings, unknowns, goals
+
+
+def _run_auto_bootstrap(project_path, attached_session, output_format):
+    """Run project-bootstrap for the switched project. Returns bootstrap result dict."""
+    bootstrap_result = None
+    try:
+        bootstrap_cmd = ['empirica', 'project-bootstrap', '--output', 'json']
+        if attached_session:
+            bootstrap_cmd.extend(['--session-id', attached_session['session_id']])
+        if project_path:
+            result = run_empirica_subprocess(bootstrap_cmd, timeout=30, cwd=str(project_path))
+            if result.returncode == 0:
+                try:
+                    import json as _json
+                    bootstrap_result = _json.loads(result.stdout)
+                    if output_format == 'human':
+                        print("✅ Project context loaded (auto-bootstrap)")
+                except Exception:
+                    bootstrap_result = {"ok": True, "note": "bootstrap ran but non-JSON output"}
+            else:
+                bootstrap_result = {"ok": False, "error": result.stderr[:200]}
+    except Exception as e:
+        bootstrap_result = {"ok": False, "error": str(e)}
+        logger.debug(f"Auto-bootstrap on project-switch failed (non-fatal): {e}")
+    return bootstrap_result
+
+
+def _print_switch_human_output(folder_name, project_name, project_id, project_path,
+                                findings, unknowns, goals, attached_session,
+                                preflight_result):
+    """Print the human-readable project switch banner and context summary."""
+    print()
+    print("━" * 70)
+    print("🎯 PROJECT CONTEXT SWITCH")
+    print("━" * 70)
+    print()
+    print(f"📁 Project: {folder_name}")
+    if project_name != folder_name:
+        print(f"   Name: {project_name}")
+    print(f"🆔 Project ID: {project_id[:8]}...")
+    if project_path:
+        print(f"📍 Location: {project_path}")
+    print(f"📊 Findings: {findings}  Unknowns: {unknowns}  Goals: {goals}")
+    if attached_session:
+        print(f"🔗 Attached to session: {attached_session['session_id'][:8]}... (AI: {attached_session['ai_id']})")
+    print()
+
+    # Epistemic Brief
+    try:
+        from empirica.core.epistemic_brief import format_brief_human, generate_epistemic_brief
+        db_path_str = str(Path(project_path) / '.empirica' / 'sessions' / 'sessions.db') if project_path else None
+        if db_path_str and Path(db_path_str).exists():
+            brief = generate_epistemic_brief(project_id, db_path=db_path_str)
+            if brief.get('knowledge_state', {}).get('total_artifacts', 0) > 0:
+                print(format_brief_human(brief))
+    except Exception as _brief_err:
+        logger.debug(f"Epistemic brief generation failed (non-fatal): {_brief_err}")
+
+
+def _print_switch_next_steps(project_path, findings, unknowns, goals, preflight_result):
+    """Print context summary and next steps for human output."""
+    print("📋 Submit PREFLIGHT to open a transaction (self-assess your vectors)")
+
+    if findings or unknowns or goals:
+        print("📋 Project Context Summary:")
+        print()
+        if findings:
+            print(f"   📝 {findings} findings logged")
+        if unknowns:
+            print(f"   ❓ {unknowns} unknowns tracked")
+        if goals:
+            print(f"   🎯 {goals} goals defined")
+        print()
+    else:
+        print("📋 No epistemic artifacts yet in this project.")
+        print()
+
+    if project_path and project_path.exists():
+        print("💡 For full context, run in project directory:")
+        print(f"   cd {project_path} && empirica project-bootstrap")
+        print()
+
+    print()
+    print("━" * 70)
+    print("💡 Next Steps")
+    print("━" * 70)
+    print()
+    if preflight_result and preflight_result.get('ok'):
+        print("  Transaction is open — you're in noetic phase.")
+        print()
+        print("  1. Investigate — log findings, unknowns, dead-ends")
+        print()
+        print("  2. CHECK when ready to act, POSTFLIGHT when work is complete")
+    else:
+        print("  1. Start a transaction (PREFLIGHT) to begin measured work")
+        print()
+        print("  2. Investigate before acting — log findings, unknowns, dead-ends")
+        print()
+        print("  3. CHECK when ready to proceed, POSTFLIGHT when work is complete")
+    print()
+    print("⚠️  All commands now write to this project's database.")
+    print("    Findings, sessions, goals → stored in this project context.")
+    print()
+
+
 def handle_project_switch_command(args):
-    """
-    Handle project-switch command - Switch to a different project with context loading
-
-    Resolves projects from workspace database by:
-    1. Folder name (most intuitive - e.g., 'empirica-platform')
-    2. Project name
-    3. UUID
-
-    Provides clear UX for AI agents:
-    1. Resolves project from workspace database
-    2. Shows "you are here" banner with project path
-    3. Automatically runs project-bootstrap
-    4. Shows next steps
-
-    Does NOT create a session (explicit action for user)
-    """
+    """Handle project-switch command - Switch to a different project with context loading."""
     try:
         project_identifier = args.project_identifier
         output_format = getattr(args, 'output', 'human')
-        # Get claude_session_id from CLI arg (enables instance isolation via Bash tool)
         cli_claude_session_id = getattr(args, 'claude_session_id', None)
 
         # 1. Resolve project from workspace database
         project = resolve_workspace_project(project_identifier)
-
         if not project:
             error_msg = f"Project not found: {project_identifier}"
             hint = "Run 'empirica project-list' to see available projects"
-
             if output_format == 'json':
-                print(json.dumps({
-                    'ok': False,
-                    'error': error_msg,
-                    'hint': hint
-                }))
+                print(json.dumps({'ok': False, 'error': error_msg, 'hint': hint}))
             else:
                 print(f"❌ {error_msg}")
                 print(f"\nTip: {hint}")
-
             return None
 
         # 2. Extract project details
         project_id = project.get('id')
         project_name = project.get('name')
         folder_name = project.get('folder_name')
-        trajectory_path = project.get('trajectory_path', '')
-
-        # Derive project root from trajectory path
-        # Two formats exist:
-        # 1. Old format: /home/user/project/.empirica -> project_path = /home/user/project
-        # 2. New format: /home/user/project (no .empirica suffix) -> use as-is
-        project_path = None
-        if trajectory_path:
-            traj = Path(trajectory_path)
-            if traj.name == '.empirica':
-                # Old format: path ends with .empirica, take parent
-                project_path = traj.parent
-            else:
-                # New format: path is the project root directly
-                project_path = traj
+        project_path = _resolve_project_path(project.get('trajectory_path', ''))
 
         # 3. Handle open transaction from current project
         postflight_result = _handle_transaction_on_switch(project_path, output_format)
 
-        # 4. SESSION CONTINUITY: Update global session registry with new project
-        # Sessions are per-conversation (global), not per-project.
-        # Project-switch just updates which project the session is working on.
+        # 4. Session continuity: attach from global registry
         attached_session = None
         try:
-            import sqlite3
-
-            from empirica.core.statusline_cache import get_instance_id
-            from empirica.data.repositories.sessions import update_session_project
-
-            current_instance_id = get_instance_id()
-
-            # Get current session from global registry
-            workspace_db = Path.home() / '.empirica' / 'workspace' / 'workspace.db'
-            if workspace_db.exists():
-                conn = sqlite3.connect(str(workspace_db))
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-
-                # Find active session for this instance
-                if current_instance_id:
-                    cursor.execute("""
-                        SELECT session_id, ai_id, created_at
-                        FROM global_sessions
-                        WHERE instance_id = ? AND status = 'active'
-                        ORDER BY last_activity DESC NULLS LAST, created_at DESC
-                        LIMIT 1
-                    """, (current_instance_id,))
-                else:
-                    # Fallback: most recent active session
-                    cursor.execute("""
-                        SELECT session_id, ai_id, created_at
-                        FROM global_sessions
-                        WHERE status = 'active'
-                        ORDER BY last_activity DESC NULLS LAST, created_at DESC
-                        LIMIT 1
-                    """)
-
-                row = cursor.fetchone()
-                if row:
-                    attached_session = {
-                        'session_id': row['session_id'],
-                        'ai_id': row['ai_id'],
-                        'start_time': row['created_at']
-                    }
-                    # Update the session's current project in global registry
-                    update_session_project(row['session_id'], project_id)
-                conn.close()
-
-            # 4b. ENSURE SESSION EXISTS IN TARGET PROJECT'S DB
-            # The session from global_sessions may not exist in the target project's
-            # per-project sessions.db (it was created in a different project).
-            # The statusline reads from per-project DB, so a missing session = "inactive".
-            if attached_session and project_path:
-                try:
-                    target_db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
-                    if target_db_path.exists():
-                        target_conn = sqlite3.connect(str(target_db_path))
-                        target_cursor = target_conn.cursor()
-
-                        # Check if session already exists in target DB
-                        target_cursor.execute(
-                            "SELECT session_id FROM sessions WHERE session_id = ?",
-                            (attached_session['session_id'],)
-                        )
-                        if not target_cursor.fetchone():
-                            # Session doesn't exist in target — mirror it
-                            from datetime import datetime, timezone
-                            target_cursor.execute("""
-                                INSERT INTO sessions (
-                                    session_id, ai_id, start_time, bootstrap_level,
-                                    components_loaded, project_id, instance_id
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                            """, (
-                                attached_session['session_id'],
-                                attached_session['ai_id'],
-                                attached_session.get('start_time') or datetime.now(timezone.utc).isoformat(),
-                                1,  # bootstrap_level
-                                0,  # components_loaded
-                                project_id,
-                                current_instance_id
-                            ))
-                            target_conn.commit()
-                            if output_format == 'human':
-                                print("📎 Session mirrored to target project database")
-                        else:
-                            # Session exists but may have wrong project_id — update it
-                            target_cursor.execute(
-                                "UPDATE sessions SET project_id = ? WHERE session_id = ?",
-                                (project_id, attached_session['session_id'])
-                            )
-                            target_conn.commit()
-                        target_conn.close()
-                except Exception as e2:
-                    logger.debug(f"Session mirroring to target DB failed (non-fatal): {e2}")
+            attached_session = _attach_session_from_global_registry(
+                project_id, project_path, output_format
+            )
         except Exception as e:
             logger.debug(f"Session continuity update failed (non-fatal): {e}")
 
-        # 4c. ENSURE PROJECT EXISTS IN TARGET'S LOCAL projects TABLE
-        # Domain projects created via redistribution/workspace.db may have an empty
-        # local projects table, causing finding-log, project-bootstrap, and other
-        # commands to fail with "Project not found". Fix: auto-populate from workspace.db.
+        # 4c. Ensure project exists in target's local projects table
         if project_path and project_id:
             try:
-                target_db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
-                if target_db_path.exists():
-                    target_conn = sqlite3.connect(str(target_db_path))
-                    target_cursor = target_conn.cursor()
-
-                    # Check if project already exists in target's local projects table
-                    target_cursor.execute(
-                        "SELECT id FROM projects WHERE id = ?",
-                        (project_id,)
-                    )
-                    if not target_cursor.fetchone():
-                        # Project missing from local DB — populate from workspace.db metadata
-                        import time
-                        now = time.time()
-                        project_description = project.get('description', '')
-                        proj_type = project.get('project_type', 'software')
-                        proj_tags = project.get('project_tags', '')
-                        created_ts = project.get('created_timestamp', now)
-
-                        target_cursor.execute("""
-                            INSERT INTO projects (
-                                id, name, description, repos, created_timestamp,
-                                last_activity_timestamp, status, metadata,
-                                total_sessions, total_goals, total_epistemic_deltas,
-                                project_data, project_type, project_tags, parent_project_id
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            project_id,
-                            project_name or folder_name,
-                            project_description,
-                            None,  # repos
-                            created_ts,
-                            now,  # last_activity_timestamp
-                            'active',
-                            None,  # metadata
-                            0,  # total_sessions
-                            0,  # total_goals
-                            None,  # total_epistemic_deltas
-                            '{}',  # project_data (required NOT NULL)
-                            proj_type,
-                            proj_tags,
-                            None  # parent_project_id
-                        ))
-                        target_conn.commit()
-                        if output_format == 'human':
-                            print("📦 Project record created in local database")
-                    target_conn.close()
+                _ensure_local_project_record(project_path, project_id, project, output_format)
             except Exception as e3:
                 logger.debug(f"Local projects table population failed (non-fatal): {e3}")
 
-        # 5. Update active_work.json for cross-project continuity
-        # This ensures pre-compact hook preserves project context even when Claude Code resets CWD
-        # Include empirica_session_id so Sentinel and MCP tools can attach to the correct session
+        # 5. Update active_work markers and auto-heal session
         if project_path:
-            attached_session_id = attached_session['session_id'] if attached_session else None
+            _handle_active_work_update(
+                project_path, project_id, folder_name,
+                attached_session, cli_claude_session_id, output_format
+            )
 
-            # AUTO-HEAL (same pattern as post-compact 11.24): if the global_sessions
-            # mirror failed (instance_id mismatch, status filter, etc.) we end up with
-            # attached_session_id=None, but the existing active_work file may still
-            # know about a session_id from a prior conversation. Recover it and
-            # ensure it exists in the target project's local DB so Sentinel,
-            # statusline, and CLI lookups don't fail with "session NOT FOUND".
-            if not attached_session_id and cli_claude_session_id:
-                try:
-                    aw_file = (
-                        Path.home() / '.empirica' /
-                        f'active_work_{cli_claude_session_id}.json'
-                    )
-                    if aw_file.exists():
-                        with open(aw_file) as f:
-                            existing_aw = json.load(f)
-                        attached_session_id = existing_aw.get('empirica_session_id')
-                        if attached_session_id and output_format == 'human':
-                            print(
-                                "🔄 Recovered session "
-                                f"{attached_session_id[:8]} from active_work file"
-                            )
-                except Exception as e:
-                    logger.debug(
-                        f"Active_work session_id recovery failed (non-fatal): {e}"
-                    )
-
-            # If we have a session_id, make sure it exists in the target project's
-            # local sessions.db. ensure_session_exists is idempotent: no-op if the
-            # row already exists, inserts a minimal heal-row if missing.
-            if attached_session_id and project_path:
-                try:
-                    target_db_path = (
-                        Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
-                    )
-                    if target_db_path.exists():
-                        from empirica.data.session_database import SessionDatabase
-                        target_db = SessionDatabase(db_path=target_db_path)
-                        healed = target_db.ensure_session_exists(
-                            session_id=attached_session_id,
-                            ai_id='claude-code',
-                            project_id=project_id,
-                        )
-                        target_db.close()
-                        if healed and output_format == 'human':
-                            print(
-                                "🩹 Auto-healed session "
-                                f"{attached_session_id[:8]} into target project DB"
-                            )
-                except Exception as e:
-                    logger.debug(
-                        f"project-switch auto-heal failed (non-fatal): {e}"
-                    )
-
-            _update_active_work(str(project_path), folder_name, empirica_session_id=attached_session_id, claude_session_id=cli_claude_session_id)
-
-        # 5b. Memory swap: switch the auto-memory directory to track the new
-        # active project. When the harness CWD doesn't match project_path
-        # (e.g. user is cd'd in repo A but switched the empirica project to
-        # repo B), Claude Code's auto-memory loader still reads A's memory.
-        # Swap B's memory contents into A's slot. (KNOWN_ISSUES 11.28)
+        # 5b. Memory swap
         try:
             from empirica.utils.memory_swap import swap_memory
             cwd = Path.cwd().resolve()
@@ -1125,147 +1246,29 @@ def handle_project_switch_command(args):
         except Exception as e:
             logger.debug(f"project-switch memory swap failed (non-fatal): {e}")
 
-        # 6. Query LIVE counts from per-project sessions.db (before output format branch)
-        _sw_findings, _sw_unknowns, _sw_goals = 0, 0, 0
-        if project_path:
-            try:
-                import sqlite3 as _sw_sql_pre
-                _sw_db_pre = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
-                if _sw_db_pre.exists():
-                    _sw_conn_pre = _sw_sql_pre.connect(str(_sw_db_pre))
-                    _sw_c_pre = _sw_conn_pre.cursor()
-                    try:
-                        _sw_findings = _sw_c_pre.execute("SELECT COUNT(*) FROM project_findings WHERE project_id = ?", (project_id,)).fetchone()[0]
-                    except Exception:
-                        pass
-                    try:
-                        _sw_unknowns = _sw_c_pre.execute("SELECT COUNT(*) FROM project_unknowns WHERE project_id = ? AND is_resolved = 0", (project_id,)).fetchone()[0]
-                    except Exception:
-                        pass
-                    try:
-                        _sw_goals = _sw_c_pre.execute("SELECT COUNT(*) FROM goals WHERE project_id = ? AND is_completed = 0", (project_id,)).fetchone()[0]
-                    except Exception:
-                        pass
-                    _sw_conn_pre.close()
-            except Exception:
-                pass
+        # 6. Query live counts
+        _sw_findings, _sw_unknowns, _sw_goals = _query_live_counts(project_path, project_id)
 
-        # Show context banner
-        if output_format == 'human':
-            print()
-            print("━" * 70)
-            print("🎯 PROJECT CONTEXT SWITCH")
-            print("━" * 70)
-            print()
-            print(f"📁 Project: {folder_name}")
-            if project_name != folder_name:
-                print(f"   Name: {project_name}")
-            print(f"🆔 Project ID: {project_id[:8]}...")
-            if project_path:
-                print(f"📍 Location: {project_path}")
-            print(f"📊 Findings: {_sw_findings}  Unknowns: {_sw_unknowns}  Goals: {_sw_goals}")
-            if attached_session:
-                print(f"🔗 Attached to session: {attached_session['session_id'][:8]}... (AI: {attached_session['ai_id']})")
-            print()
+        # 7. Auto-bootstrap
+        bootstrap_result = _run_auto_bootstrap(project_path, attached_session, output_format)
 
-            # Epistemic Brief — quantified project profile
-            try:
-                from empirica.core.epistemic_brief import generate_epistemic_brief, format_brief_human
-                _sw_db_path_str = str(Path(project_path) / '.empirica' / 'sessions' / 'sessions.db') if project_path else None
-                if _sw_db_path_str and Path(_sw_db_path_str).exists():
-                    brief = generate_epistemic_brief(project_id, db_path=_sw_db_path_str)
-                    if brief.get('knowledge_state', {}).get('total_artifacts', 0) > 0:
-                        print(format_brief_human(brief))
-            except Exception as _brief_err:
-                logger.debug(f"Epistemic brief generation failed (non-fatal): {_brief_err}")
-
-        # 7. AUTO-BOOTSTRAP: Load context for the new project
-        bootstrap_result = None
-        try:
-            # Run project-bootstrap for the new project
-            # Use --output json to capture result, but don't print it in human mode
-            # If we found an attached session, pass it to bootstrap
-            bootstrap_cmd = ['empirica', 'project-bootstrap', '--output', 'json']
-            if attached_session:
-                bootstrap_cmd.extend(['--session-id', attached_session['session_id']])
-            if project_path:
-                # Run in project directory to ensure correct context
-                result = run_empirica_subprocess(
-                    bootstrap_cmd,
-                    timeout=30,
-                    cwd=str(project_path)
-                )
-                if result.returncode == 0:
-                    try:
-                        import json as _json
-                        bootstrap_result = _json.loads(result.stdout)
-                        if output_format == 'human':
-                            print("✅ Project context loaded (auto-bootstrap)")
-                    except Exception:
-                        bootstrap_result = {"ok": True, "note": "bootstrap ran but non-JSON output"}
-                else:
-                    bootstrap_result = {"ok": False, "error": result.stderr[:200]}
-        except Exception as e:
-            # Non-fatal - continue even if bootstrap fails
-            bootstrap_result = {"ok": False, "error": str(e)}
-            logger.debug(f"Auto-bootstrap on project-switch failed (non-fatal): {e}")
-
-        # 8. NO AUTO-PREFLIGHT: The AI must submit its own PREFLIGHT with genuine
-        # self-assessed vectors. System-generated vectors poison calibration data.
-        # The Sentinel will nudge the AI to submit PREFLIGHT when it detects
-        # no open transaction after project-switch.
+        # 8. Preflight result (AI must submit its own)
         preflight_result = {
             "needed": True,
             "note": "Submit PREFLIGHT with your own vector self-assessment to open a transaction."
         }
-        if output_format == 'human':
-            print("📋 Submit PREFLIGHT to open a transaction (self-assess your vectors)")
 
-        # 9. Show project context summary from LIVE per-project DB
+        # 9-10. Output
         if output_format == 'human':
-            if _sw_findings or _sw_unknowns or _sw_goals:
-                print("📋 Project Context Summary:")
-                print()
-                if _sw_findings:
-                    print(f"   📝 {_sw_findings} findings logged")
-                if _sw_unknowns:
-                    print(f"   ❓ {_sw_unknowns} unknowns tracked")
-                if _sw_goals:
-                    print(f"   🎯 {_sw_goals} goals defined")
-                print()
-            else:
-                print("📋 No epistemic artifacts yet in this project.")
-                print()
-
-            # Suggest running bootstrap in project directory for full context
-            if project_path and project_path.exists():
-                print("💡 For full context, run in project directory:")
-                print(f"   cd {project_path} && empirica project-bootstrap")
-                print()
-
-        # 10. Show next steps
-        if output_format == 'human':
-            print()
-            print("━" * 70)
-            print("💡 Next Steps")
-            print("━" * 70)
-            print()
-            if preflight_result and preflight_result.get('ok'):
-                print("  Transaction is open — you're in noetic phase.")
-                print()
-                print("  1. Investigate — log findings, unknowns, dead-ends")
-                print()
-                print("  2. CHECK when ready to act, POSTFLIGHT when work is complete")
-            else:
-                print("  1. Start a transaction (PREFLIGHT) to begin measured work")
-                print()
-                print("  2. Investigate before acting — log findings, unknowns, dead-ends")
-                print()
-                print("  3. CHECK when ready to proceed, POSTFLIGHT when work is complete")
-            print()
-            print("⚠️  All commands now write to this project's database.")
-            print("    Findings, sessions, goals → stored in this project context.")
-            print()
+            _print_switch_human_output(
+                folder_name, project_name, project_id, project_path,
+                _sw_findings, _sw_unknowns, _sw_goals,
+                attached_session, preflight_result
+            )
+            _print_switch_next_steps(
+                project_path, _sw_findings, _sw_unknowns, _sw_goals,
+                preflight_result
+            )
         elif output_format == 'json':
             result = {
                 'ok': True,

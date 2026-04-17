@@ -15,6 +15,7 @@ Flow Score = weighted average of above factors
 import logging
 import re
 from datetime import datetime
+from typing import ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class FlowStateMetrics:
     """Calculate flow state metrics for a session"""
 
     # Weights for flow score calculation
-    WEIGHTS = {
+    WEIGHTS: ClassVar[dict[str, float]] = {
         'cascade_completeness': 0.25,
         'bootstrap_usage': 0.15,
         'goal_structure': 0.15,
@@ -41,10 +42,10 @@ class FlowStateMetrics:
 
     def calculate_flow_score(self, session_id: str) -> dict:
         """Calculate flow state score for a session
-        
+
         Args:
             session_id: Session UUID
-            
+
         Returns:
             Dict with:
                 - flow_score: 0.0-1.0 (overall productivity)
@@ -55,8 +56,8 @@ class FlowStateMetrics:
 
         # Get session info
         cursor.execute("""
-            SELECT ai_id, start_time, end_time 
-            FROM sessions 
+            SELECT ai_id, start_time, end_time
+            FROM sessions
             WHERE session_id = ?
         """, (session_id,))
         session = cursor.fetchone()
@@ -120,8 +121,8 @@ class FlowStateMetrics:
         cursor = self.db.conn.cursor()
 
         cursor.execute("""
-            SELECT COUNT(DISTINCT phase) 
-            FROM reflexes 
+            SELECT COUNT(DISTINCT phase)
+            FROM reflexes
             WHERE session_id = ? AND phase IN ('PREFLIGHT', 'POSTFLIGHT')
         """, (session_id,))
 
@@ -138,9 +139,9 @@ class FlowStateMetrics:
 
         # Check if any findings reference "bootstrap" or "project context"
         cursor.execute("""
-            SELECT COUNT(*) 
-            FROM project_findings 
-            WHERE session_id = ? 
+            SELECT COUNT(*)
+            FROM project_findings
+            WHERE session_id = ?
               AND (finding LIKE '%bootstrap%' OR finding LIKE '%project context%')
         """, (session_id,))
 
@@ -155,7 +156,7 @@ class FlowStateMetrics:
         cursor = self.db.conn.cursor()
 
         cursor.execute("""
-            SELECT 
+            SELECT
                 COUNT(g.id) as goal_count,
                 COUNT(st.id) as subtask_count
             FROM goals g
@@ -181,8 +182,8 @@ class FlowStateMetrics:
 
         # Get PREFLIGHT and POSTFLIGHT know values
         cursor.execute("""
-            SELECT phase, know 
-            FROM reflexes 
+            SELECT phase, know
+            FROM reflexes
             WHERE session_id = ? AND phase IN ('PREFLIGHT', 'POSTFLIGHT')
             ORDER BY timestamp
         """, (session_id,))
@@ -213,7 +214,7 @@ class FlowStateMetrics:
 
     def _check_check_usage(self, session_id: str, session: dict) -> float:
         """Check if CHECK was used appropriately for session scope
-        
+
         Returns:
             1.0 = CHECK used appropriately for scope
             0.7 = CHECK used but scope was low (unnecessary but not harmful)
@@ -224,18 +225,18 @@ class FlowStateMetrics:
 
         # Check if session has CHECK phase
         cursor.execute("""
-            SELECT COUNT(*) 
-            FROM reflexes 
+            SELECT COUNT(*)
+            FROM reflexes
             WHERE session_id = ? AND phase = 'CHECK'
         """, (session_id,))
         has_check = cursor.fetchone()[0] > 0
 
         # Get goal scope for session (if any)
         cursor.execute("""
-            SELECT goal_data 
-            FROM goals 
-            WHERE session_id = ? 
-            ORDER BY created_timestamp DESC 
+            SELECT goal_data
+            FROM goals
+            WHERE session_id = ?
+            ORDER BY created_timestamp DESC
             LIMIT 1
         """, (session_id,))
         goal = cursor.fetchone()

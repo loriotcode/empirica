@@ -8,7 +8,7 @@ MVP implementation: Simple database operations, no complex queries yet.
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from empirica.data.session_database import SessionDatabase
 
@@ -23,7 +23,7 @@ class GoalRepository:
     def __init__(self, db_path: str | None = None):
         """
         Initialize repository
-        
+
         Args:
             db_path: Optional custom database path
         """
@@ -217,10 +217,10 @@ class GoalRepository:
     def get_session_goals(self, session_id: str) -> list[Goal]:
         """
         Retrieve all goals for a session
-        
+
         Args:
             session_id: Session identifier
-            
+
         Returns:
             List of Goal objects
         """
@@ -322,11 +322,11 @@ class GoalRepository:
     def update_goal_completion(self, goal_id: str, is_completed: bool = True) -> bool:
         """
         Update goal completion status
-        
+
         Args:
             goal_id: Goal identifier
             is_completed: Completion status
-            
+
         Returns:
             True if successful
         """
@@ -334,11 +334,12 @@ class GoalRepository:
             import time
             timestamp = time.time() if is_completed else None
 
+            status = 'completed' if is_completed else 'in_progress'
             self.db.conn.execute("""
-                UPDATE goals 
-                SET is_completed = ?, completed_timestamp = ?
+                UPDATE goals
+                SET is_completed = ?, completed_timestamp = ?, status = ?
                 WHERE id = ?
-            """, (is_completed, timestamp, goal_id))
+            """, (is_completed, timestamp, status, goal_id))
 
             # Also update the goal_data JSON
             goal = self.get_goal(goal_id)
@@ -369,12 +370,12 @@ class GoalRepository:
     ) -> list[Goal]:
         """
         Query goals with filters
-        
+
         Args:
             session_id: Filter by session
             is_completed: Filter by completion status
             scope: Filter by scope
-            
+
         Returns:
             List of matching Goal objects
         """

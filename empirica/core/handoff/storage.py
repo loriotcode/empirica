@@ -17,7 +17,6 @@ import sqlite3
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ class GitHandoffStorage:
     def __init__(self, repo_path: str | None = None):
         """
         Initialize git storage
-        
+
         Args:
             repo_path: Path to git repository (default: current directory)
         """
@@ -41,11 +40,11 @@ class GitHandoffStorage:
     def store_handoff(self, session_id: str, report: dict) -> str:
         """
         Store handoff report in git notes
-        
+
         Args:
             session_id: Session UUID
             report: Full handoff report dict
-        
+
         Returns:
             Note SHA or 'stored' on success
         """
@@ -112,11 +111,11 @@ class GitHandoffStorage:
     ) -> dict | None:
         """
         Load handoff report from git notes
-        
+
         Args:
             session_id: Session UUID
             format: 'json' or 'markdown'
-        
+
         Returns:
             Handoff report dict or None if not found
         """
@@ -184,7 +183,7 @@ class GitHandoffStorage:
                     if len(session_id) == 36 and session_id.count('-') == 4:
                         session_ids.add(session_id)
 
-            return sorted(list(session_ids))
+            return sorted(session_ids)
 
         except Exception as e:
             logger.debug(f"Failed to list handoffs from git: {e}")
@@ -203,7 +202,7 @@ class GitHandoffStorage:
 
             if result.returncode == 0:
                 return result.stdout.strip()
-        except Exception:
+        except Exception:  # noqa: S110 — git subprocess may fail; None fallback is correct
             pass
 
         return None
@@ -215,7 +214,7 @@ class DatabaseHandoffStorage:
     def __init__(self, db_path: str | None = None):
         """
         Initialize database storage
-        
+
         Args:
             db_path: Path to session database (default: uses canonical path resolver)
         """
@@ -262,17 +261,17 @@ class DatabaseHandoffStorage:
 
         # Indexes for common queries
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_handoff_ai 
+            CREATE INDEX IF NOT EXISTS idx_handoff_ai
             ON handoff_reports(ai_id)
         """)
 
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_handoff_timestamp 
+            CREATE INDEX IF NOT EXISTS idx_handoff_timestamp
             ON handoff_reports(timestamp)
         """)
 
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_handoff_created 
+            CREATE INDEX IF NOT EXISTS idx_handoff_created
             ON handoff_reports(created_at)
         """)
 
@@ -281,7 +280,7 @@ class DatabaseHandoffStorage:
     def store_handoff(self, session_id: str, report: dict):
         """
         Store handoff report in database
-        
+
         Args:
             session_id: Session UUID
             report: Full handoff report dict
@@ -328,10 +327,10 @@ class DatabaseHandoffStorage:
     def load_handoff(self, session_id: str) -> dict | None:
         """
         Load handoff report from database
-        
+
         Args:
             session_id: Session UUID
-        
+
         Returns:
             Handoff report dict or None if not found
         """
@@ -354,12 +353,12 @@ class DatabaseHandoffStorage:
     ) -> list[dict]:
         """
         Query handoff reports by AI or date
-        
+
         Args:
             ai_id: Filter by AI agent
             since: ISO timestamp filter (e.g., '2025-11-01')
             limit: Max results (default: 10)
-        
+
         Returns:
             List of handoff report dicts
         """
@@ -408,7 +407,7 @@ class DatabaseHandoffStorage:
     def list_handoffs(self) -> list[str]:
         """
         List all handoff session IDs
-        
+
         Returns:
             List of session IDs
         """
@@ -423,18 +422,18 @@ class DatabaseHandoffStorage:
 class HybridHandoffStorage:
     """
     Dual storage for handoff reports: Git notes + Database
-    
+
     Strategy:
     - Git notes: Distributed, repo-portable, survives repo clones
     - Database: Fast queries, AI ID indexing, relational integrity
-    
+
     Both stores are kept in sync. Reads prefer database (faster).
     """
 
     def __init__(self, repo_path: str | None = None, db_path: str | None = None):
         """
         Initialize hybrid storage with both backends
-        
+
         Args:
             repo_path: Path to git repository (default: current directory)
             db_path: Path to session database (default: .empirica/sessions/sessions.db)
@@ -447,11 +446,11 @@ class HybridHandoffStorage:
     def store_handoff(self, session_id: str, report: dict) -> dict[str, bool]:
         """
         Store handoff in BOTH git notes and database
-        
+
         Args:
             session_id: Session UUID
             report: Full handoff report dict
-        
+
         Returns:
             {
                 'git_stored': bool,
@@ -500,12 +499,12 @@ class HybridHandoffStorage:
     ) -> dict | None:
         """
         Load handoff from preferred storage, fallback to alternative
-        
+
         Args:
             session_id: Session UUID
             format: 'json' or 'markdown'
             prefer: 'database' or 'git' (default: database for speed)
-        
+
         Returns:
             Handoff report dict or None if not found
         """
@@ -581,10 +580,10 @@ class HybridHandoffStorage:
     def list_handoffs(self, source: str = 'database') -> list[str]:
         """
         List all handoff session IDs
-        
+
         Args:
             source: 'database' or 'git' or 'both'
-        
+
         Returns:
             List of session IDs
         """
@@ -595,12 +594,12 @@ class HybridHandoffStorage:
         else:  # both
             db_ids = set(self.db_storage.list_handoffs())
             git_ids = set(self.git_storage.list_handoffs())
-            return sorted(list(db_ids | git_ids))
+            return sorted(db_ids | git_ids)
 
     def check_sync_status(self, session_id: str) -> dict[str, bool]:
         """
         Check if handoff exists in both stores
-        
+
         Returns:
             {
                 'in_git': bool,

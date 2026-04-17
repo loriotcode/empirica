@@ -25,15 +25,10 @@ def _get_historical_backfill():
         return None
 
 
-def get_db_path():
-    """Get the database path via unified context resolver."""
-    from empirica.config.path_resolver import get_session_db_path
-    return get_session_db_path()
-
-
 def handle_trajectory_show(args):
     """Show vector trajectories for sessions."""
-    db_path = get_db_path()
+    from empirica.config.path_resolver import get_session_db_path
+    db_path = get_session_db_path()
 
     if not db_path.exists():
         print("No database found. Run 'empirica trajectory-backfill' first.")
@@ -94,7 +89,7 @@ def handle_trajectory_show(args):
         print(f"{'='*60}\n")
 
         for row in rows:
-            traj_id = row[0]
+            row[0]
             session_id = row[1]
             snapshots = row[2]
             pattern = row[3]
@@ -129,7 +124,8 @@ def handle_trajectory_show(args):
 
 def handle_trajectory_stats(args):
     """Show trajectory pattern statistics."""
-    db_path = get_db_path()
+    from empirica.config.path_resolver import get_session_db_path
+    db_path = get_session_db_path()
 
     if not db_path.exists():
         print("No database found. Run 'empirica trajectory-backfill' first.")

@@ -16,16 +16,16 @@ Storage:
 
 Usage:
     from empirica.core.checkpoint_signer import CheckpointSigner
-    
+
     signer = CheckpointSigner(ai_id="copilot")
-    
+
     # Sign checkpoint
     signature_info = signer.sign_checkpoint(
         session_id="abc-123",
         phase="PREFLIGHT",
         round_num=1
     )
-    
+
     # Verify checkpoint
     is_valid = signer.verify_checkpoint(
         session_id="abc-123",
@@ -38,9 +38,9 @@ Usage:
 import json
 import logging
 import subprocess
-from datetime import UTC, datetime
+from datetime import UTC, datetime  # type: ignore[reportAttributeAccessIssue]
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from empirica.core.identity import AIIdentity
 
@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 class CheckpointSigner:
     """
     Signs and verifies git checkpoint notes using Ed25519
-    
+
     Provides cryptographic proof that checkpoints haven't been tampered with
     and were created by a specific AI identity.
     """
@@ -63,7 +63,7 @@ class CheckpointSigner:
     ):
         """
         Initialize checkpoint signer
-        
+
         Args:
             ai_id: AI identifier (must have identity keypair)
             git_repo_path: Path to git repository (default: current dir)
@@ -89,17 +89,17 @@ class CheckpointSigner:
     ) -> dict[str, Any]:
         """
         Sign a git checkpoint note
-        
+
         Process:
         1. Get checkpoint git note SHA
         2. Sign SHA with AI identity
         3. Store signature in parallel git notes namespace
-        
+
         Args:
             session_id: Session UUID
             phase: Workflow phase (PREFLIGHT, CHECK, ACT, POSTFLIGHT)
             round_num: Round number
-        
+
         Returns:
             Dict with signature info:
             {
@@ -203,18 +203,18 @@ class CheckpointSigner:
     ) -> dict[str, Any]:
         """
         Verify a signed checkpoint
-        
+
         Process:
         1. Load checkpoint git note SHA
         2. Load signature from git notes
         3. Verify signature with public key
-        
+
         Args:
             session_id: Session UUID
             phase: Workflow phase
             round_num: Round number
             public_key_hex: Public key to verify with (default: use identity's own key)
-        
+
         Returns:
             Dict with verification result:
             {
@@ -359,10 +359,10 @@ class CheckpointSigner:
     ) -> list[dict[str, Any]]:
         """
         List all signed checkpoints
-        
+
         Args:
             session_id: Filter by session (optional)
-        
+
         Returns:
             List of signed checkpoint info dicts
         """

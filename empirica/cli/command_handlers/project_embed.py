@@ -89,7 +89,7 @@ def _build_embedding_text(relpath: str, meta: dict, text: str) -> str:
 
 
 def _has_indexed_python_files(docs_cfg: dict) -> bool:
-    return any(str(path).endswith(".py") for path in docs_cfg.keys())
+    return any(str(path).endswith(".py") for path in docs_cfg)
 
 
 def _build_memory_items(findings, unknowns, mistakes, dead_ends, lessons, snapshots) -> list:

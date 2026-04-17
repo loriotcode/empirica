@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 def handle_investigate_log_command(args):
     """
     Log investigation findings during INVESTIGATE phase
-    
+
     Storage: SQLite (cascade context_json) + Git notes (optional)
     """
     try:
@@ -127,7 +127,7 @@ def handle_investigate_log_command(args):
 def handle_act_log_command(args):
     """
     Log actions taken during ACT phase
-    
+
     Storage: SQLite (cascade context_json + final_action) + Git notes (optional)
     """
     try:
@@ -191,8 +191,8 @@ def handle_act_log_command(args):
 
         # Save to SQLite
         cursor.execute("""
-            UPDATE cascades 
-            SET context_json = ?, 
+            UPDATE cascades
+            SET context_json = ?,
                 act_completed = 1,
                 final_action = ?
             WHERE cascade_id = ?

@@ -10,7 +10,7 @@ This module enables:
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from typing import Any
 
 from empirica.data.session_database import SessionDatabase
 
@@ -18,11 +18,11 @@ from empirica.data.session_database import SessionDatabase
 def compute_deltas(preflight: dict[str, Any], postflight: dict[str, Any]) -> dict[str, float]:
     """
     Compute epistemic vector deltas between PREFLIGHT and POSTFLIGHT.
-    
+
     Args:
         preflight: PREFLIGHT vectors {engagement, foundation, comprehension, execution, uncertainty}
         postflight: POSTFLIGHT vectors (same structure)
-        
+
     Returns:
         Flat dict of deltas {engagement: +0.1, know: +0.25, uncertainty: -0.2, ...}
     """
@@ -39,7 +39,7 @@ def compute_deltas(preflight: dict[str, Any], postflight: dict[str, Any]) -> dic
         pre_cat = preflight.get(category, {})
         post_cat = postflight.get(category, {})
 
-        for sub_key in pre_cat.keys():
+        for sub_key in pre_cat:
             pre_val = pre_cat.get(sub_key, 0.0)
             post_val = post_cat.get(sub_key, 0.0)
             deltas[sub_key] = post_val - pre_val
@@ -50,10 +50,10 @@ def compute_deltas(preflight: dict[str, Any], postflight: dict[str, Any]) -> dic
 def flatten_vectors(vectors: dict[str, Any]) -> dict[str, float]:
     """
     Flatten nested epistemic vectors to single-level dict for Qdrant payload.
-    
+
     Args:
         vectors: {engagement, foundation: {know, do, context}, ...}
-        
+
     Returns:
         {engagement, know, do, context, clarity, ...}
     """
@@ -73,11 +73,11 @@ def flatten_vectors(vectors: dict[str, Any]) -> dict[str, float]:
 def extract_trajectory(session_id: str, db: SessionDatabase) -> dict[str, Any] | None:
     """
     Extract complete epistemic trajectory for a session from SQLite.
-    
+
     Args:
         session_id: Session UUID
         db: SessionDatabase instance
-        
+
     Returns:
         Complete trajectory data or None if PREFLIGHT/POSTFLIGHT missing
     """
@@ -151,12 +151,12 @@ def extract_trajectory(session_id: str, db: SessionDatabase) -> dict[str, Any] |
 def store_trajectory(project_id: str, session_id: str, db: SessionDatabase) -> bool:
     """
     Extract and store epistemic trajectory to Qdrant.
-    
+
     Args:
         project_id: Project UUID
         session_id: Session UUID
         db: SessionDatabase instance
-        
+
     Returns:
         True if stored successfully, False otherwise
     """
@@ -193,14 +193,14 @@ def search_trajectories(
 ) -> list[dict[str, Any]]:
     """
     Search epistemic learning trajectories with optional filters.
-    
+
     Args:
         project_id: Project UUID
         query: Semantic query (e.g., "OAuth2 authentication")
         min_learning_delta: Minimum know delta (e.g., 0.2 for high learning)
         calibration_quality: Filter by "good", "fair", or "poor"
         limit: Max results
-        
+
     Returns:
         List of trajectory matches with scores
     """

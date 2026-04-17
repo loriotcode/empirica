@@ -39,7 +39,7 @@ import logging
 import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from empirica.core.persona.signing_persona import SigningPersona
 

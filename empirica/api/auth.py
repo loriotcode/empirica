@@ -23,7 +23,6 @@ import os
 import secrets
 from collections.abc import Callable
 from functools import wraps
-from typing import Optional
 
 from flask import g, jsonify, request
 

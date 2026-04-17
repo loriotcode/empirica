@@ -35,32 +35,32 @@ from .statusline_cache import (
 )
 
 __all__ = [
+    'BudgetEventTypes',
+    'BudgetThresholds',
+    'CallbackObserver',
+    'ContentType',
+    # Context Budget Manager
+    'ContextBudgetManager',
+    'ContextItem',
     # Epistemic Bus
     'EpistemicBus',
     'EpistemicEvent',
     'EpistemicObserver',
     'EventTypes',
-    'LoggingObserver',
-    'CallbackObserver',
-    'get_global_bus',
-    'set_global_bus',
-    # Context Budget Manager
-    'ContextBudgetManager',
-    'ContextItem',
-    'MemoryZone',
-    'ContentType',
     'InjectionChannel',
-    'BudgetThresholds',
-    'BudgetEventTypes',
-    'get_budget_manager',
-    'reset_budget_manager',
-    'estimate_tokens',
+    'LoggingObserver',
+    'MemoryZone',
     # Statusline Cache
     'StatuslineCache',
     'StatuslineCacheEntry',
+    'estimate_tokens',
+    'get_budget_manager',
+    'get_global_bus',
     'get_instance_id',
-    'write_statusline_cache',
     'read_statusline_cache',
-    'update_statusline_vectors',
+    'reset_budget_manager',
+    'set_global_bus',
     'update_statusline_phase',
+    'update_statusline_vectors',
+    'write_statusline_cache',
 ]

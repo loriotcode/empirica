@@ -25,7 +25,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ class InstanceResolver:
     # --- Project Resolution ---
 
     @staticmethod
-    def project_path(claude_session_id: str = None) -> 'str | None':
+    def project_path(claude_session_id: str | None = None) -> 'str | None':
         """Resolve the active project path.
 
         Priority: instance_projects > active_work_{uuid} > active_work.json
@@ -87,7 +87,7 @@ class InstanceResolver:
     # --- Session Resolution ---
 
     @staticmethod
-    def session_id(claude_session_id: str = None) -> 'str | None':
+    def session_id(claude_session_id: str | None = None) -> 'str | None':
         """Resolve the active Empirica session ID.
 
         Priority: transaction > active_work_{uuid} > instance_projects >
@@ -96,46 +96,46 @@ class InstanceResolver:
         return get_active_empirica_session_id(claude_session_id)
 
     @staticmethod
-    def resolve_session(session_id_or_alias: str, ai_id: str = None) -> str:
+    def resolve_session(session_id_or_alias: str, ai_id: str | None = None) -> str:
         """Resolve a partial session ID, alias, or 'latest' to full UUID."""
         return resolve_session_id(session_id_or_alias, ai_id)
 
     @staticmethod
-    def latest_session_id(ai_id: str = None, active_only: bool = False) -> 'str | None':
+    def latest_session_id(ai_id: str | None = None, active_only: bool = False) -> 'str | None':
         """Get the most recent session ID, optionally filtered by ai_id."""
         return get_latest_session_id(ai_id, active_only)
 
     # --- Context ---
 
     @staticmethod
-    def context(claude_session_id: str = None) -> dict:
+    def context(claude_session_id: str | None = None) -> dict:
         """Get the full active context (project_path, session_id, instance_id, etc.)."""
         return get_active_context(claude_session_id)
 
     @staticmethod
-    def engagement(claude_session_id: str = None) -> 'str | None':
+    def engagement(claude_session_id: str | None = None) -> 'str | None':
         """Get the active engagement ID."""
         return get_active_engagement(claude_session_id)
 
     # --- Transaction Lifecycle ---
 
     @staticmethod
-    def transaction_id(claude_session_id: str = None) -> 'str | None':
+    def transaction_id(claude_session_id: str | None = None) -> 'str | None':
         """Read just the active transaction ID."""
         return read_active_transaction(claude_session_id)
 
     @staticmethod
-    def transaction_read(claude_session_id: str = None) -> 'dict | None':
+    def transaction_read(claude_session_id: str | None = None) -> 'dict | None':
         """Read the full active transaction state from filesystem."""
         return read_active_transaction_full(claude_session_id)
 
     @staticmethod
     def transaction_write(
         transaction_id: str,
-        session_id: str = None,
-        preflight_timestamp: float = None,
+        session_id: str | None = None,
+        preflight_timestamp: float | None = None,
         status: str = "open",
-        project_path: str = None
+        project_path: str | None = None
     ) -> None:
         """Write (create or update) the active transaction file."""
         write_active_transaction(
@@ -147,29 +147,29 @@ class InstanceResolver:
         )
 
     @staticmethod
-    def transaction_clear(claude_session_id: str = None) -> None:
+    def transaction_clear(claude_session_id: str | None = None) -> None:
         """Delete the active transaction file."""
         clear_active_transaction(claude_session_id)
 
     @staticmethod
-    def transaction_increment(claude_session_id: str = None) -> 'dict | None':
+    def transaction_increment(claude_session_id: str | None = None) -> 'dict | None':
         """Increment the tool call counter in the active transaction."""
         return increment_transaction_tool_count(claude_session_id)
 
     # --- Hook Counters (separate from transaction lifecycle) ---
 
     @staticmethod
-    def counters_read(claude_session_id: str = None) -> 'dict | None':
+    def counters_read(claude_session_id: str | None = None) -> 'dict | None':
         """Read the hook counters file."""
         return read_hook_counters(claude_session_id)
 
     @staticmethod
-    def counters_write(data: dict, claude_session_id: str = None) -> bool:
+    def counters_write(data: dict, claude_session_id: str | None = None) -> bool:
         """Atomically write the hook counters file."""
         return write_hook_counters(data, claude_session_id)
 
     @staticmethod
-    def counters_clear(claude_session_id: str = None) -> None:
+    def counters_clear(claude_session_id: str | None = None) -> None:
         """Delete the hook counters file."""
         clear_hook_counters(claude_session_id)
 
@@ -187,9 +187,9 @@ class InstanceResolver:
 
     @staticmethod
     def tty_write(
-        claude_session_id: str = None,
-        empirica_session_id: str = None,
-        project_path: str = None
+        claude_session_id: str | None = None,
+        empirica_session_id: str | None = None,
+        project_path: str | None = None
     ) -> bool:
         """Write session mapping to TTY + instance_projects files."""
         return write_tty_session(
@@ -218,7 +218,7 @@ class InstanceResolver:
         return cleanup_stale_instance_projects()
 
     @staticmethod
-    def cleanup_stale_files(current_claude_session_id: str = None) -> int:
+    def cleanup_stale_files(current_claude_session_id: str | None = None) -> int:
         """Remove stale active_work, instance_projects, and active_session files."""
         return cleanup_stale_active_work_files(current_claude_session_id)
 
@@ -359,9 +359,9 @@ def get_tty_session(warn_if_stale: bool = True) -> dict[str, Any] | None:
 
 
 def write_tty_session(
-    claude_session_id: str = None,
-    empirica_session_id: str = None,
-    project_path: str = None
+    claude_session_id: str | None = None,
+    empirica_session_id: str | None = None,
+    project_path: str | None = None
 ) -> bool:
     """Write session mapping to TTY-keyed file for CLI commands to read.
 
@@ -459,7 +459,7 @@ def get_claude_session_id() -> str | None:
     return session.get('claude_session_id') if session else None
 
 
-def validate_tty_session(session: dict[str, Any] = None) -> dict[str, Any]:
+def validate_tty_session(session: dict[str, Any] | None = None) -> dict[str, Any]:
     """Validate a TTY session for staleness and warn if issues detected.
 
     Checks:
@@ -661,7 +661,7 @@ def resolve_session_id(session_id_or_alias: str, ai_id: str | None = None) -> st
 
     except ImportError as e:
         logger.error(f"Failed to import SessionDatabase: {e}")
-        raise ValueError(f"Cannot resolve session alias - database unavailable: {e}")
+        raise ValueError(f"Cannot resolve session alias - database unavailable: {e}") from e
 
 
 def _resolve_partial_uuid(partial_or_full_uuid: str) -> str:
@@ -714,7 +714,7 @@ def _resolve_partial_uuid(partial_or_full_uuid: str) -> str:
         if len(partial_or_full_uuid) == 36:
             logger.debug("Database unavailable, assuming full UUID")
             return partial_or_full_uuid
-        raise ValueError(f"Cannot resolve partial UUID - database unavailable: {e}")
+        raise ValueError(f"Cannot resolve partial UUID - database unavailable: {e}") from e
 
 
 def get_latest_session_id(ai_id: str | None = None, active_only: bool = False) -> str:
@@ -875,7 +875,7 @@ def _get_instance_suffix() -> str:
 
 
 
-def get_active_project_path(claude_session_id: str = None) -> 'str | None':
+def get_active_project_path(claude_session_id: str | None = None) -> 'str | None':
     """Get the active project path for the current instance.
 
     CANONICAL function for project resolution. All components should use this
@@ -973,10 +973,10 @@ def get_active_project_path(claude_session_id: str = None) -> 'str | None':
 
 def write_active_transaction(
     transaction_id: str,
-    session_id: str = None,
-    preflight_timestamp: float = None,
+    session_id: str | None = None,
+    preflight_timestamp: float | None = None,
     status: str = "open",
-    project_path: str = None
+    project_path: str | None = None
 ) -> None:
     """Atomically write the active transaction state to JSON file.
 
@@ -1038,7 +1038,7 @@ def write_active_transaction(
         raise
 
 
-def increment_transaction_tool_count(claude_session_id: str = None) -> dict | None:
+def increment_transaction_tool_count(claude_session_id: str | None = None) -> dict | None:
     """Atomically increment tool_call_count in the active transaction file.
 
     Called by Sentinel on every PreToolUse (both noetic and praxic) to track
@@ -1091,7 +1091,7 @@ def increment_transaction_tool_count(claude_session_id: str = None) -> dict | No
 
 
 def _find_transaction_file(empirica_dir: 'Path', suffix: str,
-                           session_id: str = None) -> 'Path | None':
+                           session_id: str | None = None) -> 'Path | None':
     """Find the active transaction file, with suffix-mismatch fallback.
 
     Primary: Look for the exact file matching the current instance suffix.
@@ -1145,7 +1145,7 @@ def _find_transaction_file(empirica_dir: 'Path', suffix: str,
     return None
 
 
-def read_active_transaction_full(claude_session_id: str = None) -> dict | None:
+def read_active_transaction_full(claude_session_id: str | None = None) -> dict | None:
     """Read the full active transaction data from the tracking file.
 
     Returns the complete transaction dict including:
@@ -1197,7 +1197,7 @@ def read_active_transaction_full(claude_session_id: str = None) -> dict | None:
     return None
 
 
-def read_active_transaction(claude_session_id: str = None) -> str | None:
+def read_active_transaction(claude_session_id: str | None = None) -> str | None:
     """Read the active transaction ID from the tracking file. Returns None if no active transaction.
 
     For full transaction data including session_id, use read_active_transaction_full().
@@ -1208,7 +1208,7 @@ def read_active_transaction(claude_session_id: str = None) -> str | None:
     return None
 
 
-def set_active_engagement(engagement_id: str, claude_session_id: str = None) -> bool:
+def set_active_engagement(engagement_id: str, claude_session_id: str | None = None) -> bool:
     """Set the active engagement on the current transaction file.
 
     When set, artifact logging (finding-log, decision-log, etc.) auto-inherits
@@ -1258,7 +1258,7 @@ def set_active_engagement(engagement_id: str, claude_session_id: str = None) -> 
         return False
 
 
-def get_active_engagement(claude_session_id: str = None) -> str | None:
+def get_active_engagement(claude_session_id: str | None = None) -> str | None:
     """Read active_engagement from the current transaction file.
 
     Returns engagement ID or None if no engagement is focused.
@@ -1269,7 +1269,7 @@ def get_active_engagement(claude_session_id: str = None) -> str | None:
     return None
 
 
-def _validate_session_in_db(session_id: str, project_path: str = None) -> bool:
+def _validate_session_in_db(session_id: str, project_path: str | None = None) -> bool:
     """Check if a session_id exists in the sessions table.
 
     Prevents stale session IDs (surviving compaction) from propagating
@@ -1417,7 +1417,49 @@ def _find_session_for_project(project_path: str) -> str | None:
         return None
 
 
-def get_active_empirica_session_id(claude_session_id: str = None) -> str | None:
+def _try_session_source(data: dict, source_name: str, project_path_hint: str | None = None) -> tuple:
+    """Try to validate a session_id from a data source. Returns (session_id_or_None, project_path_or_None)."""
+    session_id = data.get('empirica_session_id')
+    project_path = data.get('project_path') or project_path_hint
+    if session_id:
+        if _validate_session_in_db(session_id, project_path=project_path):
+            logger.debug(f"get_active_empirica_session_id: from {source_name}: {session_id[:8]}...")
+            return session_id, project_path
+        else:
+            logger.warning(f"get_active_empirica_session_id: stale session in {source_name}: {session_id[:8]}...")
+    return None, project_path
+
+
+def _collect_session_sources(claude_session_id: str | None) -> list[tuple]:
+    """Build ordered list of (data_dict, source_name) for session resolution."""
+    from pathlib import Path
+    sources = []
+    if claude_session_id:
+        aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
+        if aw_file.exists():
+            data = _read_json_file_safe(aw_file)
+            if data:
+                sources.append((data, "active_work"))
+    instance_id = get_instance_id()
+    if instance_id:
+        inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
+        if inst_file.exists():
+            data = _read_json_file_safe(inst_file)
+            if data:
+                sources.append((data, "instance_projects"))
+    tty_session = get_tty_session()
+    if tty_session:
+        sources.append((tty_session, "tty_session"))
+    if is_headless():
+        generic_work = Path.home() / '.empirica' / 'active_work.json'
+        if generic_work.exists():
+            data = _read_json_file_safe(generic_work)
+            if data:
+                sources.append((data, "active_work.json (headless)"))
+    return sources
+
+
+def get_active_empirica_session_id(claude_session_id: str | None = None) -> str | None:
     """Get the active Empirica session ID for CLI commands.
 
     CANONICAL function for session_id resolution. CLI commands should use this
@@ -1462,82 +1504,13 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> str | None:
             else:
                 logger.warning(f"get_active_empirica_session_id: stale session in transaction: {session_id[:8]}...")
 
-    # Priority 2: active_work file
-    if claude_session_id:
-        from pathlib import Path
-        active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
-        if active_work_file.exists():
-            try:
-                with open(active_work_file) as f:
-                    data = json.load(f)
-                    session_id = data.get('empirica_session_id')
-                    project_path_for_fallback = data.get('project_path')
-                    if session_id:
-                        if _validate_session_in_db(session_id, project_path=project_path_for_fallback):
-                            logger.debug(f"get_active_empirica_session_id: from active_work: {session_id[:8]}...")
-                            return session_id
-                        else:
-                            logger.warning(f"get_active_empirica_session_id: stale session in active_work: {session_id[:8]}...")
-            except Exception:
-                pass
-
-    # Priority 3: instance_projects (TMUX-based)
-    instance_id = get_instance_id()
-    if instance_id:
-        from pathlib import Path
-        instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
-        if instance_file.exists():
-            try:
-                with open(instance_file) as f:
-                    data = json.load(f)
-                    session_id = data.get('empirica_session_id')
-                    inst_project_path = data.get('project_path')
-                    if not project_path_for_fallback:
-                        project_path_for_fallback = inst_project_path
-                    if session_id:
-                        if _validate_session_in_db(session_id, project_path=inst_project_path or project_path_for_fallback):
-                            logger.debug(f"get_active_empirica_session_id: from instance_projects: {session_id[:8]}...")
-                            return session_id
-                        else:
-                            logger.warning(f"get_active_empirica_session_id: stale session in instance_projects: {session_id[:8]}...")
-            except Exception:
-                pass
-
-    # Priority 4: TTY session (written by session-create, project-switch)
-    tty_session = get_tty_session()
-    if tty_session:
-        session_id = tty_session.get('empirica_session_id')
-        if session_id:
-            tty_project_path = tty_session.get('project_path')
-            if not project_path_for_fallback:
-                project_path_for_fallback = tty_project_path
-            if _validate_session_in_db(session_id, project_path=tty_project_path or project_path_for_fallback):
-                logger.debug(f"get_active_empirica_session_id: from tty_session: {session_id[:8]}...")
-                return session_id
-            else:
-                logger.warning(f"get_active_empirica_session_id: stale session in tty_session: {session_id[:8]}...")
-
-    # Priority 5: Generic active_work.json — HEADLESS MODE ONLY
-    # In interactive mode, P1-P4 cover all cases. The generic file would return
-    # stale data from a different terminal/session.
-    from pathlib import Path
-    if is_headless():
-        generic_work = Path.home() / '.empirica' / 'active_work.json'
-        if generic_work.exists():
-            try:
-                with open(generic_work) as f:
-                    data = json.load(f)
-                    session_id = data.get('empirica_session_id')
-                    if not project_path_for_fallback:
-                        project_path_for_fallback = data.get('project_path')
-                    if session_id:
-                        if _validate_session_in_db(session_id, project_path=project_path_for_fallback):
-                            logger.debug(f"get_active_empirica_session_id: from active_work.json (headless): {session_id[:8]}...")
-                            return session_id
-                        else:
-                            logger.warning(f"get_active_empirica_session_id: stale session in active_work.json: {session_id[:8]}...")
-            except Exception:
-                pass
+    # Priorities 2-5: file-based sources
+    for data, source_name in _collect_session_sources(claude_session_id):
+        sid, pp = _try_session_source(data, source_name, project_path_for_fallback)
+        if pp and not project_path_for_fallback:
+            project_path_for_fallback = pp
+        if sid:
+            return sid
 
     # Fallback: all sources returned stale session_ids — try to find valid session for project
     if project_path_for_fallback:
@@ -1550,7 +1523,7 @@ def get_active_empirica_session_id(claude_session_id: str = None) -> str | None:
     return None
 
 
-def clear_active_transaction(claude_session_id: str = None) -> None:
+def clear_active_transaction(claude_session_id: str | None = None) -> None:
     """Remove the active transaction tracking file (called on POSTFLIGHT).
 
     Uses get_active_project_path() to find correct project, NOT CWD.
@@ -1578,7 +1551,7 @@ def clear_active_transaction(claude_session_id: str = None) -> None:
             pass
 
 
-def _hook_counters_path(project_path: str = None, suffix: str = None) -> 'Path':
+def _hook_counters_path(project_path: str | None = None, suffix: str | None = None) -> 'Path':
     """Compute the path to the hook counters file.
 
     Co-located with the transaction file — same directory, same suffix.
@@ -1592,7 +1565,7 @@ def _hook_counters_path(project_path: str = None, suffix: str = None) -> 'Path':
     return Path.home() / '.empirica' / f'hook_counters{suffix}.json'
 
 
-def read_hook_counters(claude_session_id: str = None) -> dict | None:
+def read_hook_counters(claude_session_id: str | None = None) -> dict | None:
     """Read the hook counters file. Returns None if it doesn't exist."""
     project_path = get_active_project_path(claude_session_id)
     path = _hook_counters_path(project_path)
@@ -1605,7 +1578,7 @@ def read_hook_counters(claude_session_id: str = None) -> dict | None:
         return None
 
 
-def write_hook_counters(data: dict, claude_session_id: str = None) -> bool:
+def write_hook_counters(data: dict, claude_session_id: str | None = None) -> bool:
     """Atomically write the hook counters file.
 
     Called by hooks (sentinel, context-shift-tracker, subagent-stop).
@@ -1631,7 +1604,7 @@ def write_hook_counters(data: dict, claude_session_id: str = None) -> bool:
         return False
 
 
-def clear_hook_counters(claude_session_id: str = None) -> None:
+def clear_hook_counters(claude_session_id: str | None = None) -> None:
     """Delete the hook counters file (called by POSTFLIGHT after reading)."""
     project_path = get_active_project_path(claude_session_id)
     path = _hook_counters_path(project_path)
@@ -1700,7 +1673,174 @@ def cleanup_stale_instance_projects() -> int:
     return removed
 
 
-def cleanup_stale_active_work_files(current_claude_session_id: str = None) -> int:
+def _collect_open_transaction_sessions(marker_dir: 'Path') -> set:
+    """Scan marker_dir and project directories for open transaction session_ids.
+
+    These sessions are load-bearing even if the session itself has ended
+    (compaction carry-forward scenario).
+    """
+    from pathlib import Path
+
+    open_tx_sessions: set[str] = set()
+
+    def _extract_open_sid(tx_file: Path) -> None:
+        try:
+            with open(tx_file) as f:
+                tx_data = json.load(f)
+            if tx_data.get('status') == 'open':
+                sid = tx_data.get('session_id')
+                if sid:
+                    open_tx_sessions.add(sid)
+        except Exception:
+            pass
+
+    for tx_file in marker_dir.glob('**/active_transaction_*.json'):
+        _extract_open_sid(tx_file)
+
+    instance_dir = marker_dir / 'instance_projects'
+    if instance_dir.exists():
+        for ip_file in instance_dir.glob('*.json'):
+            try:
+                with open(ip_file) as f:
+                    pp = json.load(f).get('project_path')
+                if pp:
+                    for tx_file in Path(pp).glob('.empirica/active_transaction_*.json'):
+                        _extract_open_sid(tx_file)
+            except Exception:
+                continue
+
+    return open_tx_sessions
+
+
+def _is_session_ended_in_db(
+    session_id: str,
+    project_path: 'str | None',
+    open_tx_sessions: set,
+    marker_dir: 'Path',
+) -> bool:
+    """Check if a session has end_time set in the DB.
+
+    Returns False (keep the file) when the session can't be verified.
+    """
+    import sqlite3
+    from pathlib import Path
+
+    if not session_id:
+        return False
+    if session_id in open_tx_sessions:
+        return False  # Open transaction keeps it alive
+
+    db_candidates = []
+    if project_path:
+        db_candidates.append(Path(project_path) / '.empirica' / 'sessions' / 'sessions.db')
+    db_candidates.append(marker_dir / 'sessions' / 'sessions.db')
+
+    for db_path in db_candidates:
+        if not db_path.exists():
+            continue
+        try:
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.execute(
+                "SELECT end_time FROM sessions WHERE session_id = ?",
+                (session_id,)
+            )
+            row = cursor.fetchone()
+            conn.close()
+            if row is None:
+                return True  # Session not in DB at all — orphan
+            return row[0] is not None  # end_time IS NOT NULL means ended
+        except Exception:
+            continue
+    return False  # Can't check — keep it safe
+
+
+def _clean_active_work_files(
+    marker_dir: 'Path',
+    current_claude_session_id: 'str | None',
+    open_tx_sessions: set,
+) -> int:
+    """Remove active_work_{uuid}.json files for ended sessions."""
+    removed = 0
+    for aw_file in marker_dir.glob('active_work_*.json'):
+        claude_sid = aw_file.stem.replace('active_work_', '')
+        if claude_sid == current_claude_session_id:
+            continue  # Never delete current conversation
+
+        try:
+            with open(aw_file) as f:
+                data = json.load(f)
+            session_id = data.get('empirica_session_id')
+            project_path = data.get('project_path')
+
+            if _is_session_ended_in_db(session_id, project_path, open_tx_sessions, marker_dir):
+                aw_file.unlink()
+                removed += 1
+                logger.debug(f"Removed stale active_work: {aw_file.name} (session {session_id[:8] if session_id else '?'} ended)")
+        except Exception:
+            continue
+    return removed
+
+
+def _clean_non_tmux_instance_files(
+    instance_dir: 'Path',
+    open_tx_sessions: set,
+    marker_dir: 'Path',
+) -> int:
+    """Remove non-tmux instance_projects files for ended sessions."""
+    if not instance_dir.exists():
+        return 0
+
+    removed = 0
+    for ip_file in instance_dir.glob('*.json'):
+        if ip_file.stem.startswith('tmux_'):
+            continue  # Tmux cleanup handled by cleanup_stale_instance_projects()
+
+        try:
+            with open(ip_file) as f:
+                data = json.load(f)
+            session_id = data.get('empirica_session_id')
+            project_path = data.get('project_path')
+
+            inst_id = get_instance_id()
+            if inst_id and ip_file.stem == inst_id:
+                continue
+
+            if _is_session_ended_in_db(session_id, project_path, open_tx_sessions, marker_dir):
+                ip_file.unlink()
+                removed += 1
+                logger.debug(f"Removed stale instance_projects: {ip_file.name} (session {session_id[:8] if session_id else '?'} ended)")
+        except Exception:
+            continue
+    return removed
+
+
+def _clean_active_session_files(
+    marker_dir: 'Path',
+    open_tx_sessions: set,
+) -> int:
+    """Remove stale active_session files for ended sessions."""
+    removed = 0
+    for as_file in marker_dir.glob('active_session_*'):
+        try:
+            with open(as_file) as f:
+                data = json.load(f)
+            session_id = data.get('session_id')
+            project_path = data.get('project_path')
+
+            suffix = _get_instance_suffix()
+            if suffix and as_file.name == f'active_session{suffix}':
+                continue
+
+            if _is_session_ended_in_db(session_id, project_path, open_tx_sessions, marker_dir):
+                as_file.unlink()
+                removed += 1
+                logger.debug(f"Removed stale active_session: {as_file.name}")
+        except Exception:
+            continue
+    return removed
+
+
+def cleanup_stale_active_work_files(current_claude_session_id: str | None = None) -> int:
     """Remove active_work_{uuid}.json files for ended sessions.
 
     Runs at session-init startup. Checks the DB for each file's session:
@@ -1714,141 +1854,16 @@ def cleanup_stale_active_work_files(current_claude_session_id: str = None) -> in
 
     Returns number of files removed.
     """
-    import sqlite3
     from pathlib import Path
 
     marker_dir = Path.home() / '.empirica'
-    removed = 0
-
-    # Collect all open transaction session_ids (these are load-bearing even if session ended)
-    open_tx_sessions = set()
-    for tx_file in marker_dir.glob('**/active_transaction_*.json'):
-        try:
-            with open(tx_file) as f:
-                tx_data = json.load(f)
-            if tx_data.get('status') == 'open':
-                sid = tx_data.get('session_id')
-                if sid:
-                    open_tx_sessions.add(sid)
-        except Exception:
-            continue
-
-    # Also scan project directories for transaction files
     instance_dir = marker_dir / 'instance_projects'
-    if instance_dir.exists():
-        for ip_file in instance_dir.glob('*.json'):
-            try:
-                with open(ip_file) as f:
-                    ip_data = json.load(f)
-                pp = ip_data.get('project_path')
-                if pp:
-                    for tx_file in Path(pp).glob('.empirica/active_transaction_*.json'):
-                        try:
-                            with open(tx_file) as f:
-                                tx_data = json.load(f)
-                            if tx_data.get('status') == 'open':
-                                sid = tx_data.get('session_id')
-                                if sid:
-                                    open_tx_sessions.add(sid)
-                        except Exception:
-                            continue
-            except Exception:
-                continue
 
-    def _is_session_ended(session_id: str, project_path: str = None) -> bool:
-        """Check if a session has end_time set in the DB."""
-        if not session_id:
-            return False
-        if session_id in open_tx_sessions:
-            return False  # Open transaction keeps it alive
+    open_tx_sessions = _collect_open_transaction_sessions(marker_dir)
 
-        # Find the right DB
-        db_candidates = []
-        if project_path:
-            db_candidates.append(Path(project_path) / '.empirica' / 'sessions' / 'sessions.db')
-        db_candidates.append(marker_dir / 'sessions' / 'sessions.db')
-
-        for db_path in db_candidates:
-            if not db_path.exists():
-                continue
-            try:
-                conn = sqlite3.connect(str(db_path))
-                cursor = conn.execute(
-                    "SELECT end_time FROM sessions WHERE session_id = ?",
-                    (session_id,)
-                )
-                row = cursor.fetchone()
-                conn.close()
-                if row is None:
-                    return True  # Session not in DB at all — orphan
-                return row[0] is not None  # end_time IS NOT NULL means ended
-            except Exception:
-                continue
-        return False  # Can't check — keep it safe
-
-    # --- Clean active_work_{uuid}.json files ---
-    for aw_file in marker_dir.glob('active_work_*.json'):
-        # Extract claude_session_id from filename
-        claude_sid = aw_file.stem.replace('active_work_', '')
-        if claude_sid == current_claude_session_id:
-            continue  # Never delete current conversation
-
-        try:
-            with open(aw_file) as f:
-                data = json.load(f)
-            session_id = data.get('empirica_session_id')
-            project_path = data.get('project_path')
-
-            if _is_session_ended(session_id, project_path):
-                aw_file.unlink()
-                removed += 1
-                logger.debug(f"Removed stale active_work: {aw_file.name} (session {session_id[:8] if session_id else '?'} ended)")
-        except Exception:
-            continue
-
-    # --- Clean non-tmux instance_projects files ---
-    if instance_dir.exists():
-        for ip_file in instance_dir.glob('*.json'):
-            if ip_file.stem.startswith('tmux_'):
-                continue  # Tmux cleanup handled by cleanup_stale_instance_projects()
-
-            try:
-                with open(ip_file) as f:
-                    data = json.load(f)
-                session_id = data.get('empirica_session_id')
-                project_path = data.get('project_path')
-
-                # Check if this instance_id is the current one — don't delete
-                inst_id = get_instance_id()
-                if inst_id and ip_file.stem == inst_id:
-                    continue
-
-                if _is_session_ended(session_id, project_path):
-                    ip_file.unlink()
-                    removed += 1
-                    logger.debug(f"Removed stale instance_projects: {ip_file.name} (session {session_id[:8] if session_id else '?'} ended)")
-            except Exception:
-                continue
-
-    # --- Clean stale active_session files ---
-    for as_file in marker_dir.glob('active_session_*'):
-        try:
-            with open(as_file) as f:
-                data = json.load(f)
-            session_id = data.get('session_id')
-            project_path = data.get('project_path')
-
-            # Don't delete current instance's file
-            suffix = _get_instance_suffix()
-            if suffix and as_file.name == f'active_session{suffix}':
-                continue
-
-            if _is_session_ended(session_id, project_path):
-                as_file.unlink()
-                removed += 1
-                logger.debug(f"Removed stale active_session: {as_file.name}")
-        except Exception:
-            continue
+    removed = _clean_active_work_files(marker_dir, current_claude_session_id, open_tx_sessions)
+    removed += _clean_non_tmux_instance_files(instance_dir, open_tx_sessions, marker_dir)
+    removed += _clean_active_session_files(marker_dir, open_tx_sessions)
 
     return removed
 
@@ -1857,7 +1872,26 @@ def cleanup_stale_active_work_files(current_claude_session_id: str = None) -> in
 # Unified Context Resolver
 # ============================================================================
 
-def get_active_context(claude_session_id: str = None) -> dict:
+def _read_json_file_safe(path) -> dict | None:
+    """Read a JSON file, returning None on any error."""
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _supplement_context(context: dict, data: dict, include_claude_session: bool = False) -> None:
+    """Fill missing context fields from a data source dict (non-destructive)."""
+    if not context['project_path']:
+        context['project_path'] = data.get('project_path')
+    if not context['empirica_session_id']:
+        context['empirica_session_id'] = data.get('empirica_session_id')
+    if include_claude_session and not context['claude_session_id']:
+        context['claude_session_id'] = data.get('claude_session_id')
+
+
+def get_active_context(claude_session_id: str | None = None) -> dict:
     """Get the complete active epistemic context.
 
     CANONICAL function for getting the full context. All components should
@@ -1914,52 +1948,33 @@ def get_active_context(claude_session_id: str = None) -> dict:
     if context['instance_id'] and (not context['empirica_session_id'] or not context['project_path']):
         instance_file = Path.home() / '.empirica' / 'instance_projects' / f"{context['instance_id']}.json"
         if instance_file.exists():
-            try:
-                with open(instance_file) as f:
-                    data = json.load(f)
-                    if not context['project_path']:
-                        context['project_path'] = data.get('project_path')
-                    if not context['empirica_session_id']:
-                        context['empirica_session_id'] = data.get('empirica_session_id')
-                    if not context['claude_session_id']:
-                        context['claude_session_id'] = data.get('claude_session_id')
-                    logger.debug("get_active_context: supplemented from instance_projects (P1)")
-            except Exception:
-                pass
+            data = _read_json_file_safe(instance_file)
+            if data:
+                _supplement_context(context, data, include_claude_session=True)
+                logger.debug("get_active_context: supplemented from instance_projects (P1)")
 
     # Priority 2: Active work file by Claude session_id
     if claude_session_id and (not context['empirica_session_id'] or not context['project_path']):
         active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if active_work_file.exists():
-            try:
-                with open(active_work_file) as f:
-                    data = json.load(f)
-                    if not context['project_path']:
-                        context['project_path'] = data.get('project_path')
-                    if not context['empirica_session_id']:
-                        context['empirica_session_id'] = data.get('empirica_session_id')
-                    logger.debug("get_active_context: supplemented from active_work (P2)")
-            except Exception:
-                pass
+            data = _read_json_file_safe(active_work_file)
+            if data:
+                _supplement_context(context, data)
+                logger.debug("get_active_context: supplemented from active_work (P2)")
 
     # Priority 3: TTY session (fallback - may be stale after project-switch)
     if not context['empirica_session_id'] or not context['project_path']:
         tty_session = get_tty_session(warn_if_stale=False)
         if tty_session:
-            if not context['claude_session_id']:
-                context['claude_session_id'] = tty_session.get('claude_session_id')
-            if not context['empirica_session_id']:
-                context['empirica_session_id'] = tty_session.get('empirica_session_id')
-            if not context['project_path']:
-                context['project_path'] = tty_session.get('project_path')
+            _supplement_context(context, tty_session, include_claude_session=True)
 
     return context
 
 
 def update_active_context(
     claude_session_id: str,
-    empirica_session_id: str = None,
-    project_path: str = None,
+    empirica_session_id: str | None = None,
+    project_path: str | None = None,
     **extra_fields
 ) -> bool:
     """Update the active_work file with new context values.
@@ -2268,7 +2283,7 @@ def _resolve_via_local_empirica(identifier: str) -> dict | None:
 # Project Root Resolution (canonical — moved from plugin lib/project_resolver.py)
 # =============================================================================
 # These were previously duplicated in the hook-side mirror. Consolidated here
-# as the single source of truth (goal 7ca0877c, v1.8.4).
+# as the single source of truth (goal 7ca0877c, v1.8.5).
 
 def has_valid_db(project_path: Path) -> bool:
     """Check if a project path has a valid .empirica/sessions/sessions.db."""
@@ -2312,6 +2327,22 @@ def _read_json_file(path: Path) -> dict | None:
     return None
 
 
+def _check_tx_file_for_project(tx_file: Path, proj_path: Path, best_mtime: float) -> tuple:
+    """Check a transaction file. Returns (project_path, mtime) or (None, best_mtime)."""
+    try:
+        mtime = tx_file.stat().st_mtime
+        if mtime <= best_mtime:
+            return None, best_mtime
+        tx_data = _read_json_file(tx_file)
+        if tx_data and tx_data.get('status') == 'open':
+            tx_project = tx_data.get('project_path', str(proj_path))
+            if has_valid_db(Path(tx_project)):
+                return Path(tx_project), mtime
+    except Exception:
+        pass
+    return None, best_mtime
+
+
 def _scan_workspace_for_project(instance_id: str | None) -> Path | None:
     """Scan registered projects in workspace.db for one with an open transaction."""
     import sqlite3 as _sqlite3
@@ -2340,30 +2371,17 @@ def _scan_workspace_for_project(instance_id: str | None) -> Path | None:
 
         tx_file = empirica_dir / f'active_transaction{suffix}.json'
         if tx_file.exists():
-            try:
-                mtime = tx_file.stat().st_mtime
-                tx_data = _read_json_file(tx_file)
-                if tx_data and tx_data.get('status') == 'open':
-                    tx_project = tx_data.get('project_path', str(proj_path))
-                    if has_valid_db(Path(tx_project)) and mtime > best_mtime:
-                        best_match = Path(tx_project)
-                        best_mtime = mtime
-            except Exception:
-                pass
+            result, best_mtime = _check_tx_file_for_project(tx_file, proj_path, best_mtime)
+            if result:
+                best_match = result
 
         try:
             for tx_candidate in empirica_dir.glob('active_transaction*.json'):
                 if tx_candidate == tx_file:
                     continue
-                mtime = tx_candidate.stat().st_mtime
-                if mtime <= best_mtime:
-                    continue
-                tx_data = _read_json_file(tx_candidate)
-                if tx_data and tx_data.get('status') == 'open':
-                    tx_project = tx_data.get('project_path', str(proj_path))
-                    if has_valid_db(Path(tx_project)):
-                        best_match = Path(tx_project)
-                        best_mtime = mtime
+                result, best_mtime = _check_tx_file_for_project(tx_candidate, proj_path, best_mtime)
+                if result:
+                    best_match = result
         except Exception:
             pass
 
@@ -2421,6 +2439,38 @@ def detect_environment() -> dict:
     }
 
 
+def _find_project_from_open_transaction(claude_session_id, instance_id, suffix):
+    """Check candidate paths for an open transaction file."""
+    candidate_paths = set()
+    if claude_session_id:
+        data = _read_json_file(Path.home() / '.empirica' / f'active_work_{claude_session_id}.json')
+        if data and data.get('project_path'): candidate_paths.add(data['project_path'])
+    if instance_id:
+        data = _read_json_file(Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json')
+        if data and data.get('project_path'): candidate_paths.add(data['project_path'])
+    for cpath in candidate_paths:
+        tx_data = _read_json_file(Path(cpath) / '.empirica' / f'active_transaction{suffix}.json')
+        if tx_data and tx_data.get('status') == 'open':
+            tx_project = tx_data.get('project_path', cpath)
+            if has_valid_db(Path(tx_project)): return Path(tx_project)
+    return None
+
+
+def _find_project_from_state_files(claude_session_id, instance_id):
+    """Check instance_projects and active_work files for a valid project root."""
+    if instance_id:
+        data = _read_json_file(Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json')
+        if data and data.get('project_path'):
+            p = Path(data['project_path'])
+            if has_valid_db(p): return p
+    if claude_session_id:
+        data = _read_json_file(Path.home() / '.empirica' / f'active_work_{claude_session_id}.json')
+        if data and data.get('project_path'):
+            p = Path(data['project_path'])
+            if has_valid_db(p): return p
+    return None
+
+
 def find_project_root(
     claude_session_id: str | None = None,
     *,
@@ -2454,44 +2504,14 @@ def find_project_root(
                 return Path(project_path)
 
     # Priority 2: Open transaction file
-    candidate_paths = set()
-
-    if claude_session_id:
-        aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
-        data = _read_json_file(aw_file)
-        if data and data.get('project_path'):
-            candidate_paths.add(data['project_path'])
-
-    if instance_id:
-        ip_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
-        data = _read_json_file(ip_file)
-        if data and data.get('project_path'):
-            candidate_paths.add(data['project_path'])
-
-    for cpath in candidate_paths:
-        tx_file = Path(cpath) / '.empirica' / f'active_transaction{suffix}.json'
-        tx_data = _read_json_file(tx_file)
-        if tx_data and tx_data.get('status') == 'open':
-            tx_project = tx_data.get('project_path', cpath)
-            if has_valid_db(Path(tx_project)):
-                return Path(tx_project)
+    tx_result = _find_project_from_open_transaction(claude_session_id, instance_id, suffix)
+    if tx_result:
+        return tx_result
 
     # Priority 3-4: instance_projects then active_work
-    if instance_id:
-        ip_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
-        data = _read_json_file(ip_file)
-        if data and data.get('project_path'):
-            p = Path(data['project_path'])
-            if has_valid_db(p):
-                return p
-
-    if claude_session_id:
-        aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
-        data = _read_json_file(aw_file)
-        if data and data.get('project_path'):
-            p = Path(data['project_path'])
-            if has_valid_db(p):
-                return p
+    state_result = _find_project_from_state_files(claude_session_id, instance_id)
+    if state_result:
+        return state_result
 
     # Priority 5: Workspace scan
     if allow_workspace_scan:

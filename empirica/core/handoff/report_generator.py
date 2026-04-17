@@ -19,7 +19,7 @@ Output formats:
 import json
 import logging
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class EpistemicHandoffReportGenerator:
     """
     Generate compressed epistemic handoff reports for session resumption
-    
+
     Combines:
     - Vector deltas (what changed epistemically)
     - Key learnings (what was discovered)
@@ -38,7 +38,7 @@ class EpistemicHandoffReportGenerator:
     def __init__(self, db_path: str | None = None):
         """
         Initialize report generator
-        
+
         Args:
             db_path: Optional path to session database
         """
@@ -60,7 +60,7 @@ class EpistemicHandoffReportGenerator:
     ) -> dict[str, Any]:
         """
         Generate comprehensive handoff report
-        
+
         Args:
             session_id: Session UUID
             task_summary: What was accomplished (2-3 sentences)
@@ -71,7 +71,7 @@ class EpistemicHandoffReportGenerator:
             start_assessment: PREFLIGHT assessment (optional, will query if not provided)
             end_assessment: POSTFLIGHT or CHECK assessment (optional, will query if not provided)
             handoff_subtype: "complete" (PREFLIGHT→POSTFLIGHT) or "investigation" (PREFLIGHT→CHECK)
-        
+
         Returns:
             {
                 'session_id': str,
@@ -317,7 +317,7 @@ class EpistemicHandoffReportGenerator:
     ) -> dict[str, float]:
         """
         Calculate epistemic vector deltas
-        
+
         Returns deltas for all 13 vectors + overall_confidence
         """
         deltas = {}
@@ -345,10 +345,10 @@ class EpistemicHandoffReportGenerator:
     def _check_calibration(self, session_id: str, deltas: dict[str, float], end_assessment: dict) -> dict:
         """
         Get calibration status - prioritize genuine introspection, validate with heuristics
-        
+
         For investigation handoffs (PREFLIGHT→CHECK), calibration is not applicable
         since CHECK is a decision gate, not a learning measurement.
-        
+
         Returns:
             {
                 'status': 'well_calibrated' | 'overconfident' | 'underconfident' | 'investigation-only',
@@ -406,7 +406,7 @@ class EpistemicHandoffReportGenerator:
     def _heuristic_calibration_check(self, deltas: dict[str, float]) -> dict:
         """
         Heuristic calibration check based on vector deltas
-        
+
         Used as:
         1. Fallback when genuine introspection missing
         2. Validation check against AI's self-assessment
@@ -443,7 +443,7 @@ class EpistemicHandoffReportGenerator:
     ) -> list[dict]:
         """
         Identify which knowledge gaps were filled during session
-        
+
         Returns:
             [
                 {
@@ -501,7 +501,7 @@ class EpistemicHandoffReportGenerator:
     def _extract_noetic_tools(self, session_id: str) -> list[str]:
         """
         Extract which investigation tools were used during session
-        
+
         Queries database for tool usage
         """
         tools_used = set()
@@ -511,7 +511,7 @@ class EpistemicHandoffReportGenerator:
 
             # Query noetic_tools table if it exists
             cursor.execute("""
-                SELECT name FROM sqlite_master 
+                SELECT name FROM sqlite_master
                 WHERE type='table' AND name='noetic_tools'
             """)
 
@@ -527,7 +527,7 @@ class EpistemicHandoffReportGenerator:
         except Exception as e:
             logger.debug(f"No investigation tools tracked: {e}")
 
-        return sorted(list(tools_used)) if tools_used else ['N/A']
+        return sorted(tools_used) if tools_used else ['N/A']
 
     def _generate_recommendations(
         self,
@@ -671,10 +671,10 @@ class EpistemicHandoffReportGenerator:
 
         markdown = f"""# Epistemic Handoff Report
 
-**Session:** `{report['session_id'][:12]}...`  
-**AI Agent:** {report['ai_id']}  
-**Date:** {report['timestamp']}  
-**Duration:** {duration_str}  
+**Session:** `{report['session_id'][:12]}...`
+**AI Agent:** {report['ai_id']}
+**Date:** {report['timestamp']}
+**Duration:** {duration_str}
 **Task:** {report['task_summary']}
 
 ---
@@ -683,7 +683,7 @@ class EpistemicHandoffReportGenerator:
 
 {delta_table}
 
-**Overall Confidence Change:** {report['overall_confidence_delta']:+.3f}  
+**Overall Confidence Change:** {report['overall_confidence_delta']:+.3f}
 **Calibration Status:** {cal_display}
 
 ---
@@ -736,7 +736,7 @@ class EpistemicHandoffReportGenerator:
 
 ---
 
-**Generated:** {datetime.now().isoformat()}  
+**Generated:** {datetime.now().isoformat()}
 **Format:** Epistemic Handoff Report v1.0
 """
 
@@ -798,7 +798,7 @@ class EpistemicHandoffReportGenerator:
     def _compress_report(self, report: dict) -> str:
         """
         Generate minimal JSON for storage (~800 tokens)
-        
+
         Strips verbose markdown, keeps critical data
         """
         compressed = {

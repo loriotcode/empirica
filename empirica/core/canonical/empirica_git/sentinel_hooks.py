@@ -23,7 +23,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ class SentinelHooks:
     """
 
     # Global registry of evaluator functions
-    _evaluators: list[Callable] = []
+    _evaluators: ClassVar[list[Callable]] = []
 
     # Enable/disable Sentinel
     _enabled: bool = False
@@ -314,7 +314,7 @@ class SentinelHooks:
     def register_evaluator(cls, evaluator: Callable[[dict[str, Any]], SentinelDecision]) -> None:
         """
         Register Sentinel evaluator function
-        
+
         Args:
             evaluator: Function that takes checkpoint data and returns SentinelDecision
         """
@@ -338,7 +338,7 @@ class SentinelHooks:
         cls,
         checkpoint_data: dict[str, Any],
         blocking: bool = False,
-        turtle: bool = None  # None = use class default, True/False = override
+        turtle: bool | None = None  # None = use class default, True/False = override
     ) -> SentinelDecision | None:
         """
         Evaluate checkpoint with Sentinel
@@ -443,13 +443,13 @@ class SentinelHooks:
     ) -> SentinelDecision | None:
         """
         Hook called automatically after checkpoint creation
-        
+
         Args:
             session_id: Session ID
             ai_id: AI ID
             phase: CASCADE phase
             checkpoint_data: Full checkpoint data
-            
+
         Returns:
             SentinelDecision: Routing decision or None
         """
@@ -562,11 +562,11 @@ def default_epistemic_evaluator(checkpoint_data: dict[str, Any]) -> SentinelDeci
 
     # Use RAW vectors - no bias corrections applied by system
     uncertainty = vectors.get('uncertainty', 0.5)
-    know = vectors.get('know', 0.5)
+    vectors.get('know', 0.5)
     engagement = vectors.get('engagement', 0.7)
 
     # Load thresholds: dynamic (Brier-inflated) first, MCO/static fallback
-    min_know, max_uncertainty = _load_evaluator_thresholds()
+    _, max_uncertainty = _load_evaluator_thresholds()
 
     # Escalate if engagement too low
     if engagement < 0.5:

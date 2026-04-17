@@ -8,7 +8,6 @@ MVP implementation: Simple database operations for task tracking.
 
 import json
 import logging
-from typing import Optional
 
 from empirica.data.session_database import SessionDatabase
 
@@ -121,10 +120,10 @@ class TaskRepository:
     def save_subtask(self, subtask: SubTask) -> bool:
         """
         Save subtask to database
-        
+
         Args:
             subtask: SubTask object to save
-            
+
         Returns:
             True if successful
         """
@@ -134,7 +133,7 @@ class TaskRepository:
 
             # Insert main subtask record
             self.db.conn.execute("""
-                INSERT OR REPLACE INTO subtasks 
+                INSERT OR REPLACE INTO subtasks
                 (id, goal_id, description, status, epistemic_importance,
                  estimated_tokens, actual_tokens, completion_evidence, notes,
                  created_timestamp, completed_timestamp, subtask_data)
@@ -210,10 +209,10 @@ class TaskRepository:
     def get_goal_subtasks(self, goal_id: str) -> list[SubTask]:
         """
         Retrieve all subtasks for a goal
-        
+
         Args:
             goal_id: Goal identifier
-            
+
         Returns:
             List of SubTask objects
         """
@@ -294,10 +293,10 @@ class TaskRepository:
     def save_decomposition(self, decomposition: TaskDecomposition) -> bool:
         """
         Save task decomposition metadata
-        
+
         Args:
             decomposition: TaskDecomposition object
-            
+
         Returns:
             True if successful
         """
@@ -332,10 +331,10 @@ class TaskRepository:
     def get_decomposition(self, goal_id: str) -> TaskDecomposition | None:
         """
         Retrieve task decomposition for a goal
-        
+
         Args:
             goal_id: Goal identifier
-            
+
         Returns:
             TaskDecomposition object or None if not found
         """
@@ -364,12 +363,12 @@ class TaskRepository:
     ) -> list[SubTask]:
         """
         Query subtasks with filters
-        
+
         Args:
             goal_id: Filter by goal
             status: Filter by status
             epistemic_importance: Filter by importance
-            
+
         Returns:
             List of matching SubTask objects
         """

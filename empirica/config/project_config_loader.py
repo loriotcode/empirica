@@ -7,7 +7,7 @@ and path mappings for context filtering.
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, ClassVar
 
 import yaml
 
@@ -18,16 +18,16 @@ class ProjectConfig:
     """Project configuration with subject mappings and v2.0 identity metadata."""
 
     # Valid project types (universal across domains)
-    VALID_TYPES = [
+    VALID_TYPES: ClassVar[list[str]] = [
         'software', 'content', 'research', 'data', 'design',
         'operations', 'strategic', 'engagement', 'legal',
         # Legacy types (backward compat with v1.x project.yaml files)
         'product', 'application', 'feature', 'documentation', 'infrastructure',
     ]
 
-    VALID_CLASSIFICATIONS = ['open', 'internal', 'restricted']
+    VALID_CLASSIFICATIONS: ClassVar[list[str]] = ['open', 'internal', 'restricted']
 
-    VALID_STATUSES = ['active', 'dormant', 'archived']
+    VALID_STATUSES: ClassVar[list[str]] = ['active', 'dormant', 'archived']
 
     def __init__(self, config_data: dict[str, Any]) -> None:
         """Initialize project config from configuration dictionary."""
@@ -124,10 +124,10 @@ class ProjectConfig:
     def get_subject_for_path(self, current_path: str) -> str | None:
         """
         Detect subject from current working directory.
-        
+
         Args:
             current_path: Current working directory
-            
+
         Returns:
             subject_id if matched, None otherwise
         """
@@ -197,8 +197,8 @@ def load_project_config(project_root: Path | None = None) -> ProjectConfig | Non
             db_project_id = R.project_id_from_db(project_root)
             if db_project_id:
                 config_data['project_id'] = db_project_id
-        except Exception:
-            pass  # Keep yaml project_id as fallback
+        except Exception:  # noqa: S110 — keep yaml project_id as fallback if DB unavailable
+            pass
 
         logger.info(f"Loaded project config: {config_data.get('name', 'Unknown')}")
         return ProjectConfig(config_data)
@@ -212,11 +212,11 @@ def get_current_subject(project_config: ProjectConfig | None = None,
                        current_path: Path | None = None) -> str | None:
     """
     Get current subject based on working directory.
-    
+
     Args:
         project_config: Project configuration (loads if None)
         current_path: Current working directory (uses cwd if None)
-        
+
     Returns:
         subject_id if detected, None otherwise
     """

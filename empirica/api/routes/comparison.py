@@ -18,8 +18,8 @@ def get_ai_learning_curve(ai_id: str):
     - Learning statistics and trends
     - Learning velocity
     """
-    since = request.args.get("since")
-    limit = min(int(request.args.get("limit", 100)), 1000)
+    request.args.get("since")
+    min(int(request.args.get("limit", 100)), 1000)
 
     return jsonify({
         "ok": True,
@@ -52,8 +52,8 @@ def compare_ais():
     - Trend analysis
     """
     ai_ids = request.args.get("ai_ids", "")
-    since = request.args.get("since")
-    metric = request.args.get("metric", "know")
+    request.args.get("since")
+    request.args.get("metric", "know")
 
     ai_list = [a.strip() for a in ai_ids.split(",")] if ai_ids else []
 

@@ -11,7 +11,7 @@ import json
 import logging
 import subprocess
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from empirica.core.git_ops.signed_operations import SignedGitOperations
 from empirica.core.persona.signing_persona import SigningPersona

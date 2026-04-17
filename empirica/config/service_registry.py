@@ -18,8 +18,9 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +75,8 @@ class ServiceRegistry:
     per-session (cleared on session-create).
     """
 
-    _registered: dict[str, CheckDeclaration] = {}
-    _cache: dict[tuple[str, str], CheckResult] = {}  # (check_id, content_hash) → result
+    _registered: ClassVar[dict[str, CheckDeclaration]] = {}
+    _cache: ClassVar[dict[tuple[str, str], CheckResult]] = {}  # (check_id, content_hash) → result
 
     @classmethod
     def register(cls, declaration: CheckDeclaration) -> None:
@@ -819,6 +820,7 @@ def _run_provenance_depth_check(context: dict[str, Any]) -> CheckResult:
     """
     try:
         import json as _json
+
         from empirica.data.session_database import SessionDatabase
         db = SessionDatabase()
         cursor = db.conn.cursor()

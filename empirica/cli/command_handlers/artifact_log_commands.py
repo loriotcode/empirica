@@ -8,7 +8,6 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 from empirica.utils.session_resolver import InstanceResolver as R
 
@@ -496,6 +495,7 @@ def _embed_finding_qdrant(project_id, finding_id, finding, session_id,
         return False
     try:
         from datetime import datetime
+
         from empirica.core.qdrant.vector_store import embed_single_memory_item
         return embed_single_memory_item(
             project_id=project_id, item_id=finding_id, text=finding,
@@ -513,6 +513,7 @@ def _ingest_finding_eidetic(project_id, finding_id, finding, subject, impact, se
         return None
     try:
         import hashlib
+
         from empirica.core.qdrant.vector_store import confirm_eidetic_fact, embed_eidetic
         content_hash = hashlib.md5(finding.encode()).hexdigest()
         if confirm_eidetic_fact(project_id, content_hash, session_id):
@@ -866,6 +867,51 @@ def handle_unknown_resolve_command(args):
         return 1
 
 
+def _resolve_project_id_from_context(cursor, session_id, project_id):
+    """Auto-derive project_id from session_id or active context."""
+    if project_id:
+        return project_id
+
+    if session_id:
+        cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
+        row = cursor.fetchone()
+        if row and row[0]:
+            return row[0]
+
+    try:
+        context = R.context()
+        ctx_session = context.get('empirica_session_id')
+        if ctx_session:
+            cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (ctx_session,))
+            row = cursor.fetchone()
+            if row and row[0]:
+                return row[0]
+    except Exception:
+        pass
+
+    return None
+
+
+def _print_unknowns_pretty(unknowns, status_desc, filter_desc):
+    """Print unknowns list in human-readable format."""
+    print(f"{'=' * 70}")
+    print(f"❓ UNKNOWNS ({status_desc.upper()}) - {len(unknowns)} found [{filter_desc}]")
+    print(f"{'=' * 70}")
+    print()
+
+    if not unknowns:
+        print("   (No unknowns found)")
+    else:
+        for i, u in enumerate(unknowns, 1):
+            status_emoji = "✅" if u['is_resolved'] else "❓"
+            impact_str = f" [impact={u['impact']:.1f}]" if u['impact'] else ""
+            print(f"{status_emoji} {i}. {u['unknown'][:75]}")
+            resolved_info = f" | Resolved: {u['resolved_by'][:30]}" if u['resolved_by'] else ""
+            goal_info = f" | Goal: {u['goal_id'][:8]}" if u['goal_id'] else ""
+            print(f"   ID: {u['id'][:8]}...{impact_str}{goal_info}{resolved_info}")
+            print()
+
+
 def handle_unknown_list_command(args):
     """Handle unknown-list command - list project unknowns with optional filters.
 
@@ -885,26 +931,7 @@ def handle_unknown_list_command(args):
         db = SessionDatabase()
         cursor = db.conn.cursor()
 
-        # Auto-derive project_id from context
-        if not project_id:
-            if session_id:
-                cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
-                row = cursor.fetchone()
-                if row and row[0]:
-                    project_id = row[0]
-
-            if not project_id:
-                try:
-
-                    context = R.context()
-                    ctx_session = context.get('empirica_session_id')
-                    if ctx_session:
-                        cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (ctx_session,))
-                        row = cursor.fetchone()
-                        if row and row[0]:
-                            project_id = row[0]
-                except Exception:
-                    pass
+        project_id = _resolve_project_id_from_context(cursor, session_id, project_id)
 
         # Build query
         query = """
@@ -935,23 +962,14 @@ def handle_unknown_list_command(args):
         cursor.execute(query, params)
         rows = cursor.fetchall()
 
-        unknowns = []
-        for row in rows:
-            unknowns.append({
-                "id": row[0],
-                "unknown": row[1],
-                "is_resolved": bool(row[2]),
-                "resolved_by": row[3],
-                "impact": row[4],
-                "subject": row[5],
-                "created_at": row[6],
-                "resolved_at": row[7],
-                "goal_id": row[8],
-            })
+        unknowns = [{
+            "id": row[0], "unknown": row[1], "is_resolved": bool(row[2]),
+            "resolved_by": row[3], "impact": row[4], "subject": row[5],
+            "created_at": row[6], "resolved_at": row[7], "goal_id": row[8],
+        } for row in rows]
 
         db.close()
 
-        # Build filter description
         filters_applied = []
         if project_id:
             filters_applied.append(f"project={project_id[:8]}...")
@@ -961,37 +979,15 @@ def handle_unknown_list_command(args):
         status_desc = "all" if show_all else ("resolved" if show_resolved else "open")
 
         result = {
-            "ok": True,
-            "unknowns_count": len(unknowns),
-            "unknowns": unknowns,
-            "filters": {
-                "project_id": project_id,
-                "status": status_desc,
-                "subject": subject,
-            },
+            "ok": True, "unknowns_count": len(unknowns), "unknowns": unknowns,
+            "filters": {"project_id": project_id, "status": status_desc, "subject": subject},
         }
 
         if output_format == 'json':
             return result
-        else:
-            print(f"{'=' * 70}")
-            print(f"❓ UNKNOWNS ({status_desc.upper()}) - {len(unknowns)} found [{filter_desc}]")
-            print(f"{'=' * 70}")
-            print()
 
-            if not unknowns:
-                print("   (No unknowns found)")
-            else:
-                for i, u in enumerate(unknowns, 1):
-                    status_emoji = "✅" if u['is_resolved'] else "❓"
-                    impact_str = f" [impact={u['impact']:.1f}]" if u['impact'] else ""
-                    print(f"{status_emoji} {i}. {u['unknown'][:75]}")
-                    resolved_info = f" | Resolved: {u['resolved_by'][:30]}" if u['resolved_by'] else ""
-                    goal_info = f" | Goal: {u['goal_id'][:8]}" if u['goal_id'] else ""
-                    print(f"   ID: {u['id'][:8]}...{impact_str}{goal_info}{resolved_info}")
-                    print()
-
-            return None
+        _print_unknowns_pretty(unknowns, status_desc, filter_desc)
+        return None
 
     except Exception as e:
         handle_cli_error(e, "Unknown list", getattr(args, 'verbose', False))
@@ -1364,7 +1360,6 @@ def handle_decision_log_command(args):
     finally:
         if db is not None:
             db.close()
-        return None
 
 
 def handle_refdoc_add_command(args):
@@ -1415,6 +1410,44 @@ def handle_refdoc_add_command(args):
         return None
 
 
+def _source_persist_git_and_qdrant(source_id, project_id, session_id, title,
+                                    source_type, source_url, doc_path, description,
+                                    confidence, direction):
+    """Persist source to git notes and Qdrant (both non-fatal)."""
+    import time
+
+    git_stored = False
+    try:
+        from empirica.core.canonical.empirica_git.source_store import GitSourceStore
+        git_stored = GitSourceStore().store_source(
+            source_id=source_id, project_id=project_id, session_id=session_id,
+            title=title, source_type=source_type, source_url=source_url,
+            doc_path=doc_path, description=description, confidence=confidence,
+            direction=direction,
+        )
+    except Exception as e:
+        logger.debug(f"Source git notes failed (non-fatal): {e}")
+
+    embedded = False
+    if project_id and source_id:
+        try:
+            from empirica.core.qdrant.vector_store import embed_single_memory_item
+            text = f"SOURCE ({direction}): {title}"
+            if description:
+                text += f" — {description}"
+            if source_url or doc_path:
+                text += f" [{source_url or doc_path}]"
+            embedded = embed_single_memory_item(
+                project_id=project_id, item_id=source_id, text=text,
+                item_type='source', session_id=session_id,
+                timestamp=time.strftime('%Y-%m-%dT%H:%M:%S'),
+            )
+        except Exception as e:
+            logger.debug(f"Source Qdrant embed failed (non-fatal): {e}")
+
+    return git_stored, embedded
+
+
 def handle_source_add_command(args):
     """Handle source-add command — entity-agnostic epistemic source logging.
 
@@ -1438,28 +1471,19 @@ def handle_source_add_command(args):
         session_id = getattr(args, 'session_id', None)
         project_id = getattr(args, 'project_id', None)
         output_format = getattr(args, 'output', 'human')
-
-        # Entity scoping (cross-entity provenance)
         entity_type = getattr(args, 'entity_type', None)
         entity_id = getattr(args, 'entity_id', None)
         via = getattr(args, 'via', None)
 
-        # Auto-derive session_id from active transaction
         if not session_id:
-
             session_id = R.session_id()
-
         if not session_id:
-            print(json.dumps({
-                "ok": False,
-                "error": "No active transaction and --session-id not provided",
-                "hint": "Either run PREFLIGHT first, or provide --session-id explicitly"
-            }))
+            print(json.dumps({"ok": False, "error": "No active transaction and --session-id not provided",
+                              "hint": "Either run PREFLIGHT first, or provide --session-id explicitly"}))
             return 1
 
         db = SessionDatabase()
 
-        # Auto-resolve project_id from session if not provided
         if not project_id:
             cursor = db.conn.cursor()
             cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
@@ -1468,15 +1492,11 @@ def handle_source_add_command(args):
                 project_id = row['project_id'] if isinstance(row, dict) else row[0]
 
         if not project_id:
-            print(json.dumps({
-                "ok": False,
-                "error": "Could not resolve project_id",
-                "hint": "Provide --project-id or ensure active session has a project"
-            }))
+            print(json.dumps({"ok": False, "error": "Could not resolve project_id",
+                              "hint": "Provide --project-id or ensure active session has a project"}))
             db.close()
             return 1
 
-        # Auto-derive transaction_id
         transaction_id = None
         try:
             from empirica.cli.command_handlers.workflow_commands import read_active_transaction
@@ -1487,20 +1507,11 @@ def handle_source_add_command(args):
             pass
 
         source_id = str(uuid.uuid4())
-
-        # Build metadata
-        metadata = {
-            "direction": direction,
-            "doc_path": doc_path,
-            "source_url": source_url,
-            "transaction_id": transaction_id,
-        }
-
-        # Default entity scope
+        metadata = {"direction": direction, "doc_path": doc_path,
+                     "source_url": source_url, "transaction_id": transaction_id}
         resolved_entity_type = entity_type or 'project'
         resolved_entity_id = entity_id or (project_id if resolved_entity_type == 'project' else None)
 
-        # Insert into epistemic_sources table
         db.conn.execute("""
             INSERT INTO epistemic_sources (
                 id, project_id, session_id, source_type, source_url,
@@ -1517,73 +1528,33 @@ def handle_source_add_command(args):
         ))
         db.conn.commit()
 
-        # ENTITY CROSS-LINK: If entity is not project, create workspace.db link
         if entity_type and entity_type != 'project' and entity_id:
             _create_entity_artifact_link(
-                artifact_type='source',
-                artifact_id=source_id,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                discovered_via=via,
-                transaction_id=transaction_id,
+                artifact_type='source', artifact_id=source_id,
+                entity_type=entity_type, entity_id=entity_id,
+                discovered_via=via, transaction_id=transaction_id,
             )
 
-        # Also add to project_reference_docs for backwards compatibility
         if doc_path:
             try:
-                db.add_reference_doc(
-                    project_id=project_id,
-                    doc_path=doc_path,
-                    doc_type=source_type,
-                    description=description
-                )
+                db.add_reference_doc(project_id=project_id, doc_path=doc_path,
+                                     doc_type=source_type, description=description)
             except Exception:
-                pass  # Not critical if legacy table fails
+                pass
 
         db.close()
 
-        # GIT NOTES: Store source for sync
-        git_stored = False
-        try:
-            from empirica.core.canonical.empirica_git.source_store import GitSourceStore
-            git_stored = GitSourceStore().store_source(
-                source_id=source_id, project_id=project_id, session_id=session_id,
-                title=title, source_type=source_type, source_url=source_url,
-                doc_path=doc_path, description=description, confidence=confidence,
-                direction=direction,
-            )
-        except Exception as e:
-            logger.debug(f"Source git notes failed (non-fatal): {e}")
-
-        # QDRANT: Embed source for semantic search
-        embedded = False
-        if project_id and source_id:
-            try:
-                from empirica.core.qdrant.vector_store import embed_single_memory_item
-                text = f"SOURCE ({direction}): {title}"
-                if description:
-                    text += f" — {description}"
-                if source_url or doc_path:
-                    text += f" [{source_url or doc_path}]"
-                embedded = embed_single_memory_item(
-                    project_id=project_id, item_id=source_id, text=text,
-                    item_type='source', session_id=session_id,
-                    timestamp=time.strftime('%Y-%m-%dT%H:%M:%S'),
-                )
-            except Exception as e:
-                logger.debug(f"Source Qdrant embed failed (non-fatal): {e}")
+        git_stored, embedded = _source_persist_git_and_qdrant(
+            source_id, project_id, session_id, title, source_type,
+            source_url, doc_path, description, confidence, direction
+        )
 
         if output_format == 'json':
             print(json.dumps({
-                "ok": True,
-                "source_id": source_id,
-                "project_id": project_id,
-                "session_id": session_id,
-                "transaction_id": transaction_id,
-                "direction": direction,
-                "title": title,
-                "git_stored": git_stored,
-                "embedded": embedded,
+                "ok": True, "source_id": source_id, "project_id": project_id,
+                "session_id": session_id, "transaction_id": transaction_id,
+                "direction": direction, "title": title,
+                "git_stored": git_stored, "embedded": embedded,
                 "message": f"Source added ({direction})"
             }, indent=2))
         else:
@@ -1605,6 +1576,78 @@ def handle_source_add_command(args):
         return None
 
 
+def _query_epistemic_sources(db, project_id, source_type_filter, direction_filter):
+    """Query epistemic_sources and legacy refdocs, returning combined list."""
+    sources = []
+    try:
+        query = """
+            SELECT id, source_type, title, description, confidence,
+                   epistemic_layer, source_url, discovered_at, source_metadata
+            FROM epistemic_sources
+            WHERE project_id = ?
+        """
+        params = [project_id]
+        if source_type_filter:
+            query += " AND source_type = ?"
+            params.append(source_type_filter)
+        if direction_filter != 'all':
+            query += " AND epistemic_layer = ?"
+            params.append(direction_filter)
+        query += " ORDER BY discovered_at DESC"
+
+        cursor = db.conn.cursor()
+        cursor.execute(query, params)
+        for row in cursor.fetchall():
+            r = dict(row) if hasattr(row, 'keys') else {
+                'id': row[0], 'source_type': row[1], 'title': row[2],
+                'description': row[3], 'confidence': row[4],
+                'direction': row[5], 'url': row[6],
+                'discovered_at': row[7], 'metadata': row[8]
+            }
+            r['source'] = 'epistemic_sources'
+            sources.append(r)
+    except Exception as e:
+        logger.debug(f"epistemic_sources query failed (table may not exist): {e}")
+
+    try:
+        refdocs = db.get_project_reference_docs(project_id)
+        for rd in refdocs:
+            doc_path = rd.get('doc_path', '')
+            if any(s.get('url') == doc_path or s.get('source_url') == doc_path for s in sources):
+                continue
+            sources.append({
+                'id': rd.get('id', ''), 'source_type': rd.get('doc_type', 'document'),
+                'title': doc_path.split('/')[-1] if doc_path else 'unknown',
+                'description': rd.get('description', ''), 'confidence': None,
+                'direction': 'noetic', 'url': doc_path,
+                'discovered_at': None, 'source': 'refdoc_legacy',
+            })
+    except Exception as e:
+        logger.debug(f"refdoc query failed: {e}")
+
+    return sources
+
+
+def _print_sources_pretty(sources):
+    """Print human-readable sources list."""
+    print(f"\n📚 Epistemic Sources ({len(sources)} total)")
+    print("=" * 60)
+    for s in sources:
+        direction = s.get('direction') or s.get('epistemic_layer', '?')
+        emoji = "📥" if direction == 'noetic' else "📤"
+        conf = f" [{s['confidence']:.1f}]" if s.get('confidence') else ""
+        source_tag = f" ({s['source']})" if s.get('source') == 'refdoc_legacy' else ""
+        print(f"  {emoji} {s.get('title', '?')}{conf}{source_tag}")
+        print(f"     Type: {s.get('source_type', '?')} | Direction: {direction}")
+        url = s.get('url') or s.get('source_url', '')
+        if url:
+            print(f"     Path: {url}")
+        desc = s.get('description', '')
+        if desc:
+            print(f"     Desc: {desc[:80]}")
+        print()
+
+
 def handle_source_list_command(args):
     """Handle source-list command — list epistemic sources for a project."""
     db = None
@@ -1618,7 +1661,6 @@ def handle_source_list_command(args):
 
         db = SessionDatabase()
 
-        # Auto-resolve project_id
         if not project_id:
             try:
                 project_path = R.project_path()
@@ -1631,87 +1673,13 @@ def handle_source_list_command(args):
             print(json.dumps({"ok": False, "error": "Could not resolve project_id"}))
             return 1
 
-        # Query epistemic_sources table
-        sources = []
-        try:
-            query = """
-                SELECT id, source_type, title, description, confidence,
-                       epistemic_layer, source_url, discovered_at, source_metadata
-                FROM epistemic_sources
-                WHERE project_id = ?
-            """
-            params = [project_id]
-
-            if source_type_filter:
-                query += " AND source_type = ?"
-                params.append(source_type_filter)
-
-            if direction_filter != 'all':
-                query += " AND epistemic_layer = ?"
-                params.append(direction_filter)
-
-            query += " ORDER BY discovered_at DESC"
-
-            cursor = db.conn.cursor()
-            cursor.execute(query, params)
-            for row in cursor.fetchall():
-                r = dict(row) if hasattr(row, 'keys') else {
-                    'id': row[0], 'source_type': row[1], 'title': row[2],
-                    'description': row[3], 'confidence': row[4],
-                    'direction': row[5], 'url': row[6],
-                    'discovered_at': row[7], 'metadata': row[8]
-                }
-                r['source'] = 'epistemic_sources'
-                sources.append(r)
-        except Exception as e:
-            logger.debug(f"epistemic_sources query failed (table may not exist): {e}")
-
-        # Also query legacy project_reference_docs
-        try:
-            refdocs = db.get_project_reference_docs(project_id)
-            for rd in refdocs:
-                # Skip if already in epistemic_sources (by doc_path match)
-                doc_path = rd.get('doc_path', '')
-                if any(s.get('url') == doc_path or s.get('source_url') == doc_path for s in sources):
-                    continue
-                sources.append({
-                    'id': rd.get('id', ''),
-                    'source_type': rd.get('doc_type', 'document'),
-                    'title': doc_path.split('/')[-1] if doc_path else 'unknown',
-                    'description': rd.get('description', ''),
-                    'confidence': None,
-                    'direction': 'noetic',
-                    'url': doc_path,
-                    'discovered_at': None,
-                    'source': 'refdoc_legacy',
-                })
-        except Exception as e:
-            logger.debug(f"refdoc query failed: {e}")
+        sources = _query_epistemic_sources(db, project_id, source_type_filter, direction_filter)
 
         if output_format == 'json':
-            print(json.dumps({
-                "ok": True,
-                "project_id": project_id,
-                "count": len(sources),
-                "sources": sources,
-            }, indent=2))
+            print(json.dumps({"ok": True, "project_id": project_id,
+                              "count": len(sources), "sources": sources}, indent=2))
         else:
-            print(f"\n📚 Epistemic Sources ({len(sources)} total)")
-            print("=" * 60)
-            for s in sources:
-                direction = s.get('direction') or s.get('epistemic_layer', '?')
-                emoji = "📥" if direction == 'noetic' else "📤"
-                conf = f" [{s['confidence']:.1f}]" if s.get('confidence') else ""
-                source_tag = f" ({s['source']})" if s.get('source') == 'refdoc_legacy' else ""
-                print(f"  {emoji} {s.get('title', '?')}{conf}{source_tag}")
-                print(f"     Type: {s.get('source_type', '?')} | Direction: {direction}")
-                url = s.get('url') or s.get('source_url', '')
-                if url:
-                    print(f"     Path: {url}")
-                desc = s.get('description', '')
-                if desc:
-                    print(f"     Desc: {desc[:80]}")
-                print()
+            _print_sources_pretty(sources)
 
         return 0
 
@@ -1727,6 +1695,39 @@ def handle_source_list_command(args):
 # =============================================================================
 # Mistake Commands (consolidated from mistake_commands.py)
 # =============================================================================
+
+def _mistake_persist_git_and_qdrant(mistake_id, project_id, session_id, ai_id,
+                                     mistake, why_wrong, prevention, cost_estimate,
+                                     root_cause_vector, goal_id):
+    """Persist mistake to git notes and Qdrant (both non-fatal)."""
+    git_stored = False
+    try:
+        from empirica.core.canonical.empirica_git.mistake_store import GitMistakeStore
+        git_stored = GitMistakeStore().store_mistake(
+            mistake_id=mistake_id, project_id=project_id, session_id=session_id,
+            ai_id=ai_id, mistake=mistake, why_wrong=why_wrong, prevention=prevention,
+            cost_estimate=cost_estimate, root_cause_vector=root_cause_vector, goal_id=goal_id,
+        )
+    except Exception:
+        pass
+
+    embedded = False
+    if project_id and mistake_id:
+        try:
+            from datetime import datetime
+
+            from empirica.core.qdrant.vector_store import embed_single_memory_item
+            embedded = embed_single_memory_item(
+                project_id=project_id, item_id=mistake_id,
+                text=f"MISTAKE: {mistake} Prevention: {prevention or 'none specified'}",
+                item_type='mistake', session_id=session_id, goal_id=goal_id,
+                timestamp=datetime.now().isoformat(),
+            )
+        except Exception:
+            pass
+
+    return git_stored, embedded
+
 
 def handle_mistake_log_command(args):
     """Handle mistake-log command"""
@@ -1748,7 +1749,6 @@ def handle_mistake_log_command(args):
 
         if not session_id:
             session_id = R.session_id()
-
         if not session_id:
             print(json.dumps({"ok": False, "error": "No active transaction and --session-id not provided"}))
             return
@@ -1796,30 +1796,10 @@ def handle_mistake_log_command(args):
 
         db.close()
 
-        git_stored = False
-        try:
-            from empirica.core.canonical.empirica_git.mistake_store import GitMistakeStore
-            git_stored = GitMistakeStore().store_mistake(
-                mistake_id=mistake_id, project_id=project_id, session_id=session_id,
-                ai_id=ai_id, mistake=mistake, why_wrong=why_wrong, prevention=prevention,
-                cost_estimate=cost_estimate, root_cause_vector=root_cause_vector, goal_id=goal_id,
-            )
-        except Exception:
-            pass
-
-        embedded = False
-        if project_id and mistake_id:
-            try:
-                from datetime import datetime
-                from empirica.core.qdrant.vector_store import embed_single_memory_item
-                embedded = embed_single_memory_item(
-                    project_id=project_id, item_id=mistake_id,
-                    text=f"MISTAKE: {mistake} Prevention: {prevention or 'none specified'}",
-                    item_type='mistake', session_id=session_id, goal_id=goal_id,
-                    timestamp=datetime.now().isoformat(),
-                )
-            except Exception:
-                pass
+        git_stored, embedded = _mistake_persist_git_and_qdrant(
+            mistake_id, project_id, session_id, ai_id, mistake, why_wrong,
+            prevention, cost_estimate, root_cause_vector, goal_id
+        )
 
         result = {
             "ok": True, "mistake_id": mistake_id, "session_id": session_id,

@@ -34,7 +34,7 @@ except ImportError:
 def _write_active_transaction_for_new_conversation(
     active_transaction: dict,
     project_path: str,
-    instance_id: str = None
+    instance_id: str | None = None
 ) -> bool:
     """
     Write active_transaction file for the NEW conversation after compaction.
@@ -82,7 +82,7 @@ def _write_active_work_for_new_conversation(
     claude_session_id: str,
     project_path: str,
     empirica_session_id: str,
-    instance_id: str = None
+    instance_id: str | None = None
 ) -> bool:
     """
     Write active_work file for the NEW conversation after compaction.
@@ -342,7 +342,7 @@ def main():
             instance_id=instance_id
         )
 
-        # Restore hook counters file (separate from transaction since v1.8.4)
+        # Restore hook counters file (separate from transaction since v1.8.5)
         if hook_counters:
             try:
                 suffix = _get_instance_suffix()
@@ -434,7 +434,7 @@ def main():
     sys.exit(0)
 
 
-def _get_empirica_session(claude_session_id: str = None):
+def _get_empirica_session(claude_session_id: str | None = None):
     """
     Find the active Empirica session using priority chain.
 
@@ -681,7 +681,7 @@ def _load_dynamic_context(session_id: str, ai_id: str, pre_snapshot: dict) -> di
         }
 
 
-def _create_session_and_bootstrap(ai_id: str, project_id: str = None) -> dict:
+def _create_session_and_bootstrap(ai_id: str, project_id: str | None = None) -> dict:
     """
     Create a new session AND run project-bootstrap in one step.
 
@@ -784,7 +784,7 @@ def _create_session_and_bootstrap(ai_id: str, project_id: str = None) -> dict:
 
 
 def _generate_new_session_prompt(pre_vectors: dict, dynamic_context: dict, old_session_id: str, ai_id: str,
-                                  session_bootstrap: dict = None) -> str:
+                                  session_bootstrap: dict | None = None) -> str:
     """
     Generate prompt for NEW session + PREFLIGHT when old session was complete.
 
@@ -876,6 +876,8 @@ EOF
 
 **Key principle:** Your PREFLIGHT should reflect knowledge AFTER reading the bootstrap context above.
 This makes the PREFLIGHT→POSTFLIGHT delta meaningful.
+
+**Shell env (run if needed for manual CLI):** `export EMPIRICA_SESSION_ID={new_session_id}`
 """
 
     # Fallback: Hook couldn't create session, AI needs to do full sequence
@@ -1231,8 +1233,8 @@ def _calculate_potential_drift(pre_vectors: dict) -> dict:
 
 
 def _print_user_message(pre_vectors: dict, dynamic_context: dict, potential_drift: dict,
-                        phase_state: dict = None, ai_id: str = 'claude-code',
-                        session_bootstrap: dict = None):
+                        phase_state: dict | None = None, ai_id: str = 'claude-code',
+                        session_bootstrap: dict | None = None):
     """Print user-visible summary to stderr"""
     pre_know = pre_vectors.get('know', 'N/A')
     pre_unc = pre_vectors.get('uncertainty', 'N/A')
@@ -1262,6 +1264,9 @@ def _print_user_message(pre_vectors: dict, dynamic_context: dict, potential_drif
    Active Goals: {goals_count}
    Recent Findings: {findings_count}
    Open Unknowns: {unknowns_count}
+
+🔧 Shell env var (if needed for manual CLI):
+   export EMPIRICA_SESSION_ID={new_session_id}
 
 🎯 ACTION REQUIRED:
    Run PREFLIGHT with your ACTUAL knowledge state (after reading loaded context):

@@ -21,8 +21,9 @@ import socket
 import subprocess
 import time
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

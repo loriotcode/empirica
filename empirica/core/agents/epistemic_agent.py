@@ -25,7 +25,7 @@ Usage:
 import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Optional
+from typing import Any
 
 from empirica.core.persona import PersonaManager, PersonaProfile
 from empirica.data.session_database import SessionDatabase
@@ -540,7 +540,7 @@ def create_epistemic_agent_prompt(
     session_id: str,
     task: str,
     persona_id: str = "general",
-    parent_context: str = None
+    parent_context: str | None = None
 ) -> tuple[str, str]:
     """
     Create prompt for spawning via Claude Code Task tool.

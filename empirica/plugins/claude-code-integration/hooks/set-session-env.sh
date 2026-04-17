@@ -1,6 +1,12 @@
 #!/bin/bash
-# Set EMPIRICA_SESSION_ID to latest active claude-code session
+# DEPRECATED: EMPIRICA_SESSION_ID is no longer needed.
+# All CLI commands auto-resolve sessions via InstanceResolver.
+# This script will be removed in a future version.
+#
+# Original purpose: Set EMPIRICA_SESSION_ID to latest active claude-code session
 # Source this in your shell: source ~/.claude/plugins/local/empirica/hooks/set-session-env.sh
+echo "⚠️  DEPRECATED: EMPIRICA_SESSION_ID env var is no longer needed."
+echo "   CLI commands auto-resolve sessions. Remove this from your shell profile."
 
 # Try to get latest active claude-code* session
 SESSION_ID=$(empirica sessions-list --output json 2>/dev/null | python3 -c "

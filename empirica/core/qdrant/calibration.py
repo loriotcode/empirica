@@ -19,15 +19,15 @@ def embed_grounded_verification(
     verification_id: str,
     session_id: str,
     ai_id: str = "claude-code",
-    self_assessed: dict[str, float] = None,
-    grounded_vectors: dict[str, float] = None,
-    calibration_gaps: dict[str, float] = None,
+    self_assessed: dict[str, float] | None = None,
+    grounded_vectors: dict[str, float] | None = None,
+    calibration_gaps: dict[str, float] | None = None,
     grounded_coverage: float = 0.0,
     calibration_score: float = 0.0,
     evidence_count: int = 0,
-    sources: list[str] = None,
-    goal_id: str = None,
-    timestamp: float = None,
+    sources: list[str] | None = None,
+    goal_id: str | None = None,
+    timestamp: float | None = None,
 ) -> bool:
     """
     Embed a grounded verification summary to the calibration collection.
@@ -102,11 +102,11 @@ def embed_calibration_trajectory(
     project_id: str,
     session_id: str,
     ai_id: str = "claude-code",
-    self_assessed: dict[str, float] = None,
-    grounded_vectors: dict[str, float] = None,
-    calibration_gaps: dict[str, float] = None,
-    goal_id: str = None,
-    timestamp: float = None,
+    self_assessed: dict[str, float] | None = None,
+    grounded_vectors: dict[str, float] | None = None,
+    calibration_gaps: dict[str, float] | None = None,
+    goal_id: str | None = None,
+    timestamp: float | None = None,
 ) -> bool:
     """
     Embed a calibration trajectory point — one per POSTFLIGHT.
@@ -181,9 +181,9 @@ def embed_calibration_trajectory(
 def search_calibration_patterns(
     project_id: str,
     query: str,
-    ai_id: str = None,
-    entry_type: str = None,
-    min_calibration_score: float = None,
+    ai_id: str | None = None,
+    entry_type: str | None = None,
+    min_calibration_score: float | None = None,
     limit: int = 5,
 ) -> list[dict]:
     """

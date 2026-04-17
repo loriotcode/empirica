@@ -9,7 +9,6 @@ Reads ecosystem.yaml from the workspace root and provides:
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,7 @@ def _get_yaml():
     return _yaml
 
 
-def find_ecosystem_manifest(start_path: str = None) -> Path | None:
+def find_ecosystem_manifest(start_path: str | None = None) -> Path | None:
     """Find ecosystem.yaml by walking up from start_path or cwd.
 
     Search order:
@@ -54,7 +53,7 @@ def find_ecosystem_manifest(start_path: str = None) -> Path | None:
     return None
 
 
-def load_manifest(manifest_path: str = None) -> dict:
+def load_manifest(manifest_path: str | None = None) -> dict:
     """Load and parse ecosystem.yaml.
 
     Returns the raw parsed YAML dict.
@@ -112,7 +111,7 @@ class EcosystemGraph:
             if isinstance(deps, list):
                 for dep in deps:
                     if isinstance(dep, dict):
-                        dep_name = list(dep.keys())[0]
+                        dep_name = next(iter(dep.keys()))
                     else:
                         dep_name = dep
                     self._depends_on[name].add(dep_name)
@@ -125,7 +124,7 @@ class EcosystemGraph:
             if isinstance(opt_deps, list):
                 for dep in opt_deps:
                     if isinstance(dep, dict):
-                        dep_name = list(dep.keys())[0]
+                        dep_name = next(iter(dep.keys()))
                     else:
                         dep_name = dep
                     # Don't add to hard deps, but track reverse edge
@@ -282,7 +281,7 @@ class EcosystemGraph:
         """Get ecosystem summary statistics."""
         roles = {}
         types = {}
-        for name, config in self.projects.items():
+        for _name, config in self.projects.items():
             role = config.get('role', 'unknown')
             ptype = config.get('type', 'unknown')
             roles[role] = roles.get(role, 0) + 1
@@ -304,7 +303,7 @@ class EcosystemGraph:
         }
 
 
-def load_ecosystem(manifest_path: str = None) -> EcosystemGraph:
+def load_ecosystem(manifest_path: str | None = None) -> EcosystemGraph:
     """Convenience: load manifest and return EcosystemGraph."""
     manifest = load_manifest(manifest_path)
     return EcosystemGraph(manifest)

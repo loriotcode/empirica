@@ -36,7 +36,6 @@ import os
 import sqlite3
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 # =============================================================================
 # InstanceResolver — Hook-side facade that delegates to canonical
@@ -72,17 +71,17 @@ class InstanceResolver:
             return self._canonical.instance_suffix()
         return _get_instance_suffix()
 
-    def project_path(self, claude_session_id: str = None) -> str | None:
+    def project_path(self, claude_session_id: str | None = None) -> str | None:
         if self._canonical:
             return self._canonical.project_path(claude_session_id)
         return get_active_project_path(claude_session_id)
 
-    def session_id(self, claude_session_id: str = None) -> str | None:
+    def session_id(self, claude_session_id: str | None = None) -> str | None:
         if self._canonical:
             return self._canonical.session_id(claude_session_id)
         return get_active_session_id(claude_session_id)
 
-    def transaction_read(self, claude_session_id: str = None) -> dict | None:
+    def transaction_read(self, claude_session_id: str | None = None) -> dict | None:
         if self._canonical:
             return self._canonical.transaction_read(claude_session_id)
         # No local fallback for transaction read — hooks should use canonical
@@ -166,7 +165,7 @@ def detect_environment() -> dict:
     """
     Detect execution environment for Sentinel context awareness.
 
-    Delegates to canonical when available (v1.8.4 resolver dedup).
+    Delegates to canonical when available (v1.8.5 resolver dedup).
 
     Returns dict with:
         hostname: str - machine hostname
@@ -229,7 +228,7 @@ def detect_environment() -> dict:
     }
 
 
-def get_active_project_path(claude_session_id: str = None) -> str | None:
+def get_active_project_path(claude_session_id: str | None = None) -> str | None:
     """
     Get the active project path for the current instance.
 
@@ -288,7 +287,7 @@ def get_active_project_path(claude_session_id: str = None) -> str | None:
     return None
 
 
-def get_active_session_id(claude_session_id: str = None) -> str | None:
+def get_active_session_id(claude_session_id: str | None = None) -> str | None:
     """
     Get the active Empirica session ID for the current instance.
 
@@ -382,7 +381,7 @@ def get_active_session_id(claude_session_id: str = None) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Delegated to canonical session_resolver.py (v1.8.4 resolver dedup)
+# Delegated to canonical session_resolver.py (v1.8.5 resolver dedup)
 # Inline fallbacks removed — these are now single-source-of-truth in
 # empirica.utils.session_resolver. If empirica is not importable (bare
 # plugin without pip install), the InstanceResolver fallback at the top
@@ -391,10 +390,10 @@ def get_active_session_id(claude_session_id: str = None) -> str | None:
 
 try:
     from empirica.utils.session_resolver import (
-        has_valid_db,
         _find_git_root,
         _read_json_file,
         _scan_workspace_for_project,
+        has_valid_db,
     )
 except ImportError:
     # Minimal fallbacks for bare-plugin environments
@@ -447,7 +446,7 @@ def find_project_root(
     Comprehensive project root resolution for hooks.
 
     Delegates to canonical empirica.utils.session_resolver.find_project_root
-    when available (v1.8.4 resolver dedup). Falls back to inline implementation
+    when available (v1.8.5 resolver dedup). Falls back to inline implementation
     for bare-plugin environments.
 
     Unified priority chain (highest to lowest):
@@ -470,7 +469,7 @@ def find_project_root(
     Returns:
         Path to project root, or None if cannot be resolved.
     """
-    # Delegate to canonical when available (v1.8.4 resolver dedup)
+    # Delegate to canonical when available (v1.8.5 resolver dedup)
     try:
         from empirica.utils.session_resolver import find_project_root as _canonical_fpr
         return _canonical_fpr(

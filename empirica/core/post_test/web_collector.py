@@ -20,7 +20,7 @@ import subprocess
 import time
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 from .collector import EvidenceItem, EvidenceQuality
@@ -63,7 +63,7 @@ class _HTMLStructureValidator(HTMLParser):
         elif tag == 'body':
             self._has_body = True
         elif tag == 'meta':
-            for name, value in attrs:
+            for name, _value in attrs:
                 if name == 'charset':
                     self._has_charset = True
 
@@ -173,7 +173,7 @@ class WebEvidenceCollector:
                 with open(config_path) as f:
                     config = yaml.safe_load(f) or {}
                 self._web_config = config.get("web_evidence", {})
-        except Exception:
+        except Exception:  # noqa: S110 — best-effort config load; empty dict fallback
             pass
         return self._web_config
 
@@ -210,7 +210,7 @@ class WebEvidenceCollector:
                 pkg = json.loads(pkg_json.read_text())
                 if "build" in pkg.get("scripts", {}):
                     return {"tool": "npm", "command": "npm run build", "output_dir": "dist"}
-            except Exception:
+            except Exception:  # noqa: S110 — best-effort package.json parsing; other detectors below
                 pass
 
         makefile = project_path / "Makefile"

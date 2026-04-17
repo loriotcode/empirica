@@ -66,14 +66,6 @@ def _format_date_short(ts):
     return full[:10] if len(full) >= 10 else full
 
 
-def _impact_bar(impact):
-    """Render impact as a visual bar."""
-    if impact is None:
-        return ""
-    n = int(float(impact) * 10)
-    return "\u2588" * n + "\u2591" * (10 - n) + f" {float(impact):.1f}"
-
-
 def _truncate(text, length=100):
     """Truncate text with ellipsis."""
     if not text:
@@ -660,7 +652,7 @@ def _render_sessions(sessions_map):
         first = checkpoints[0] if checkpoints else {}
         ai = first.get("ai_id", "?")
         date = _format_date_short(first.get("timestamp", ""))
-        phases = sorted(set(c.get("phase", "?") for c in checkpoints))
+        phases = sorted({c.get("phase", "?") for c in checkpoints})
         phase_str = " \u2192 ".join(phases)
         conf = first.get("overall_confidence", "")
         conf_str = f"{conf:.2f}" if isinstance(conf, (int, float)) else str(conf)
@@ -751,7 +743,7 @@ def _render_cascades(cascades):
             "",
         ])
 
-        for i, entry in enumerate(entries):
+        for _i, entry in enumerate(entries):
             decision = entry.get("decision", "?")
             payload = entry.get("data", {})
             ts = payload.get("timestamp", "")
@@ -946,7 +938,7 @@ def _render_calibration(cal_data):
 
 def _render_readme(counts, recent_items):
     """Render root README.md — project epistemic dashboard."""
-    total = sum(counts.values())
+    sum(counts.values())
     lines = [
         "# Empirica Epistemic Audit Trail",
         "",
@@ -1055,7 +1047,7 @@ def generate_artifacts(workspace_root, output_dir=None, verbose=False):
     # Tasks (subtasks) — index by goal_id
     raw_tasks = _read_all_notes(workspace, "tasks")
     tasks_by_goal = {}
-    for tid, tdata in raw_tasks:
+    for _tid, tdata in raw_tasks:
         gid = tdata.get("goal_id", "")
         tasks_by_goal.setdefault(gid, []).append(tdata)
 

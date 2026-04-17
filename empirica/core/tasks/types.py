@@ -10,7 +10,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 class EpistemicImportance(Enum):
@@ -34,7 +34,7 @@ class TaskStatus(Enum):
 class SubTask:
     """
     Individual subtask within a goal
-    
+
     MVP Design: AI creates these explicitly via MCP tools.
     """
     id: str
@@ -120,7 +120,7 @@ class SubTask:
 class TaskDecomposition:
     """
     Complete task breakdown for a goal
-    
+
     MVP: Simple container for manually created subtasks.
     Future: Add automatic decomposition, critical path analysis, etc.
     """

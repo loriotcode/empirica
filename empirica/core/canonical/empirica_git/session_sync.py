@@ -14,7 +14,7 @@ Key Features:
 import logging
 import os
 import subprocess
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class SessionSync:
     """
     Git synchronization for session state
-    
+
     Design:
     - Pull latest checkpoints before resume
     - Push checkpoints after creation (optional)
@@ -70,10 +70,10 @@ class SessionSync:
     def pull_latest(self, notes_only: bool = True) -> bool:
         """
         Pull latest checkpoints/goals from remote
-        
+
         Args:
             notes_only: Only fetch notes (faster, safer)
-            
+
         Returns:
             bool: Success
         """
@@ -118,10 +118,10 @@ class SessionSync:
     def push_checkpoint(self, notes_only: bool = True) -> bool:
         """
         Push checkpoint/goal to remote
-        
+
         Args:
             notes_only: Only push notes (safer)
-            
+
         Returns:
             bool: Success
         """
@@ -166,7 +166,7 @@ class SessionSync:
     def auto_sync_before_resume(self) -> dict[str, Any]:
         """
         Automatically sync before session resume
-        
+
         Returns:
             Dict: Sync status
         """
@@ -188,10 +188,10 @@ class SessionSync:
     def auto_sync_after_checkpoint(self, auto_push: bool = False) -> bool:
         """
         Automatically sync after checkpoint creation
-        
+
         Args:
             auto_push: Enable automatic push
-            
+
         Returns:
             bool: Success
         """

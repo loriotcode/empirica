@@ -33,11 +33,11 @@ from .schema import (
 from .stability_estimator import StabilityEstimator
 
 __all__ = [
-    "ComponentAssessor",
-    "ComponentAssessment",
     "ArchitectureVectors",
-    "CouplingMetrics",
-    "StabilityMetrics",
+    "ComponentAssessment",
+    "ComponentAssessor",
     "CouplingAnalyzer",
+    "CouplingMetrics",
     "StabilityEstimator",
+    "StabilityMetrics",
 ]

@@ -25,8 +25,8 @@ The payload is canonicalized (deterministic JSON) and signed with Ed25519.
 import hashlib
 import json
 import logging
-from datetime import UTC, datetime
-from typing import Any, Optional
+from datetime import UTC, datetime  # type: ignore[reportAttributeAccessIssue]
+from typing import Any
 
 from .ai_identity import AIIdentity
 
@@ -44,7 +44,7 @@ def create_eep1_payload(
 ) -> dict[str, Any]:
     """
     Create EEP-1 signature payload
-    
+
     Args:
         content: Final output content to sign
         epistemic_state: Final epistemic vectors (13-D state)
@@ -53,7 +53,7 @@ def create_eep1_payload(
         metadata_sources: Sources used (URLs, files, etc.)
         model_id: Underlying model identifier
         session_id: Session identifier
-        
+
     Returns:
         Dict: EEP-1 payload (unsigned)
     """
@@ -80,15 +80,15 @@ def create_eep1_payload(
 def canonicalize_payload(payload: dict[str, Any]) -> str:
     """
     Canonicalize payload for signing
-    
+
     Ensures deterministic JSON representation:
     - Sorted keys
     - No whitespace
     - Consistent encoding
-    
+
     Args:
         payload: EEP-1 payload
-        
+
     Returns:
         str: Canonicalized JSON string
     """
@@ -106,7 +106,7 @@ def sign_assessment(
 ) -> dict[str, Any]:
     """
     Sign assessment with EEP-1 signature
-    
+
     Args:
         content: Final output content
         epistemic_state: Final epistemic vectors
@@ -115,21 +115,21 @@ def sign_assessment(
         metadata_sources: Sources used
         model_id: Model identifier
         session_id: Session identifier
-        
+
     Returns:
         Dict: Complete signed package with payload + signature
-        
+
     Example:
         identity = AIIdentity("claude-code")
         identity.load_keypair()
-        
+
         signed = sign_assessment(
             content="Analysis complete...",
             epistemic_state={"KNOW": 0.92, "UNCERTAINTY": 0.05, ...},
             identity=identity,
             cascade_trace_hash="abc123..."
         )
-        
+
         # signed contains:
         # - payload: EEP-1 payload with public key
         # - signature: hex-encoded signature
@@ -184,18 +184,18 @@ def verify_signature(
 ) -> bool:
     """
     Verify EEP-1 signature
-    
+
     Args:
         signed_package: Complete signed package from sign_assessment()
         public_key_hex: Optional public key (uses creator_id if not provided)
-        
+
     Returns:
         bool: True if signature valid
-        
+
     Example:
         # Verify signature
         is_valid = verify_signature(signed_package)
-        
+
         if is_valid:
             print("✓ Signature valid - assessment is authentic")
         else:
@@ -241,28 +241,28 @@ def verify_eep1_payload(
 ) -> dict[str, Any]:
     """
     Comprehensive EEP-1 payload verification
-    
+
     Verifies:
     1. Signature is valid (cryptographic integrity)
     2. Content hash matches (if content provided)
     3. Cascade trace hash matches (if provided)
     4. Timestamp is reasonable (not in future, not too old)
-    
+
     Args:
         signed_package: Complete signed package
         content: Optional content to verify hash
         cascade_trace_hash: Optional cascade trace to verify
-        
+
     Returns:
         Dict: Verification results with details
-        
+
     Example:
         result = verify_eep1_payload(
             signed_package=signed,
             content=original_content,
             cascade_trace_hash=git_log_hash
         )
-        
+
         if result['valid']:
             print(f"✓ Verified: {result['message']}")
         else:
@@ -342,10 +342,10 @@ def verify_eep1_payload(
 def compute_cascade_trace_hash(git_log: str) -> str:
     """
     Compute CASCADE trace hash from git log
-    
+
     Args:
         git_log: Git log output (commit hashes)
-        
+
     Returns:
         str: SHA-256 hash of git log
     """

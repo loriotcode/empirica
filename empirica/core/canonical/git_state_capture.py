@@ -10,7 +10,7 @@ Part of the GitEnhancedReflexLogger refactoring (extracted from 1,156 line file)
 import logging
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     pass
@@ -118,7 +118,7 @@ class GitStateCapture:
 
     def _get_commits_since_last_checkpoint(
         self,
-        get_last_checkpoint_fn: callable
+        get_last_checkpoint_fn: Any  # callable
     ) -> list[dict[str, Any]]:
         """
         Get commits made since last checkpoint.

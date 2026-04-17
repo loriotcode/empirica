@@ -37,9 +37,9 @@ class GoalDataRepository(BaseRepository):
                 unique.append(item)
         return unique
 
-    def create_goal(self, session_id: str, objective: str, scope_breadth: float = None,
-                   scope_duration: float = None, scope_coordination: float = None,
-                   beads_issue_id: str = None, status: str = 'in_progress') -> str:
+    def create_goal(self, session_id: str, objective: str, scope_breadth: float | None = None,
+                   scope_duration: float | None = None, scope_coordination: float | None = None,
+                   beads_issue_id: str | None = None, status: str = 'in_progress') -> str:
         """Create a new goal for this session
 
         Args:
@@ -272,7 +272,7 @@ class GoalDataRepository(BaseRepository):
         unknowns_by_goal = {}
 
         for row in cursor.fetchall():
-            goal_id, objective, subtask_id, subtask_data_json = row
+            goal_id, objective, _, subtask_data_json = row
 
             if goal_id not in unknowns_by_goal:
                 unknowns_by_goal[goal_id] = {
@@ -364,7 +364,7 @@ class GoalDataRepository(BaseRepository):
         self.commit()
         return count
 
-    def get_stale_goals(self, session_id: str = None, project_id: str = None) -> list[dict]:
+    def get_stale_goals(self, session_id: str | None = None, project_id: str | None = None) -> list[dict]:
         """Get stale goals for a session or project
 
         Args:
@@ -406,6 +406,42 @@ class GoalDataRepository(BaseRepository):
             })
 
         return stale_goals
+
+    def activate_goal(self, goal_id: str, transaction_id: str | None = None) -> bool:
+        """Activate a planned goal — set status to in_progress and link to transaction.
+
+        Args:
+            goal_id: Goal UUID (prefix match supported)
+            transaction_id: Current transaction UUID to link the goal to
+
+        Returns:
+            True if activated, False if goal not found or not planned
+        """
+        # Prefix match on goal_id
+        cursor = self._execute("""
+            SELECT id, goal_data FROM goals WHERE id LIKE ? AND status = 'planned'
+        """, (f"{goal_id}%",))
+        row = cursor.fetchone()
+
+        if not row:
+            return False
+
+        full_id = row[0]
+        goal_data = json.loads(row[1]) if row[1] else {}
+        goal_data['activated_at'] = time.time()
+
+        params = [full_id]
+        sql = "UPDATE goals SET status = 'in_progress', goal_data = ?"
+        if transaction_id:
+            sql += ", transaction_id = ?"
+            params = [json.dumps(goal_data), transaction_id, full_id]
+        else:
+            params = [json.dumps(goal_data), full_id]
+        sql += " WHERE id = ?"
+
+        self._execute(sql, tuple(params))
+        self.commit()
+        return True
 
     def refresh_goal(self, goal_id: str) -> bool:
         """No-op — stale status removed. Goals stay in_progress across compaction.

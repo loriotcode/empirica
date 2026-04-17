@@ -11,7 +11,7 @@ Priority:
 
 Usage:
     from empirica.config.semantic_index_loader import load_semantic_index
-    
+
     index = load_semantic_index()
     if index:
         docs = index.get('index', {})
@@ -22,7 +22,7 @@ Date: 2025-12-19
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -32,10 +32,10 @@ logger = logging.getLogger(__name__)
 def load_semantic_index(project_root: str | None = None) -> dict[str, Any] | None:
     """
     Load SEMANTIC_INDEX.yaml from project root.
-    
+
     Args:
         project_root: Project root directory (defaults to git root)
-    
+
     Returns:
         Semantic index dict or None if not found
     """
@@ -78,10 +78,10 @@ def load_semantic_index(project_root: str | None = None) -> dict[str, Any] | Non
 def get_semantic_index_path(project_root: str | None = None) -> Path | None:
     """
     Get path to SEMANTIC_INDEX.yaml if it exists.
-    
+
     Args:
         project_root: Project root directory (defaults to git root)
-    
+
     Returns:
         Path to semantic index or None
     """

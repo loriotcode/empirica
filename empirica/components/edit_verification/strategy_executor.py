@@ -3,20 +3,19 @@ Edit Strategy Executor - Reliable file modification strategies.
 
 Implements 3 execution strategies based on confidence:
 1. atomic_edit: High confidence - use native edit tool
-2. bash_fallback: Medium confidence - use Python line replacement  
+2. bash_fallback: Medium confidence - use Python line replacement
 3. re_read_first: Low confidence - read file, then re-assess
 
 Each strategy has different reliability characteristics and use cases.
 """
 
 import re
-from typing import Optional
 
 
 class EditStrategyExecutor:
     """
     Executes file edits using confidence-appropriate strategies.
-    
+
     Prevents whitespace failures by choosing the right tool for the job.
     """
 
@@ -34,14 +33,14 @@ class EditStrategyExecutor:
     ) -> dict:
         """
         Execute edit using the specified strategy.
-        
+
         Args:
             strategy: "atomic_edit" | "bash_fallback" | "re_read_first"
             file_path: Path to file
             old_str: String to replace
             new_str: Replacement string
             assessment: Optional confidence assessment for logging
-        
+
         Returns:
             {
                 "success": bool,
@@ -72,7 +71,7 @@ class EditStrategyExecutor:
     ) -> dict:
         """
         Strategy 1: Atomic edit using exact string match.
-        
+
         Requires PERFECT string match. Use only when confidence is high.
         """
         try:
@@ -116,7 +115,7 @@ class EditStrategyExecutor:
             return {
                 "success": False,
                 "strategy_used": "atomic_edit",
-                "message": f"Error: {str(e)}",
+                "message": f"Error: {e!s}",
                 "changes_made": False
             }
 
@@ -128,7 +127,7 @@ class EditStrategyExecutor:
     ) -> dict:
         """
         Strategy 2: Bash/Python line-based replacement.
-        
+
         More forgiving of whitespace variations. Uses Python for safety.
         """
         try:
@@ -179,7 +178,7 @@ class EditStrategyExecutor:
             return {
                 "success": False,
                 "strategy_used": "bash_fallback",
-                "message": f"Error: {str(e)}",
+                "message": f"Error: {e!s}",
                 "changes_made": False
             }
 
@@ -191,7 +190,7 @@ class EditStrategyExecutor:
     ) -> dict:
         """
         Strategy 3: Re-read file first, then assess again.
-        
+
         Use when confidence is low or context is stale.
         This would typically integrate with view tool in MCP context.
         """
@@ -218,7 +217,7 @@ class EditStrategyExecutor:
             return {
                 "success": False,
                 "strategy_used": "re_read_first",
-                "message": f"Error: {str(e)}",
+                "message": f"Error: {e!s}",
                 "changes_made": False
             }
 

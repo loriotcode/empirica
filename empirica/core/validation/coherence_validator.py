@@ -12,7 +12,7 @@ Phase 3 Component: Ensures handoff context is valid
 """
 
 import logging
-from typing import Optional
+from typing import Any
 
 from .validation_utils import analyze_epistemic_trajectory, get_git_diff_summary
 
@@ -37,10 +37,10 @@ class CoherenceValidator:
         self,
         preflight_vectors: dict[str, float],
         postflight_vectors: dict[str, float],
-        preflight_plan: dict[str, any] | None = None,
+        preflight_plan: dict[str, Any] | None = None,
         findings: list[dict] | None = None,
         unknowns: list[dict] | None = None
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """
         Validate: can I hand off, or do I need to investigate more?
 
@@ -104,7 +104,7 @@ class CoherenceValidator:
             "message": self._format_message(coherent, recommendation, concerns)
         }
 
-    def _check_scope_match(self, preflight_plan: dict | None) -> dict[str, any]:
+    def _check_scope_match(self, preflight_plan: dict | None) -> dict[str, Any]:
         """
         Check: Did I do what I planned?
 
@@ -154,7 +154,7 @@ class CoherenceValidator:
         self,
         preflight_vectors: dict[str, float],
         postflight_vectors: dict[str, float]
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """
         Check: Is my learning trajectory coherent?
 
@@ -181,7 +181,7 @@ class CoherenceValidator:
         self,
         findings: list[dict],
         postflight_vectors: dict[str, float]
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """
         Check: Are my findings honest? (Not overstating confidence)
 

@@ -10,19 +10,18 @@ NEW Schema: empirica.core.schemas.epistemic_assessment.EpistemicAssessmentSchema
 Note: Some data loss is acceptable when converting NEW -> OLD (OLD format is less rich).
 """
 
-from typing import Optional
 
 
 def convert_old_to_new(old_assessment):
     """
     Convert OLD EpistemicAssessment to NEW EpistemicAssessmentSchema.
-    
+
     Args:
         old_assessment: EpistemicAssessment from reflex_frame.py
-        
+
     Returns:
         EpistemicAssessmentSchema with converted values
-        
+
     Data mapping:
         OLD VectorState(score, reasoning) -> NEW VectorAssessment(score, rationale, evidence, warrants_investigation)
         - reasoning -> rationale
@@ -83,19 +82,19 @@ def convert_old_to_new(old_assessment):
 def convert_new_to_old(new_assessment):
     """
     Convert NEW EpistemicAssessmentSchema to OLD EpistemicAssessment.
-    
+
     Args:
         new_assessment: EpistemicAssessmentSchema from schemas/epistemic_assessment.py
-        
+
     Returns:
         EpistemicAssessment with converted values
-        
+
     Data loss:
         - Evidence is dropped (OLD format doesn't support it)
         - warrants_investigation flag is dropped
         - Persona priors are dropped
         - Rich metadata is simplified
-        
+
     This converter is for backwards compatibility during migration only.
     """
     from empirica.core.canonical.reflex_frame import EpistemicAssessment, VectorState
@@ -254,7 +253,7 @@ def _convert_action_to_old(new_action: str | None):
 def validate_conversion_old_to_new(old_assessment) -> bool:
     """
     Validate that OLD -> NEW conversion preserves critical data.
-    
+
     Returns:
         True if conversion is valid, False otherwise
     """
@@ -280,9 +279,9 @@ def validate_conversion_old_to_new(old_assessment) -> bool:
 def validate_conversion_new_to_old(new_assessment) -> bool:
     """
     Validate that NEW -> OLD conversion preserves critical data.
-    
+
     Note: Some data loss is expected (evidence, investigation flags).
-    
+
     Returns:
         True if conversion is valid, False otherwise
     """

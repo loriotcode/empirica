@@ -16,7 +16,7 @@ import logging
 import os
 import subprocess
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +24,10 @@ logger = logging.getLogger(__name__)
 class GitGoalStore:
     """
     Git-based goal storage for cross-AI coordination
-    
+
     Storage Format (git notes):
         refs/notes/empirica/goals/<goal-id>
-        
+
     Goal Data:
         {
             "goal_id": "uuid",
@@ -97,7 +97,7 @@ class GitGoalStore:
     ) -> bool:
         """
         Store goal in git notes
-        
+
         Args:
             goal_id: Goal UUID
             session_id: Session identifier
@@ -105,7 +105,7 @@ class GitGoalStore:
             goal_data: Complete goal data (from database)
             epistemic_state: Current epistemic vectors
             lineage: Goal lineage (if None, creates initial lineage)
-            
+
         Returns:
             bool: Success
         """
@@ -226,11 +226,11 @@ class GitGoalStore:
     ) -> list[dict[str, Any]]:
         """
         Discover goals from other AIs
-        
+
         Args:
             from_ai_id: Filter by AI creator
             session_id: Filter by session
-            
+
         Returns:
             List[Dict]: Matching goals
         """
@@ -295,12 +295,12 @@ class GitGoalStore:
     ) -> bool:
         """
         Add lineage entry when AI resumes goal
-        
+
         Args:
             goal_id: Goal UUID
             ai_id: AI taking action
             action: Action type (resumed, completed, modified)
-            
+
         Returns:
             bool: Success
         """
