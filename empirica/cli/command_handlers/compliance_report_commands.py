@@ -76,6 +76,21 @@ REGULATORY_MAP: dict[str, dict[str, Any]] = {
             "iso_42001": {"clause": "7.5", "requirement": "Documented information — configuration management"},
         },
     },
+    "ai_transparency": {
+        "check": "AI contribution transparency (git attribution)",
+        "frameworks": {
+            "eu_ai_act": {"article": "Art. 50", "requirement": "Transparency — AI-generated content disclosure"},
+            "iso_42001": {"clause": "A.8.4", "requirement": "AI system operation — provenance tracking"},
+        },
+    },
+    "decision_transparency": {
+        "check": "Decision audit trail (rationale coverage)",
+        "frameworks": {
+            "eu_ai_act": {"article": "Art. 13", "requirement": "Transparency — interpretable AI output"},
+            "iso_42001": {"clause": "9.1.2", "requirement": "Analysis and evaluation — decision traceability"},
+            "gdpr": {"article": "Art. 22(3)", "requirement": "Automated decision-making — right to explanation"},
+        },
+    },
     "epistemic_audit": {
         "check": "Epistemic transaction trail (empirica)",
         "frameworks": {
@@ -328,6 +343,68 @@ def _build_calibration_check(project_root: Path) -> dict[str, Any]:
     }
 
 
+def _build_ai_transparency_check(project_root: Path) -> dict[str, Any]:
+    """Check AI contribution attribution in git history."""
+    try:
+        result = subprocess.run(
+            ["git", "log", "--format=%b", "-50"],
+            capture_output=True, text=True, timeout=10, cwd=str(project_root),
+        )
+        if result.returncode != 0:
+            return {"check": "ai_transparency", "passed": None, "status": "unavailable"}
+
+        total_commits = 50  # sampled
+        attributed = sum(1 for line in result.stdout.split("\n") if "Co-Authored-By:" in line)
+        ratio = attributed / max(total_commits, 1)
+
+        return {
+            "check": "ai_transparency",
+            "passed": attributed > 0,
+            "ai_attributed_commits": attributed,
+            "sample_size": total_commits,
+            "attribution_ratio": round(ratio, 2),
+            "status": "pass" if attributed > 0 else "fail",
+        }
+    except Exception:
+        return {"check": "ai_transparency", "passed": None, "status": "unavailable"}
+
+
+def _build_decision_transparency_check(project_root: Path) -> dict[str, Any]:
+    """Check that logged decisions have rationale (interpretable AI output)."""
+    from empirica.config.path_resolver import get_session_db_path
+    try:
+        db_path = get_session_db_path()
+    except Exception:
+        db_path = project_root / ".empirica" / "sessions" / "sessions.db"
+    if not db_path.exists():
+        return {"check": "decision_transparency", "passed": None, "status": "unavailable"}
+
+    import sqlite3
+    conn = sqlite3.connect(str(db_path))
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT COUNT(*) FROM decisions")
+        total = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM decisions WHERE rationale IS NOT NULL AND rationale != ''")
+        with_rationale = cursor.fetchone()[0]
+    except sqlite3.OperationalError:
+        conn.close()
+        return {"check": "decision_transparency", "passed": None, "status": "unavailable"}
+    conn.close()
+
+    ratio = with_rationale / max(total, 1)
+    # Pass if >= 80% of decisions have rationale
+    passed = total == 0 or ratio >= 0.8
+    return {
+        "check": "decision_transparency",
+        "passed": passed,
+        "decisions_total": total,
+        "decisions_with_rationale": with_rationale,
+        "rationale_coverage": round(ratio * 100, 1),
+        "status": "pass" if passed else "fail",
+    }
+
+
 def _parse_docs_result(raw: dict[str, Any]) -> dict[str, Any]:
     """Parse empirica docs-assess JSON output."""
     if raw.get("error"):
@@ -543,6 +620,10 @@ def run_compliance_report(
     docs_raw = _run_check("docs-assess", ["empirica", "docs-assess", "--output", "json"], timeout=60)
     results.append(_parse_docs_result(docs_raw))
 
+    # AI transparency checks (fast, git + DB queries)
+    results.append(_build_ai_transparency_check(project_root))
+    results.append(_build_decision_transparency_check(project_root))
+
     # Repository hygiene (fast, file checks)
     results.append(_build_repo_hygiene_check(project_root))
 
@@ -599,6 +680,10 @@ def _print_human_report(report: dict[str, Any]) -> None:
             detail = f"  {check.get('vulnerabilities', '?')} known CVEs"
         elif name == "security_scan":
             detail = f"  {check.get('findings_critical', '?')} critical, {check.get('findings_total', '?')} total"
+        elif name == "ai_transparency":
+            detail = f"  {check.get('ai_attributed_commits', '?')}/{check.get('sample_size', '?')} commits attributed"
+        elif name == "decision_transparency":
+            detail = f"  {check.get('rationale_coverage', '?')}% with rationale ({check.get('decisions_with_rationale', '?')}/{check.get('decisions_total', '?')})"
         elif name == "tech_docs":
             detail = f"  {check.get('coverage_percent', '?')}% coverage ({check.get('documented', '?')}/{check.get('total', '?')})"
         elif name == "repo_hygiene":
