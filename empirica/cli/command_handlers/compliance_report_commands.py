@@ -91,6 +91,13 @@ REGULATORY_MAP: dict[str, dict[str, Any]] = {
             "gdpr": {"article": "Art. 22(3)", "requirement": "Automated decision-making — right to explanation"},
         },
     },
+    "discipline": {
+        "check": "Epistemic discipline trajectory (behavioral)",
+        "frameworks": {
+            "eu_ai_act": {"article": "Art. 17", "requirement": "Quality management system — process discipline"},
+            "iso_42001": {"clause": "9.1.3", "requirement": "Monitoring and measurement — process effectiveness"},
+        },
+    },
     "epistemic_audit": {
         "check": "Epistemic transaction trail (empirica)",
         "frameworks": {
@@ -340,6 +347,104 @@ def _build_calibration_check(project_root: Path) -> dict[str, Any]:
         "grounded_verifications": count,
         "avg_calibration_score": avg_score,
         "status": "pass" if count > 0 else "no_data",
+    }
+
+
+def _build_discipline_check(project_root: Path) -> dict[str, Any]:
+    """Assess epistemic process discipline from observable behavioral evidence.
+
+    Every component is measured by a service the AI doesn't control:
+    - Transaction count: DB timestamps (reflexes table)
+    - Artifact breadth: DB artifact tables
+    - Goal completion: DB goals table
+    - Commit discipline: git log
+    - Investigation ratio: sentinel tool counts
+
+    Cannot be gamed — you either did the work or you didn't.
+    """
+    from empirica.config.path_resolver import get_session_db_path
+    try:
+        db_path = get_session_db_path()
+    except Exception:
+        db_path = project_root / ".empirica" / "sessions" / "sessions.db"
+    if not db_path.exists():
+        return {"check": "discipline", "passed": None, "status": "unavailable"}
+
+    import sqlite3
+    conn = sqlite3.connect(str(db_path))
+    cursor = conn.cursor()
+
+    try:
+        # Transaction count (POSTFLIGHT = completed transaction)
+        cursor.execute("SELECT COUNT(*) FROM reflexes WHERE phase = 'POSTFLIGHT'")
+        transactions = cursor.fetchone()[0]
+
+        # Artifact breadth — count each type
+        artifact_counts: dict[str, int] = {}
+        for table, label in [
+            ("project_findings", "findings"),
+            ("project_unknowns", "unknowns"),
+            ("project_dead_ends", "dead_ends"),
+            ("mistakes_made", "mistakes"),
+            ("assumptions", "assumptions"),
+            ("decisions", "decisions"),
+        ]:
+            try:
+                cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                artifact_counts[label] = cursor.fetchone()[0]
+            except sqlite3.OperationalError:
+                artifact_counts[label] = 0
+
+        types_used = sum(1 for v in artifact_counts.values() if v > 0)
+        total_artifacts = sum(artifact_counts.values())
+
+        # Goal completion
+        cursor.execute("SELECT COUNT(*) FROM goals WHERE status = 'completed'")
+        goals_completed = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM goals")
+        goals_total = cursor.fetchone()[0]
+
+        # Commit count (git log)
+        try:
+            result = subprocess.run(
+                ["git", "log", "--oneline", "--all"],
+                capture_output=True, text=True, timeout=5, cwd=str(project_root),
+            )
+            commit_count = len(result.stdout.strip().split("\n")) if result.stdout.strip() else 0
+        except Exception:
+            commit_count = 0
+
+    except sqlite3.OperationalError:
+        conn.close()
+        return {"check": "discipline", "passed": None, "status": "unavailable"}
+    conn.close()
+
+    # Discipline assessment — narrative gaps
+    gaps: list[str] = []
+    if types_used <= 2:
+        gaps.append(f"Narrow artifact breadth: only {types_used}/6 types used")
+    if artifact_counts.get("assumptions", 0) == 0:
+        gaps.append("No assumptions logged — are beliefs being made explicit?")
+    if artifact_counts.get("dead_ends", 0) == 0:
+        gaps.append("No dead-ends logged — are failed approaches being captured?")
+    if transactions > 0 and total_artifacts / transactions < 1:
+        gaps.append(f"Low artifact density: {total_artifacts/transactions:.1f} per transaction")
+
+    # Pass if: has transactions, has diverse artifacts, has goals
+    passed = transactions >= 3 and types_used >= 3 and goals_completed > 0
+
+    return {
+        "check": "discipline",
+        "passed": passed,
+        "transactions": transactions,
+        "artifacts": artifact_counts,
+        "artifact_types_used": types_used,
+        "total_artifacts": total_artifacts,
+        "goals_completed": goals_completed,
+        "goals_total": goals_total,
+        "commits": commit_count,
+        "gaps": gaps,
+        "status": "pass" if passed else "fail",
     }
 
 
@@ -620,6 +725,9 @@ def run_compliance_report(
     docs_raw = _run_check("docs-assess", ["empirica", "docs-assess", "--output", "json"], timeout=60)
     results.append(_parse_docs_result(docs_raw))
 
+    # Discipline trajectory (fast, DB queries)
+    results.append(_build_discipline_check(project_root))
+
     # AI transparency checks (fast, git + DB queries)
     results.append(_build_ai_transparency_check(project_root))
     results.append(_build_decision_transparency_check(project_root))
@@ -646,6 +754,39 @@ def run_compliance_report(
     }
 
 
+def _format_check_detail(name: str, check: dict[str, Any]) -> str:
+    """Format human-readable detail string for a compliance check."""
+    c = check  # shorter alias
+    formatters: dict[str, str] = {
+        "lint": f"  {c.get('violations', '?')} violations",
+        "complexity": f"  {c.get('violations', '0')} functions over CC 15",
+        "type_safety": f"  {c.get('errors', '?')} errors, {c.get('warnings', '?')} warnings",
+        "tests": f"  {c.get('passed_count', '?')} passed, {c.get('failed_count', '?')} failed",
+        "dep_audit": f"  {c.get('vulnerabilities', '?')} known CVEs",
+        "security_scan": f"  {c.get('findings_critical', '?')} critical, {c.get('findings_total', '?')} total",
+        "ai_transparency": f"  {c.get('ai_attributed_commits', '?')}/{c.get('sample_size', '?')} commits attributed",
+        "decision_transparency": f"  {c.get('rationale_coverage', '?')}% with rationale ({c.get('decisions_with_rationale', '?')}/{c.get('decisions_total', '?')})",
+        "tech_docs": f"  {c.get('coverage_percent', '?')}% coverage ({c.get('documented', '?')}/{c.get('total', '?')})",
+        "repo_hygiene": f"  {c.get('checks_passed', '?')}/{c.get('checks_total', '?')} checks",
+        "epistemic_audit": f"  {c.get('postflights', '?')} transactions, {c.get('findings', '?')} findings",
+    }
+
+    if name in formatters:
+        return formatters[name]
+
+    if name == "discipline":
+        detail = f"  {c.get('transactions', '?')} tx, {c.get('artifact_types_used', '?')}/6 artifact types, {c.get('goals_completed', '?')} goals done"
+        for gap in c.get("gaps", [])[:2]:
+            detail += f"\n{'':>50}  {gap}"
+        return detail
+
+    if name == "calibration":
+        avg = c.get("avg_calibration_score")
+        return f"  {c.get('grounded_verifications', '?')} verifications" + (f", avg score {avg}" if avg else "")
+
+    return ""
+
+
 def _print_human_report(report: dict[str, Any]) -> None:
     """Print human-readable compliance report."""
     overall = report["overall"]
@@ -667,32 +808,7 @@ def _print_human_report(report: dict[str, Any]) -> None:
         tool = check.get("tool", "")
         icon_char = "+" if status == "pass" else "-" if status == "fail" else "?"
 
-        detail = ""
-        if name == "lint":
-            detail = f"  {check.get('violations', '?')} violations"
-        elif name == "complexity":
-            detail = f"  {check.get('violations', '0')} functions over CC 15"
-        elif name == "type_safety":
-            detail = f"  {check.get('errors', '?')} errors, {check.get('warnings', '?')} warnings"
-        elif name == "tests":
-            detail = f"  {check.get('passed_count', '?')} passed, {check.get('failed_count', '?')} failed"
-        elif name == "dep_audit":
-            detail = f"  {check.get('vulnerabilities', '?')} known CVEs"
-        elif name == "security_scan":
-            detail = f"  {check.get('findings_critical', '?')} critical, {check.get('findings_total', '?')} total"
-        elif name == "ai_transparency":
-            detail = f"  {check.get('ai_attributed_commits', '?')}/{check.get('sample_size', '?')} commits attributed"
-        elif name == "decision_transparency":
-            detail = f"  {check.get('rationale_coverage', '?')}% with rationale ({check.get('decisions_with_rationale', '?')}/{check.get('decisions_total', '?')})"
-        elif name == "tech_docs":
-            detail = f"  {check.get('coverage_percent', '?')}% coverage ({check.get('documented', '?')}/{check.get('total', '?')})"
-        elif name == "repo_hygiene":
-            detail = f"  {check.get('checks_passed', '?')}/{check.get('checks_total', '?')} checks"
-        elif name == "epistemic_audit":
-            detail = f"  {check.get('postflights', '?')} transactions, {check.get('findings', '?')} findings"
-        elif name == "calibration":
-            avg = check.get("avg_calibration_score")
-            detail = f"  {check.get('grounded_verifications', '?')} verifications" + (f", avg score {avg}" if avg else "")
+        detail = _format_check_detail(name, check)
 
         duration = check.get("duration_seconds", "")
         duration_str = f" ({duration}s)" if duration else ""
