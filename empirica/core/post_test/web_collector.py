@@ -175,7 +175,7 @@ class WebEvidenceCollector:
                 self._web_config = config.get("web_evidence", {})
         except Exception:  # noqa: S110 — best-effort config load; empty dict fallback
             pass
-        return self._web_config
+        return self._web_config or {}
 
     def _detect_build_tool(self) -> dict[str, str] | None:
         """Auto-detect the build tool from project structure."""

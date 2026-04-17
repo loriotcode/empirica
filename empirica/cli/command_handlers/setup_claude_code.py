@@ -27,7 +27,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 PLUGIN_NAME = "empirica"
-PLUGIN_VERSION = "1.8.5"
+PLUGIN_VERSION = "1.8.6"
 
 
 def _find_python() -> str:
@@ -767,7 +767,7 @@ def handle_setup_claude_code_command(args):
             print(f"   Using Python: {python_cmd}")
 
         # Stage 1: Create directories
-        home, claude_dir, plugins_dir, plugin_dir, marketplace_dir, empirica_dir = \
+        home, claude_dir, plugins_dir, plugin_dir, marketplace_dir, _empirica_dir = \
             _setup_directories(output_format)
 
         # Stage 2: Install plugin files

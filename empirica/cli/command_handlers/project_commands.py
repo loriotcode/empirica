@@ -184,6 +184,157 @@ def get_workspace_projects() -> list[dict[str, Any]]:
 
 
 
+def _resolve_instance_id_from_claude_session(marker_dir, claude_session_id):
+    """Resolve instance_id by scanning instance_projects/ for matching claude_session_id.
+
+    Returns instance_id or None.
+    """
+    instance_dir = marker_dir / 'instance_projects'
+    if not instance_dir.exists():
+        return None
+    for ip_file in instance_dir.glob('*.json'):
+        try:
+            with open(ip_file) as f:
+                ip_data = json.load(f)
+            if ip_data.get('claude_session_id') == claude_session_id:
+                logger.debug(f"Resolved instance_id={ip_file.stem} from claude_session_id match in {ip_file.name}")
+                return ip_file.stem
+        except Exception:
+            continue
+    return None
+
+
+def _resolve_claude_session_from_instance(marker_dir, instance_id):
+    """Preserve claude_session_id from existing instance_projects file.
+
+    Returns claude_session_id or None.
+    """
+    existing_instance_file = marker_dir / 'instance_projects' / f'{instance_id}.json'
+    if not existing_instance_file.exists():
+        return None
+    try:
+        with open(existing_instance_file) as f:
+            existing_data = json.load(f)
+            csid = existing_data.get('claude_session_id')
+            if csid:
+                logger.debug(f"Preserved claude_session_id from existing instance_projects: {csid}")
+            return csid
+    except Exception:
+        return None
+
+
+def _resolve_claude_session_from_active_work(marker_dir, empirica_session_id):
+    """Reverse-lookup claude_session_id from active_work_*.json files.
+
+    Returns claude_session_id or None.
+    """
+    for aw_file in marker_dir.glob('active_work_*.json'):
+        try:
+            with open(aw_file) as f:
+                aw_data = json.load(f)
+            if aw_data.get('empirica_session_id') == empirica_session_id:
+                csid = aw_file.stem.replace('active_work_', '')
+                logger.debug(f"Resolved claude_session_id={csid[:12]} from active_work reverse-lookup")
+                return csid
+        except Exception:
+            continue
+    return None
+
+
+def _resolve_ids_for_active_work(marker_dir, tty_session, claude_session_id, empirica_session_id):
+    """Resolve instance_id and claude_session_id through multiple fallback strategies.
+
+    Returns (instance_id, claude_session_id).
+    """
+    tty_key = R.tty_key()
+    instance_id = R.instance_id()
+
+    # Fallback: resolve instance_id from claude_session_id
+    if not instance_id and claude_session_id:
+        instance_id = _resolve_instance_id_from_claude_session(marker_dir, claude_session_id)
+
+    # Fallback: resolve from TTY session file
+    if not instance_id and tty_session:
+        instance_id = tty_session.get('instance_id')
+        if instance_id:
+            logger.debug(f"Resolved instance_id={instance_id} from TTY session file")
+
+    # Preserve claude_session_id from existing instance_projects
+    if not claude_session_id and instance_id:
+        claude_session_id = _resolve_claude_session_from_instance(marker_dir, instance_id)
+
+    # Reverse-lookup from active_work files
+    if not claude_session_id and empirica_session_id:
+        claude_session_id = _resolve_claude_session_from_active_work(marker_dir, empirica_session_id)
+
+    if not claude_session_id and instance_id:
+        logger.debug(
+            f"claude_session_id unknown for {instance_id}. "
+            f"Will update generic active_work.json only."
+        )
+
+    return instance_id, claude_session_id, tty_key
+
+
+def _write_marker_files(marker_dir, project_path, folder_name,
+                         instance_id, tty_key, claude_session_id, empirica_session_id):
+    """Write instance_projects, TTY session, and active_session marker files."""
+    import time
+
+    ts = time.strftime('%Y-%m-%dT%H:%M:%S%z')
+
+    # Write instance_projects
+    if instance_id:
+        instance_dir = marker_dir / 'instance_projects'
+        instance_dir.mkdir(parents=True, exist_ok=True)
+        instance_file = instance_dir / f'{instance_id}.json'
+        instance_data = {
+            'project_path': project_path, 'tty_key': tty_key,
+            'claude_session_id': claude_session_id,
+            'empirica_session_id': empirica_session_id, 'timestamp': ts
+        }
+        with open(instance_file, 'w') as f:
+            json.dump(instance_data, f, indent=2)
+        logger.debug(f"Updated instance_projects: {instance_id} -> {folder_name}")
+
+    # Write TTY session
+    if tty_key:
+        tty_sessions_dir = marker_dir / 'tty_sessions'
+        tty_sessions_dir.mkdir(parents=True, exist_ok=True)
+        tty_session_file = tty_sessions_dir / f'{tty_key}.json'
+        tty_data = {}
+        if tty_session_file.exists():
+            try:
+                with open(tty_session_file) as f:
+                    tty_data = json.load(f)
+            except Exception:
+                pass
+        tty_data.update({
+            'project_path': project_path, 'tty_key': tty_key,
+            'instance_id': instance_id, 'timestamp': ts
+        })
+        with open(tty_session_file, 'w') as f:
+            json.dump(tty_data, f, indent=2)
+        logger.debug(f"Updated TTY session project_path: {folder_name}")
+
+    # Update active_session file
+    try:
+        as_suffix = R.instance_suffix()
+        if as_suffix:
+            as_file = marker_dir / f'active_session{as_suffix}'
+            as_data = {
+                'session_id': empirica_session_id,
+                'project_path': project_path, 'ai_id': 'claude-code',
+            }
+            with open(as_file, 'w') as f:
+                json.dump(as_data, f)
+            import os as _os
+            _os.chmod(as_file, 0o600)
+            logger.debug(f"Updated active_session{as_suffix}: {folder_name}")
+    except Exception as e:
+        logger.debug(f"Could not update active_session: {e}")
+
+
 def _update_active_work(project_path: str, folder_name: str, empirica_session_id: str | None = None, claude_session_id: str | None = None) -> bool:
     """
     Update active_work markers AND TTY session for cross-project continuity.
@@ -193,10 +344,6 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
     1. TTY session file's project_path - PRIMARY source for hooks/statusline
     2. Session-specific active_work file (if TTY session exists) - backup
     3. Canonical active_work file - fallback for first-time compaction
-
-    The TTY session file is the source of truth for "what project is this
-    Claude instance working on". Hooks and statusline read it to determine
-    the correct project context.
 
     Args:
         project_path: Full path to the project directory
@@ -213,170 +360,36 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
         marker_dir = Path.home() / '.empirica'
         marker_dir.mkdir(parents=True, exist_ok=True)
 
-        # Try to get Claude session ID - prefer explicit parameter over TTY session
-        # claude_session_id parameter is set when called from project-switch with --claude-session-id
         tty_session = R.tty_session()
         if not claude_session_id:
             claude_session_id = tty_session.get('claude_session_id') if tty_session else None
 
-        # CRITICAL: Update instance_projects and TTY session with new project_path
-        # instance_projects is used by Sentinel and statusline when running via Bash tool
-        # TTY session is used for direct terminal context
-        tty_key = R.tty_key()
+        instance_id, claude_session_id, tty_key = _resolve_ids_for_active_work(
+            marker_dir, tty_session, claude_session_id, empirica_session_id)
 
-        # Use canonical get_instance_id() which supports tmux, X11, macOS Terminal, TTY
-        # Previously only checked TMUX_PANE, breaking X11 and other non-tmux environments
-        instance_id = R.instance_id()
-
-        # When instance_id is absent (Bash tool subprocess may lack env vars),
-        # resolve from claude_session_id by scanning instance_projects/ files.
-        # Hooks write claude_session_id to instance_projects at session start —
-        # this reverse-lookup finds the correct instance.
-        if not instance_id and claude_session_id:
-            instance_dir = marker_dir / 'instance_projects'
-            if instance_dir.exists():
-                for ip_file in instance_dir.glob('*.json'):
-                    try:
-                        with open(ip_file) as f:
-                            ip_data = json.load(f)
-                        if ip_data.get('claude_session_id') == claude_session_id:
-                            instance_id = ip_file.stem  # e.g. "tmux_14", "x11_77663748"
-                            logger.debug(f"Resolved instance_id={instance_id} from claude_session_id match in {ip_file.name}")
-                            break
-                    except Exception:
-                        continue
-
-        # Fallback 3: Read instance_id from TTY session file.
-        # The TTY session stores instance_id from a prior hook that had env vars.
-        # This handles the case where Bash tool has no env AND claude_session_id
-        # is null (e.g., session-create doesn't write claude_session_id to TTY file).
-        if not instance_id and tty_session:
-            instance_id = tty_session.get('instance_id')
-            if instance_id:
-                logger.debug(f"Resolved instance_id={instance_id} from TTY session file")
-
-        # PRESERVE existing claude_session_id if TTY session doesn't have it
-        # This handles the case where session-init hook ran and wrote claude_session_id
-        # to instance_projects, but TTY session wasn't updated (e.g., Bash tool context)
-        if not claude_session_id and instance_id:
-            existing_instance_file = marker_dir / 'instance_projects' / f'{instance_id}.json'
-            if existing_instance_file.exists():
-                try:
-                    with open(existing_instance_file) as f:
-                        existing_data = json.load(f)
-                        claude_session_id = existing_data.get('claude_session_id')
-                        logger.debug(f"Preserved claude_session_id from existing instance_projects: {claude_session_id}")
-                except Exception:
-                    pass
-
-        # Reverse-lookup: if we have empirica_session_id but not claude_session_id,
-        # scan active_work_*.json files for one matching our empirica_session_id.
-        # session-init wrote this file with both IDs — we can discover claude_session_id
-        # from existing state without needing it passed as a flag.
-        if not claude_session_id and empirica_session_id:
-            for aw_file in marker_dir.glob('active_work_*.json'):
-                try:
-                    with open(aw_file) as f:
-                        aw_data = json.load(f)
-                    if aw_data.get('empirica_session_id') == empirica_session_id:
-                        claude_session_id = aw_file.stem.replace('active_work_', '')
-                        logger.debug(f"Resolved claude_session_id={claude_session_id[:12]} from active_work reverse-lookup")
-                        break
-                except Exception:
-                    continue
-
-        if not claude_session_id and instance_id:
-            logger.debug(
-                f"claude_session_id unknown for {instance_id}. "
-                f"Will update generic active_work.json only."
-            )
-
-        # Write instance_projects FIRST - works via Bash tool where tty fails
-        if instance_id:
-            instance_dir = marker_dir / 'instance_projects'
-            instance_dir.mkdir(parents=True, exist_ok=True)
-            instance_file = instance_dir / f'{instance_id}.json'
-            instance_data = {
-                'project_path': project_path,
-                'tty_key': tty_key,  # May be None if via Bash tool
-                'claude_session_id': claude_session_id,
-                'empirica_session_id': empirica_session_id,
-                'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S%z')
-            }
-            with open(instance_file, 'w') as f:
-                json.dump(instance_data, f, indent=2)
-            logger.debug(f"Updated instance_projects: {instance_id} -> {folder_name}")
-
-        # Write TTY session if available (direct terminal context)
-        if tty_key:
-            tty_sessions_dir = marker_dir / 'tty_sessions'
-            tty_sessions_dir.mkdir(parents=True, exist_ok=True)
-            tty_session_file = tty_sessions_dir / f'{tty_key}.json'
-
-            # Read existing TTY session, update project_path, write back
-            tty_data = {}
-            if tty_session_file.exists():
-                try:
-                    with open(tty_session_file) as f:
-                        tty_data = json.load(f)
-                except Exception:
-                    pass
-
-            # Update with new project path
-            tty_data['project_path'] = project_path
-            tty_data['tty_key'] = tty_key
-            tty_data['instance_id'] = instance_id
-            tty_data['timestamp'] = time.strftime('%Y-%m-%dT%H:%M:%S%z')
-
-            with open(tty_session_file, 'w') as f:
-                json.dump(tty_data, f, indent=2)
-            logger.debug(f"Updated TTY session project_path: {folder_name}")
-
-        # Update active_session file (used by statusline for session+project lookup)
-        # session-create writes this initially but project-switch must update it
-        # when the project changes, otherwise statusline reads from wrong project DB.
-        try:
-            as_suffix = R.instance_suffix()
-            if as_suffix:
-                as_file = marker_dir / f'active_session{as_suffix}'
-                as_data = {
-                    'session_id': empirica_session_id,
-                    'project_path': project_path,
-                    'ai_id': 'claude-code',
-                }
-                with open(as_file, 'w') as f:
-                    json.dump(as_data, f)
-                import os as _os
-                _os.chmod(as_file, 0o600)
-                logger.debug(f"Updated active_session{as_suffix}: {folder_name}")
-        except Exception as e:
-            logger.debug(f"Could not update active_session: {e}")
+        _write_marker_files(
+            marker_dir, project_path, folder_name,
+            instance_id, tty_key, claude_session_id, empirica_session_id)
 
         active_work = {
-            'project_path': project_path,
-            'folder_name': folder_name,
+            'project_path': project_path, 'folder_name': folder_name,
             'claude_session_id': claude_session_id,
-            'empirica_session_id': empirica_session_id,  # For Sentinel/MCP session attachment
+            'empirica_session_id': empirica_session_id,
             'source': 'project-switch',
             'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
             'timestamp_epoch': time.time()
         }
 
-        # Also write to session-specific file (if we know the session)
-        # This prevents race conditions with other Claude instances
         if claude_session_id:
             session_marker_path = marker_dir / f'active_work_{claude_session_id}.json'
             with open(session_marker_path, 'w') as f:
                 json.dump(active_work, f, indent=2)
             logger.debug(f"Updated session-specific active_work: {folder_name}")
 
-        # Write generic active_work.json in headless mode only.
-        # In interactive mode, instance_projects + active_work_{uuid} handle everything.
-        # The generic file would just pollute resolution with stale cross-terminal data.
         try:
             _headless = R.is_headless()
         except ImportError:
-            _headless = True  # Conservative: write if can't detect
+            _headless = True
 
         if _headless:
             marker_path = marker_dir / 'active_work.json'
@@ -518,83 +531,84 @@ def _init_filesystem_at_path(target_path, project_id, name, description, project
     }
 
 
+def _parse_project_create_args(args):
+    """Parse and validate project-create arguments. Returns parsed dict."""
+    from empirica.data.repositories.projects import ProjectRepository
+
+    name = args.name
+    description = getattr(args, 'description', None)
+    repos_str = getattr(args, 'repos', None)
+    project_type = getattr(args, 'type', None)
+    tags_str = getattr(args, 'tags', None)
+    parent = getattr(args, 'parent', None)
+
+    repos = json.loads(repos_str) if repos_str else None
+    tags = None
+    if tags_str:
+        tags = json.loads(tags_str) if tags_str.startswith('[') else [t.strip() for t in tags_str.split(',')]
+
+    if project_type and project_type not in ProjectRepository.PROJECT_TYPES:
+        print(f"⚠️  Unknown type '{project_type}'. Valid types: {', '.join(ProjectRepository.PROJECT_TYPES)}")
+        project_type = 'software'
+
+    return {
+        'name': name, 'description': description, 'repos': repos,
+        'project_type': project_type, 'tags': tags, 'parent': parent,
+    }
+
+
+def _register_project_in_workspace_db(project_id, name, description, repos):
+    """Register project in workspace.db for cross-project visibility. Non-fatal."""
+    try:
+        from empirica.config.path_resolver import get_git_root
+
+        from .workspace_init import _register_in_workspace_db
+
+        git_root = get_git_root()
+        if git_root:
+            trajectory_path = str(git_root)
+        elif repos and len(repos) > 0:
+            trajectory_path = repos[0]
+        else:
+            trajectory_path = None
+
+        if trajectory_path:
+            _register_in_workspace_db(
+                project_id=project_id, name=name,
+                trajectory_path=trajectory_path,
+                description=description, git_remote_url=None
+            )
+            logger.debug(f"Registered project {name} in workspace.db")
+    except Exception as e:
+        logger.warning(f"Failed to register in workspace.db: {e}")
+
+
 def handle_project_create_command(args):
     """Handle project-create command"""
     try:
-        from empirica.data.repositories.projects import ProjectRepository
         from empirica.data.session_database import SessionDatabase
 
-        # Parse arguments
-        name = args.name
-        description = getattr(args, 'description', None)
-        repos_str = getattr(args, 'repos', None)
-        project_type = getattr(args, 'type', None)
-        tags_str = getattr(args, 'tags', None)
-        parent = getattr(args, 'parent', None)
+        parsed = _parse_project_create_args(args)
+        name = parsed['name']
+        description = parsed['description']
+        repos = parsed['repos']
+        project_type = parsed['project_type']
+        tags = parsed['tags']
+        parent = parsed['parent']
 
-        # Parse repos JSON if provided
-        repos = None
-        if repos_str:
-            repos = json.loads(repos_str)
-
-        # Parse tags (comma-separated or JSON array)
-        tags = None
-        if tags_str:
-            if tags_str.startswith('['):
-                tags = json.loads(tags_str)
-            else:
-                tags = [t.strip() for t in tags_str.split(',')]
-
-        # Validate project_type
-        if project_type and project_type not in ProjectRepository.PROJECT_TYPES:
-            print(f"⚠️  Unknown type '{project_type}'. Valid types: {', '.join(ProjectRepository.PROJECT_TYPES)}")
-            project_type = 'software'
-
-        # Create project
         db = SessionDatabase()
         project_id = db.create_project(
-            name=name,
-            description=description,
-            repos=repos,
-            project_type=project_type,
-            project_tags=tags,
+            name=name, description=description, repos=repos,
+            project_type=project_type, project_tags=tags,
             parent_project_id=parent
         )
         db.close()
 
-        # Register in workspace.db for cross-project visibility (project-list, project-switch)
-        try:
-            from empirica.config.path_resolver import get_git_root
+        _register_project_in_workspace_db(project_id, name, description, repos)
 
-            from .workspace_init import _register_in_workspace_db
-
-            # Determine trajectory_path: use git root if in repo, otherwise first repo path
-            git_root = get_git_root()
-            if git_root:
-                trajectory_path = str(git_root)
-            elif repos and len(repos) > 0:
-                trajectory_path = repos[0]
-            else:
-                trajectory_path = None
-
-            if trajectory_path:
-                _register_in_workspace_db(
-                    project_id=project_id,
-                    name=name,
-                    trajectory_path=trajectory_path,
-                    description=description,
-                    git_remote_url=None  # Could extract from git if needed
-                )
-                logger.debug(f"Registered project {name} in workspace.db")
-        except Exception as e:
-            logger.warning(f"Failed to register in workspace.db: {e}")
-            # Non-fatal - project still created in local DB
-
-        # Bridge: if --path provided, also initialize filesystem config at that path
         init_result = None
         target_path = getattr(args, 'path', None)
         if target_path:
-            from pathlib import Path
             target = Path(target_path).resolve()
             if not target.exists():
                 logger.warning(f"Path does not exist: {target}")
@@ -602,20 +616,13 @@ def handle_project_create_command(args):
                 logger.warning(f"Not a git repository: {target} (run 'git init' first)")
             else:
                 init_result = _init_filesystem_at_path(
-                    target, project_id, name, description,
-                    project_type, tags, logger
-                )
+                    target, project_id, name, description, project_type, tags, logger)
 
-        # Format output
         if hasattr(args, 'output') and args.output == 'json':
             result = {
-                "ok": True,
-                "project_id": project_id,
-                "name": name,
-                "project_type": project_type or 'product',
-                "tags": tags or [],
-                "repos": repos or [],
-                "parent_project_id": parent,
+                "ok": True, "project_id": project_id, "name": name,
+                "project_type": project_type or 'product', "tags": tags or [],
+                "repos": repos or [], "parent_project_id": parent,
                 "message": "Project created successfully"
             }
             if init_result:
@@ -637,7 +644,6 @@ def handle_project_create_command(args):
             if init_result:
                 print(f"   📁 Filesystem initialized at: {target_path}")
 
-        # Return None to avoid exit code issues and duplicate output
         return None
 
     except Exception as e:

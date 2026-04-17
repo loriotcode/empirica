@@ -454,18 +454,12 @@ def _auto_embed_project(session_id: str):
         pass  # Best-effort — never fail session end for embedding
 
 
-def main():
-    """Main session end logic."""
-    hook_input = {}
-    try:
-        hook_input = json.loads(sys.stdin.read())
-    except Exception:
-        pass
+def _resolve_session_and_project(claude_session_id):
+    """Resolve session ID and project path, set CWD.
 
-    # CRITICAL: Use claude_session_id from hook input for instance-aware resolution
-    claude_session_id = hook_input.get('session_id')
-
-    # Find session via active_work (instance-aware) before falling back to DB
+    Returns (session_id, claude_session_id) tuple.
+    Session ID may be None if no active session found.
+    """
     session_id = None
     project_path = None
 
@@ -478,73 +472,107 @@ def main():
         project_root = find_project_root(allow_cwd_fallback=True)
         os.chdir(project_root)
 
-    # Fallback: DB query if active_work didn't have it
     if not session_id:
         session_id = get_active_session()
 
-    if not session_id:
-        # No session — still clean up files
-        _cleanup_session_files(claude_session_id)
-        output = {
-            "ok": True,
-            "skipped": True,
-            "reason": "No active Empirica session",
-            "cleanup": "active_work purged"
-        }
-        print(json.dumps(output))
-        sys.exit(0)
+    return session_id
 
-    # Check session state
+
+def _skip_exit(claude_session_id, reason, session_id=None, state=None):
+    """Clean up and exit with a skip result."""
+    _cleanup_session_files(claude_session_id)
+    output = {"ok": True, "skipped": True, "reason": reason, "cleanup": "active_work purged"}
+    if session_id:
+        output["session_id"] = session_id
+    if state:
+        output["state"] = state
+    print(json.dumps(output))
+    sys.exit(0)
+
+
+def _run_postflight_cortex_sync(vectors):
+    """Push final artifacts to Cortex remote. Fire-and-forget."""
+    cortex_api_key = os.environ.get('CORTEX_API_KEY', '')
+    cortex_url = os.environ.get('CORTEX_REMOTE_URL', '')
+    if not cortex_api_key or not cortex_url:
+        return
+
+    import urllib.request
+
+    push_delta = {}
+    if vectors:
+        push_delta["session_vectors"] = vectors
+
+    push_project_id = ""
+    try:
+        project_root = find_project_root()
+        if project_root:
+            project_yaml = project_root / '.empirica' / 'project.yaml'
+            if project_yaml.exists():
+                with open(project_yaml) as f:
+                    for line in f:
+                        if line.startswith('project_id:'):
+                            push_project_id = line.split(':', 1)[1].strip()
+                            break
+    except Exception:
+        pass
+
+    payload = json.dumps({
+        "project_id": push_project_id,
+        "delta": push_delta,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        f"{cortex_url.rstrip('/')}/v1/sync",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {cortex_api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    urllib.request.urlopen(req, timeout=5)
+
+
+def main():
+    """Main session end logic."""
+    hook_input = {}
+    try:
+        hook_input = json.loads(sys.stdin.read())
+    except Exception:
+        pass
+
+    claude_session_id = hook_input.get('session_id')
+    session_id = _resolve_session_and_project(claude_session_id)
+
+    if not session_id:
+        _skip_exit(claude_session_id, "No active Empirica session")
+
     state = get_session_state(session_id)
 
     if not state.get("needs_postflight"):
         reason = "POSTFLIGHT already exists" if state.get("has_postflight") else "No PREFLIGHT found"
-        # Clean up even if no POSTFLIGHT needed — session is ending
-        _cleanup_session_files(claude_session_id)
-        output = {
-            "ok": True,
-            "skipped": True,
-            "reason": reason,
-            "session_id": session_id,
-            "state": state,
-            "cleanup": "active_work purged"
-        }
-        print(json.dumps(output))
-        sys.exit(0)
+        _skip_exit(claude_session_id, reason, session_id=session_id, state=state)
 
-    # Auto-submit POSTFLIGHT
     vectors = state.get("last_vectors", {})
-
     if not vectors:
-        _cleanup_session_files(claude_session_id)
-        output = {
-            "ok": True,
-            "skipped": True,
-            "reason": "No vectors available for auto-POSTFLIGHT",
-            "session_id": session_id,
-            "cleanup": "active_work purged"
-        }
-        print(json.dumps(output))
-        sys.exit(0)
+        _skip_exit(claude_session_id, "No vectors available for auto-POSTFLIGHT", session_id=session_id)
 
     # Boost completion since session is ending
     vectors['completion'] = max(vectors.get('completion', 0.5), 0.7)
 
     result = auto_postflight(session_id, vectors)
 
-    # Update MEMORY.md hot cache with ranked artifacts
+    # Non-critical post-POSTFLIGHT tasks
     try:
         update_memory_hot_cache(session_id)
     except Exception:
-        pass  # Non-critical — don't fail session end
-
-    # Sync epistemic artifacts to Qdrant (incremental, non-blocking)
+        pass
     try:
         _auto_embed_project(session_id)
     except Exception:
-        pass  # Non-critical
+        pass
 
-    # Clean up session files AFTER POSTFLIGHT (post-test is the last consumer)
     _cleanup_session_files(claude_session_id)
 
     if result.get("ok"):
@@ -557,50 +585,8 @@ Learning delta will be calculated from PREFLIGHT baseline.
 🧹 Session files cleaned up.
 """, file=sys.stderr)
 
-    # Cortex remote sync: push final artifacts before session closes
-    # Fire-and-forget — don't block session cleanup
     try:
-        cortex_api_key = os.environ.get('CORTEX_API_KEY', '')
-        cortex_url = os.environ.get('CORTEX_REMOTE_URL', '')
-        if cortex_api_key and cortex_url:
-            import urllib.request
-
-            # Collect session artifacts for push
-            push_delta = {}
-            if vectors:
-                push_delta["session_vectors"] = vectors
-
-            # Get project_id
-            push_project_id = ""
-            try:
-                project_root = find_project_root()
-                if project_root:
-                    project_yaml = project_root / '.empirica' / 'project.yaml'
-                    if project_yaml.exists():
-                        with open(project_yaml) as pyf:
-                            for line in pyf:
-                                if line.startswith('project_id:'):
-                                    push_project_id = line.split(':', 1)[1].strip()
-                                    break
-            except Exception:
-                pass
-
-            payload = json.dumps({
-                "project_id": push_project_id,
-                "delta": push_delta,
-            }).encode("utf-8")
-
-            req = urllib.request.Request(
-                f"{cortex_url.rstrip('/')}/v1/sync",
-                data=payload,
-                headers={
-                    "Authorization": f"Bearer {cortex_api_key}",
-                    "Content-Type": "application/json",
-                },
-                method="POST",
-            )
-
-            urllib.request.urlopen(req, timeout=5)
+        _run_postflight_cortex_sync(vectors)
     except Exception:
         pass  # Cortex unavailable — session ends normally
 

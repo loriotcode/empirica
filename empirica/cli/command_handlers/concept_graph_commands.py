@@ -14,7 +14,7 @@ from pathlib import Path
 def _get_concept_graph():
     """Import ConceptGraph from empirica-prediction package."""
     try:
-        from empirica_prediction.concepts.graph import ConceptGraph
+        from empirica_prediction.concepts.graph import ConceptGraph  # pyright: ignore[reportMissingImports]
         return ConceptGraph
     except ImportError:
         print("Error: empirica-prediction package not installed.")

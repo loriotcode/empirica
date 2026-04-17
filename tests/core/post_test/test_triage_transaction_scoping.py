@@ -27,7 +27,6 @@ import pytest
 
 from empirica.core.post_test.collector import PostTestCollector
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@ Investigation Commands - Analysis, investigation, and exploration functionality
 
 import json
 import os
+from typing import Any
 
 from ..cli_utils import handle_cli_error, parse_json_safely, run_empirica_subprocess
 
@@ -51,7 +52,7 @@ def _get_profile_thresholds():
 
         try:
             profile = loader.get_profile('balanced')
-            constraints = profile.constraints
+            constraints = profile.investigation
 
             return {
                 'confidence_low': getattr(constraints, 'confidence_low_threshold', 0.5),
@@ -75,6 +76,96 @@ def _get_profile_thresholds():
         }
 
 
+def _investigate_load_bootstrap(session_id):
+    """Load bootstrap context for noetic recalibration.
+
+    Returns (bootstrap_context, recalibration_attempt) or (None, attempt)
+    if recalibration limit reached (caller should return early).
+    """
+    recalibration_attempt = _get_recalibration_attempts(session_id)
+
+    if recalibration_attempt >= 3:
+        print(f"⚠️  Recalibration attempt limit reached ({recalibration_attempt})")
+        print("   Consider: pausing investigation, taking a snapshot, or starting fresh")
+        print("   Further investigation may not resolve drift")
+        return None, recalibration_attempt
+
+    bootstrap_context = {}
+    try:
+        result = run_empirica_subprocess(
+            ['empirica', 'project-bootstrap', '--session-id', session_id, '--output', 'json'],
+            timeout=30
+        )
+        if result.returncode == 0:
+            bootstrap_data = json.loads(result.stdout)
+            bootstrap_context = bootstrap_data.get('breadcrumbs', {})
+            print(f"📦 Loaded context anchor from bootstrap (attempt {recalibration_attempt + 1}/3)")
+            print(f"   Findings: {len(bootstrap_context.get('findings', []))}")
+            print(f"   Unknowns: {len(bootstrap_context.get('unknowns', []))}")
+            print(f"   Goals: {len(bootstrap_context.get('goals', []))}")
+    except Exception:
+        pass  # Bootstrap failure is non-fatal
+
+    return bootstrap_context, recalibration_attempt
+
+
+def _investigate_dispatch(investigation_type, target, args):
+    """Dispatch investigation to the correct handler based on type.
+
+    Returns the investigation result dict.
+    """
+    verbose = getattr(args, 'verbose', False)
+
+    if investigation_type == 'auto':
+        if os.path.exists(target):
+            if os.path.isfile(target):
+                return _investigate_file(target, verbose)
+            elif os.path.isdir(target):
+                return _investigate_directory(target, verbose)
+            else:
+                return {"error": "Target exists but is neither file nor directory"}
+        else:
+            return _investigate_concept(target, getattr(args, 'context', None), verbose)
+
+    dispatch = {
+        'file': lambda: _investigate_file(target, verbose),
+        'directory': lambda: _investigate_directory(target, verbose),
+        'concept': lambda: _investigate_concept(target, getattr(args, 'context', None), verbose),
+    }
+    handler = dispatch.get(investigation_type)
+    if handler:
+        return handler()
+    return {"error": f"Unknown investigation type: {investigation_type}"}
+
+
+def _investigate_display_results(target, result):
+    """Display investigation results to stdout."""
+    print("✅ Investigation complete")
+    print(f"   🎯 Target: {target}")
+    print(f"   📊 Type: {result.get('type', 'unknown')}")
+
+    if result.get('summary'):
+        print(f"   📝 Summary: {result['summary']}")
+
+    if result.get('findings'):
+        print("🔍 Key findings:")
+        for finding in result['findings'][:5]:
+            print(f"   • {finding}")
+
+    if result.get('metrics'):
+        print("📊 Metrics:")
+        for metric, value in result['metrics'].items():
+            print(f"   • {metric}: {value}")
+
+    if result.get('recommendations'):
+        print("💡 Recommendations:")
+        for rec in result['recommendations']:
+            print(f"   • {rec}")
+
+    if result.get('error'):
+        print(f"❌ Investigation error: {result['error']}")
+
+
 def handle_investigate_command(args):
     """Handle investigation command (consolidates investigate + analyze)
 
@@ -84,101 +175,27 @@ def handle_investigate_command(args):
     - Investigation then rebuilds understanding from that anchor
     """
     try:
-        # Check if this is a comprehensive analysis (replaces old 'analyze' command)
         investigation_type = getattr(args, 'type', 'auto')
         if investigation_type == 'comprehensive':
-            # Redirect to comprehensive analysis
             return handle_analyze_command(args)
 
-        # For NOETIC RECALIBRATION: Load bootstrap context if session provided
         session_id = getattr(args, 'session_id', None)
-        bootstrap_context = {}
-        recalibration_attempt = 0
-
         if session_id:
-            # Check recalibration attempt count to prevent infinite loops
-            recalibration_attempt = _get_recalibration_attempts(session_id)
-
-            if recalibration_attempt >= 3:
-                print(f"⚠️  Recalibration attempt limit reached ({recalibration_attempt})")
-                print("   Consider: pausing investigation, taking a snapshot, or starting fresh")
-                print("   Further investigation may not resolve drift")
+            bootstrap_context, recalibration_attempt = _investigate_load_bootstrap(session_id)
+            if bootstrap_context is None and recalibration_attempt >= 3:
                 return None
-
-            try:
-                result = run_empirica_subprocess(
-                    ['empirica', 'project-bootstrap', '--session-id', session_id, '--output', 'json'],
-                    timeout=30
-                )
-                if result.returncode == 0:
-                    bootstrap_data = json.loads(result.stdout)
-                    bootstrap_context = bootstrap_data.get('breadcrumbs', {})
-                    print(f"📦 Loaded context anchor from bootstrap (attempt {recalibration_attempt + 1}/3)")
-                    print(f"   Findings: {len(bootstrap_context.get('findings', []))}")
-                    print(f"   Unknowns: {len(bootstrap_context.get('unknowns', []))}")
-                    print(f"   Goals: {len(bootstrap_context.get('goals', []))}")
-            except Exception:
-                # Bootstrap failure is non-fatal
-                pass
-
 
         target = args.target
         print(f"🔍 Investigating: {target}")
 
-        # Determine investigation type
-        if investigation_type == 'auto':
-            # Auto-detect based on target
-            if os.path.exists(target):
-                if os.path.isfile(target):
-                    result = _investigate_file(target, getattr(args, 'verbose', False))
-                elif os.path.isdir(target):
-                    result = _investigate_directory(target, getattr(args, 'verbose', False))
-                else:
-                    result = {"error": "Target exists but is neither file nor directory"}
-            else:
-                # Treat as concept investigation
-                result = _investigate_concept(target, getattr(args, 'context', None), getattr(args, 'verbose', False))
-        elif investigation_type == 'file':
-            result = _investigate_file(target, getattr(args, 'verbose', False))
-        elif investigation_type == 'directory':
-            result = _investigate_directory(target, getattr(args, 'verbose', False))
-        elif investigation_type == 'concept':
-            result = _investigate_concept(target, getattr(args, 'context', None), getattr(args, 'verbose', False))
-        else:
-            result = {"error": f"Unknown investigation type: {investigation_type}"}
+        result = _investigate_dispatch(investigation_type, target, args)
 
-        # Display results
-        print("✅ Investigation complete")
-        print(f"   🎯 Target: {target}")
-        print(f"   📊 Type: {result.get('type', 'unknown')}")
+        _investigate_display_results(target, result)
 
-        if result.get('summary'):
-            print(f"   📝 Summary: {result['summary']}")
-
-        if result.get('findings'):
-            print("🔍 Key findings:")
-            for finding in result['findings'][:5]:  # Show top 5
-                print(f"   • {finding}")
-
-        if result.get('metrics'):
-            print("📊 Metrics:")
-            for metric, value in result['metrics'].items():
-                print(f"   • {metric}: {value}")
-
-        if result.get('recommendations'):
-            print("💡 Recommendations:")
-            for rec in result['recommendations']:
-                print(f"   • {rec}")
-
-        if result.get('error'):
-            print(f"❌ Investigation error: {result['error']}")
-
-        # Format output based on requested format
         output_format = getattr(args, 'output', 'default')
         if output_format == 'json':
             print(json.dumps(result, indent=2))
 
-        # Return None to avoid exit code issues and duplicate output
         return None
 
     except Exception as e:
@@ -198,7 +215,7 @@ def handle_analyze_command(args):
         context = parse_json_safely(getattr(args, 'context', None))
 
         # Run comprehensive analysis
-        result = analyzer.analyze(
+        result = analyzer.analyze_performance(
             subject=args.subject,
             context=context,
             analysis_type=getattr(args, 'type', 'general'),
@@ -250,7 +267,9 @@ def handle_analyze_command(args):
 def _investigate_file(file_path: str, verbose: bool = False) -> dict:
     """Investigate a specific file"""
     try:
-        from empirica.components.code_intelligence_analyzer import CodeIntelligenceAnalyzer
+        from empirica.components.code_intelligence_analyzer import (  # pyright: ignore[reportMissingImports]
+            CodeIntelligenceAnalyzer,
+        )
 
         analyzer = CodeIntelligenceAnalyzer()
         result = analyzer.analyze_file(file_path)
@@ -270,7 +289,7 @@ def _investigate_file(file_path: str, verbose: bool = False) -> dict:
 def _investigate_directory(dir_path: str, verbose: bool = False) -> dict:
     """Investigate a directory structure"""
     try:
-        from empirica.components.workspace_awareness import WorkspaceNavigator
+        from empirica.components.workspace_awareness import WorkspaceNavigator  # pyright: ignore[reportMissingImports]
 
         workspace = WorkspaceNavigator()
         result = workspace.analyze_directory(dir_path)
@@ -433,6 +452,64 @@ def handle_investigate_checkpoint_branch_command(args):
         handle_cli_error(e, "Checkpoint investigation branch", getattr(args, 'verbose', False))
 
 
+def _merge_tag_losing_branches(db, session_id, merge_result):
+    """Tag losing branches as dead ends in DB and Qdrant.
+
+    Returns (dead_ends_logged, dead_ends_embedded).
+    """
+    dead_ends_logged = 0
+    dead_ends_embedded = 0
+
+    winning_name = merge_result["winning_branch_name"]
+    winning_score = merge_result["winning_score"]
+    winning_branch_id = merge_result["winning_branch_id"]
+
+    project_id = None
+    try:
+        cursor = db.conn.cursor()
+        cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
+        row = cursor.fetchone()
+        if row:
+            project_id = row[0]
+    except Exception:
+        pass
+
+    for loser in merge_result["other_branches"]:
+        loser_name = loser.get("branch_name", "unknown")
+        loser_score = loser.get("score", 0)
+        loser_branch_id = loser.get("branch_id")
+        score_diff = winning_score - loser_score
+        approach = f"Investigation branch: {loser_name}"
+        why_failed = (f"Lost epistemic merge to {winning_name} (score diff: {score_diff:.4f}). "
+                      f"Branch score: {loser_score:.4f} vs winner: {winning_score:.4f}")
+
+        db.log_project_dead_end(
+            project_id=None, session_id=session_id,
+            approach=approach, why_failed=why_failed,
+            goal_id=None, subtask_id=None
+        )
+        dead_ends_logged += 1
+
+        if project_id:
+            try:
+                from empirica.core.qdrant.vector_store import embed_dead_end_with_branch_context
+                embedded = embed_dead_end_with_branch_context(
+                    project_id=project_id,
+                    dead_end_id=f"{session_id}_{loser_branch_id}",
+                    approach=approach, why_failed=why_failed,
+                    session_id=session_id, branch_id=loser_branch_id,
+                    winning_branch_id=winning_branch_id, score_diff=score_diff,
+                    preflight_vectors=loser.get("preflight_vectors"),
+                    postflight_vectors=loser.get("postflight_vectors")
+                )
+                if embedded:
+                    dead_ends_embedded += 1
+            except ImportError:
+                pass
+
+    return dead_ends_logged, dead_ends_embedded
+
+
 def handle_investigate_merge_branches_command(args):
     """Handle investigate-merge-branches command - Auto-merge best branch based on epistemic scores"""
     try:
@@ -444,7 +521,6 @@ def handle_investigate_merge_branches_command(args):
 
         db = SessionDatabase()
 
-        # Perform epistemic auto-merge
         merge_result = db.merge_branches(
             session_id=session_id,
             investigation_round=investigation_round
@@ -452,70 +528,14 @@ def handle_investigate_merge_branches_command(args):
 
         if "error" in merge_result:
             db.close()
-            result = {
-                "ok": False,
-                "error": merge_result["error"]
-            }
+            result = {"ok": False, "error": merge_result["error"]}
         else:
-            # Tag losing branches as dead ends if --tag-losers flag
             dead_ends_logged = 0
             dead_ends_embedded = 0
             if tag_losers and merge_result.get("other_branches"):
-                winning_name = merge_result["winning_branch_name"]
-                winning_score = merge_result["winning_score"]
-                winning_branch_id = merge_result["winning_branch_id"]
-
-                # Get project_id for Qdrant embedding
-                project_id = None
-                try:
-                    cursor = db.conn.cursor()
-                    cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
-                    row = cursor.fetchone()
-                    if row:
-                        project_id = row[0]
-                except Exception:
-                    pass
-
-                for loser in merge_result["other_branches"]:
-                    loser_name = loser.get("branch_name", "unknown")
-                    loser_score = loser.get("score", 0)
-                    loser_branch_id = loser.get("branch_id")
-                    score_diff = winning_score - loser_score
-                    approach = f"Investigation branch: {loser_name}"
-                    why_failed = (f"Lost epistemic merge to {winning_name} (score diff: {score_diff:.4f}). "
-                                  f"Branch score: {loser_score:.4f} vs winner: {winning_score:.4f}")
-
-                    # Log as dead end to database
-                    dead_end_id = db.log_project_dead_end(
-                        project_id=None,  # Will be resolved from session
-                        session_id=session_id,
-                        approach=approach,
-                        why_failed=why_failed,
-                        goal_id=None,
-                        subtask_id=None
-                    )
-                    dead_ends_logged += 1
-
-                    # Also embed to Qdrant for similarity search
-                    if project_id:
-                        try:
-                            from empirica.core.qdrant.vector_store import embed_dead_end_with_branch_context
-                            embedded = embed_dead_end_with_branch_context(
-                                project_id=project_id,
-                                dead_end_id=str(dead_end_id) if dead_end_id else f"{session_id}_{loser_branch_id}",
-                                approach=approach,
-                                why_failed=why_failed,
-                                session_id=session_id,
-                                branch_id=loser_branch_id,
-                                winning_branch_id=winning_branch_id,
-                                score_diff=score_diff,
-                                preflight_vectors=loser.get("preflight_vectors"),
-                                postflight_vectors=loser.get("postflight_vectors")
-                            )
-                            if embedded:
-                                dead_ends_embedded += 1
-                        except ImportError:
-                            pass  # Qdrant not available
+                dead_ends_logged, dead_ends_embedded = _merge_tag_losing_branches(
+                    db, session_id, merge_result
+                )
 
             db.close()
 
@@ -532,7 +552,6 @@ def handle_investigate_merge_branches_command(args):
                 "dead_ends_embedded": dead_ends_embedded if tag_losers else None
             }
 
-        # Format output
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
@@ -612,7 +631,7 @@ def handle_investigate_multi_command(args):
             }
 
         # Build response
-        response = {
+        response: dict[str, Any] = {
             "ok": True,
             "session_id": session_id,
             "task": task,

@@ -191,7 +191,7 @@ class GitProgressQuery:
                 'goals': []
             }
 
-        team_data = {
+        team_data: dict[str, Any] = {
             'goals': [],
             'total_completed_tasks': 0,
             'total_commits': 0

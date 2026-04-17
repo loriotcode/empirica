@@ -255,7 +255,8 @@ def _enrich_memory_types(result, project_id, task_context, limits, include_eidet
                  "domain": e.get("domain"), "confirmation_count": e.get("confirmation_count", 1), "score": e.get("score", 0.0)}
                 for e in search_eidetic(project_id, task_context, min_confidence=0.5, limit=limits["eidetic"])]
         except Exception as e:
-            logger.debug(f"Eidetic retrieval failed: {e}"); result["eidetic_facts"] = []
+            logger.debug(f"Eidetic retrieval failed: {e}")
+            result["eidetic_facts"] = []
     if include_episodic:
         try:
             from .vector_store import search_episodic
@@ -264,7 +265,8 @@ def _enrich_memory_types(result, project_id, task_context, limits, include_eidet
                  "learning_delta": ep.get("learning_delta", {}), "recency_weight": ep.get("recency_weight", 1.0), "score": ep.get("score", 0.0)}
                 for ep in search_episodic(project_id, task_context, limit=limits["episodic"], apply_recency_decay=True)]
         except Exception as e:
-            logger.debug(f"Episodic retrieval failed: {e}"); result["episodic_narratives"] = []
+            logger.debug(f"Episodic retrieval failed: {e}")
+            result["episodic_narratives"] = []
     try:
         from .vector_store import search_global_dead_ends
         raw = search_global_dead_ends(f"Approach for: {task_context}", limit=limits["global_dead_ends"])
@@ -312,7 +314,8 @@ def _enrich_knowledge_graph(result, project_id, task_context, threshold, limits,
             result["related_docs"] = [{"doc_path": d.get("doc_path", ""), "description": d.get("description", ""),
                 "doc_type": d.get("doc_type", ""), "tags": d.get("tags", []), "score": d.get("score", 0.0)} for d in raw]
         except Exception as e:
-            logger.debug(f"Related docs retrieval failed: {e}"); result["related_docs"] = []
+            logger.debug(f"Related docs retrieval failed: {e}")
+            result["related_docs"] = []
 
 
 def _enrich_task_patterns(result, project_id, task_context, threshold, limits,

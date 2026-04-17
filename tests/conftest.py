@@ -5,16 +5,15 @@ This file provides common fixtures and configuration for all Empirica tests,
 following patterns from Pydantic AI's testing approach.
 """
 
-import pytest
-import tempfile
 import json
-from pathlib import Path
-from datetime import datetime
-from typing import Iterator, Dict, Any
-import shutil
-import sys
 import os
+import shutil
+import tempfile
+from collections.abc import Iterator
+from pathlib import Path
+from typing import Any
 
+import pytest
 
 # =============================================================================
 # Instance Isolation: Prevent tests from corrupting live Empirica state
@@ -74,7 +73,7 @@ def isolate_empirica_instance():
     for pattern in patterns:
         for filepath in glob.glob(pattern):
             try:
-                with open(filepath, 'r') as f:
+                with open(filepath) as f:
                     backup[filepath] = f.read()
             except Exception:
                 pass
@@ -108,7 +107,7 @@ def temp_empirica_dir() -> Iterator[Path]:
         empirica_path = Path(tmpdir) / ".empirica"
         empirica_path.mkdir()
         (empirica_path / "sessions").mkdir()
-        
+
         # Create credentials template
         creds_template = empirica_path / "credentials.yaml.template"
         creds_template.write_text("""# Empirica Credentials Template
@@ -121,7 +120,7 @@ openai_api_key: \"your-key-here\"
 anthropic_api_key: \"your-key-here\"
 """
         )
-        
+
         yield empirica_path
 
 
@@ -143,12 +142,12 @@ def temp_reflex_logs_dir() -> Iterator[Path]:
 def temp_session_db(temp_empirica_dir):
     """Create temporary session database for testing"""
     from empirica.data.session_database import SessionDatabase
-    
+
     db_path = temp_empirica_dir / "sessions" / "test.db"
     db = SessionDatabase(db_path=str(db_path))
-    
+
     yield db
-    
+
     db.close()
 
 
@@ -157,7 +156,7 @@ def temp_session_db(temp_empirica_dir):
 # ============================================================================
 
 @pytest.fixture
-def sample_assessment_response() -> Dict[str, Any]:
+def sample_assessment_response() -> dict[str, Any]:
     """Sample genuine assessment response for testing"""
     return {
         "engagement": {
@@ -222,7 +221,7 @@ def sample_assessment_response() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def sample_preflight_vectors() -> Dict[str, float]:
+def sample_preflight_vectors() -> dict[str, float]:
     """Sample preflight vector scores for testing"""
     return {
         "know": 0.5,
@@ -242,7 +241,7 @@ def sample_preflight_vectors() -> Dict[str, float]:
 
 
 @pytest.fixture
-def sample_postflight_vectors() -> Dict[str, float]:
+def sample_postflight_vectors() -> dict[str, float]:
     """Sample postflight vector scores (showing learning)"""
     return {
         "know": 0.7,  # Increased
@@ -268,7 +267,7 @@ def sample_postflight_vectors() -> Dict[str, float]:
 @pytest.fixture
 def mock_llm_response():
     """Factory fixture for creating mock LLM responses"""
-    def _make_response(vectors: Dict[str, float]) -> str:
+    def _make_response(vectors: dict[str, float]) -> str:
         """Create a mock LLM response with given vectors"""
         response = {
             "engagement": {
@@ -331,7 +330,7 @@ def mock_llm_response():
             }
         }
         return json.dumps(response)
-    
+
     return _make_response
 
 
@@ -363,15 +362,15 @@ def pytest_configure(config):
 def cleanup_test_artifacts():
     """Automatically clean up test artifacts after each test"""
     yield
-    
+
     # Clean up any test databases
     test_dbs = Path(".").glob("test*.db")
     for db in test_dbs:
         try:
             db.unlink()
-        except:
+        except Exception:
             pass
-    
+
     # Clean up test reflex logs
     test_logs = Path(".empirica_reflex_logs_test")
     if test_logs.exists():
@@ -385,7 +384,7 @@ def cleanup_test_artifacts():
 @pytest.fixture
 def assert_vectors_valid():
     """Helper to assert epistemic vectors are valid"""
-    def _assert(vectors: Dict[str, float]):
+    def _assert(vectors: dict[str, float]):
         """Assert all vector scores are in valid range [0.0, 1.0]"""
         required_vectors = [
             "know", "do", "context",
@@ -393,27 +392,27 @@ def assert_vectors_valid():
             "state", "change", "completion", "impact",
             "engagement", "uncertainty"
         ]
-        
+
         for vector in required_vectors:
             assert vector in vectors, f"Missing vector: {vector}"
             score = vectors[vector]
             assert isinstance(score, (int, float)), f"{vector} score must be numeric"
             assert 0.0 <= score <= 1.0, f"{vector} score must be in [0.0, 1.0], got {score}"
-    
+
     return _assert
 
 
 @pytest.fixture
 def assert_genuine_assessment():
     """Helper to assert assessment contains genuine rationale"""
-    def _assert(assessment_dict: Dict[str, Any]):
+    def _assert(assessment_dict: dict[str, Any]):
         """Assert assessment contains genuine rationale, not template text"""
         # Check engagement
         assert "engagement" in assessment_dict
         assert "rationale" in assessment_dict["engagement"]
         engagement_rationale = assessment_dict["engagement"]["rationale"]
         assert len(engagement_rationale) > 10, "Rationale too short to be genuine"
-        
+
         # Check foundation vectors have rationale
         for vector in ["know", "do", "context"]:
             assert vector in assessment_dict["foundation"]
@@ -427,7 +426,7 @@ def assert_genuine_assessment():
                 "baseline",
                 "default"
             ], f"{vector} rationale appears to be template text"
-    
+
     return _assert
 
 

@@ -9,15 +9,17 @@ Tests:
 5. Export public persona information
 """
 
-import pytest
 import json
-from datetime import datetime, UTC
 
-from empirica.core.persona.persona_profile import (
-    PersonaProfile, SigningIdentityConfig, EpistemicConfig,
-    CapabilitiesConfig, SentinelConfig, PersonaMetadata
-)
+import pytest
+
 from empirica.core.identity.ai_identity import AIIdentity
+from empirica.core.persona.persona_profile import (
+    EpistemicConfig,
+    PersonaMetadata,
+    PersonaProfile,
+    SigningIdentityConfig,
+)
 from empirica.core.persona.signing_persona import SigningPersona
 
 
@@ -189,7 +191,7 @@ def test_sign_invalid_vector_value(signing_persona):
         "uncertainty": 0.75
     }
 
-    with pytest.raises(ValueError, match="must be in \\[0.0, 1.0\\]"):
+    with pytest.raises(ValueError, match=r"must be in \[0\.0, 1\.0\]"):
         signing_persona.sign_epistemic_state(state, phase="PREFLIGHT")
 
 
@@ -302,8 +304,7 @@ def test_export_public_persona(signing_persona):
 
 def test_signature_determinism(signing_persona):
     """Test that signing same state produces same signature"""
-    from datetime import datetime, timezone
-    
+
     state = {
         "engagement": 0.80,
         "know": 0.60,
@@ -323,7 +324,7 @@ def test_signature_determinism(signing_persona):
     # Use same timestamp for both signings to ensure determinism
     # (timestamps change between calls, so we fix it for this test)
     fixed_timestamp = "2025-12-31T20:39:44+00:00"
-    
+
     # Sign twice with same timestamp
     signed1 = signing_persona.sign_epistemic_state(state, phase="PREFLIGHT", timestamp=fixed_timestamp)
     signed2 = signing_persona.sign_epistemic_state(state, phase="PREFLIGHT", timestamp=fixed_timestamp)

@@ -37,7 +37,7 @@ Usage:
 import json
 import logging
 import subprocess
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +46,8 @@ from empirica.core.persona.signing_persona import SigningPersona
 from .checkpoint_storage import CheckpointStorage
 from .git_notes_storage import GitNotesStorage
 from .git_state_capture import GitStateCapture
+
+UTC = timezone.utc
 
 logger = logging.getLogger(__name__)
 

@@ -53,7 +53,7 @@ def _fetch_notes(remote: str) -> dict[str, Any]:
 
     Returns dict with 'ok', 'fetched', 'errors' keys.
     """
-    results = {'ok': True, 'fetched': {}, 'errors': []}
+    results: dict[str, Any] = {'ok': True, 'fetched': {}, 'errors': []}
 
     # Fetch all empirica notes at once
     refspecs = [
@@ -91,7 +91,7 @@ def _fetch_notes(remote: str) -> dict[str, Any]:
 
 def _push_notes(remote: str) -> dict[str, Any]:
     """Push all empirica git notes refs to remote."""
-    results = {'ok': True, 'pushed': {}, 'errors': []}
+    results: dict[str, Any] = {'ok': True, 'pushed': {}, 'errors': []}
 
     refspecs = [
         'refs/notes/empirica/*:refs/notes/empirica/*',
@@ -202,7 +202,7 @@ def handle_profile_sync_command(args):
                               "hint": "Run 'empirica sync-config enabled true' to enable, or use --force"}, indent=2))
             return 1
 
-        result = {"ok": True, "pipeline": []}
+        result: dict[str, Any] = {"ok": True, "pipeline": []}
 
         if not import_only:
             fetch_result = _fetch_notes(remote)
@@ -642,7 +642,7 @@ def _get_calibration_summary(workspace) -> dict:
 
 def _get_transcript_import_stats() -> dict:
     """Get transcript import statistics from SQLite."""
-    import_stats = {'total': 0, 'by_source': {}, 'by_type': {}}
+    import_stats: dict[str, Any] = {'total': 0, 'by_source': {}, 'by_type': {}}
     try:
         from empirica.data.session_database import SessionDatabase as _DB2
         db2 = _DB2()
@@ -883,10 +883,10 @@ def _store_extracted_artifacts(all_results):
     import uuid as uuid_mod
 
     from empirica.data.session_database import SessionDatabase
-    from empirica.utils.session_resolver import get_active_project_id
+    from empirica.utils.session_resolver import InstanceResolver
 
     db = SessionDatabase()
-    project_id = get_active_project_id()
+    project_id = InstanceResolver.project_id_from_db(InstanceResolver.project_path())
     stored = {'findings': 0, 'unknowns': 0, 'dead_ends': 0, 'mistakes': 0}
 
     try:

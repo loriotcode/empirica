@@ -209,7 +209,7 @@ class TestWaitForResult:
     def test_wait_for_result_succeeds(self, terminal_bus, cowork_bus):
         """Terminal blocks waiting for cowork's response, gets it before timeout."""
         # Cowork worker thread that processes dispatches
-        stop = threading.Event()
+        threading.Event()
         worker_done = threading.Event()
 
         def worker():

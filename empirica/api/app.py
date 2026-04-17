@@ -47,7 +47,7 @@ def create_app() -> Flask:
         logger.warning("CORS_ORIGIN not set - allowing all origins (development mode)")
 
     @app.after_request
-    def add_cors_headers(response):
+    def add_cors_headers(response):  # pyright: ignore[reportUnusedFunction]
         """Add CORS headers to all responses."""
         response.headers['Access-Control-Allow-Origin'] = allowed_origin
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
@@ -63,7 +63,7 @@ def create_app() -> Flask:
 
     # Health check endpoint
     @app.route("/health", methods=["GET"])
-    def health_check():
+    def health_check():  # pyright: ignore[reportUnusedFunction]
         """Return API health status."""
         try:
             db = get_db()
@@ -92,7 +92,7 @@ def create_app() -> Flask:
 
     # Global error handler
     @app.errorhandler(Exception)
-    def handle_error(error):
+    def handle_error(error):  # pyright: ignore[reportUnusedFunction]
         """Handle uncaught exceptions with JSON error response.
 
         Security: Only expose detailed error messages in debug mode.
@@ -119,4 +119,5 @@ if __name__ == "__main__":
     app = create_app()
     # Security: Use environment variable for debug mode, default to False
     debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
-    app.run(host="0.0.0.0", port=8000, debug=debug_mode)  # noqa: S104 — dev server; production uses gunicorn
+    host = os.environ.get("FLASK_HOST", "127.0.0.1")
+    app.run(host=host, port=8000, debug=debug_mode)

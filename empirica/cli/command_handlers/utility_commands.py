@@ -110,6 +110,59 @@ def handle_qdrant_cleanup_command(args):
         handle_cli_error(e, "Qdrant cleanup", getattr(args, 'verbose', False))
 
 
+def _group_collections_by_project(info):
+    """Group Qdrant collections by project. Returns (projects_dict, globals_list)."""
+    projects = {}
+    globals_list = []
+    for c in info:
+        name = c['name']
+        if name.startswith('project_'):
+            parts = name.split('_')
+            if len(parts) >= 3:
+                coll_type = parts[-1]
+                project_id = '_'.join(parts[1:-1])
+                if project_id not in projects:
+                    projects[project_id] = []
+                projects[project_id].append({
+                    "type": coll_type, "points": c['points'],
+                    "dimensions": c['dimensions']
+                })
+            else:
+                globals_list.append(c)
+        else:
+            globals_list.append(c)
+    return projects, globals_list
+
+
+def _print_qdrant_status_human(info, projects, globals_list, total_points, empty_count):
+    """Print Qdrant status in human-readable format."""
+    print("\nQdrant Collection Inventory")
+    print("=" * 60)
+    print(f"Total collections: {len(info)}")
+    print(f"Total points:      {total_points:,}")
+    print(f"Empty collections: {empty_count}")
+    print(f"Projects:          {len(projects)}")
+
+    for pid in sorted(projects.keys()):
+        colls = projects[pid]
+        proj_points = sum(c['points'] or 0 for c in colls)
+        proj_empty = sum(1 for c in colls if (c['points'] or 0) == 0)
+        print(f"\n  Project: {pid[:12]}...")
+        print(f"    Collections: {len(colls)} ({proj_empty} empty)")
+        print(f"    Points: {proj_points:,}")
+        for c in sorted(colls, key=lambda x: x['type']):
+            marker = " " if (c['points'] or 0) > 0 else "x"
+            print(f"      [{marker}] {c['type']}: {c['points'] or 0} points")
+
+    if globals_list:
+        print("\n  Global collections:")
+        for c in sorted(globals_list, key=lambda x: x['name']):
+            print(f"    - {c['name']}: {c['points'] or 0} points")
+
+    if empty_count > 0:
+        print(f"\nTip: Run 'empirica qdrant-cleanup' to remove {empty_count} empty collections")
+
+
 def handle_qdrant_status_command(args):
     """Show Qdrant collection inventory and stats."""
     try:
@@ -117,11 +170,7 @@ def handle_qdrant_status_command(args):
 
         info = get_collection_info()
 
-        if not info and info is not None:
-            # Empty list = Qdrant available but no collections
-            pass
-        elif info is None or (isinstance(info, list) and len(info) == 0):
-            # Check if Qdrant is available at all
+        if info is None or (isinstance(info, list) and len(info) == 0):
             from empirica.core.qdrant.connection import _check_qdrant_available
             if not _check_qdrant_available():
                 if getattr(args, 'output', 'human') == 'json':
@@ -130,67 +179,19 @@ def handle_qdrant_status_command(args):
                     print("Qdrant is not available. Set EMPIRICA_QDRANT_URL or start Qdrant.")
                 return
 
-        # Group by project
-        projects = {}
-        globals_list = []
-        for c in info:
-            name = c['name']
-            if name.startswith('project_'):
-                # Extract project ID: project_{uuid}_{type}
-                parts = name.split('_')
-                if len(parts) >= 3:
-                    # UUID is parts[1] through parts[-2] joined (UUIDs have hyphens not underscores)
-                    coll_type = parts[-1]
-                    project_id = '_'.join(parts[1:-1])
-                    if project_id not in projects:
-                        projects[project_id] = []
-                    projects[project_id].append({
-                        "type": coll_type, "points": c['points'],
-                        "dimensions": c['dimensions']
-                    })
-                else:
-                    globals_list.append(c)
-            else:
-                globals_list.append(c)
-
+        projects, globals_list = _group_collections_by_project(info)
         total_points = sum(c['points'] or 0 for c in info)
         empty_count = sum(1 for c in info if (c['points'] or 0) == 0)
 
         if getattr(args, 'output', 'human') == 'json':
             print(json.dumps({
-                "ok": True,
-                "total_collections": len(info),
-                "total_points": total_points,
-                "empty_collections": empty_count,
+                "ok": True, "total_collections": len(info),
+                "total_points": total_points, "empty_collections": empty_count,
                 "projects": dict(projects.items()),
                 "global_collections": globals_list,
             }, indent=2))
         else:
-            print("\nQdrant Collection Inventory")
-            print("=" * 60)
-            print(f"Total collections: {len(info)}")
-            print(f"Total points:      {total_points:,}")
-            print(f"Empty collections: {empty_count}")
-            print(f"Projects:          {len(projects)}")
-
-            for pid in sorted(projects.keys()):
-                colls = projects[pid]
-                proj_points = sum(c['points'] or 0 for c in colls)
-                proj_empty = sum(1 for c in colls if (c['points'] or 0) == 0)
-                print(f"\n  Project: {pid[:12]}...")
-                print(f"    Collections: {len(colls)} ({proj_empty} empty)")
-                print(f"    Points: {proj_points:,}")
-                for c in sorted(colls, key=lambda x: x['type']):
-                    marker = " " if (c['points'] or 0) > 0 else "x"
-                    print(f"      [{marker}] {c['type']}: {c['points'] or 0} points")
-
-            if globals_list:
-                print("\n  Global collections:")
-                for c in sorted(globals_list, key=lambda x: x['name']):
-                    print(f"    - {c['name']}: {c['points'] or 0} points")
-
-            if empty_count > 0:
-                print(f"\nTip: Run 'empirica qdrant-cleanup' to remove {empty_count} empty collections")
+            _print_qdrant_status_human(info, projects, globals_list, total_points, empty_count)
 
     except Exception as e:
         handle_cli_error(e, "Qdrant status", getattr(args, 'verbose', False))

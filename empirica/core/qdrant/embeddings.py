@@ -349,6 +349,9 @@ class EmbeddingsProvider:
                 logger.warning(f"Ollama embedding failed: {e} - falling back to local hash")
                 return self._embed_local_hash(text)
 
+        # Unreachable in practice (prompt_sizes is non-empty), but satisfies type checker
+        return self._embed_local_hash(text)
+
     def batch_embed(self, texts: list[str], max_chars: int = 1200) -> list[list[float] | None]:
         """Batch embed multiple texts. Returns list of vectors (None for failures)."""
         if self.provider == "ollama":

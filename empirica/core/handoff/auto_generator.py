@@ -12,6 +12,95 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 
 
+def _compute_epistemic_trajectory(cascades) -> dict:
+    """Compute knowledge/uncertainty trajectories and key learning moments."""
+    knowledge_trajectory = []
+    uncertainty_trajectory = []
+    key_learning_moments = []
+    prev_know = 0.5
+
+    for i, cascade in enumerate(cascades, 1):
+        epistemic_delta = cascade[3]
+        if not epistemic_delta:
+            continue
+        try:
+            delta_data = json.loads(epistemic_delta)
+            know = delta_data.get('know', 0.5)
+            uncertainty = delta_data.get('uncertainty', 0.5)
+
+            knowledge_trajectory.append(round(know, 2))
+            uncertainty_trajectory.append(round(uncertainty, 2))
+
+            if know - prev_know > 0.10:
+                task = cascade[1][:50]
+                key_learning_moments.append(
+                    f"CASCADE {i}: {task}... (+{know - prev_know:.2f} knowledge)"
+                )
+            prev_know = know
+        except Exception:
+            logger.debug("Failed to parse cascade vectors for knowledge trajectory")
+
+    return {
+        'knowledge': knowledge_trajectory,
+        'uncertainty': uncertainty_trajectory,
+        'moments': key_learning_moments,
+    }
+
+
+def _extract_cascade_artifacts(cascades) -> dict:
+    """Extract findings, investigation notes, and actions from cascades."""
+    key_findings = []
+    investigation_notes = []
+    actions_taken = []
+
+    for cascade in cascades:
+        context_json = cascade[2]
+        if not context_json:
+            continue
+        try:
+            context = json.loads(context_json)
+            if 'check_findings' in context:
+                findings = context['check_findings']
+                if isinstance(findings, list):
+                    key_findings.extend(findings)
+            if 'investigation_log' in context:
+                for log_entry in context['investigation_log']:
+                    if 'findings' in log_entry:
+                        investigation_notes.extend(log_entry['findings'])
+            if 'act_log' in context:
+                for act_entry in context['act_log']:
+                    if 'actions' in act_entry:
+                        actions_taken.extend(act_entry['actions'])
+        except Exception:
+            logger.debug("Failed to parse cascade context for findings extraction")
+
+    all_findings = key_findings + investigation_notes
+    key_findings = list(dict.fromkeys(all_findings))[:5]
+
+    return {
+        'findings': key_findings,
+        'all_findings': all_findings,
+        'actions': actions_taken,
+    }
+
+
+def _extract_remaining_unknowns(cascades) -> list:
+    """Extract remaining unknowns from the last cascade's CHECK context."""
+    if not cascades:
+        return []
+    last_context_json = cascades[-1][2]
+    if not last_context_json:
+        return []
+    try:
+        last_context = json.loads(last_context_json)
+        unknowns = last_context.get('check_unknowns', [])
+        if isinstance(unknowns, list):
+            return unknowns[:3]
+    except Exception:
+        logger.debug("Failed to parse last cascade context for unknowns")
+    return []
+
+
 def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/sessions.db") -> dict:
     """
     Auto-generate handoff report from cascades data in database.
@@ -66,79 +155,19 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
         task_summary = first_cascade[1]  # task column
 
         # 4. Calculate epistemic trajectory (COMPACT!)
-        knowledge_trajectory = []
-        uncertainty_trajectory = []
-        key_learning_moments = []
-
-        prev_know = 0.5
-        for i, cascade in enumerate(cascades, 1):
-            epistemic_delta = cascade[3]  # epistemic_delta column
-            if epistemic_delta:
-                try:
-                    delta_data = json.loads(epistemic_delta)
-                    know = delta_data.get('know', 0.5)
-                    uncertainty = delta_data.get('uncertainty', 0.5)
-
-                    knowledge_trajectory.append(round(know, 2))
-                    uncertainty_trajectory.append(round(uncertainty, 2))
-
-                    # Track significant learning moments (>0.10 increase)
-                    if know - prev_know > 0.10:
-                        task = cascade[1][:50]  # First 50 chars of task
-                        key_learning_moments.append(
-                            f"CASCADE {i}: {task}... (+{know - prev_know:.2f} knowledge)"
-                        )
-                    prev_know = know
-                except Exception:
-                    logger.debug("Failed to parse cascade vectors for knowledge trajectory")
+        trajectory = _compute_epistemic_trajectory(cascades)
+        knowledge_trajectory = trajectory['knowledge']
+        uncertainty_trajectory = trajectory['uncertainty']
+        key_learning_moments = trajectory['moments']
 
         # 5. Extract key findings from CHECK phases and investigation logs
-        key_findings = []
-        investigation_notes = []
-        actions_taken = []
-
-        for cascade in cascades:
-            context_json = cascade[2]
-            if context_json:
-                try:
-                    context = json.loads(context_json)
-
-                    # Extract CHECK findings
-                    if 'check_findings' in context:
-                        findings = context['check_findings']
-                        if isinstance(findings, list):
-                            key_findings.extend(findings)
-
-                    # Extract investigation log
-                    if 'investigation_log' in context:
-                        for log_entry in context['investigation_log']:
-                            if 'findings' in log_entry:
-                                investigation_notes.extend(log_entry['findings'])
-
-                    # Extract actions from act log
-                    if 'act_log' in context:
-                        for act_entry in context['act_log']:
-                            if 'actions' in act_entry:
-                                actions_taken.extend(act_entry['actions'])
-                except Exception:
-                    logger.debug("Failed to parse cascade context for findings extraction")
-
-        # Combine and deduplicate findings
-        all_findings = key_findings + investigation_notes
-        key_findings = list(dict.fromkeys(all_findings))[:5]
+        extraction = _extract_cascade_artifacts(cascades)
+        key_findings = extraction['findings']
+        all_findings = extraction['all_findings']
+        actions_taken = extraction['actions']
 
         # 6. Get remaining unknowns from last CHECK
-        remaining_unknowns = []
-        if cascades:
-            last_context_json = cascades[-1][2]
-            if last_context_json:
-                try:
-                    last_context = json.loads(last_context_json)
-                    unknowns = last_context.get('check_unknowns', [])
-                    if isinstance(unknowns, list):
-                        remaining_unknowns = unknowns[:3]  # Top 3 only
-                except Exception:
-                    logger.debug("Failed to parse last cascade context for unknowns")
+        remaining_unknowns = _extract_remaining_unknowns(cascades)
 
         # 7. Get artifacts from git diff (simplified - just note that files were modified)
         artifacts = _get_artifacts_from_session(session_id, start_time)

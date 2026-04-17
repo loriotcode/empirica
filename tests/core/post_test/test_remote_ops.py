@@ -19,7 +19,6 @@ from empirica.core.post_test.collector import (
 )
 from empirica.core.post_test.mapper import EvidenceMapper
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -169,7 +168,7 @@ def test_run_grounded_verification_remote_ops_combined_mode(tmp_path):
 
     # Pipeline should return a dict with ungrounded holistic
     assert result is not None
-    assert result.get("holistic_calibration_score") is None, (
+    assert result.get("_internal_calibration_score") is None, (
         "remote-ops should produce no holistic calibration score"
     )
 
@@ -211,16 +210,16 @@ def test_run_grounded_verification_remote_ops_phase_aware(tmp_path):
     assert result is not None
     # With phase_boundary, both phases run — both should return
     # ungrounded_remote_ops.
-    assert result.get("holistic_calibration_score") is None
-    assert result.get("holistic_gaps") == {}
+    assert result.get("_internal_calibration_score") is None
+    assert result.get("_internal_holistic_gaps") == {}
 
-    # Phase-specific results live under result["phases"]
-    phases = result.get("phases", {})
-    assert phases, "Expected phase results under result['phases']"
+    # Phase-specific results live under result["_internal_phases"]
+    phases = result.get("_internal_phases", {})
+    assert phases, "Expected phase results under result['_internal_phases']"
 
     for phase_name, phase_result in phases.items():
         assert phase_result.get("calibration_status") == "ungrounded_remote_ops", (
             f"Phase {phase_name} should be ungrounded_remote_ops, got "
             f"{phase_result.get('calibration_status')}"
         )
-        assert phase_result.get("gaps") == {}
+        assert phase_result.get("_internal_gaps", phase_result.get("gaps")) == {}

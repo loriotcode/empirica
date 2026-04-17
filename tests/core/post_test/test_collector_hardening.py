@@ -12,14 +12,11 @@ design (2026-04-08):
 
 from __future__ import annotations
 
-import pytest
-
 from empirica.core.post_test.collector import (
     EvidenceBundle,
     EvidenceProfile,
     PostTestCollector,
 )
-
 
 # ---------------------------------------------------------------------------
 # EvidenceBundle: new fields (Task 3)

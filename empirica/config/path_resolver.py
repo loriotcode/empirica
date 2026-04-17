@@ -189,6 +189,48 @@ def get_empirica_root() -> Path:
     raise ValueError("Cannot determine .empirica root - not in a git repo and no env vars set")
 
 
+def _has_open_transaction(context_project_path: str) -> bool:
+    """Check if the context project has an open transaction."""
+    try:
+        from empirica.utils.session_resolver import InstanceResolver as R
+        suffix = R.instance_suffix()
+    except Exception:
+        suffix = ""
+    tx_file = Path(context_project_path) / '.empirica' / f'active_transaction{suffix}.json'
+    try:
+        if tx_file.exists():
+            import json as _json
+            with open(tx_file) as _f:
+                return _json.load(_f).get('status') == 'open'
+    except Exception:
+        pass
+    return False
+
+
+def _try_context_project_db(context_project_path: str, git_root) -> Path | None:
+    """Try to use the context project's sessions.db, with cross-project bleed check.
+
+    Returns the db_path if valid, None if context should be skipped.
+    """
+    cwd_reliable = os.getenv('EMPIRICA_CWD_RELIABLE', '').lower() == 'true'
+    context_is_local = True
+
+    if cwd_reliable and git_root and str(git_root) != context_project_path:
+        if not _has_open_transaction(context_project_path):
+            local_db = Path(str(git_root)) / '.empirica' / 'sessions' / 'sessions.db'
+            if local_db.exists():
+                logger.debug(f"📍 Cross-project bleed detected: context={context_project_path}, git_root={git_root}. Preferring git root.")
+                context_is_local = False
+
+    if context_is_local:
+        db_path = Path(context_project_path) / '.empirica' / 'sessions' / 'sessions.db'
+        if db_path.exists():
+            logger.debug(f"📍 Using unified context resolver: {db_path}")
+            return db_path
+
+    return None
+
+
 def get_session_db_path() -> Path:
     """
     Get full path to sessions database.
@@ -240,54 +282,9 @@ def get_session_db_path() -> Path:
         pass
 
     if context_project_path:
-        # CROSS-CHECK (gated): Verify context project matches CWD's git root.
-        #
-        # CWD is UNRELIABLE in hooks (Claude Code resets after compaction — see
-        # instance_isolation/KNOWN_ISSUES.md Issue 11.10). This cross-check only
-        # activates when CWD is KNOWN reliable:
-        # - CLI commands called from session-init.py (which os.chdir's to project_root)
-        # - Direct user CLI invocations (user explicitly cd'd there)
-        #
-        # Without this check, stale context (TTY session, old instance_projects)
-        # can resolve to a DIFFERENT project's DB — causing wrong-DB writes for
-        # session-create, goals-complete, and other CLI commands.
-        cwd_reliable = os.getenv('EMPIRICA_CWD_RELIABLE', '').lower() == 'true'
-        context_is_local = True
-        if cwd_reliable and git_root and str(git_root) != context_project_path:
-            # Context points to a DIFFERENT project than CWD — stale bleed.
-            # Check if git_root has its own .empirica (i.e., it's a registered project)
-            #
-            # GUARD: Skip the cross-check if context_project_path has an OPEN
-            # transaction. Open transactions span compaction boundaries and are
-            # authoritative over CWD even when CWD is "reliable" — bypassing
-            # the guard would orphan the transaction and create wrong-DB writes
-            # against the CWD project (KNOWN_ISSUES 11.27).
-            try:
-                from empirica.utils.session_resolver import InstanceResolver as R
-                suffix = R.instance_suffix()
-            except Exception:
-                suffix = ""
-            tx_file = Path(context_project_path) / '.empirica' / f'active_transaction{suffix}.json'
-            has_open_tx = False
-            try:
-                if tx_file.exists():
-                    import json as _json
-                    with open(tx_file) as _f:
-                        has_open_tx = _json.load(_f).get('status') == 'open'
-            except Exception:
-                pass
-
-            if not has_open_tx:
-                local_db = Path(str(git_root)) / '.empirica' / 'sessions' / 'sessions.db'
-                if local_db.exists():
-                    logger.debug(f"📍 Cross-project bleed detected: context={context_project_path}, git_root={git_root}. Preferring git root.")
-                    context_is_local = False
-
-        if context_is_local:
-            db_path = Path(context_project_path) / '.empirica' / 'sessions' / 'sessions.db'
-            if db_path.exists():
-                logger.debug(f"📍 Using unified context resolver: {db_path}")
-                return db_path
+        db_path = _try_context_project_db(context_project_path, git_root)
+        if db_path:
+            return db_path
 
     # 2. Check workspace.db for git root → project mapping (global registry)
     # Git root is stable even when CWD changes within the project

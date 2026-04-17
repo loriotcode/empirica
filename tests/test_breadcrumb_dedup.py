@@ -7,9 +7,7 @@ Verifies that log_finding, log_unknown, and log_dead_end correctly:
 3. Normalize whitespace/casing before comparison (dedup despite cosmetic differences)
 """
 
-import tempfile
 import uuid
-from pathlib import Path
 
 import pytest
 

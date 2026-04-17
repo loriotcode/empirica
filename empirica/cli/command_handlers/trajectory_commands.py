@@ -16,7 +16,7 @@ from pathlib import Path
 def _get_historical_backfill():
     """Import HistoricalBackfill from empirica-prediction package."""
     try:
-        from empirica_prediction.trajectory.backfill import HistoricalBackfill
+        from empirica_prediction.trajectory.backfill import HistoricalBackfill  # pyright: ignore[reportMissingImports]
         return HistoricalBackfill
     except ImportError:
         print("Error: empirica-prediction package not installed.")

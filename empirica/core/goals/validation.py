@@ -149,23 +149,8 @@ def validate_goal(goal: Goal) -> None:
     validate_scope_vector(goal.scope)
 
 
-def validate_mcp_goal_input(arguments: dict[str, Any]) -> None:
-    """
-    Validate MCP create_goal input arguments
-
-    Args:
-        arguments: MCP tool arguments dict
-
-    Raises:
-        ValidationError: If arguments are invalid
-    """
-    # Validate objective
-    objective = arguments.get("objective", "")
-    if not objective or not objective.strip():
-        raise ValidationError("Missing or empty 'objective' field")
-
-    # Validate success_criteria
-    success_criteria_data = arguments.get("success_criteria", [])
+def _validate_mcp_success_criteria(success_criteria_data: Any) -> None:
+    """Validate success criteria from MCP input."""
     if not success_criteria_data:
         raise ValidationError("At least one success criterion is required")
 
@@ -194,35 +179,65 @@ def validate_mcp_goal_input(arguments: dict[str, Any]) -> None:
                 f"Success criterion {idx}: 'threshold' required for metric_threshold validation"
             )
 
+
+def _validate_mcp_scope(scope: Any) -> None:
+    """Validate scope vector from MCP input."""
+    if not isinstance(scope, dict):
+        raise ValidationError(f"scope must be an object with breadth/duration/coordination, got {type(scope)}")
+
+    required_fields = ['breadth', 'duration', 'coordination']
+    for field in required_fields:
+        if field not in scope:
+            raise ValidationError(f"scope.{field} is required")
+
+        try:
+            value = float(scope[field])
+            if not (0.0 <= value <= 1.0):
+                raise ValidationError(f"scope.{field} must be 0.0-1.0, got {value}")
+        except (TypeError, ValueError) as e:
+            raise ValidationError(f"scope.{field} must be a number, got {scope[field]}") from e
+
+
+def _validate_mcp_complexity(complexity: Any) -> None:
+    """Validate complexity from MCP input."""
+    try:
+        complexity_float = float(complexity)
+        if not (0.0 <= complexity_float <= 1.0):
+            raise ValidationError(
+                f"estimated_complexity must be between 0.0 and 1.0, got {complexity}"
+            )
+    except (TypeError, ValueError) as e:
+        raise ValidationError(f"estimated_complexity must be a number, got {type(complexity)}") from e
+
+
+def validate_mcp_goal_input(arguments: dict[str, Any]) -> None:
+    """
+    Validate MCP create_goal input arguments
+
+    Args:
+        arguments: MCP tool arguments dict
+
+    Raises:
+        ValidationError: If arguments are invalid
+    """
+    # Validate objective
+    objective = arguments.get("objective", "")
+    if not objective or not objective.strip():
+        raise ValidationError("Missing or empty 'objective' field")
+
+    # Validate success_criteria
+    success_criteria_data = arguments.get("success_criteria", [])
+    _validate_mcp_success_criteria(success_criteria_data)
+
     # Validate scope if provided
     scope = arguments.get("scope")
     if scope:
-        if not isinstance(scope, dict):
-            raise ValidationError(f"scope must be an object with breadth/duration/coordination, got {type(scope)}")
-
-        required_fields = ['breadth', 'duration', 'coordination']
-        for field in required_fields:
-            if field not in scope:
-                raise ValidationError(f"scope.{field} is required")
-
-            try:
-                value = float(scope[field])
-                if not (0.0 <= value <= 1.0):
-                    raise ValidationError(f"scope.{field} must be 0.0-1.0, got {value}")
-            except (TypeError, ValueError) as e:
-                raise ValidationError(f"scope.{field} must be a number, got {scope[field]}") from e
+        _validate_mcp_scope(scope)
 
     # Validate complexity if provided
     complexity = arguments.get("estimated_complexity")
     if complexity is not None:
-        try:
-            complexity_float = float(complexity)
-            if not (0.0 <= complexity_float <= 1.0):
-                raise ValidationError(
-                    f"estimated_complexity must be between 0.0 and 1.0, got {complexity}"
-                )
-        except (TypeError, ValueError) as e:
-            raise ValidationError(f"estimated_complexity must be a number, got {type(complexity)}") from e
+        _validate_mcp_complexity(complexity)
 
 
 def validate_mcp_subtask_input(arguments: dict[str, Any]) -> None:

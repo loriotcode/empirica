@@ -9,14 +9,15 @@ Created: 2025-12-01
 For: Qwen to validate bootstrap cleanup
 """
 
-import pytest
 import subprocess
-import sys
 from pathlib import Path
+
+import pytest
+
 
 class TestBootstrapComponents:
     """Test that bootstrap loads correctly after cleanup"""
-    
+
     def test_bootstrap_command_works(self):
         """Bootstrap command executes without errors"""
         result = subprocess.run(
@@ -33,10 +34,10 @@ class TestBootstrapComponents:
         import json
         try:
             output = json.loads(result.stdout)
-            assert output.get("ok") == True, "Bootstrap should return ok=true"
+            assert output.get("ok"), "Bootstrap should return ok=true"
         except json.JSONDecodeError:
             pytest.fail(f"Bootstrap did not return valid JSON: {result.stdout[:200]}")
-        
+
     def test_bootstrap_no_import_errors(self):
         """Bootstrap runs without import errors in stderr"""
         result = subprocess.run(
@@ -45,18 +46,18 @@ class TestBootstrapComponents:
             text=True,
             timeout=10
         )
-        
+
         # Should not have ModuleNotFoundError or ImportError
         stderr_lower = result.stderr.lower()
         assert "modulenotfounderror" not in stderr_lower, f"Import error: {result.stderr}"
         assert "importerror" not in stderr_lower, f"Import error: {result.stderr}"
-        
+
         # Bayesian deprecation warning is OK
         # But no other errors
         lines = result.stderr.split('\n')
         error_lines = [l for l in lines if 'error' in l.lower() and 'deprecated' not in l.lower()]
         assert len(error_lines) == 0, f"Unexpected errors: {error_lines}"
-    
+
     def test_bootstrap_json_output(self):
         """Bootstrap with --output json works"""
         result = subprocess.run(
@@ -76,7 +77,7 @@ class TestBootstrapComponents:
             assert "breadcrumbs" in output, "JSON output should have 'breadcrumbs' field"
         except json.JSONDecodeError:
             pytest.fail(f"Bootstrap did not return valid JSON: {result.stdout[:200]}")
-    
+
     def test_bootstrap_returns_breadcrumbs(self):
         """Bootstrap returns breadcrumbs data structure"""
         result = subprocess.run(
@@ -97,7 +98,7 @@ class TestBootstrapComponents:
         expected_fields = ["project", "last_activity", "findings", "unknowns", "dead_ends"]
         for field in expected_fields:
             assert field in breadcrumbs, f"Breadcrumbs should have {field}"
-    
+
     def test_bootstrap_fast_execution(self):
         """Bootstrap executes quickly (< 5 seconds)"""
         import time
@@ -118,37 +119,37 @@ class TestBootstrapComponents:
 
 class TestBootstrapImports:
     """Test that bootstrap Python files import correctly"""
-    
+
     def test_optimal_bootstrap_imports(self):
         """optimal_metacognitive_bootstrap.py imports without errors"""
         try:
                         # Should import successfully
-            assert OptimalMetacognitiveBootstrap is not None
+            assert OptimalMetacognitiveBootstrap is not None  # noqa: F821
         except ImportError as e:
             pytest.fail(f"OptimalMetacognitiveBootstrap import failed: {e}")
-        except Exception as e:
+        except Exception:
             # Other errors might be OK (e.g., missing config)
             # But ImportError is not OK
             pass
-    
+
     def test_extended_bootstrap_imports(self):
         """extended_metacognitive_bootstrap.py imports without errors"""
         try:
                         # Should import successfully
-            assert ExtendedMetacognitiveBootstrap is not None
+            assert ExtendedMetacognitiveBootstrap is not None  # noqa: F821
         except ImportError as e:
             pytest.fail(f"ExtendedMetacognitiveBootstrap import failed: {e}")
-        except Exception as e:
+        except Exception:
             # Other errors might be OK
             pass
-    
+
     def test_no_missing_component_imports(self):
         """Bootstrap files don't import deleted components"""
         bootstrap_files = [
             Path("empirica/bootstraps/optimal_metacognitive_bootstrap.py"),
             Path("empirica/bootstraps/extended_metacognitive_bootstrap.py")
         ]
-        
+
         # Components that should NOT be imported (deleted)
         deleted_components = [
             "adaptive_uncertainty_calibration",
@@ -161,13 +162,13 @@ class TestBootstrapImports:
             "security_monitoring",
             "procedural_analysis",
         ]
-        
+
         for bootstrap_file in bootstrap_files:
             if not bootstrap_file.exists():
                 continue
-                
+
             content = bootstrap_file.read_text()
-            
+
             for component in deleted_components:
                 # Check if component is imported (not commented out)
                 lines = content.split('\n')
@@ -175,7 +176,7 @@ class TestBootstrapImports:
                     # Skip comments
                     if line.strip().startswith('#'):
                         continue
-                    
+
                     # Check for import
                     if f"from empirica.components.{component}" in line:
                         pytest.fail(
@@ -186,7 +187,7 @@ class TestBootstrapImports:
 
 class TestBootstrapFallback:
     """Test MCP server fallback behavior"""
-    
+
     def test_project_bootstrap_works(self):
         """Project bootstrap command is functional"""
         result = subprocess.run(
@@ -201,12 +202,12 @@ class TestBootstrapFallback:
 
         import json
         output = json.loads(result.stdout)
-        assert output.get("ok") == True
+        assert output.get("ok")
 
 
 class TestBootstrapVerboseMode:
     """Test bootstrap verbose output"""
-    
+
     def test_bootstrap_verbose_mode(self):
         """Bootstrap --verbose mode works"""
         result = subprocess.run(
@@ -227,7 +228,7 @@ class TestBootstrapVerboseMode:
 # Integration test
 class TestBootstrapIntegration:
     """End-to-end bootstrap tests"""
-    
+
     def test_bootstrap_full_workflow(self):
         """Complete bootstrap workflow"""
         # Bootstrap
@@ -242,7 +243,7 @@ class TestBootstrapIntegration:
 
         import json
         output = json.loads(result.stdout)
-        assert output.get("ok") == True
+        assert output.get("ok")
 
         # Should be able to run other commands after bootstrap
         result2 = subprocess.run(

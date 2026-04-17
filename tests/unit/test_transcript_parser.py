@@ -12,20 +12,15 @@ Tests:
 """
 
 import json
-import pytest
 from pathlib import Path
-from typing import List
 
 from empirica.core.canonical.transcript_parser import (
-    TranscriptParser,
-    SessionIndex,
     ClaudeAIParser,
-    TranscriptRecord,
-    ConversationTurn,
-    RecordType,
     ContentBlockType,
+    RecordType,
+    SessionIndex,
+    TranscriptParser,
 )
-
 
 # --- Fixtures ---
 
@@ -50,8 +45,8 @@ def make_user_record(content: str, uuid: str = "u1", timestamp: str = "2026-03-2
 
 
 def make_assistant_record(
-    text_blocks: List[str] = None,
-    tool_uses: List[dict] = None,
+    text_blocks: list[str] | None = None,
+    tool_uses: list[dict] | None = None,
     thinking: str = "",
     uuid: str = "a1",
     timestamp: str = "2026-03-24T10:00:01Z",
@@ -664,7 +659,7 @@ class TestClaudeAIParser:
         export_file.write_text(json.dumps(export))
 
         parser = ClaudeAIParser()
-        turns, metadata = parser.parse_export(str(export_file))
+        turns, _metadata = parser.parse_export(str(export_file))
 
         assert len(turns) == 1
         assert turns[0].user_message == "Wrapped Q"

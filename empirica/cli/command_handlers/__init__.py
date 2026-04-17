@@ -40,6 +40,9 @@ from .code_embed import (
     handle_code_embed_command,
 )
 from .compact_analysis import handle_compact_analysis
+from .compliance_report_commands import (
+    handle_compliance_report_command,
+)
 from .config_commands import (
     handle_config_command,
     handle_config_get_command,
@@ -188,7 +191,6 @@ from .sync_commands import (
 from .training_commands import (
     handle_training_export_command,
 )
-from .vision_commands import add_vision_parsers as _add_vision_parsers
 
 # handle_goal_analysis_command removed - was in noetic_praxic_commands (deprecated)
 from .vision_commands import handle_vision_analyze, handle_vision_log
@@ -230,6 +232,7 @@ __all__ = [
     'handle_checkpoint_verify_command',
     'handle_code_embed_command',
     'handle_compact_analysis',
+    'handle_compliance_report_command',
     # Config commands
     'handle_config_command',
     'handle_config_get_command',
@@ -246,7 +249,6 @@ __all__ = [
     'handle_efficiency_report_command',
     'handle_engagement_focus_command',
     'handle_epistemics_list_command',
-    # '_add_vision_parsers',  # Internal - not exported
     # Epistemic trajectory commands
     'handle_epistemics_search_command',
     'handle_epistemics_stats_command',

@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from typing import Any
 
 from ..cli_utils import handle_cli_error
 
@@ -210,7 +211,7 @@ def handle_skill_extract_command(args):
                 Path(output_file),
                 verbose=verbose
             )
-            result = {
+            result: dict[str, Any] = {
                 'ok': True,
                 'mode': 'multi',
                 'skills_dir': str(skills_dir),

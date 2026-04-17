@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from empirica.config.domain_registry import DomainKey, DomainRegistry
 
@@ -37,7 +38,7 @@ def handle_domain_list_command(args):
     output = getattr(args, "output", "text")
 
     if output == "json":
-        result = {"ok": True, "domains": []}
+        result: dict[str, Any] = {"ok": True, "domains": []}
         for name in domains:
             entry = reg.get_domain_entry(name)
             result["domains"].append({

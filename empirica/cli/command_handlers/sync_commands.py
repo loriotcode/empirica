@@ -918,7 +918,7 @@ def _rebuild_from_notes() -> dict[str, Any]:
         now = time.time()
         _rebuild_ensure_projects(db, project_ids, now, rebuilt)
         _rebuild_ensure_sessions(db, session_ids, all_items_lists, rebuilt)
-        goals, inserted_goal_ids = _rebuild_ensure_goals(db, now, rebuilt)
+        _goals, inserted_goal_ids = _rebuild_ensure_goals(db, now, rebuilt)
 
         orphan_goal_ids = goal_ids_needed - inserted_goal_ids
         _rebuild_ensure_orphan_goals(db, orphan_goal_ids, all_items_lists, now, rebuilt)

@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 try:
-    import yaml as _yaml_check  # noqa: F401 — availability check for HAS_YAML
+    import yaml as _yaml_check  # noqa: F401 — availability check for HAS_YAML  # pyright: ignore[reportUnusedImport]
     HAS_YAML = True
 except ImportError:
     HAS_YAML = False
@@ -150,7 +150,10 @@ def sanitize_protocol(data: dict) -> tuple[dict, list[str]]:
             return [_sanitize(v, f"{path}[{i}]") for i, v in enumerate(obj)]
         return obj
 
-    return _sanitize(data), warnings
+    sanitized = _sanitize(data)
+    if not isinstance(sanitized, dict):  # Shouldn't happen — data is dict, so _sanitize returns dict
+        sanitized = {}
+    return sanitized, warnings
 
 
 def load_protocol(path: Path) -> dict | None:

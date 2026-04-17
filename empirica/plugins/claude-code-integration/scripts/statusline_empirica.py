@@ -556,36 +556,45 @@ def _resolve_claude_session_id(stdin_claude_session_id: str | None = None):
     return None
 
 
+def _has_db(path_str: str) -> bool:
+    """Check if a project path has a valid sessions.db."""
+    return (Path(path_str) / '.empirica' / 'sessions' / 'sessions.db').exists()
+
+
+def _read_project_path_from_json(file_path: Path, key: str = 'project_path') -> str | None:
+    """Read and validate a project_path from a JSON file."""
+    try:
+        import json as _json
+        if file_path.exists():
+            with open(file_path) as f:
+                pp = _json.load(f).get(key)
+            if pp and _has_db(pp):
+                return pp
+    except Exception:
+        pass
+    return None
+
+
 def _resolve_project_path(stdin_claude_session_id=None) -> str | None:
     """Resolve project path via 6-tier priority chain. Returns path or None."""
     # Priority 0: instance_projects
     try:
-        import json as _json
-
         from empirica.utils.session_resolver import InstanceResolver as R
         inst_id = R.instance_id()
         if inst_id:
-            inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{inst_id}.json'
-            if inst_file.exists():
-                with open(inst_file) as _f:
-                    pp = _json.load(_f).get('project_path')
-                if pp and (Path(pp) / '.empirica' / 'sessions' / 'sessions.db').exists():
-                    return pp
+            result = _read_project_path_from_json(
+                Path.home() / '.empirica' / 'instance_projects' / f'{inst_id}.json')
+            if result:
+                return result
     except Exception:
         pass
 
     # Priority 1: active_work
     if stdin_claude_session_id:
-        try:
-            import json as _json
-            aw = Path.home() / '.empirica' / f'active_work_{stdin_claude_session_id}.json'
-            if aw.exists():
-                with open(aw) as _f:
-                    pp = _json.load(_f).get('project_path')
-                if pp and (Path(pp) / '.empirica' / 'sessions' / 'sessions.db').exists():
-                    return pp
-        except Exception:
-            pass
+        result = _read_project_path_from_json(
+            Path.home() / '.empirica' / f'active_work_{stdin_claude_session_id}.json')
+        if result:
+            return result
 
     # Priority 2: env var
     env_path = os.getenv('EMPIRICA_PROJECT_PATH')
@@ -598,7 +607,7 @@ def _resolve_project_path(stdin_claude_session_id=None) -> str | None:
         tty = R.tty_session(warn_if_stale=False)
         if tty:
             pp = tty.get('project_path')
-            if pp and (Path(pp) / '.empirica' / 'sessions' / 'sessions.db').exists():
+            if pp and _has_db(pp):
                 return pp
     except Exception:
         pass
@@ -669,63 +678,56 @@ def _search_session_files(cursor, start_dir: Path, filename: str) -> dict | None
     return None
 
 
-def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id: str | None = None) -> dict | None:
-    """
-    Get the active session with strict pane isolation.
-
-    Priority:
-    0. Claude session_id (from stdin or TTY) → active_work file → empirica_session_id
-    1. Instance-specific active_session file (active_session_tmux_N)
-    2. Exact ai_id + exact instance_id match in DB (NO NULL fallback)
-    3. Generic active_session file (only if no instance_id available)
-
-    IMPORTANT: Never fall back to instance_id IS NULL - that causes
-    cross-pane bleeding where any pane picks up legacy sessions.
-    """
-    cursor = db.conn.cursor()
-
-    # Priority 0: instance_projects → empirica_session_id
+def _get_session_from_instance_projects(cursor):
+    """Priority 0: instance_projects → empirica_session_id. Returns dict or None."""
     try:
         import json as _json
 
         from empirica.utils.session_resolver import InstanceResolver as R
-        _gas_inst_id = R.instance_id()
-        if _gas_inst_id:
-            _gas_inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{_gas_inst_id}.json'
-            if _gas_inst_file.exists():
-                with open(_gas_inst_file) as f:
-                    _gas_session_id = _json.load(f).get('empirica_session_id')
-                result = _lookup_session_by_id(cursor, _gas_session_id, require_active=False)
-                if result:
-                    return result
+        inst_id = R.instance_id()
+        if inst_id:
+            inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{inst_id}.json'
+            if inst_file.exists():
+                with open(inst_file) as f:
+                    session_id = _json.load(f).get('empirica_session_id')
+                return _lookup_session_by_id(cursor, session_id, require_active=False)
     except Exception:
         pass
+    return None
 
-    # Priority 1: Claude session_id → active_work → empirica_session_id
+
+def _get_session_from_claude_id(cursor, stdin_claude_session_id):
+    """Priority 1: Claude session_id → active_work/TTY → empirica_session_id. Returns dict or None."""
     try:
         import json as _json
         claude_session_id = _resolve_claude_session_id(stdin_claude_session_id)
-        if claude_session_id:
-            empirica_session_id = None
-            active_work_path = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
-            if active_work_path.exists():
-                with open(active_work_path) as f:
-                    empirica_session_id = _json.load(f).get('empirica_session_id')
-            if not empirica_session_id:
-                try:
-                    tty_session = R.tty_session(warn_if_stale=False)
-                    if tty_session:
-                        empirica_session_id = tty_session.get('empirica_session_id')
-                except Exception:
-                    pass
-            result = _lookup_session_by_id(cursor, empirica_session_id, require_active=False)
-            if result:
-                return result
-    except Exception:
-        pass
+        if not claude_session_id:
+            return None
 
-    # Legacy: instance-specific active_session files
+        empirica_session_id = None
+        active_work_path = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
+        if active_work_path.exists():
+            with open(active_work_path) as f:
+                empirica_session_id = _json.load(f).get('empirica_session_id')
+
+        if not empirica_session_id:
+            try:
+                from empirica.utils.session_resolver import InstanceResolver as R
+                tty_session = R.tty_session(warn_if_stale=False)
+                if tty_session:
+                    empirica_session_id = tty_session.get('empirica_session_id')
+            except Exception:
+                pass
+
+        return _lookup_session_by_id(cursor, empirica_session_id, require_active=False)
+    except Exception:
+        return None
+
+
+def _get_session_from_files_or_db(cursor, ai_id):
+    """Legacy priorities: instance-specific files, then DB query. Returns dict or None."""
     try:
+        from empirica.utils.session_resolver import InstanceResolver as R
         current_instance_id = R.instance_id()
     except (ImportError, NameError):
         current_instance_id = None
@@ -736,7 +738,6 @@ def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id:
         result = _search_session_files(cursor, Path.cwd(), f'active_session{instance_suffix}')
         if result:
             return result
-        # Global instance file
         global_file = Path.home() / '.empirica' / f'active_session{instance_suffix}'
         if global_file.exists():
             session_id = _read_session_file(global_file)
@@ -748,33 +749,46 @@ def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id:
         if result:
             return result
 
-    # Priority 2: Exact ai_id + STRICT instance_id match (no NULL fallback)
+    # DB query: exact ai_id + STRICT instance_id (no NULL fallback)
     if current_instance_id:
         cursor.execute("""
-            SELECT session_id, ai_id, start_time
-            FROM sessions
-            WHERE end_time IS NULL AND ai_id = ?
-              AND instance_id = ?
-            ORDER BY start_time DESC
-            LIMIT 1
+            SELECT session_id, ai_id, start_time FROM sessions
+            WHERE end_time IS NULL AND ai_id = ? AND instance_id = ?
+            ORDER BY start_time DESC LIMIT 1
         """, (ai_id, current_instance_id))
-        row = cursor.fetchone()
-        if row:
-            return dict(row)
     else:
-        # No instance isolation available - match any for this ai_id
         cursor.execute("""
-            SELECT session_id, ai_id, start_time
-            FROM sessions
+            SELECT session_id, ai_id, start_time FROM sessions
             WHERE end_time IS NULL AND ai_id = ?
-            ORDER BY start_time DESC
-            LIMIT 1
+            ORDER BY start_time DESC LIMIT 1
         """, (ai_id,))
-        row = cursor.fetchone()
-        if row:
-            return dict(row)
+    row = cursor.fetchone()
+    return dict(row) if row else None
 
-    return None
+
+def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id: str | None = None) -> dict | None:
+    """
+    Get the active session with strict pane isolation.
+
+    Priority:
+    0. instance_projects → empirica_session_id
+    1. Claude session_id → active_work → empirica_session_id
+    2. Instance-specific active_session files / DB query
+
+    IMPORTANT: Never fall back to instance_id IS NULL - that causes
+    cross-pane bleeding where any pane picks up legacy sessions.
+    """
+    cursor = db.conn.cursor()
+
+    result = _get_session_from_instance_projects(cursor)
+    if result:
+        return result
+
+    result = _get_session_from_claude_id(cursor, stdin_claude_session_id)
+    if result:
+        return result
+
+    return _get_session_from_files_or_db(cursor, ai_id)
 
 
 def get_latest_vectors(db: SessionDatabase, session_id: str, transaction_session_id: str | None = None, transaction_id: str | None = None) -> tuple:
@@ -974,6 +988,106 @@ def format_context_window(stdin_context: dict) -> str:
     return f"{color}{int(used_pct)}%ctx{Colors.RESET}"
 
 
+def _append_postflight_deltas(parts, phase, deltas):
+    """Append delta indicator to parts if phase is POSTFLIGHT and deltas exist."""
+    if phase == 'POSTFLIGHT' and deltas:
+        delta_str = format_deltas(deltas)
+        if delta_str:
+            parts.append(f"Δ {delta_str}")
+
+
+def _format_statusline_header(project_name, vectors, threshold_info):
+    """Build the common header: [label] confidence threshold + extensions.
+
+    Returns (label, parts_list).
+    """
+    label = project_name or 'empirica'
+    if len(label) > 20:
+        label = label[:18] + '..'
+
+    confidence = calculate_confidence(vectors)
+    conf_str = format_confidence(confidence)
+
+    threshold_str = ""
+    if threshold_info:
+        know_t, _, t_color = threshold_info
+        threshold_str = f" {format_threshold(know_t, t_color)}"
+
+    parts = [f"{Colors.GREEN}[{label}]{Colors.RESET} {conf_str}{threshold_str}"]
+
+    ext_str = read_statusline_extensions()
+    if ext_str:
+        parts.append(ext_str)
+
+    return label, parts
+
+
+def _format_statusline_default(parts, phase, vectors, deltas, gate_decision, open_counts, stdin_context):
+    """Format the 'default' mode statusline sections."""
+    parts.append(format_open_counts(open_counts))
+
+    if phase:
+        work_phase = determine_work_phase(phase, gate_decision)
+        composite_phase = 'check' if phase == 'CHECK' else work_phase
+        composite = calculate_phase_composite(vectors, composite_phase)
+        parts.append(format_phase_state(phase, work_phase, composite, gate_decision))
+
+    if vectors:
+        know = vectors.get('know', 0.0)
+        context = vectors.get('context', 0.0)
+        parts.append(f"{format_vector_colored('K', know)} {format_vector_colored('C', context)}")
+
+    _append_postflight_deltas(parts, phase, deltas)
+
+    if stdin_context:
+        ctx_str = format_context_window(stdin_context)
+        if ctx_str:
+            parts.append(ctx_str)
+
+    return ' │ '.join(parts)
+
+
+def _format_statusline_learning(parts, phase, vectors, deltas, open_counts):
+    """Format the 'learning' mode statusline sections."""
+    parts.append(format_open_counts(open_counts))
+
+    if phase:
+        parts.append(f"{phase}")
+
+    if vectors:
+        all_keys = ['know', 'uncertainty', 'context', 'clarity', 'completion']
+        parts.append(format_vectors_compact(vectors, keys=all_keys, use_percentage=True))
+
+    _append_postflight_deltas(parts, phase, deltas)
+    return ' │ '.join(parts)
+
+
+def _format_statusline_full(label, session, phase, vectors, deltas, goal):
+    """Format the 'full' mode statusline."""
+    ai_id = session.get('ai_id', 'unknown')
+    session_id = session.get('session_id', '????')[:4]
+    parts = [f"{Colors.BRIGHT_CYAN}[{label}:{ai_id}@{session_id}]{Colors.RESET}"]
+
+    if goal:
+        completed, total = goal.get('subtask_progress', (0, 0))
+        goal_str = format_goal_progress(goal)
+        if total > 0:
+            goal_str += f" ({completed}/{total})"
+        parts.append(goal_str)
+    else:
+        parts.append(f"{Colors.GRAY}no goal{Colors.RESET}")
+
+    if phase:
+        parts.append(f"{Colors.BLUE}{phase}{Colors.RESET}")
+
+    if vectors:
+        all_keys = ['know', 'uncertainty', 'context', 'clarity', 'engagement', 'completion', 'impact']
+        parts.append(format_vectors_compact(vectors, keys=all_keys, use_percentage=True))
+
+    _append_postflight_deltas(parts, phase, deltas)
+    return ' │ '.join(parts)
+
+
 def format_statusline(
     session: dict,
     phase: str,
@@ -988,124 +1102,16 @@ def format_statusline(
     stdin_context: dict | None = None,
 ) -> str:
     """Format the statusline based on mode."""
-
-    # Calculate confidence score
-    confidence = calculate_confidence(vectors)
-    conf_str = format_confidence(confidence)
-
-    # Show project name instead of generic "empirica" branding
-    # Truncate long names to keep statusline compact
-    label = project_name or 'empirica'
-    if len(label) > 20:
-        label = label[:18] + '..'
-
-    # Threshold indicator (user-facing only — AI doesn't see this)
-    threshold_str = ""
-    if threshold_info:
-        know_t, _, t_color = threshold_info
-        threshold_str = f" {format_threshold(know_t, t_color)}"
-
-    parts = [f"{Colors.GREEN}[{label}]{Colors.RESET} {conf_str}{threshold_str}"]
-
-    # Add extension indicators from statusline_ext/*.json (replaces hardcoded CRM/WS)
-    ext_str = read_statusline_extensions()
-    if ext_str:
-        parts.append(ext_str)
+    label, parts = _format_statusline_header(project_name, vectors, threshold_info)
 
     if mode == 'basic':
-        # Just confidence + threshold
         return ' '.join(parts)
-
     elif mode == 'default':
-        # Redesigned: confidence ↕threshold │ 🎯goals ❓unknowns │ PHASE work_state% │ K:% C:%
-        counts_str = format_open_counts(open_counts)
-        parts.append(counts_str)
-
-        # Phase + work state (investigating/acting with composite %)
-        if phase:
-            work_phase = determine_work_phase(phase, gate_decision)
-            # CHECK uses readiness vectors, not execution vectors
-            composite_phase = 'check' if phase == 'CHECK' else work_phase
-            composite = calculate_phase_composite(vectors, composite_phase)
-            phase_str = format_phase_state(phase, work_phase, composite, gate_decision)
-            parts.append(phase_str)
-
-        # K and C vectors (color-coded independently)
-        if vectors:
-            know = vectors.get('know', 0.0)
-            context = vectors.get('context', 0.0)
-            vec_parts = []
-            vec_parts.append(format_vector_colored('K', know))
-            vec_parts.append(format_vector_colored('C', context))
-            parts.append(' '.join(vec_parts))
-
-        # Add deltas only on POSTFLIGHT (deltas measure PREFLIGHT→POSTFLIGHT change)
-        if phase == 'POSTFLIGHT' and deltas:
-            delta_str = format_deltas(deltas)
-            if delta_str:
-                parts.append(f"Δ {delta_str}")
-
-        # Context window usage (from Claude Code stdin)
-        if stdin_context:
-            ctx_str = format_context_window(stdin_context)
-            if ctx_str:
-                parts.append(ctx_str)
-
-        return ' │ '.join(parts)
-
+        return _format_statusline_default(parts, phase, vectors, deltas, gate_decision, open_counts, stdin_context)
     elif mode == 'learning':
-        # Focus on vectors with values and deltas (for developers)
-        counts_str = format_open_counts(open_counts)
-        parts.append(counts_str)
-
-        if phase:
-            parts.append(f"{phase}")
-
-        if vectors:
-            # Show more vectors with percentages
-            all_keys = ['know', 'uncertainty', 'context', 'clarity', 'completion']
-            vec_str = format_vectors_compact(vectors, keys=all_keys, use_percentage=True)
-            parts.append(vec_str)
-
-        # Show deltas only on POSTFLIGHT (deltas measure PREFLIGHT→POSTFLIGHT change)
-        if phase == 'POSTFLIGHT' and deltas:
-            delta_str = format_deltas(deltas)
-            if delta_str:
-                parts.append(f"Δ {delta_str}")
-
-        return ' │ '.join(parts)
-
-    else:  # full
-        # Everything (for developers/debugging)
-        ai_id = session.get('ai_id', 'unknown')
-        session_id = session.get('session_id', '????')[:4]
-        parts = [f"{Colors.BRIGHT_CYAN}[{label}:{ai_id}@{session_id}]{Colors.RESET}"]
-
-        # Goal progress with more detail
-        if goal:
-            completed, total = goal.get('subtask_progress', (0, 0))
-            goal_str = format_goal_progress(goal)
-            if total > 0:
-                goal_str += f" ({completed}/{total})"
-            parts.append(goal_str)
-        else:
-            parts.append(f"{Colors.GRAY}no goal{Colors.RESET}")
-
-        if phase:
-            parts.append(f"{Colors.BLUE}{phase}{Colors.RESET}")
-
-        if vectors:
-            all_keys = ['know', 'uncertainty', 'context', 'clarity', 'engagement', 'completion', 'impact']
-            vec_str = format_vectors_compact(vectors, keys=all_keys, use_percentage=True)
-            parts.append(vec_str)
-
-        # Show deltas only on POSTFLIGHT (deltas measure PREFLIGHT→POSTFLIGHT change)
-        if phase == 'POSTFLIGHT' and deltas:
-            delta_str = format_deltas(deltas)
-            if delta_str:
-                parts.append(f"Δ {delta_str}")
-
-        return ' │ '.join(parts)
+        return _format_statusline_learning(parts, phase, vectors, deltas, open_counts)
+    else:
+        return _format_statusline_full(label, session, phase, vectors, deltas, goal)
 
 
 def build_statusline_data(
@@ -1207,6 +1213,97 @@ def format_tmux_statusline(confidence: float, phase: str) -> str:
     return f"E:{emoji}{pct}% {phase_abbrev}"
 
 
+def _check_off_record() -> bool:
+    """Check if Empirica is paused (off-record). Prints status and returns True to exit."""
+    pause_file = Path.home() / '.empirica' / 'sentinel_paused'
+    if not pause_file.exists():
+        return False
+    try:
+        import json as _json
+        import time as _time
+        pause_data = _json.loads(pause_file.read_text())
+        paused_at = pause_data.get('paused_at', 0)
+        gap_minutes = int((_time.time() - paused_at) / 60) if paused_at else 0
+        gap_str = f"{gap_minutes}m" if gap_minutes < 60 else f"{gap_minutes // 60}h{gap_minutes % 60}m"
+        print(f"{Colors.GRAY}[empirica]{Colors.RESET} {Colors.YELLOW}OFF-RECORD{Colors.RESET} {Colors.GRAY}({gap_str}){Colors.RESET}")
+    except Exception:
+        print(f"{Colors.GRAY}[empirica]{Colors.RESET} {Colors.YELLOW}OFF-RECORD{Colors.RESET}")
+    return True
+
+
+def _read_stdin_context() -> tuple:
+    """Read Claude Code stdin context (JSON). Returns (stdin_context, claude_session_id)."""
+    try:
+        import json as _json
+        import select
+        if not sys.stdin.isatty():
+            ready, _, _ = select.select([sys.stdin], [], [], 0.1)
+            if ready:
+                raw = sys.stdin.read()
+                if raw and raw.strip():
+                    ctx = _json.loads(raw.strip())
+                    return ctx, ctx.get('session_id')
+    except Exception:
+        pass
+    return {}, None
+
+
+def _resolve_project_name(db, session) -> tuple:
+    """Resolve project_id and project_name from session or most recent session.
+
+    Returns (project_id, project_name).
+    """
+    project_id = None
+    project_name = None
+    cursor = db.conn.cursor()
+
+    if session:
+        cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session['session_id'],))
+        row = cursor.fetchone()
+        if row and row[0]:
+            project_id = row[0]
+            cursor.execute("SELECT name FROM projects WHERE id = ?", (project_id,))
+            prow = cursor.fetchone()
+            if prow:
+                project_name = prow[0]
+
+    if not project_name:
+        cursor.execute("""
+            SELECT p.name FROM projects p
+            JOIN sessions s ON s.project_id = p.id
+            ORDER BY s.start_time DESC LIMIT 1
+        """)
+        prow = cursor.fetchone()
+        if prow:
+            project_name = prow[0]
+
+    return project_id, project_name
+
+
+def _read_open_transaction(project_path) -> tuple:
+    """Read active transaction file for instance isolation.
+
+    Returns (transaction_session_id, transaction_id).
+    """
+    try:
+        import json as _json
+
+        from empirica.utils.session_resolver import InstanceResolver as R
+        suffix = R.instance_suffix()
+        if project_path:
+            tx_path = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
+        else:
+            tx_path = Path.home() / '.empirica' / f'active_transaction{suffix}.json'
+        if tx_path and tx_path.exists():
+            with open(tx_path) as f:
+                tx_data = _json.load(f)
+            if tx_data.get('status') == 'open':
+                return tx_data.get('session_id'), tx_data.get('transaction_id')
+    except Exception:
+        pass
+    return None, None
+
+
 def main():
     """Main statusline generation."""
     try:
@@ -1215,88 +1312,31 @@ def main():
         output_tmux = '--tmux' in sys.argv or os.getenv('EMPIRICA_STATUS_TMUX', '').lower() == 'true'
         ai_id = get_ai_id()
 
-        # HEADLESS CHECK: No statusline in headless/containerized mode
+        # HEADLESS CHECK
         try:
             from empirica.utils.session_resolver import InstanceResolver as R
             if R.is_headless():
-                return  # Silent exit — no statusline output
+                return
         except ImportError:
             pass
 
-        # OFF-RECORD CHECK: If Empirica is paused, show collapsed statusline
-        pause_file = Path.home() / '.empirica' / 'sentinel_paused'
-        if pause_file.exists():
-            try:
-                import json as _json
-                import time as _time
-                pause_data = _json.loads(pause_file.read_text())
-                paused_at = pause_data.get('paused_at', 0)
-                gap_minutes = int((_time.time() - paused_at) / 60) if paused_at else 0
-                gap_str = f"{gap_minutes}m" if gap_minutes < 60 else f"{gap_minutes // 60}h{gap_minutes % 60}m"
-                print(f"{Colors.GRAY}[empirica]{Colors.RESET} {Colors.YELLOW}OFF-RECORD{Colors.RESET} {Colors.GRAY}({gap_str}){Colors.RESET}")
-            except Exception:
-                print(f"{Colors.GRAY}[empirica]{Colors.RESET} {Colors.YELLOW}OFF-RECORD{Colors.RESET}")
+        if _check_off_record():
             return
 
-        # Read Claude Code stdin context (JSON with session_id, cwd, workspace, etc.)
-        # This is the primary session resolution method in non-tmux environments
-        stdin_context = {}
-        stdin_claude_session_id = None
-        try:
-            import json as _json
-            import select
-            if not sys.stdin.isatty():
-                ready, _, _ = select.select([sys.stdin], [], [], 0.1)
-                if ready:
-                    raw = sys.stdin.read()
-                    if raw and raw.strip():
-                        stdin_context = _json.loads(raw.strip())
-                        stdin_claude_session_id = stdin_context.get('session_id')
-        except Exception:
-            pass
-
-        # Auto-detect project from active context (6-tier priority chain)
+        stdin_context, stdin_claude_session_id = _read_stdin_context()
         project_path = _resolve_project_path(stdin_claude_session_id)
 
-        if project_path:
-            db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
-            db = SessionDatabase(db_path=str(db_path))
-        else:
-            # No local .empirica/ found - show "no project" instead of using global data
-            # This prevents showing Empirica project data in unrelated projects
+        if not project_path:
             print(f"{Colors.GRAY}[no project]{Colors.RESET}")
             return
 
+        db_path = Path(project_path) / '.empirica' / 'sessions' / 'sessions.db'
+        db = SessionDatabase(db_path=str(db_path))
+
         session = get_active_session(db, ai_id, stdin_claude_session_id=stdin_claude_session_id)
-
-        # Get project_id and project_name from session for filtering and display
-        project_id = None
-        project_name = None
-        if session:
-            cursor = db.conn.cursor()
-            cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session['session_id'],))
-            row = cursor.fetchone()
-            if row and row[0]:
-                project_id = row[0]
-                cursor.execute("SELECT name FROM projects WHERE id = ?", (project_id,))
-                prow = cursor.fetchone()
-                if prow:
-                    project_name = prow[0]
-
-        # If no session yet, still try to get project name from the most recent session
-        if not project_name:
-            cursor = db.conn.cursor()
-            cursor.execute("""
-                SELECT p.name FROM projects p
-                JOIN sessions s ON s.project_id = p.id
-                ORDER BY s.start_time DESC LIMIT 1
-            """)
-            prow = cursor.fetchone()
-            if prow:
-                project_name = prow[0]
+        project_id, project_name = _resolve_project_name(db, session)
 
         if not session:
-            # No active session - show project name so user knows which pane this is
             label = project_name or ai_id
             if len(label) > 20:
                 label = label[:18] + '..'
@@ -1305,75 +1345,34 @@ def main():
             return
 
         session_id = session['session_id']
+        transaction_session_id, transaction_id = _read_open_transaction(project_path)
 
-        # TRANSACTION AWARENESS: Read instance-specific active_transaction file
-        # IMPORTANT: Uses instance suffix for multi-instance isolation (tmux panes)
-        # The file is named active_transaction_{suffix}.json where suffix is sanitized (: → _)
-        transaction_session_id = None
-        transaction_id = None
-        try:
-            from empirica.utils.session_resolver import InstanceResolver as R
-            # Build instance-aware filename (sanitized for non-tmux like x11:N → x11_N)
-            suffix = R.instance_suffix()
-            if project_path:
-                tx_path = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
-            else:
-                tx_path = Path.home() / '.empirica' / f'active_transaction{suffix}.json'
-            if tx_path and tx_path.exists():
-                import json as _json
-                with open(tx_path) as f:
-                    tx_data = _json.load(f)
-                # Only use transaction data if status is "open" (active transaction)
-                # If closed, fall back to current session_id
-                if tx_data.get('status') == 'open':
-                    transaction_session_id = tx_data.get('session_id')
-                    transaction_id = tx_data.get('transaction_id')  # CRITICAL for instance isolation
-        except Exception:
-            pass  # Fall back to current session_id
-
-        # Get vectors from DB (real-time) - use transaction's session_id and transaction_id
-        # transaction_id is CRITICAL to prevent cross-instance phase bleed during active work
-        # When no open transaction, fall back to session-level query to show last POSTFLIGHT state
         if transaction_id:
             phase, vectors, gate_decision = get_latest_vectors(db, session_id, transaction_session_id, transaction_id)
         else:
-            # No open transaction — show last known state (typically POSTFLIGHT vectors)
             phase, vectors, gate_decision = get_latest_vectors(db, session_id)
 
-        # Get deltas (learning measurement) - use transaction's session for continuity
         deltas = get_vector_deltas(db, transaction_session_id or session_id)
-
-        # Get active goal for this session (used in 'full' mode)
         goal = get_active_goal(db, session_id)
-
-        # Get open counts (goals/unknowns to close) - used in default/learning modes
-        # Pass project_id to filter by THIS project only
         open_counts = get_open_counts(db, session_id, project_id=project_id)
-
-        # Get dynamic threshold for statusline display (user-facing only)
         threshold_info = get_dynamic_threshold(db)
-
         db.close()
 
-        # JSON output for dashboards
         if output_json:
             import json
             data = build_statusline_data(
                 session, phase, vectors, deltas,
                 gate_decision=gate_decision, goal=goal, open_counts=open_counts,
-                project_name=project_name, project_path=project_path,
-                ai_id=ai_id,
+                project_name=project_name, project_path=project_path, ai_id=ai_id,
             )
             print(json.dumps(data, indent=2))
             return
 
-        # Compact tmux output (for tmux status-right)
         if output_tmux:
             confidence = calculate_confidence(vectors) if vectors else 0.0
             print(format_tmux_statusline(confidence, phase))
             return
 
-        # Format and output
         output = format_statusline(
             session, phase, vectors, deltas, mode,
             gate_decision=gate_decision, goal=goal, open_counts=open_counts,
@@ -1384,7 +1383,6 @@ def main():
 
     except Exception as e:
         print(f"{Colors.GRAY}[empirica:error]{Colors.RESET}")
-        # Log error
         try:
             from empirica.config.path_resolver import get_empirica_root
             with open(get_empirica_root() / 'statusline.log', 'a') as f:

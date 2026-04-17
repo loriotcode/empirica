@@ -107,11 +107,11 @@ class ProseEvidenceCollector:
         try:
             import textstat
 
-            fk_grade = textstat.flesch_kincaid_grade(text)
-            fog_index = textstat.gunning_fog(text)
-            fre_score = textstat.flesch_reading_ease(text)
-            word_count = textstat.lexicon_count(text, removepunct=True)
-            sentence_count = textstat.sentence_count(text)
+            fk_grade = textstat.flesch_kincaid_grade(text)  # pyright: ignore[reportAttributeAccessIssue]
+            fog_index = textstat.gunning_fog(text)  # pyright: ignore[reportAttributeAccessIssue]
+            fre_score = textstat.flesch_reading_ease(text)  # pyright: ignore[reportAttributeAccessIssue]
+            word_count = textstat.lexicon_count(text, removepunct=True)  # pyright: ignore[reportAttributeAccessIssue]
+            sentence_count = textstat.sentence_count(text)  # pyright: ignore[reportAttributeAccessIssue]
 
             # Flesch Reading Ease: 60-70 = standard, 30-50 = college, <30 = academic
             # For professional/research writing, 30-60 is good.

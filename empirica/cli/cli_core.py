@@ -294,6 +294,71 @@ def create_argument_parser():
     return parser
 
 
+_HELP_CATEGORIES = {
+    'session': ['session-create', 'sessions-list', 'sessions-show', 'sessions-export', 'sessions-resume', 'session-snapshot', 'memory-compact', 'transaction-adopt'],
+    'workflow': ['preflight-submit', 'check', 'check-submit', 'postflight-submit'],
+    'goals': ['goals-create', 'goals-list', 'goals-search', 'goals-complete', 'goals-claim', 'goals-add-subtask', 'goals-add-dependency', 'goals-complete-subtask', 'goals-get-subtasks', 'goals-progress', 'goals-discover', 'goals-ready', 'goals-resume', 'goals-mark-stale', 'goals-get-stale', 'goals-refresh'],
+    'logging': ['finding-log', 'unknown-log', 'unknown-list', 'unknown-resolve', 'deadend-log', 'assumption-log', 'decision-log', 'mistake-log', 'mistake-query', 'refdoc-add', 'source-add', 'act-log', 'investigate-log'],
+    'project': ['project-init', 'project-update', 'project-create', 'project-list', 'project-switch', 'project-bootstrap', 'project-handoff', 'project-search', 'project-embed', 'code-embed', 'doc-check'],
+    'workspace': ['workspace-init', 'workspace-map', 'workspace-list', 'workspace-overview', 'workspace-search', 'engagement-focus', 'ecosystem-check', 'save', 'history'],
+    'checkpoint': ['checkpoint-create', 'checkpoint-load', 'checkpoint-list', 'checkpoint-diff', 'checkpoint-sign', 'checkpoint-verify', 'checkpoint-signatures'],
+    'sync': ['sync-config', 'sync-push', 'sync-pull', 'sync-status', 'rebuild', 'artifacts-generate'],
+    'profile': ['profile-sync', 'profile-prune', 'profile-status', 'profile-import'],
+    'identity': ['identity-create', 'identity-export', 'identity-list', 'identity-verify'],
+    'handoff': ['handoff-create', 'handoff-query'],
+    'issue': ['issue-list', 'issue-show', 'issue-handoff', 'issue-resolve', 'issue-export', 'issue-stats'],
+    'investigation': ['investigate', 'investigate-create-branch', 'investigate-checkpoint-branch', 'investigate-merge-branches', 'investigate-multi'],
+    'monitoring': ['monitor', 'assess-state', 'trajectory-project', 'efficiency-report', 'workflow-patterns', 'calibration-report'],
+    'skills': ['skill-suggest', 'skill-fetch', 'skill-extract'],
+    'architecture': ['assess-component', 'assess-compare', 'assess-directory'],
+    'agents': ['agent-spawn', 'agent-report', 'agent-aggregate', 'agent-parallel', 'agent-export', 'agent-import', 'agent-discover'],
+    'sentinel': ['sentinel-orchestrate', 'sentinel-load-profile', 'sentinel-status', 'sentinel-check'],
+    'personas': ['persona-list', 'persona-show', 'persona-promote', 'persona-find'],
+    'lessons': ['lesson-create', 'lesson-load', 'lesson-list', 'lesson-search', 'lesson-recommend', 'lesson-path', 'lesson-replay-start', 'lesson-replay-end', 'lesson-stats'],
+    'mcp': ['mcp-start', 'mcp-stop', 'mcp-status', 'mcp-test', 'mcp-list-tools', 'mcp-call'],
+    'memory': ['memory-prime', 'memory-scope', 'memory-value', 'pattern-check', 'session-rollup', 'memory-report'],
+    'vision': ['vision'],
+    'domains': ['domain-list', 'domain-show', 'domain-resolve', 'domain-validate'],
+    'setup': ['onboard', 'setup-claude-code', 'diagnose', 'serve'],
+}
+
+
+def _handle_help_command(parsed_args) -> None:
+    """Handle the built-in help command, printing categorized command lists."""
+    cat_arg = getattr(parsed_args, '_help_category', None)
+    if cat_arg and cat_arg in _HELP_CATEGORIES:
+        cat = cat_arg
+        print(f"\n{cat.title()} ({len(_HELP_CATEGORIES[cat])} commands):\n")
+        for cmd in _HELP_CATEGORIES[cat]:
+            print(f"  {cmd}")
+        print("\nUse 'empirica <command> --help' for details.")
+    else:
+        total = sum(len(cmds) for cmds in _HELP_CATEGORIES.values())
+        print(f"\nAll Empirica Commands ({total} total):\n")
+        for cat, cmds in _HELP_CATEGORIES.items():
+            print(f"  {cat:16s} ({len(cmds):2d})  {', '.join(cmds[:4])}{'...' if len(cmds) > 4 else ''}")
+        print("\nUse 'empirica help <category>' to see all commands in a category.")
+
+
+def _handle_command_result(result, parsed_args) -> int:
+    """Handle command result: print output and return exit code."""
+    if isinstance(result, dict):
+        output_format = getattr(parsed_args, 'output', 'json')
+        if output_format == 'json':
+            print(json.dumps(result, indent=2, default=str))
+        else:
+            if result.get('ok', True):
+                for key, value in result.items():
+                    if key != 'ok':
+                        print(f"{key}: {value}")
+            else:
+                print(f"❌ {result.get('error', 'Unknown error')}")
+        return 0 if result.get('ok', True) else 1
+    elif result is not None and result != 0:
+        return result
+    return 0
+
+
 def main(args=None):
     """Main CLI entry point"""
     start_time = time.time()
@@ -318,47 +383,7 @@ def main(args=None):
 
     # Built-in 'help' command — show full categorised command list
     if parsed_args.command == 'help':
-        _CATEGORIES = {
-            'session': ['session-create', 'sessions-list', 'sessions-show', 'sessions-export', 'sessions-resume', 'session-snapshot', 'memory-compact', 'transaction-adopt'],
-            'workflow': ['preflight-submit', 'check', 'check-submit', 'postflight-submit'],
-            'goals': ['goals-create', 'goals-list', 'goals-search', 'goals-complete', 'goals-claim', 'goals-add-subtask', 'goals-add-dependency', 'goals-complete-subtask', 'goals-get-subtasks', 'goals-progress', 'goals-discover', 'goals-ready', 'goals-resume', 'goals-mark-stale', 'goals-get-stale', 'goals-refresh'],
-            'logging': ['finding-log', 'unknown-log', 'unknown-list', 'unknown-resolve', 'deadend-log', 'assumption-log', 'decision-log', 'mistake-log', 'mistake-query', 'refdoc-add', 'source-add', 'act-log', 'investigate-log'],
-            'project': ['project-init', 'project-update', 'project-create', 'project-list', 'project-switch', 'project-bootstrap', 'project-handoff', 'project-search', 'project-embed', 'code-embed', 'doc-check'],
-            'workspace': ['workspace-init', 'workspace-map', 'workspace-list', 'workspace-overview', 'workspace-search', 'engagement-focus', 'ecosystem-check', 'save', 'history'],
-            'checkpoint': ['checkpoint-create', 'checkpoint-load', 'checkpoint-list', 'checkpoint-diff', 'checkpoint-sign', 'checkpoint-verify', 'checkpoint-signatures'],
-            'sync': ['sync-config', 'sync-push', 'sync-pull', 'sync-status', 'rebuild', 'artifacts-generate'],
-            'profile': ['profile-sync', 'profile-prune', 'profile-status', 'profile-import'],
-            'identity': ['identity-create', 'identity-export', 'identity-list', 'identity-verify'],
-            'handoff': ['handoff-create', 'handoff-query'],
-            'issue': ['issue-list', 'issue-show', 'issue-handoff', 'issue-resolve', 'issue-export', 'issue-stats'],
-            'investigation': ['investigate', 'investigate-create-branch', 'investigate-checkpoint-branch', 'investigate-merge-branches', 'investigate-multi'],
-            'monitoring': ['monitor', 'assess-state', 'trajectory-project', 'efficiency-report', 'workflow-patterns', 'calibration-report'],
-            'skills': ['skill-suggest', 'skill-fetch', 'skill-extract'],
-            'architecture': ['assess-component', 'assess-compare', 'assess-directory'],
-            'agents': ['agent-spawn', 'agent-report', 'agent-aggregate', 'agent-parallel', 'agent-export', 'agent-import', 'agent-discover'],
-            'sentinel': ['sentinel-orchestrate', 'sentinel-load-profile', 'sentinel-status', 'sentinel-check'],
-            'personas': ['persona-list', 'persona-show', 'persona-promote', 'persona-find'],
-            'lessons': ['lesson-create', 'lesson-load', 'lesson-list', 'lesson-search', 'lesson-recommend', 'lesson-path', 'lesson-replay-start', 'lesson-replay-end', 'lesson-stats'],
-            'mcp': ['mcp-start', 'mcp-stop', 'mcp-status', 'mcp-test', 'mcp-list-tools', 'mcp-call'],
-            'memory': ['memory-prime', 'memory-scope', 'memory-value', 'pattern-check', 'session-rollup', 'memory-report'],
-            'vision': ['vision'],
-            'domains': ['domain-list', 'domain-show', 'domain-resolve', 'domain-validate'],
-            'setup': ['onboard', 'setup-claude-code', 'diagnose', 'serve'],
-        }
-        # Check if user requested a specific category
-        cat_arg = getattr(parsed_args, '_help_category', None)
-        if cat_arg and cat_arg in _CATEGORIES:
-            cat = cat_arg
-            print(f"\n{cat.title()} ({len(_CATEGORIES[cat])} commands):\n")
-            for cmd in _CATEGORIES[cat]:
-                print(f"  {cmd}")
-            print("\nUse 'empirica <command> --help' for details.")
-        else:
-            total = sum(len(cmds) for cmds in _CATEGORIES.values())
-            print(f"\nAll Empirica Commands ({total} total):\n")
-            for cat, cmds in _CATEGORIES.items():
-                print(f"  {cat:16s} ({len(cmds):2d})  {', '.join(cmds[:4])}{'...' if len(cmds) > 4 else ''}")
-            print("\nUse 'empirica help <category>' to see all commands in a category.")
+        _handle_help_command(parsed_args)
         sys.exit(0)
 
     # Normalize --project-id: resolve names to UUIDs via workspace.db
@@ -450,6 +475,7 @@ def main(args=None):
             'compact-analysis': handle_compact_analysis,
             'calibration-report': handle_calibration_report_command,
             'calibration-dispute': handle_calibration_dispute_command,
+            'compliance-report': handle_compliance_report_command,
 
             # Checkpoint commands
             'checkpoint-create': handle_checkpoint_create_command,
@@ -707,24 +733,7 @@ def main(args=None):
             result = handler(parsed_args)
 
             # Handle result output and exit code
-            exit_code = 0
-            if isinstance(result, dict):
-                # Dict results: print as JSON, exit based on 'ok' field
-                output_format = getattr(parsed_args, 'output', 'json')
-                if output_format == 'json':
-                    print(json.dumps(result, indent=2, default=str))
-                else:
-                    # Human-readable format
-                    if result.get('ok', True):
-                        for key, value in result.items():
-                            if key != 'ok':
-                                print(f"{key}: {value}")
-                    else:
-                        print(f"❌ {result.get('error', 'Unknown error')}")
-                exit_code = 0 if result.get('ok', True) else 1
-            elif result is not None and result != 0:
-                # Non-dict non-zero result is an exit code
-                exit_code = result
+            exit_code = _handle_command_result(result, parsed_args)
 
             # Log execution time
             elapsed_ms = int((time.time() - start_time) * 1000)

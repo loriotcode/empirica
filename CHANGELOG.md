@@ -5,6 +5,45 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.6] - 2026-04-17
+
+### Added
+- **`empirica compliance-report`**: Project-wide quality snapshot mapped to regulatory
+  frameworks (EU AI Act, GDPR, ISO/IEC 42001). 7 check types: lint, complexity, type
+  safety, repo hygiene, OWASP security scan, epistemic audit trail, grounded calibration.
+  Optional: `--tests`, `--dep-audit`, `--security`. JSON + human-readable output.
+- **OWASP security scan**: Semgrep integration with `p/owasp-top-ten` ruleset. Filters
+  accepted patterns (MD5 for content IDs). 0 critical findings on Empirica codebase.
+- **Repository hygiene check**: LICENSE, CHANGELOG, .gitignore, release scripts, no
+  tracked secrets, version file — 6 sub-checks, all passing.
+- **Evidence summary in calibration**: POSTFLIGHT now surfaces structured evidence
+  (raw counts, pass/fail, ratios) grouped by source, plus natural-language signals.
+  Replaces per-vector synthetic observation scores. The AI is the calibrator; services inform.
+
+### Fixed
+- **Ruff: 0 violations** (was 25,212 in 1.8.0, 65 in 1.8.5). Full compliance achieved.
+- **C901: 0 violations** (was 65). All 65 remaining functions refactored to CC ≤ 15.
+  ~200 helpers extracted across 50+ files via 5 parallel agents with inherited context.
+- **Pyright: 0 errors** (was 216). Real bugs fixed (attribute access, return types,
+  undefined vars, Python 3.10 compat). False positives suppressed inline.
+- **test_pool_exhaustion**: CPython GC recycled id() values for unreferenced objects.
+  Fixed by holding connection references.
+- **Compliance report DB queries**: Corrected table/column names (reflexes.phase='POSTFLIGHT',
+  project_findings, grounded_verifications, overall_calibration_score).
+- **Flask host binding**: Defaults to 127.0.0.1 (was 0.0.0.0). Configurable via FLASK_HOST.
+
+### Changed
+- **Calibration reframe**: mapper.py outputs evidence summaries instead of per-vector
+  observation scores. Internal Bayesian storage unchanged. Per-vector data prefixed
+  with `_internal_` to signal it's not an optimization target.
+- **Hard deprecation policy**: Deprecated code deleted immediately, documented in
+  CHANGELOG. No warning labels. Exception: DB migrations.
+- **Deleted**: `set-session-env.sh`, `set-session-env.ps1` (EMPIRICA_SESSION_ID deprecated),
+  `elicitation.py`, `elicitation-result.py` (never wired), dead functions across codebase.
+- **PreToolUse consolidation**: 2 sentinel-gate entries → 1 (`Edit|Write|Bash`).
+- **Dependency security**: pytest ≥9.0.3 (CVE-2025-71176), python-multipart ≥0.0.26
+  (CVE-2026-40347).
+
 ## [1.8.5] - 2026-04-16
 
 ### Fixed

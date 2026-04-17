@@ -391,6 +391,40 @@ def handle_pattern_check_command(args):
         return None
 
 
+def _collect_child_findings(db, parent_session_id):
+    """Collect findings from all child sessions of a parent.
+
+    Returns (children, all_findings) tuple.
+    """
+    cursor = db.conn.cursor()
+    cursor.execute("""
+        SELECT session_id, ai_id FROM sessions
+        WHERE parent_session_id = ?
+        ORDER BY start_time
+    """, (parent_session_id,))
+    children = [dict(row) for row in cursor.fetchall()]
+
+    all_findings = []
+    for child in children:
+        cursor.execute("""
+            SELECT finding, impact, subject
+            FROM session_findings
+            WHERE session_id = ?
+            ORDER BY created_timestamp DESC
+        """, (child['session_id'],))
+        child_findings = [dict(row) for row in cursor.fetchall()]
+        for f in child_findings:
+            all_findings.append({
+                "finding": f.get('finding', ''),
+                "agent_name": child.get('ai_id', 'unknown'),
+                "session_id": child['session_id'],
+                "impact": f.get('impact', 0.5),
+                "subject": f.get('subject'),
+            })
+
+    return children, all_findings
+
+
 def handle_session_rollup_command(args):
     """
     Handle session-rollup command: Aggregate findings from parallel agents.
@@ -411,85 +445,47 @@ def handle_session_rollup_command(args):
             print("Error: Database connection unavailable")
             return {"ok": False, "error": "Database unavailable"}
 
-        # Get child sessions
-        cursor = db.conn.cursor()
-        cursor.execute("""
-            SELECT session_id, ai_id FROM sessions
-            WHERE parent_session_id = ?
-            ORDER BY start_time
-        """, (args.parent_session_id,))
-        children = [dict(row) for row in cursor.fetchall()]
+        children, all_findings = _collect_child_findings(db, args.parent_session_id)
 
         if not children:
             print(f"No child sessions found for parent {args.parent_session_id}")
             db.close()
             return {"ok": False, "error": "No child sessions"}
 
-        # Get project_id for semantic dedup
         project_id = args.project_id
         if not project_id:
             parent = db.get_session(args.parent_session_id)
             if parent:
                 project_id = parent.get('project_id')
-
-        # Collect findings from all children by querying session_findings table
-        all_findings = []
-        for child in children:
-            cursor.execute("""
-                SELECT finding, impact, subject
-                FROM session_findings
-                WHERE session_id = ?
-                ORDER BY created_timestamp DESC
-            """, (child['session_id'],))
-            child_findings = [dict(row) for row in cursor.fetchall()]
-            for f in child_findings:
-                all_findings.append({
-                    "finding": f.get('finding', ''),
-                    "agent_name": child.get('ai_id', 'unknown'),
-                    "session_id": child['session_id'],
-                    "impact": f.get('impact', 0.5),
-                    "subject": f.get('subject'),
-                })
-
         db.close()
 
         if not all_findings:
             print("No findings to rollup from child sessions")
             return {"ok": True, "accepted": 0, "rejected": 0}
 
-        # Create rollup gate
         gate = EpistemicRollupGate(
             min_score=args.min_score,
             jaccard_threshold=args.jaccard_threshold,
             use_semantic_dedup=args.semantic_dedup,
         )
 
-        # Process findings
-        existing = []  # Could load parent's existing findings here
         scored = []
         for f in all_findings:
             sf = gate.score_finding(
-                finding=f['finding'],
-                agent_name=f['agent_name'],
+                finding=f['finding'], agent_name=f['agent_name'],
                 domain=f.get('subject', 'general'),
                 confidence=f.get('impact', 0.5),
-                existing_findings=existing + [s.finding for s in scored],
+                existing_findings=[s.finding for s in scored],
                 domain_relevance=1.0,
             )
             scored.append(sf)
 
-        # Deduplicate
         deduped = gate.deduplicate(scored, project_id)
-
-        # Gate against budget
         result = gate.gate(deduped, args.budget)
 
-        # Log decisions if requested
         if args.log_decisions:
             log_rollup_decision(
-                session_id=args.parent_session_id,
-                budget_id=None,
-                result=result,
+                session_id=args.parent_session_id, budget_id=None, result=result,
             )
 
         output = {
@@ -526,7 +522,7 @@ def handle_session_rollup_command(args):
                 print(f"❌ Rejected: {len(result.rejected)} findings")
             print("=" * 70)
 
-        return None  # Avoid cli_core.py double-printing
+        return None
 
     except Exception as e:
         handle_cli_error(e, "Session rollup", getattr(args, 'verbose', False))

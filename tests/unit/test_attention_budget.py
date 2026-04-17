@@ -1,6 +1,5 @@
 """Tests for Epistemic Attention Budget system."""
 
-import math
 import pytest
 
 
@@ -391,16 +390,16 @@ class TestParallelOrchestrator:
         assert len(domains) >= 1
 
     def test_regulate_stops_on_no_budget(self):
-        from empirica.core.parallel_orchestrator import ParallelOrchestrator
         from empirica.core.epistemic_rollup import RollupResult
+        from empirica.core.parallel_orchestrator import ParallelOrchestrator
         orch = ParallelOrchestrator(session_id="test")
         result = RollupResult(budget_remaining=0)
         decision = orch.regulate(result, round_number=1)
         assert decision.action == "stop"
 
     def test_regulate_stops_on_stale_rounds(self):
-        from empirica.core.parallel_orchestrator import ParallelOrchestrator
         from empirica.core.epistemic_rollup import RollupResult
+        from empirica.core.parallel_orchestrator import ParallelOrchestrator
         orch = ParallelOrchestrator(session_id="test")
         result = RollupResult(budget_remaining=10)
 

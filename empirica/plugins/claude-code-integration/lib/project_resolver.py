@@ -165,7 +165,7 @@ def detect_environment() -> dict:
     """
     Detect execution environment for Sentinel context awareness.
 
-    Delegates to canonical when available (v1.8.5 resolver dedup).
+    Delegates to canonical when available (v1.8.6 resolver dedup).
 
     Returns dict with:
         hostname: str - machine hostname
@@ -287,6 +287,35 @@ def get_active_project_path(claude_session_id: str | None = None) -> str | None:
     return None
 
 
+def _session_from_transaction(project_path):
+    """Try to get session_id from active transaction file. Returns session_id or None."""
+    if not project_path:
+        return None
+    suffix = _get_instance_suffix()
+    tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
+    if not tx_file.exists():
+        return None
+    try:
+        with open(tx_file) as f:
+            tx_data = json.load(f)
+        if tx_data.get('status') == 'open':
+            return tx_data.get('session_id')
+    except Exception:
+        pass
+    return None
+
+
+def _session_from_json_file(file_path, key='empirica_session_id'):
+    """Try to get session_id from a JSON file. Returns session_id or None."""
+    if not file_path.exists():
+        return None
+    try:
+        with open(file_path) as f:
+            return json.load(f).get(key) or None
+    except Exception:
+        return None
+
+
 def get_active_session_id(claude_session_id: str | None = None) -> str | None:
     """
     Get the active Empirica session ID for the current instance.
@@ -295,6 +324,8 @@ def get_active_session_id(claude_session_id: str | None = None) -> str | None:
     1. Active transaction (TRANSACTION-FIRST - transaction survives compaction)
     2. active_work file (from project-switch/PREFLIGHT)
     3. instance_projects file (TMUX-based fallback)
+    4. TTY session
+    5. Generic active_work.json
 
     Args:
         claude_session_id: Optional Claude Code conversation UUID (from hook input)
@@ -313,48 +344,26 @@ def get_active_session_id(claude_session_id: str | None = None) -> str | None:
     project_path = get_active_project_path(claude_session_id)
 
     # Priority 1: Active transaction
-    if project_path:
-        suffix = _get_instance_suffix()
-        tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
-        if tx_file.exists():
-            try:
-                with open(tx_file) as f:
-                    tx_data = json.load(f)
-                    if tx_data.get('status') == 'open':
-                        session_id = tx_data.get('session_id')
-                        if session_id:
-                            return session_id
-            except Exception:
-                pass
+    result = _session_from_transaction(project_path)
+    if result:
+        return result
 
     # Priority 2: active_work file
     if claude_session_id:
-        active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
-        if active_work_file.exists():
-            try:
-                with open(active_work_file) as f:
-                    data = json.load(f)
-                    session_id = data.get('empirica_session_id')
-                    if session_id:
-                        return session_id
-            except Exception:
-                pass
+        result = _session_from_json_file(
+            Path.home() / '.empirica' / f'active_work_{claude_session_id}.json')
+        if result:
+            return result
 
     # Priority 3: instance_projects (TMUX-based)
     instance_id = get_instance_id()
     if instance_id:
-        instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
-        if instance_file.exists():
-            try:
-                with open(instance_file) as f:
-                    data = json.load(f)
-                    session_id = data.get('empirica_session_id')
-                    if session_id:
-                        return session_id
-            except Exception:
-                pass
+        result = _session_from_json_file(
+            Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json')
+        if result:
+            return result
 
-    # Priority 4: TTY session (written by session-create, project-switch)
+    # Priority 4: TTY session
     try:
         from empirica.utils.session_resolver import InstanceResolver as R
         tty_session = R.tty_session()
@@ -365,23 +374,12 @@ def get_active_session_id(claude_session_id: str | None = None) -> str | None:
     except Exception:
         pass
 
-    # Priority 5: Generic active_work.json (written by project-switch, session-init)
-    generic_work = Path.home() / '.empirica' / 'active_work.json'
-    if generic_work.exists():
-        try:
-            with open(generic_work) as f:
-                data = json.load(f)
-                session_id = data.get('empirica_session_id')
-                if session_id:
-                    return session_id
-        except Exception:
-            pass
-
-    return None
+    # Priority 5: Generic active_work.json
+    return _session_from_json_file(Path.home() / '.empirica' / 'active_work.json')
 
 
 # ---------------------------------------------------------------------------
-# Delegated to canonical session_resolver.py (v1.8.5 resolver dedup)
+# Delegated to canonical session_resolver.py (v1.8.6 resolver dedup)
 # Inline fallbacks removed — these are now single-source-of-truth in
 # empirica.utils.session_resolver. If empirica is not importable (bare
 # plugin without pip install), the InstanceResolver fallback at the top
@@ -434,6 +432,76 @@ except ImportError:
         return None  # Minimal fallback — workspace scan needs full empirica
 
 
+def _validated_project_path(path_str):
+    """Return Path if path_str points to a valid project, else None."""
+    if not path_str:
+        return None
+    p = Path(path_str)
+    return p if has_valid_db(p) else None
+
+
+def _collect_candidate_paths(claude_session_id, instance_id):
+    """Collect project paths from active_work and instance_projects files.
+
+    Returns a set of path strings.
+    """
+    candidates = set()
+    if claude_session_id:
+        aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
+        data = _read_json_file(aw_file)
+        if data and data.get('project_path'):
+            candidates.add(data['project_path'])
+    if instance_id:
+        ip_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
+        data = _read_json_file(ip_file)
+        if data and data.get('project_path'):
+            candidates.add(data['project_path'])
+    return candidates
+
+
+def _find_open_transaction_project(candidate_paths, suffix):
+    """Check candidates for an open transaction file. Returns Path or None."""
+    for cpath in candidate_paths:
+        tx_file = Path(cpath) / '.empirica' / f'active_transaction{suffix}.json'
+        tx_data = _read_json_file(tx_file)
+        if tx_data and tx_data.get('status') == 'open':
+            tx_project = tx_data.get('project_path', cpath)
+            result = _validated_project_path(tx_project)
+            if result:
+                return result
+    return None
+
+
+def _find_from_file_sources(claude_session_id, instance_id):
+    """Priority 3-4: instance_projects then active_work. Returns Path or None."""
+    if instance_id:
+        ip_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
+        data = _read_json_file(ip_file)
+        result = _validated_project_path(data.get('project_path') if data else None)
+        if result:
+            return result
+
+    if claude_session_id:
+        aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
+        data = _read_json_file(aw_file)
+        result = _validated_project_path(data.get('project_path') if data else None)
+        if result:
+            return result
+
+    return None
+
+
+def _find_cwd_fallback():
+    """CWD fallback: check CWD and git root. Returns Path."""
+    cwd = Path.cwd()
+    if has_valid_db(cwd):
+        return cwd
+    git_root = _find_git_root()
+    if git_root and has_valid_db(git_root):
+        return git_root
+    return cwd  # Return CWD even without valid DB (session-init creates it)
+
+
 def find_project_root(
     claude_session_id: str | None = None,
     *,
@@ -446,7 +514,7 @@ def find_project_root(
     Comprehensive project root resolution for hooks.
 
     Delegates to canonical empirica.utils.session_resolver.find_project_root
-    when available (v1.8.5 resolver dedup). Falls back to inline implementation
+    when available (v1.8.6 resolver dedup). Falls back to inline implementation
     for bare-plugin environments.
 
     Unified priority chain (highest to lowest):
@@ -469,7 +537,7 @@ def find_project_root(
     Returns:
         Path to project root, or None if cannot be resolved.
     """
-    # Delegate to canonical when available (v1.8.5 resolver dedup)
+    # Delegate to canonical when available (v1.8.6 resolver dedup)
     try:
         from empirica.utils.session_resolver import find_project_root as _canonical_fpr
         return _canonical_fpr(
@@ -487,55 +555,21 @@ def find_project_root(
 
     # Priority 1: Compact handoff (post-compact only)
     if check_compact_handoff and instance_id:
-        handoff_file = Path.home() / '.empirica' / f'compact_handoff{suffix}.json'
-        data = _read_json_file(handoff_file)
-        if data:
-            project_path = data.get('project_path')
-            if project_path and has_valid_db(Path(project_path)):
-                return Path(project_path)
+        data = _read_json_file(Path.home() / '.empirica' / f'compact_handoff{suffix}.json')
+        result = _validated_project_path(data.get('project_path') if data else None)
+        if result:
+            return result
 
     # Priority 2: Open transaction file
-    # Check via active_work or instance_projects for project path first
-    candidate_paths = set()
+    candidate_paths = _collect_candidate_paths(claude_session_id, instance_id)
+    result = _find_open_transaction_project(candidate_paths, suffix)
+    if result:
+        return result
 
-    if claude_session_id:
-        aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
-        data = _read_json_file(aw_file)
-        if data and data.get('project_path'):
-            candidate_paths.add(data['project_path'])
-
-    if instance_id:
-        ip_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
-        data = _read_json_file(ip_file)
-        if data and data.get('project_path'):
-            candidate_paths.add(data['project_path'])
-
-    # Check each candidate for open transaction (most authoritative)
-    for cpath in candidate_paths:
-        tx_file = Path(cpath) / '.empirica' / f'active_transaction{suffix}.json'
-        tx_data = _read_json_file(tx_file)
-        if tx_data and tx_data.get('status') == 'open':
-            tx_project = tx_data.get('project_path', cpath)
-            if has_valid_db(Path(tx_project)):
-                return Path(tx_project)
-
-    # Priority 3-4: active_work / instance_projects (already in candidate_paths)
-    # instance_projects is authoritative (updated by project-switch)
-    if instance_id:
-        ip_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
-        data = _read_json_file(ip_file)
-        if data and data.get('project_path'):
-            p = Path(data['project_path'])
-            if has_valid_db(p):
-                return p
-
-    if claude_session_id:
-        aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
-        data = _read_json_file(aw_file)
-        if data and data.get('project_path'):
-            p = Path(data['project_path'])
-            if has_valid_db(p):
-                return p
+    # Priority 3-4: instance_projects / active_work
+    result = _find_from_file_sources(claude_session_id, instance_id)
+    if result:
+        return result
 
     # Priority 5: Workspace scan
     if allow_workspace_scan:
@@ -556,13 +590,6 @@ def find_project_root(
 
     # Priority 8: CWD (last resort)
     if allow_cwd_fallback:
-        cwd = Path.cwd()
-        if has_valid_db(cwd):
-            return cwd
-        # Also check git root from CWD
-        git_root = _find_git_root()
-        if git_root and has_valid_db(git_root):
-            return git_root
-        return cwd  # Return CWD even without valid DB (session-init creates it)
+        return _find_cwd_fallback()
 
     return None

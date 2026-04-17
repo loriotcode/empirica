@@ -478,7 +478,7 @@ def validate_tty_session(session: dict[str, Any] | None = None) -> dict[str, Any
     """
     from datetime import datetime, timedelta
 
-    result = {
+    result: dict[str, Any] = {
         'valid': True,
         'warnings': [],
         'session': None
@@ -2283,7 +2283,7 @@ def _resolve_via_local_empirica(identifier: str) -> dict | None:
 # Project Root Resolution (canonical — moved from plugin lib/project_resolver.py)
 # =============================================================================
 # These were previously duplicated in the hook-side mirror. Consolidated here
-# as the single source of truth (goal 7ca0877c, v1.8.5).
+# as the single source of truth (goal 7ca0877c, v1.8.6).
 
 def has_valid_db(project_path: Path) -> bool:
     """Check if a project path has a valid .empirica/sessions/sessions.db."""
@@ -2444,15 +2444,18 @@ def _find_project_from_open_transaction(claude_session_id, instance_id, suffix):
     candidate_paths = set()
     if claude_session_id:
         data = _read_json_file(Path.home() / '.empirica' / f'active_work_{claude_session_id}.json')
-        if data and data.get('project_path'): candidate_paths.add(data['project_path'])
+        if data and data.get('project_path'):
+            candidate_paths.add(data['project_path'])
     if instance_id:
         data = _read_json_file(Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json')
-        if data and data.get('project_path'): candidate_paths.add(data['project_path'])
+        if data and data.get('project_path'):
+            candidate_paths.add(data['project_path'])
     for cpath in candidate_paths:
         tx_data = _read_json_file(Path(cpath) / '.empirica' / f'active_transaction{suffix}.json')
         if tx_data and tx_data.get('status') == 'open':
             tx_project = tx_data.get('project_path', cpath)
-            if has_valid_db(Path(tx_project)): return Path(tx_project)
+            if has_valid_db(Path(tx_project)):
+                return Path(tx_project)
     return None
 
 
@@ -2462,12 +2465,14 @@ def _find_project_from_state_files(claude_session_id, instance_id):
         data = _read_json_file(Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json')
         if data and data.get('project_path'):
             p = Path(data['project_path'])
-            if has_valid_db(p): return p
+            if has_valid_db(p):
+                return p
     if claude_session_id:
         data = _read_json_file(Path.home() / '.empirica' / f'active_work_{claude_session_id}.json')
         if data and data.get('project_path'):
             p = Path(data['project_path'])
-            if has_valid_db(p): return p
+            if has_valid_db(p):
+                return p
     return None
 
 

@@ -347,76 +347,38 @@ class EpistemicReleaseAgent:
     # =========================================================================
     # CHECK 4: Privacy/Security Scan
     # =========================================================================
-    def check_privacy_security(self) -> CheckResult:
-        """Scan for sensitive, private, or dev content that shouldn't be released."""
-        details = []
+    def _scan_forbidden_files(self, forbidden_file_patterns, exclude_dirs, gitignore_patterns):
+        """Scan for forbidden files that are not gitignored. Returns list of issues."""
         issues = []
-        warnings = []
-
-        # Parse .gitignore for exclusions
-        gitignore_patterns = self._parse_gitignore()
-
-        # Patterns that should NEVER be in a release (even if gitignored, warn about existence)
-        forbidden_patterns = {
-            "files": [
-                ".env", ".env.local", ".env.production",
-                "secrets.json", "credentials.json", "config.secret",
-                "*.pem", "*.key", "id_rsa", "id_ed25519",
-                ".aws/credentials", ".gcp/credentials",
-            ],
-            "content": [
-                r"sk-[a-zA-Z0-9]{20,}",  # OpenAI API key
-                r"ANTHROPIC_API_KEY\s*=\s*['\"][^'\"]+",
-                r"password\s*=\s*['\"][^'\"]{8,}",
-                r"secret\s*=\s*['\"][^'\"]{8,}",
-                r"/home/\w+/",  # Hardcoded home paths
-                r"C:\\Users\\\w+\\",  # Windows home paths
-            ]
-        }
-
-        # Patterns that warn but don't block
-        # Note: "temp" excluded because "template" is a valid name pattern
-        warn_patterns = {
-            "files": [
-                "*.draft*", "*.wip*", "*scratch*", "*tmp*",
-                "*.bak", "*.backup", "*_old*",
-                "research/*", "private/*", "internal/*",
-            ],
-            "dirs": [
-                "notebooks/",  # Research notebooks
-            ]
-        }
-
-        # Directories to always exclude from scanning (safe or user data)
-        exclude_dirs = [".git", ".venv", "venv", ".venv-mcp", "node_modules", "__pycache__",
-                        ".empirica", ".beads", ".qdrant_data", "dist", "build", "*.egg-info"]
-
-        # Check for forbidden files (only if NOT gitignored)
-        for pattern in forbidden_patterns["files"]:
+        for pattern in forbidden_file_patterns:
             found = list(self.root.glob(f"**/{pattern}"))
             for f in found:
-                # Skip if in excluded directories
                 if any(excl in str(f) for excl in exclude_dirs):
                     continue
-                # Skip if gitignored
                 if self._is_gitignored(f, gitignore_patterns):
                     continue
                 issues.append(f"FORBIDDEN (not gitignored): {f.relative_to(self.root)}")
+        return issues
 
-        # Check for hardcoded secrets in Python files (only in empirica source)
+    def _scan_hardcoded_secrets(self, content_patterns):
+        """Scan Python source files for hardcoded secrets. Returns list of issues."""
+        issues = []
         py_files = list(self.root.glob("empirica/**/*.py"))
-        for py_file in py_files[:100]:  # Limit scan
+        for py_file in py_files[:100]:
             try:
                 content = py_file.read_text()
-                for pattern in forbidden_patterns["content"]:
+                for pattern in content_patterns:
                     if re.search(pattern, content):
                         issues.append(f"SECRET: {py_file.relative_to(self.root)}")
                         break
             except Exception:
                 pass
+        return issues
 
-        # Check for warning patterns (only if NOT gitignored)
-        for pattern in warn_patterns["files"]:
+    def _scan_warning_patterns(self, warn_file_patterns, exclude_dirs, gitignore_patterns):
+        """Scan for warning-level patterns. Returns list of warnings."""
+        warnings = []
+        for pattern in warn_file_patterns:
             found = list(self.root.glob(f"**/{pattern}"))
             for f in found[:2]:
                 if any(excl in str(f) for excl in exclude_dirs):
@@ -425,7 +387,6 @@ class EpistemicReleaseAgent:
                     continue
                 warnings.append(f"DEV FILE: {f.relative_to(self.root)}")
 
-        # Check for user data directories that are NOT gitignored
         user_data_dirs = [".empirica/sessions", ".qdrant_data", ".beads", "notebooks"]
         for dir_name in user_data_dirs:
             dir_path = self.root / dir_name
@@ -433,7 +394,6 @@ class EpistemicReleaseAgent:
                 if not self._is_gitignored(dir_path, gitignore_patterns):
                     warnings.append(f"USER DATA (not gitignored!): {dir_name}")
 
-        # Check .gitignore includes critical security patterns
         gitignore = self.root / ".gitignore"
         if gitignore.exists():
             gitignore_content = gitignore.read_text()
@@ -441,13 +401,44 @@ class EpistemicReleaseAgent:
             missing = [p for p in critical_ignores if p not in gitignore_content]
             if missing:
                 warnings.append(f".gitignore missing: {missing}")
-        else:
+        return warnings
+
+    def check_privacy_security(self) -> CheckResult:
+        """Scan for sensitive, private, or dev content that shouldn't be released."""
+        gitignore_patterns = self._parse_gitignore()
+
+        forbidden_file_patterns = [
+            ".env", ".env.local", ".env.production",
+            "secrets.json", "credentials.json", "config.secret",
+            "*.pem", "*.key", "id_rsa", "id_ed25519",
+            ".aws/credentials", ".gcp/credentials",
+        ]
+        content_patterns = [
+            r"sk-[a-zA-Z0-9]{20,}",
+            r"ANTHROPIC_API_KEY\s*=\s*['\"][^'\"]+",
+            r"password\s*=\s*['\"][^'\"]{8,}",
+            r"secret\s*=\s*['\"][^'\"]{8,}",
+            r"/home/\w+/",
+            r"C:\\Users\\\w+\\",
+        ]
+        warn_file_patterns = [
+            "*.draft*", "*.wip*", "*scratch*", "*tmp*",
+            "*.bak", "*.backup", "*_old*",
+            "research/*", "private/*", "internal/*",
+        ]
+        exclude_dirs = [".git", ".venv", "venv", ".venv-mcp", "node_modules", "__pycache__",
+                        ".empirica", ".beads", ".qdrant_data", "dist", "build", "*.egg-info"]
+
+        issues = self._scan_forbidden_files(forbidden_file_patterns, exclude_dirs, gitignore_patterns)
+        issues.extend(self._scan_hardcoded_secrets(content_patterns))
+
+        warnings = self._scan_warning_patterns(warn_file_patterns, exclude_dirs, gitignore_patterns)
+
+        # Check for missing .gitignore
+        if not (self.root / ".gitignore").exists():
             issues.append("No .gitignore file found!")
 
-        # Build result
-        details.extend(issues)
-        details.extend(warnings)
-
+        details = issues + warnings
         if issues:
             status = AssessmentStatus.FAIL
             message = f"SECURITY: {len(issues)} forbidden items found"
@@ -459,10 +450,8 @@ class EpistemicReleaseAgent:
             message = "No sensitive content detected"
 
         result = CheckResult(
-            name="Privacy/Security Scan",
-            status=status,
-            message=message,
-            details=details[:10]  # Limit output
+            name="Privacy/Security Scan", status=status,
+            message=message, details=details[:10]
         )
         result.moon = self._status_to_moon(status)
         return result

@@ -8,8 +8,6 @@ the threshold-gate logic from the collector's dependency surface.
 
 from __future__ import annotations
 
-import pytest
-
 from empirica.core.post_test.collector import (
     EvidenceBundle,
     EvidenceItem,
@@ -20,7 +18,6 @@ from empirica.core.post_test.grounded_calibration import (
     INSUFFICIENT_EVIDENCE_THRESHOLD,
     _run_single_phase_verification,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

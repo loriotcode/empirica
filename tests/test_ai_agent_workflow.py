@@ -14,8 +14,9 @@ import os
 import subprocess
 import tempfile
 import uuid
-import pytest
 from pathlib import Path
+
+import pytest
 
 
 @pytest.fixture(scope="class")

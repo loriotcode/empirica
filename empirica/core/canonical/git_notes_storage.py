@@ -226,7 +226,7 @@ class GitNotesStorage:
 
             logger.info(
                 f"Signed checkpoint committed: {commit_sha[:7]} "
-                f"(session={self.session_id}, phase={phase}, persona={self.signing_persona.persona_id})"
+                f"(session={self.session_id}, phase={phase}, persona={self.signing_persona.persona.persona_id})"
             )
 
             return commit_sha

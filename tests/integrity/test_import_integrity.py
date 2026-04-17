@@ -16,10 +16,9 @@ import ast
 import importlib
 import os
 from pathlib import Path
-from typing import List, NamedTuple, Set, Tuple
+from typing import NamedTuple
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Helpers & Fixtures
@@ -29,12 +28,12 @@ EMPIRICA_ROOT = Path(__file__).resolve().parents[2]
 EMPIRICA_PKG = EMPIRICA_ROOT / "empirica"
 
 # Directories to skip when walking the package tree
-SKIP_DIRS: Set[str] = {"__pycache__", "_archive", "_dev"}
+SKIP_DIRS: set[str] = {"__pycache__", "_archive", "_dev"}
 
 # Known optional third-party packages that may not be installed.
 # ModuleNotFoundError for these is expected and not a bug — the corresponding
 # extras (api, vector, vision, mcp, prose) are declared in pyproject.toml.
-OPTIONAL_PACKAGES: Set[str] = {
+OPTIONAL_PACKAGES: set[str] = {
     "flask", "flask_cors", "werkzeug", "fastapi", "uvicorn",
     "qdrant_client",
     "pytesseract", "cv2", "PIL",
@@ -60,13 +59,13 @@ def _is_optional_dep_error(exc: Exception) -> bool:
     return False
 
 
-def _collect_py_modules() -> List[Tuple[str, Path]]:
+def _collect_py_modules() -> list[tuple[str, Path]]:
     """Walk ``empirica/`` and return (dotted_module_path, file_path) pairs.
 
     Skips directories listed in ``SKIP_DIRS`` and any file whose name starts
     with ``test_`` (test files are not package modules).
     """
-    modules: List[Tuple[str, Path]] = []
+    modules: list[tuple[str, Path]] = []
     for dirpath, dirnames, filenames in os.walk(EMPIRICA_PKG):
         # Prune unwanted directories in-place so os.walk does not descend
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
@@ -91,7 +90,7 @@ def _collect_py_modules() -> List[Tuple[str, Path]]:
 
 
 @pytest.fixture(scope="module")
-def py_modules() -> List[Tuple[str, Path]]:
+def py_modules() -> list[tuple[str, Path]]:
     """All importable ``empirica`` modules as ``(dotted_name, path)`` pairs."""
     mods = _collect_py_modules()
     assert mods, "No .py modules found under empirica/ — test setup is broken"
@@ -99,9 +98,9 @@ def py_modules() -> List[Tuple[str, Path]]:
 
 
 @pytest.fixture(scope="module")
-def py_files() -> List[Path]:
+def py_files() -> list[Path]:
     """All ``.py`` files under ``empirica/`` (excluding skipped dirs and tests)."""
-    files: List[Path] = []
+    files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(EMPIRICA_PKG):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         for fname in filenames:
@@ -129,16 +128,16 @@ class TestAllModulesImport:
     those are expected when the corresponding extras are not installed.
     """
 
-    def test_all_modules_importable(self, py_modules: List[Tuple[str, Path]]):
+    def test_all_modules_importable(self, py_modules: list[tuple[str, Path]]):
         """Import every discovered module and collect any failures.
 
         Failures caused by missing optional dependencies are excluded from
         the report so the test passes in minimal install environments.
         """
-        failures: List[Tuple[str, str]] = []
-        skipped_optional: List[str] = []
+        failures: list[tuple[str, str]] = []
+        skipped_optional: list[str] = []
 
-        for dotted, fpath in py_modules:
+        for dotted, _fpath in py_modules:
             try:
                 importlib.import_module(dotted)
             except Exception as exc:
@@ -178,9 +177,9 @@ class _ShadowViolation(NamedTuple):
     function_level_line: int
 
 
-def _extract_import_aliases(node: ast.ImportFrom) -> List[_AliasInfo]:
+def _extract_import_aliases(node: ast.ImportFrom) -> list[_AliasInfo]:
     """Return alias info for every name in an ``ImportFrom`` that uses ``as``."""
-    results: List[_AliasInfo] = []
+    results: list[_AliasInfo] = []
     if node.module is None:
         return results
     for alias_node in node.names:
@@ -196,7 +195,7 @@ def _extract_import_aliases(node: ast.ImportFrom) -> List[_AliasInfo]:
     return results
 
 
-def _find_shadow_violations(filepath: Path) -> List[_ShadowViolation]:
+def _find_shadow_violations(filepath: Path) -> list[_ShadowViolation]:
     """Parse *filepath* and detect function-level imports that shadow module-level aliases.
 
     The pattern this catches::
@@ -232,7 +231,7 @@ def _find_shadow_violations(filepath: Path) -> List[_ShadowViolation]:
         return []
 
     # 2. Walk functions/methods and look for local imports using the same alias
-    violations: List[_ShadowViolation] = []
+    violations: list[_ShadowViolation] = []
 
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -271,15 +270,15 @@ class TestNoImportShadowing:
     function that re-imports an alias already defined at module level.
     """
 
-    def test_no_alias_shadowing(self, py_files: List[Path]):
+    def test_no_alias_shadowing(self, py_files: list[Path]):
         """No function should shadow a module-level import alias."""
-        all_violations: List[_ShadowViolation] = []
+        all_violations: list[_ShadowViolation] = []
 
         for fpath in py_files:
             all_violations.extend(_find_shadow_violations(fpath))
 
         if all_violations:
-            lines: List[str] = []
+            lines: list[str] = []
             for v in all_violations:
                 rel = v.file.relative_to(EMPIRICA_ROOT)
                 lines.append(
@@ -311,9 +310,9 @@ class TestNoCircularImports:
     first loaded.
     """
 
-    def _top_level_subpackages(self) -> List[str]:
+    def _top_level_subpackages(self) -> list[str]:
         """Return dotted names of top-level sub-packages (e.g. ``empirica.core``)."""
-        pkgs: List[str] = []
+        pkgs: list[str] = []
         for entry in sorted(EMPIRICA_PKG.iterdir()):
             if not entry.is_dir():
                 continue
@@ -333,7 +332,7 @@ class TestNoCircularImports:
         machinery and surface latent cycles.  Failures caused by missing
         optional dependencies are excluded (same rationale as Test 1).
         """
-        failures: List[Tuple[str, str]] = []
+        failures: list[tuple[str, str]] = []
         subpackages = self._top_level_subpackages()
         assert subpackages, "No sub-packages found — test setup is broken"
 

@@ -9,11 +9,8 @@ from __future__ import annotations
 
 import sqlite3
 
-import pytest
-
 from empirica.core.post_test.compliance_status import ComplianceStatus
 from empirica.core.post_test.mapper import GroundedAssessment, GroundedVectorEstimate
-
 
 # ---------------------------------------------------------------------------
 # ComplianceStatus enum
@@ -55,14 +52,14 @@ class TestComplianceStatus:
 class TestGroundedAssessmentNewFields:
 
     def _make_assessment(self, **kwargs) -> GroundedAssessment:
-        defaults = dict(
-            session_id="test-session",
-            self_assessed={"know": 0.8},
-            grounded={"know": GroundedVectorEstimate("know", 0.7, 0.9, 3, "git")},
-            calibration_gaps={"know": 0.1},
-            grounded_coverage=0.5,
-            overall_calibration_score=0.1,
-        )
+        defaults = {
+            "session_id": "test-session",
+            "self_assessed": {"know": 0.8},
+            "grounded": {"know": GroundedVectorEstimate("know", 0.7, 0.9, 3, "git")},
+            "calibration_gaps": {"know": 0.1},
+            "grounded_coverage": 0.5,
+            "overall_calibration_score": 0.1,
+        }
         defaults.update(kwargs)
         return GroundedAssessment(**defaults)
 

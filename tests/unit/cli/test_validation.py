@@ -11,7 +11,6 @@ from pydantic import ValidationError
 
 from empirica.cli.validation import PreflightInput
 
-
 # ---------------------------------------------------------------------------
 # work_type regex — remote-ops support
 # ---------------------------------------------------------------------------

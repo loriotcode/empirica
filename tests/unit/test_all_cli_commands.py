@@ -11,8 +11,10 @@ Issue: 'chat' command times out (interactive mode)
 For Gemini/Qwen to validate bug fixes and ensure no regressions.
 """
 
-import pytest
 import subprocess
+
+import pytest
+
 
 class TestCoreWorkflowCommands:
     """Test Core Workflow commands (CASCADE phases)
@@ -47,34 +49,34 @@ class TestCoreWorkflowCommands:
 
 class TestGoalsCommands:
     """Test Goals commands (7 commands)"""
-    
+
     def test_goals_create_help(self):
         """Goals-create command has working --help"""
         result = subprocess.run(["empirica", "goals-create", "--help"], capture_output=True)
         assert result.returncode == 0
-    
+
     def test_goals_add_subtask_help(self):
         """Goals-add-subtask command has working --help"""
         result = subprocess.run(["empirica", "goals-add-subtask", "--help"], capture_output=True)
         assert result.returncode == 0
-    
+
     def test_goals_complete_subtask_help(self):
         """Goals-complete-subtask command has working --help"""
         result = subprocess.run(["empirica", "goals-complete-subtask", "--help"], capture_output=True)
         assert result.returncode == 0
-    
+
     def test_goals_progress_help(self):
         """Goals-progress command has working --help"""
         result = subprocess.run(["empirica", "goals-progress", "--help"], capture_output=True)
         assert result.returncode == 0
-    
+
     def test_goals_list_execution(self):
         """Goals-list runs without args (shows preview when no session)"""
         result = subprocess.run(["empirica", "goals-list"], capture_output=True, timeout=5)
         # Return 1 is OK when showing preview (design intent)
         assert result.returncode in [0, 1]
         assert b"Preview" in result.stdout or b"goals" in result.stdout.lower()
-    
+
     def test_goals_discover_execution(self):
         """Goals-discover runs without args (discovers from git)"""
         # Timeout 30s: discover_goals reads git notes refs (N+1 pattern),
@@ -82,7 +84,7 @@ class TestGoalsCommands:
         result = subprocess.run(["empirica", "goals-discover"], capture_output=True, timeout=30)
         # Return 1 is OK when no context (shows help)
         assert result.returncode in [0, 1]
-    
+
     def test_goals_resume_help(self):
         """Goals-resume command has working --help"""
         result = subprocess.run(["empirica", "goals-resume", "--help"], capture_output=True)
@@ -91,22 +93,22 @@ class TestGoalsCommands:
 
 class TestCheckpointCommands:
     """Test Git Checkpoint commands (4 commands)"""
-    
+
     def test_checkpoint_create_help(self):
         """Checkpoint-create command has working --help"""
         result = subprocess.run(["empirica", "checkpoint-create", "--help"], capture_output=True)
         assert result.returncode == 0
-    
+
     def test_checkpoint_load_help(self):
         """Checkpoint-load command has working --help"""
         result = subprocess.run(["empirica", "checkpoint-load", "--help"], capture_output=True)
         assert result.returncode == 0
-    
+
     def test_checkpoint_list_help(self):
         """Checkpoint-list command has working --help"""
         result = subprocess.run(["empirica", "checkpoint-list", "--help"], capture_output=True)
         assert result.returncode == 0
-    
+
     def test_checkpoint_diff_help(self):
         """Checkpoint-diff command has working --help"""
         result = subprocess.run(["empirica", "checkpoint-diff", "--help"], capture_output=True)
@@ -115,12 +117,12 @@ class TestCheckpointCommands:
 
 class TestHandoffCommands:
     """Test Handoff commands (2 commands)"""
-    
+
     def test_handoff_create_help(self):
         """Handoff-create command has working --help"""
         result = subprocess.run(["empirica", "handoff-create", "--help"], capture_output=True)
         assert result.returncode == 0
-    
+
     def test_handoff_query_execution(self):
         """Handoff-query runs without args (queries all handoffs)"""
         result = subprocess.run(["empirica", "handoff-query"], capture_output=True, timeout=5)
@@ -131,22 +133,22 @@ class TestHandoffCommands:
 
 class TestSessionCommands:
     """Test Session commands (4 commands)"""
-    
+
     def test_sessions_list_execution(self):
         """Sessions-list runs without args (lists all sessions)"""
         result = subprocess.run(["empirica", "sessions-list"], capture_output=True, timeout=5)
         assert result.returncode == 0
-    
+
     def test_sessions_show_help(self):
         """Sessions-show command has working --help"""
         result = subprocess.run(["empirica", "sessions-show", "--help"], capture_output=True)
         assert result.returncode == 0
-    
+
     def test_sessions_export_help(self):
         """Sessions-export command has working --help"""
         result = subprocess.run(["empirica", "sessions-export", "--help"], capture_output=True)
         assert result.returncode == 0
-    
+
     def test_sessions_resume_execution(self):
         """Sessions-resume runs without args (shows available sessions)"""
         result = subprocess.run(["empirica", "sessions-resume"], capture_output=True, timeout=5)
@@ -155,22 +157,22 @@ class TestSessionCommands:
 
 class TestIdentityCommands:
     """Test Identity commands (4 commands)"""
-    
+
     def test_identity_create_help(self):
         """Identity-create command has working --help"""
         result = subprocess.run(["empirica", "identity-create", "--help"], capture_output=True)
         assert result.returncode == 0
-    
+
     def test_identity_list_execution(self):
         """Identity-list runs without args (lists all identities)"""
         result = subprocess.run(["empirica", "identity-list"], capture_output=True, timeout=5)
         assert result.returncode == 0
-    
+
     def test_identity_export_help(self):
         """Identity-export command has working --help"""
         result = subprocess.run(["empirica", "identity-export", "--help"], capture_output=True)
         assert result.returncode == 0
-    
+
     def test_identity_verify_help(self):
         """Identity-verify command has working --help"""
         result = subprocess.run(["empirica", "identity-verify", "--help"], capture_output=True)
@@ -179,7 +181,7 @@ class TestIdentityCommands:
 
 class TestConfigurationCommands:
     """Test Configuration commands"""
-    
+
     def test_config_execution(self):
         """Config runs without args (shows current config)"""
         result = subprocess.run(["empirica", "config"], capture_output=True, timeout=5)
@@ -188,17 +190,17 @@ class TestConfigurationCommands:
 
 class TestInvestigationCommands:
     """Test Investigation commands (3 commands)"""
-    
+
     def test_investigate_help(self):
         """Investigate command has working --help"""
         result = subprocess.run(["empirica", "investigate", "--help"], capture_output=True)
         assert result.returncode == 0
-    
+
     def test_investigate_log_help(self):
         """Investigate-log command has working --help"""
         result = subprocess.run(["empirica", "investigate-log", "--help"], capture_output=True)
         assert result.returncode == 0
-    
+
     def test_goal_analysis_help(self):
         """Goal-analysis command has working --help"""
         result = subprocess.run(["empirica", "goal-analysis", "--help"], capture_output=True)
@@ -207,12 +209,12 @@ class TestInvestigationCommands:
 
 class TestPerformanceCommands:
     """Test Performance commands (2 commands)"""
-    
+
     def test_performance_execution(self):
         """Performance runs without args (shows performance stats)"""
         result = subprocess.run(["empirica", "performance"], capture_output=True, timeout=5)
         assert result.returncode == 0
-    
+
     def test_efficiency_report_help(self):
         """Efficiency-report command has working --help"""
         result = subprocess.run(["empirica", "efficiency-report", "--help"], capture_output=True)
@@ -221,7 +223,7 @@ class TestPerformanceCommands:
 
 class TestMonitoringCommands:
     """Test Monitoring commands (1 command)"""
-    
+
     def test_monitor_execution(self):
         """Monitor runs without args (shows monitoring dashboard)"""
         result = subprocess.run(["empirica", "monitor"], capture_output=True, timeout=5)
@@ -230,7 +232,7 @@ class TestMonitoringCommands:
 
 class TestActionsCommands:
     """Test Actions commands (1 command)"""
-    
+
     def test_act_log_help(self):
         """Act-log command has working --help"""
         result = subprocess.run(["empirica", "act-log", "--help"], capture_output=True)
@@ -240,13 +242,13 @@ class TestActionsCommands:
 # Summary test
 class TestCLISummary:
     """Overall CLI health check"""
-    
+
     def test_main_help_works(self):
         """Main empirica --help works"""
         result = subprocess.run(["empirica", "--help"], capture_output=True)
         assert result.returncode == 0
         assert b"Empirica" in result.stdout
-    
+
     def test_total_command_count(self):
         """Verify core commands exist in compact help output"""
         result = subprocess.run(["empirica", "--help"], capture_output=True, text=True)

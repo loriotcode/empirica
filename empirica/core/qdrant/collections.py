@@ -3,6 +3,24 @@ Qdrant collection naming, initialization, and migration utilities.
 """
 from __future__ import annotations
 
+# Public API — collection name functions are imported by vector_store, memory, etc.
+__all__ = [
+    "_assumptions_collection",
+    "_calibration_collection",
+    "_decisions_collection",
+    "_docs_collection",
+    "_eidetic_collection",
+    "_episodic_collection",
+    "_epistemics_collection",
+    "_global_eidetic_collection",
+    "_global_learnings_collection",
+    "_goals_collection",
+    "_intents_collection",
+    "_memory_collection",
+    "_workspace_index_collection",
+    "init_collections",
+]
+
 from empirica.core.qdrant.connection import (
     _check_qdrant_available,
     _get_qdrant_client,

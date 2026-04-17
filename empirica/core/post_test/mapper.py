@@ -459,6 +459,134 @@ def _compute_weighted_calibration(
     return 0.0
 
 
+def summarize_evidence(bundle: EvidenceBundle, work_type: str | None = None) -> dict[str, Any]:
+    """Summarize evidence as structured data for AI interpretation.
+
+    Instead of mapping evidence to per-vector scores, presents raw
+    evidence grouped by source. The AI interprets this to calibrate
+    its own vectors — it's the calibrator, not the system.
+    """
+    relevance = WORK_TYPE_RELEVANCE.get(work_type, {}) if work_type else {}
+
+    summary: dict[str, Any] = {}
+    for item in bundle.items:
+        source_relevance = relevance.get(item.source, 1.0)
+        if source_relevance <= 0.0:
+            continue  # instrument-blind for this work_type
+
+        if item.source not in summary:
+            summary[item.source] = {}
+        summary[item.source][item.metric_name] = item.raw_value
+
+    # Generate natural-language signals from evidence patterns
+    signals = _generate_evidence_signals(summary, bundle)
+
+    return {
+        "sources": summary,
+        "signals": signals,
+        "coverage": round(bundle.coverage, 2),
+        "evidence_count": len(bundle.items),
+    }
+
+
+def _signal_artifact_breadth(summary: dict) -> str | None:
+    """Signal for artifact logging breadth."""
+    artifacts = summary.get("artifacts", {})
+    if not artifacts:
+        return None
+    artifact_types = [k for k, v in artifacts.items() if isinstance(v, (int, float)) and v > 0]
+    if len(artifact_types) <= 1:
+        return "Narrow artifact breadth — consider logging decisions, assumptions, or dead-ends"
+    if len(artifact_types) >= 4:
+        return f"Good artifact breadth ({len(artifact_types)} types)"
+    return None
+
+
+def _signal_git_activity(summary: dict) -> str | None:
+    """Signal for git commit activity."""
+    git = summary.get("git", {})
+    if not git:
+        return None
+    commits = git.get("commit_count", 0)
+    if commits == 0:
+        return "No commits in this transaction — uncommitted work is invisible to calibration"
+    if commits >= 3:
+        return f"Active execution ({commits} commits)"
+    return None
+
+
+def _signal_code_quality(summary: dict) -> str | None:
+    """Signal for code quality metrics."""
+    cq = summary.get("code_quality", {})
+    if not cq:
+        return None
+    ruff_violations = cq.get("ruff_violation_count", None)
+    pyright_errors = cq.get("pyright_error_count", None)
+    if ruff_violations == 0 and pyright_errors == 0:
+        return "Code quality clean (0 lint, 0 type errors)"
+    if ruff_violations is not None and ruff_violations > 0:
+        return f"Lint regressions: {ruff_violations} ruff violations"
+    return None
+
+
+def _signal_test_results(summary: dict) -> str | None:
+    """Signal for pytest results."""
+    tests = summary.get("pytest", {})
+    if not tests:
+        return None
+    failed = tests.get("failed_count", 0)
+    if failed > 0:
+        return f"Test regressions: {failed} tests failing"
+    passed = tests.get("passed_count", 0)
+    if passed > 0:
+        return f"Tests passing ({passed})"
+    return None
+
+
+def _signal_noetic_activity(summary: dict) -> str | None:
+    """Signal for investigation depth."""
+    noetic = summary.get("noetic", {})
+    if not noetic:
+        return None
+    reads = noetic.get("file_reads", 0)
+    searches = noetic.get("searches", 0)
+    if reads + searches > 20:
+        return f"Deep investigation ({reads} reads, {searches} searches)"
+    return None
+
+
+def _signal_sentinel(summary: dict) -> str | None:
+    """Signal for sentinel blocks."""
+    sentinel = summary.get("sentinel", {})
+    if not sentinel:
+        return None
+    blocks = sentinel.get("blocks", 0)
+    if blocks > 0:
+        return f"Sentinel blocked {blocks} premature praxic attempts"
+    return None
+
+
+# Ordered list of signal generators applied to the evidence summary.
+_SIGNAL_GENERATORS = [
+    _signal_artifact_breadth,
+    _signal_git_activity,
+    _signal_code_quality,
+    _signal_test_results,
+    _signal_noetic_activity,
+    _signal_sentinel,
+]
+
+
+def _generate_evidence_signals(summary: dict, bundle: EvidenceBundle) -> list[str]:
+    """Generate natural-language signals from evidence patterns."""
+    signals = []
+    for generator in _SIGNAL_GENERATORS:
+        signal = generator(summary)
+        if signal is not None:
+            signals.append(signal)
+    return signals
+
+
 class EvidenceMapper:
     """Maps evidence bundles to grounded vector estimates."""
 

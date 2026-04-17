@@ -383,16 +383,115 @@ def _get_project_id_from_context(context_data):
     return None
 
 
+def _resolve_from_context_files():
+    """Resolve project_id from resolver context files (instance_projects, TTY, active_work).
+
+    Returns project_id or None.
+    """
+    import json as _json
+    import os
+
+    # Priority 0a: instance_projects (instance-keyed)
+    _sc_instance_id = R.instance_id()
+    if _sc_instance_id:
+        instance_file = os.path.join(
+            os.path.expanduser('~'), '.empirica',
+            'instance_projects', f'{_sc_instance_id}.json'
+        )
+        if os.path.exists(instance_file):
+            with open(instance_file) as f:
+                instance_data = _json.load(f)
+                pid = _get_project_id_from_context(instance_data)
+                if pid:
+                    return pid
+
+    # Priority 0b: TTY-specific active_work
+    tty_session = R.tty_session(warn_if_stale=False)
+    if tty_session:
+        claude_session_id = tty_session.get('claude_session_id')
+        if claude_session_id:
+            active_work_path = os.path.join(
+                os.path.expanduser('~'), '.empirica',
+                f'active_work_{claude_session_id}.json'
+            )
+            if os.path.exists(active_work_path):
+                with open(active_work_path) as f:
+                    active_work = _json.load(f)
+                    pid = _get_project_id_from_context(active_work)
+                    if pid:
+                        return pid
+
+    # Priority 0c: canonical active_work.json
+    canonical_path = os.path.join(os.path.expanduser('~'), '.empirica', 'active_work.json')
+    if os.path.exists(canonical_path):
+        with open(canonical_path) as f:
+            active_work = _json.load(f)
+            return _get_project_id_from_context(active_work)
+
+    return None
+
+
+def _resolve_from_sessions_db():
+    """Resolve project_id from sessions.db or project.yaml fallback.
+
+    Returns project_id or None.
+    """
+    import os
+
+    context_project = R.project_path()
+    if not context_project:
+        return None
+
+    pid = R.project_id_from_db(context_project)
+    if pid:
+        return pid
+
+    import yaml
+    project_yaml = os.path.join(context_project, '.empirica', 'project.yaml')
+    if os.path.exists(project_yaml):
+        try:
+            with open(project_yaml) as f:
+                project_config = yaml.safe_load(f)
+                if project_config and project_config.get('project_id'):
+                    return project_config['project_id']
+        except Exception:
+            pass
+    return None
+
+
+def _resolve_from_git_remote():
+    """Resolve project_id by matching git remote URL in sessions.db.
+
+    Returns project_id or None.
+    """
+    import subprocess
+
+    from empirica.data.session_database import SessionDatabase
+
+    try:
+        result = subprocess.run(
+            ['git', 'remote', 'get-url', 'origin'],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            git_url = result.stdout.strip()
+            db_temp = SessionDatabase()
+            cursor = db_temp.conn.cursor()
+            cursor.execute("SELECT id FROM projects WHERE repos LIKE ?", (f'%{git_url}%',))
+            row = cursor.fetchone()
+            db_temp.close()
+            if row:
+                return row['id']
+    except Exception:
+        pass
+    return None
+
+
 def _resolve_early_project_id(project_id):
     """Resolve project_id through multiple strategies (context files, sessions.db, git remote).
 
     Returns the resolved early_project_id (UUID when possible).
     """
-    import os
-    import subprocess
-
-    from empirica.data.session_database import SessionDatabase
-
     early_project_id = project_id
 
     # Resolve folder_name to UUID if explicit --project-id was passed
@@ -404,60 +503,14 @@ def _resolve_early_project_id(project_id):
     if not early_project_id:
         # Method 0: Check resolver context files (highest priority)
         try:
-            import json as _json
-
-            # Priority 0a: instance_projects (instance-keyed)
-            _sc_instance_id = R.instance_id()
-            if _sc_instance_id and not early_project_id:
-                instance_file = os.path.join(
-                    os.path.expanduser('~'), '.empirica',
-                    'instance_projects', f'{_sc_instance_id}.json'
-                )
-                if os.path.exists(instance_file):
-                    with open(instance_file) as f:
-                        instance_data = _json.load(f)
-                        early_project_id = _get_project_id_from_context(instance_data)
-
-            # Priority 0b: TTY-specific active_work
-            if not early_project_id:
-                tty_session = R.tty_session(warn_if_stale=False)
-                if tty_session:
-                    claude_session_id = tty_session.get('claude_session_id')
-                    if claude_session_id:
-                        active_work_path = os.path.join(
-                            os.path.expanduser('~'), '.empirica',
-                            f'active_work_{claude_session_id}.json'
-                        )
-                        if os.path.exists(active_work_path):
-                            with open(active_work_path) as f:
-                                active_work = _json.load(f)
-                                early_project_id = _get_project_id_from_context(active_work)
-
-            # Priority 0c: canonical active_work.json
-            if not early_project_id:
-                canonical_path = os.path.join(os.path.expanduser('~'), '.empirica', 'active_work.json')
-                if os.path.exists(canonical_path):
-                    with open(canonical_path) as f:
-                        active_work = _json.load(f)
-                        early_project_id = _get_project_id_from_context(active_work)
+            early_project_id = _resolve_from_context_files()
         except Exception:
             pass
 
         # Method 1: sessions.db (authoritative) or project.yaml (fallback)
         if not early_project_id:
             try:
-                context_project = R.project_path()
-                if not context_project:
-                    raise ValueError("No active project context - skip Method 1")
-                early_project_id = R.project_id_from_db(context_project)
-                if not early_project_id:
-                    import yaml
-                    project_yaml = os.path.join(context_project, '.empirica', 'project.yaml')
-                    if os.path.exists(project_yaml):
-                        with open(project_yaml) as f:
-                            project_config = yaml.safe_load(f)
-                            if project_config and project_config.get('project_id'):
-                                early_project_id = project_config['project_id']
+                early_project_id = _resolve_from_sessions_db()
             except Exception:
                 pass
 
@@ -469,26 +522,7 @@ def _resolve_early_project_id(project_id):
 
         # Method 2: Match git remote URL
         if not early_project_id:
-            try:
-                result = subprocess.run(
-                    ['git', 'remote', 'get-url', 'origin'],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
-                if result.returncode == 0:
-                    git_url = result.stdout.strip()
-                    db_temp = SessionDatabase()
-                    cursor = db_temp.conn.cursor()
-                    cursor.execute("""
-                        SELECT id FROM projects WHERE repos LIKE ?
-                    """, (f'%{git_url}%',))
-                    row = cursor.fetchone()
-                    if row:
-                        early_project_id = row['id']
-                    db_temp.close()
-            except Exception:
-                pass
+            early_project_id = _resolve_from_git_remote()
 
     return early_project_id
 

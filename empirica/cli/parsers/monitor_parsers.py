@@ -158,3 +158,31 @@ Disputes are stored in SQLite and flagged in subsequent calibration reports.
         help='Session to dispute (default: active session)')
     dispute_parser.add_argument('--output', choices=['human', 'json'], default='json',
         help='Output format (default: json)')
+
+    # Compliance report — project-wide quality snapshot mapped to regulatory frameworks
+    compliance_parser = subparsers.add_parser('compliance-report',
+        help='Generate compliance report mapped to regulatory frameworks',
+        description="""
+Run all deterministic quality checks and map results to regulatory frameworks.
+
+Checks (always run):
+- ruff: static analysis (lint violations)
+- radon: cyclomatic complexity
+- pyright: type safety errors
+- epistemic audit: transaction trail completeness
+- calibration: grounded verification data
+
+Optional checks (--tests, --dep-audit):
+- pytest: full test suite (slow)
+- pip-audit: dependency CVE scanning
+
+Mapped frameworks: EU AI Act, GDPR, ISO/IEC 42001
+        """)
+    compliance_parser.add_argument('--tests', action='store_true',
+        help='Include test suite execution (slow)')
+    compliance_parser.add_argument('--dep-audit', action='store_true',
+        help='Include dependency CVE audit')
+    compliance_parser.add_argument('--security', action='store_true',
+        help='Include semgrep OWASP security scan')
+    compliance_parser.add_argument('--output', choices=['text', 'json'], default='text',
+        help='Output format (default: text)')

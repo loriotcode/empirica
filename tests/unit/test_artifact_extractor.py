@@ -12,15 +12,12 @@ Tests:
 8. Confidence filtering
 """
 
-import pytest
-from typing import List
 
-from empirica.core.canonical.transcript_parser import ConversationTurn, ToolChain
 from empirica.core.canonical.artifact_extractor import (
     ArtifactExtractor,
     ExtractionResult,
 )
-
+from empirica.core.canonical.transcript_parser import ConversationTurn, ToolChain
 
 # --- Helpers ---
 
@@ -29,7 +26,7 @@ def make_turn(
     user_message: str = "test question",
     assistant_text: str = "",
     thinking: str = "",
-    tool_chains: List[ToolChain] = None,
+    tool_chains: list[ToolChain] | None = None,
     turn_index: int = 0,
     timestamp: str = "2026-03-24T10:00:00Z",
 ) -> ConversationTurn:

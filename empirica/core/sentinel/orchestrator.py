@@ -27,11 +27,13 @@ import logging
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime  # type: ignore[reportAttributeAccessIssue]
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, ClassVar
 
 from .decision_logic import DecisionLogic, PersonaMatch
+
+UTC = timezone.utc
 
 logger = logging.getLogger(__name__)
 
@@ -326,6 +328,7 @@ class OrchestrationResult:
     merged_vectors: dict[str, float] = field(default_factory=dict)
     compliance_check: dict[str, Any] | None = None
     error: str | None = None
+    loop_info: dict[str, Any] | None = None
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
@@ -565,8 +568,9 @@ class EpistemicLoopTracker:
 
     def estimate_remaining_loops(self) -> int:
         """Estimate how many more loops might be needed"""
+        max_loops = self.max_loops or 10
         if not self.loop_history:
-            return self.max_loops - self.current_loop
+            return max_loops - self.current_loop
 
         # Based on learning rate
         last = self.loop_history[-1]
@@ -581,9 +585,9 @@ class EpistemicLoopTracker:
             avg_delta = abs(self.cumulative_delta.get("uncertainty", 0)) / len(self.loop_history)
             if avg_delta > 0:
                 remaining = int((uncertainty - 0.25) / avg_delta) + 1
-                return min(remaining, self.max_loops - self.current_loop)
+                return min(remaining, max_loops - self.current_loop)
 
-        return self.max_loops - self.current_loop
+        return max_loops - self.current_loop
 
 
 class Sentinel:
@@ -1067,11 +1071,13 @@ class Sentinel:
                 "cascade_style": "exploratory"
             }
             result = spawn_epistemic_agent(config)
-            return result.get("branch_id", "")
+            return result.branch_id
 
         def aggregate_fn(session_id: str, strategy: str = "union") -> dict[str, Any]:
             """Aggregate agent results"""
-            from empirica.core.agents.epistemic_agent import aggregate_branches
+            from empirica.core.agents.epistemic_agent import (
+                aggregate_branches,  # pyright: ignore[reportAttributeAccessIssue]
+            )
             return aggregate_branches(session_id, strategy=strategy)
 
         self.register_spawn_function(spawn_fn)

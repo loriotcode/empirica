@@ -7,6 +7,7 @@ All queries use ? placeholders (PostgreSQLAdapter auto-converts to %s).
 
 import logging
 import os
+from typing import Any
 
 from flask import Blueprint, jsonify, request
 
@@ -152,7 +153,9 @@ def get_session(session_id: str):
                 "status_code": 404
             }), 404
 
-        session_data = {
+        epistemic_timeline: list[dict] = []
+        checkpoints: list[dict] = []
+        session_data: dict[str, Any] = {
             "session_id": row.get("session_id"),
             "ai_id": row.get("ai_id"),
             "start_time": str(row.get("start_time", "")),
@@ -167,8 +170,8 @@ def get_session(session_id: str):
                 "lines_added": 0,
                 "lines_removed": 0
             },
-            "epistemic_timeline": [],
-            "checkpoints": []
+            "epistemic_timeline": epistemic_timeline,
+            "checkpoints": checkpoints,
         }
 
         # Get reflexes (epistemic assessments)

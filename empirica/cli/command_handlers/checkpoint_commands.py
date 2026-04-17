@@ -23,7 +23,7 @@ def _get_checkpoint_profile_thresholds():
 
         try:
             profile = loader.get_profile('balanced')
-            constraints = profile.constraints
+            constraints = profile.investigation
 
             return {
                 'display_high': getattr(constraints, 'display_high_threshold', 0.7),

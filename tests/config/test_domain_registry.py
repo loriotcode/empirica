@@ -7,7 +7,6 @@ backwards compatibility (empty registry returns legacy baseline).
 
 from __future__ import annotations
 
-import textwrap
 from pathlib import Path
 
 import pytest
@@ -18,7 +17,6 @@ from empirica.config.domain_registry import (
     DomainKey,
     DomainRegistry,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

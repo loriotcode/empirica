@@ -4,11 +4,12 @@ Test SessionDatabase Git Integration (Phase 2, Task 4)
 Validates SessionDatabase checkpoint methods with git/SQLite fallback.
 """
 
-import pytest
-import tempfile
 import os
 import subprocess
+import tempfile
 from pathlib import Path
+
+import pytest
 
 from empirica.data.session_database import SessionDatabase
 
@@ -41,56 +42,56 @@ def git_repo():
 
 def test_session_db_git_checkpoint_methods_exist(temp_db):
     """Verify checkpoint methods are available"""
-    
+
     assert hasattr(temp_db, 'get_git_checkpoint'), "get_git_checkpoint method missing"
     assert hasattr(temp_db, 'list_git_checkpoints'), "list_git_checkpoints method missing"
     assert hasattr(temp_db, 'get_checkpoint_diff'), "get_checkpoint_diff method missing"
-    
+
     print("✅ All SessionDatabase checkpoint methods exist")
 
 
 def test_session_db_git_checkpoint_graceful_failure(temp_db):
     """Test that checkpoint methods handle missing data gracefully"""
-    
+
     # Try to get checkpoint for non-existent session
     checkpoint = temp_db.get_git_checkpoint("non-existent-session")
-    
+
     # Should return None, not crash
     assert checkpoint is None or isinstance(checkpoint, dict)
-    
+
     print("✅ get_git_checkpoint handles missing data gracefully")
 
 
 def test_session_db_list_checkpoints_empty(temp_db):
     """Test that list_checkpoints returns empty list for non-existent session"""
-    
+
     checkpoints = temp_db.list_git_checkpoints("non-existent-session")
-    
+
     # Should return empty list, not crash
     assert isinstance(checkpoints, list)
     assert len(checkpoints) == 0
-    
+
     print("✅ list_git_checkpoints returns empty list for missing data")
 
 
 @pytest.mark.integration
 def test_session_db_checkpoint_integration(temp_db, git_repo):
     """Test checkpoint storage and retrieval (integration test)"""
-    
+
     # Create a test session
     session_id = temp_db.create_session(
         ai_id="test-ai",
         bootstrap_level=2,
         components_loaded=10
     )
-    
+
     # Create a cascade
     cascade_id = temp_db.create_cascade(
         session_id=session_id,
         task="Test checkpoint integration",
         context={"test": True}
     )
-    
+
     # Log a preflight assessment (creates epistemic assessment)
     test_vectors = {
         'engagement': 0.75,
@@ -107,7 +108,7 @@ def test_session_db_checkpoint_integration(temp_db, git_repo):
         'impact': 0.55,
         'uncertainty': 0.35
     }
-    
+
     temp_db.log_preflight_assessment(
         session_id=session_id,
         cascade_id=cascade_id,
@@ -115,10 +116,10 @@ def test_session_db_checkpoint_integration(temp_db, git_repo):
         vectors=test_vectors,
         uncertainty_notes="Test reasoning"
     )
-    
+
     # Try to get checkpoint (will use SQLite fallback if git not available)
     checkpoint = temp_db.get_git_checkpoint(session_id)
-    
+
     # Should either get a checkpoint or None
     if checkpoint:
         assert 'vectors' in checkpoint
@@ -126,29 +127,25 @@ def test_session_db_checkpoint_integration(temp_db, git_repo):
         print(f"✅ Checkpoint retrieved: {checkpoint['phase']}")
     else:
         print("✅ No checkpoint found (expected for new session)")
-    
+
     # Get latest vectors
     latest = temp_db.get_latest_vectors(session_id)
     assert latest is not None
     assert 'vectors' in latest
     assert 'engagement' in latest['vectors']
-    
+
     print("✅ SessionDatabase integration test passed")
 
 
 def test_session_db_fallback_to_sqlite(temp_db):
     """Test SQLite fallback when git unavailable"""
-    
+
     # Create session and assessment
     session_id = temp_db.create_session("test-ai", 2, 10)
     cascade_id = temp_db.create_cascade(session_id, "Test", {})
-    
-    test_vectors = {k: 0.5 for k in [
-        'engagement', 'know', 'do', 'context',
-        'clarity', 'coherence', 'signal', 'density',
-        'state', 'change', 'completion', 'impact', 'uncertainty'
-    ]}
-    
+
+    test_vectors = dict.fromkeys(['engagement', 'know', 'do', 'context', 'clarity', 'coherence', 'signal', 'density', 'state', 'change', 'completion', 'impact', 'uncertainty'], 0.5)
+
     temp_db.log_preflight_assessment(
         session_id=session_id,
         cascade_id=cascade_id,
@@ -156,10 +153,10 @@ def test_session_db_fallback_to_sqlite(temp_db):
         vectors=test_vectors,
         uncertainty_notes="Test"
     )
-    
+
     # Get checkpoint via fallback
     checkpoint = temp_db._get_checkpoint_from_reflexes(session_id)
-    
+
     if checkpoint:
         assert checkpoint['source'] == 'sqlite_fallback'
         assert 'vectors' in checkpoint
@@ -171,20 +168,19 @@ def test_session_db_fallback_to_sqlite(temp_db):
 
 if __name__ == "__main__":
     print("🧪 Testing SessionDatabase Git Integration...\n")
-    
+
     # Create temp db for tests
     import tempfile
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test.db"
         db = SessionDatabase(db_path=str(db_path))
-        
+
         try:
             test_session_db_git_checkpoint_methods_exist(db)
             test_session_db_git_checkpoint_graceful_failure(db)
             test_session_db_list_checkpoints_empty(db)
-            test_session_db_checkpoint_diff_missing(db)
             test_session_db_fallback_to_sqlite(db)
-            
+
             print("\n✅ All SessionDatabase git integration tests passed!")
         finally:
             db.close()

@@ -1936,7 +1936,7 @@ class DocsExplainAgent:
 
         return score
 
-    def _extract_relevant_sections(self, content: str, keywords: list[str], max_sections: int = 3) -> list[str]:
+    def _extract_relevant_sections(self, content: str, keywords: list[str], max_sections: int = 3) -> list[tuple[str, str]]:
         """Extract the most relevant sections from a document."""
         sections = []
 

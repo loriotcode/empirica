@@ -142,11 +142,150 @@ def _build_memory_items(findings, unknowns, mistakes, dead_ends, lessons, snapsh
     return items
 
 
+def _resolve_project_root_and_db(project_id, root):
+    """Resolve correct sessions.db path and project root from workspace.
+
+    Returns (db_path, root) tuple.
+    """
+    from empirica.utils.session_resolver import InstanceResolver as R
+
+    db_path = None
+    try:
+        project_info = R.resolve_workspace_project(project_id)
+        if project_info and project_info.get('project_path'):
+            project_root = project_info['project_path']
+            candidate = os.path.join(project_root, '.empirica', 'sessions', 'sessions.db')
+            if os.path.exists(candidate):
+                db_path = candidate
+                root = project_root
+    except Exception:
+        pass
+    return db_path, root
+
+
+def _prepare_docs_from_semantic_index(root, docs_cfg):
+    """Build docs list from semantic index entries. Returns (docs_to_upsert, next_id)."""
+    docs_to_upsert = []
+    did = 1
+    for relpath, meta in docs_cfg.items():
+        doc_path = _resolve_doc_path(root, relpath)
+        file_text = _read_file(doc_path)
+        text = _build_embedding_text(relpath, meta, file_text)
+        docs_to_upsert.append({
+            'id': did, 'text': text,
+            'metadata': {
+                'doc_path': relpath, 'tags': meta.get('tags', []),
+                'concepts': meta.get('concepts', []),
+                'questions': meta.get('questions', []),
+                'use_cases': meta.get('use_cases', []),
+            }
+        })
+        did += 1
+    return docs_to_upsert, did
+
+
+def _append_reference_docs(db, project_id, docs_to_upsert, start_id):
+    """Append reference docs from DB to docs list. Returns updated next_id."""
+    did = start_id
+    try:
+        refdocs = db.get_project_reference_docs(project_id)
+        for rdoc in refdocs:
+            doc_path = rdoc.get('doc_path', '')
+            file_text = _read_file(doc_path) if doc_path else ''
+            if not file_text:
+                file_text = rdoc.get('description', '') or f"Reference: {doc_path}"
+
+            description = rdoc.get('description', '') or ''
+            doc_type = rdoc.get('doc_type', '') or ''
+            keywords = [w.lower() for w in (description + ' ' + doc_type).split() if len(w) > 3]
+            meta = {
+                'doc_path': doc_path, 'doc_type': doc_type,
+                'description': description, 'tags': keywords, 'source': 'refdoc',
+            }
+            text = _build_embedding_text(doc_path, meta, file_text)
+            docs_to_upsert.append({'id': did, 'text': text, 'metadata': meta})
+            did += 1
+        logger.debug(f"Added {len(refdocs)} reference docs to embedding queue")
+    except Exception as e:
+        logger.debug(f"Could not load reference docs: {e}")
+    return did
+
+
+def _query_memory_artifacts(db, project_id):
+    """Query all memory artifact types from the database.
+
+    Returns (findings, unknowns, mistakes, dead_ends, lessons, snapshots).
+    """
+    findings = db.get_project_findings(project_id)
+    unknowns = db.get_project_unknowns(project_id)
+
+    cur = db.conn.cursor()
+    cur.execute("""
+        SELECT m.id, m.mistake, m.prevention
+        FROM mistakes_made m JOIN sessions s ON m.session_id = s.session_id
+        WHERE s.project_id = ? ORDER BY m.created_timestamp DESC
+    """, (project_id,))
+    mistakes = [dict(row) for row in cur.fetchall()]
+
+    cur.execute("""
+        SELECT id, approach, why_failed, session_id, goal_id, subtask_id, created_timestamp
+        FROM project_dead_ends WHERE project_id = ? ORDER BY created_timestamp DESC
+    """, (project_id,))
+    dead_ends = [dict(row) for row in cur.fetchall()]
+
+    cur.execute("""
+        SELECT id, name, description, domain, tags, lesson_data, created_timestamp
+        FROM lessons ORDER BY created_timestamp DESC
+    """)
+    lessons = [dict(row) for row in cur.fetchall()]
+
+    cur.execute("""
+        SELECT snapshot_id, session_id, context_summary, timestamp
+        FROM epistemic_snapshots
+        WHERE session_id IN (SELECT session_id FROM sessions WHERE project_id = ?)
+        ORDER BY timestamp DESC
+    """, (project_id,))
+    snapshots = [dict(row) for row in cur.fetchall()]
+
+    return findings, unknowns, mistakes, dead_ends, lessons, snapshots
+
+
+def _rehydrate_eidetic(project_id, findings, embed_eidetic_fn, check_fn):
+    """Rehydrate eidetic collection from findings. Returns count embedded."""
+    import hashlib
+
+    eidetic_count = 0
+    if not (check_fn() and findings):
+        return eidetic_count
+
+    for f in findings:
+        finding_text = f.get('finding', '')
+        if not finding_text:
+            continue
+        content_hash = hashlib.md5(finding_text.encode()).hexdigest()
+        impact = f.get('impact')
+        base_confidence = float(impact) if impact else 0.6
+        try:
+            success = embed_eidetic_fn(
+                project_id=project_id,
+                fact_id=f.get('id', content_hash),
+                content=finding_text, fact_type="fact",
+                domain=f.get('subject'),
+                source_sessions=[f.get('session_id')] if f.get('session_id') else None,
+                source_findings=[f.get('id')] if f.get('id') else None,
+                confidence=base_confidence,
+                tags=[f.get('subject')] if f.get('subject') else None,
+            )
+            if success:
+                eidetic_count += 1
+        except Exception as e:
+            logger.debug(f"Eidetic embed failed for finding {f.get('id', 'unknown')}: {e}")
+    return eidetic_count
+
+
 def handle_project_embed_command(args):
     """Handle project-embed command to sync docs and memory to Qdrant."""
     try:
-        import hashlib
-
         from empirica.core.qdrant.vector_store import (
             _check_qdrant_available,
             embed_eidetic,
@@ -168,161 +307,23 @@ def handle_project_embed_command(args):
         if sync_global:
             init_global_collection()
 
-        # Resolve correct sessions.db for the target project (#46)
-        # Use trajectory_path from workspace.db, not CWD
-        db_path = None
-        try:
-            project_info = R.resolve_workspace_project(project_id)
-            if project_info and project_info.get('project_path'):
-                project_root = project_info['project_path']
-                candidate = os.path.join(project_root, '.empirica', 'sessions', 'sessions.db')
-                if os.path.exists(candidate):
-                    db_path = candidate
-                    root = project_root  # Also use resolved path for doc loading
-        except Exception:
-            pass  # Fall through to default resolution
-
+        db_path, root = _resolve_project_root_and_db(project_id, root)
         db = SessionDatabase(db_path=db_path)
 
-        # Prepare docs from semantic index
         idx = _load_semantic_index(root)
         docs_cfg = idx.get('index', {})
-        docs_to_upsert: list[dict] = []
-        did = 1
-        for relpath, meta in docs_cfg.items():
-            doc_path = _resolve_doc_path(root, relpath)
-            file_text = _read_file(doc_path)
-            text = _build_embedding_text(relpath, meta, file_text)
-            docs_to_upsert.append({
-                'id': did,
-                'text': text,
-                'metadata': {
-                    'doc_path': relpath,
-                    'tags': meta.get('tags', []),
-                    'concepts': meta.get('concepts', []),
-                    'questions': meta.get('questions', []),
-                    'use_cases': meta.get('use_cases', []),
-                }
-            })
-            did += 1
-
-        # Also include reference docs from project_reference_docs table
-        # These are dynamically added via refdoc-add command
-        try:
-            refdocs = db.get_project_reference_docs(project_id)
-            for rdoc in refdocs:
-                doc_path = rdoc.get('doc_path', '')
-                file_text = _read_file(doc_path) if doc_path else ''
-                if not file_text:
-                    # Use description as text if file not readable
-                    file_text = rdoc.get('description', '') or f"Reference: {doc_path}"
-
-                # Extract keywords from description and doc_type for matching
-                description = rdoc.get('description', '') or ''
-                doc_type = rdoc.get('doc_type', '') or ''
-                keywords = [w.lower() for w in (description + ' ' + doc_type).split() if len(w) > 3]
-                meta = {
-                    'doc_path': doc_path,
-                    'doc_type': doc_type,
-                    'description': description,
-                    'tags': keywords,
-                    'source': 'refdoc',
-                }
-                text = _build_embedding_text(doc_path, meta, file_text)
-
-                docs_to_upsert.append({
-                    'id': did,
-                    'text': text,
-                    'metadata': meta
-                })
-                did += 1
-            logger.debug(f"Added {len(refdocs)} reference docs to embedding queue")
-        except Exception as e:
-            logger.debug(f"Could not load reference docs: {e}")
-
+        docs_to_upsert, did = _prepare_docs_from_semantic_index(root, docs_cfg)
+        _append_reference_docs(db, project_id, docs_to_upsert, did)
         upsert_docs(project_id, docs_to_upsert)
 
-        # Prepare memory from DB (db already initialized above)
-        findings = db.get_project_findings(project_id)
-        unknowns = db.get_project_unknowns(project_id)
-        # mistakes: join via sessions already built into breadcrumbs; simple select here
-        cur = db.conn.cursor()
-        cur.execute("""
-            SELECT m.id, m.mistake, m.prevention
-            FROM mistakes_made m
-            JOIN sessions s ON m.session_id = s.session_id
-            WHERE s.project_id = ?
-            ORDER BY m.created_timestamp DESC
-        """, (project_id,))
-        mistakes = [dict(row) for row in cur.fetchall()]
-
-        # Dead ends - things that didn't work (prevents re-exploration)
-        cur.execute("""
-            SELECT id, approach, why_failed, session_id, goal_id, subtask_id, created_timestamp
-            FROM project_dead_ends
-            WHERE project_id = ?
-            ORDER BY created_timestamp DESC
-        """, (project_id,))
-        dead_ends = [dict(row) for row in cur.fetchall()]
-
-        # Lessons - reusable knowledge (cold storage → hot memory)
-        cur.execute("""
-            SELECT id, name, description, domain, tags, lesson_data, created_timestamp
-            FROM lessons
-            ORDER BY created_timestamp DESC
-        """)
-        lessons = [dict(row) for row in cur.fetchall()]
-
-        # Epistemic snapshots - session narratives (episodic memory)
-        cur.execute("""
-            SELECT snapshot_id, session_id, context_summary, timestamp
-            FROM epistemic_snapshots
-            WHERE session_id IN (SELECT session_id FROM sessions WHERE project_id = ?)
-            ORDER BY timestamp DESC
-        """, (project_id,))
-        snapshots = [dict(row) for row in cur.fetchall()]
-
+        findings, unknowns, mistakes, dead_ends, lessons, snapshots = _query_memory_artifacts(db, project_id)
         db.close()
 
-        # Build memory items from all artifact types
         mem_items = _build_memory_items(findings, unknowns, mistakes, dead_ends, lessons, snapshots)
-
         upsert_memory(project_id, mem_items)
 
-        # EIDETIC REHYDRATION: Populate eidetic collection from findings
-        # This enables full Qdrant state restoration on repo clone/container deploy
-        eidetic_count = 0
-        if _check_qdrant_available() and findings:
-            for f in findings:
-                finding_text = f.get('finding', '')
-                if not finding_text:
-                    continue
+        eidetic_count = _rehydrate_eidetic(project_id, findings, embed_eidetic, _check_qdrant_available)
 
-                # Content hash for deduplication (same as finding-log)
-                content_hash = hashlib.md5(finding_text.encode()).hexdigest()
-
-                # Base confidence from impact, or default 0.6 for rehydrated facts
-                impact = f.get('impact')
-                base_confidence = float(impact) if impact else 0.6
-
-                try:
-                    success = embed_eidetic(
-                        project_id=project_id,
-                        fact_id=f.get('id', content_hash),
-                        content=finding_text,
-                        fact_type="fact",
-                        domain=f.get('subject'),
-                        source_sessions=[f.get('session_id')] if f.get('session_id') else None,
-                        source_findings=[f.get('id')] if f.get('id') else None,
-                        confidence=base_confidence,
-                        tags=[f.get('subject')] if f.get('subject') else None,
-                    )
-                    if success:
-                        eidetic_count += 1
-                except Exception as e:
-                    logger.debug(f"Eidetic embed failed for finding {f.get('id', 'unknown')}: {e}")
-
-        # CODE API EMBEDDING: Extract and embed Python API surfaces
         code_embedded = 0
         try:
             from pathlib import Path
@@ -335,25 +336,18 @@ def handle_project_embed_command(args):
         except Exception as e:
             logger.debug(f"Code embedding skipped: {e}")
 
-        # Sync high-impact items to global collection if --global flag
         global_synced = 0
         if sync_global:
             min_impact = getattr(args, 'min_impact', 0.7)
             global_synced = sync_high_impact_to_global(project_id, min_impact)
 
         result = {
-            'ok': True,
-            'docs': len(docs_to_upsert),
-            'memory': len(mem_items),
-            'eidetic': eidetic_count,
-            'code_api': code_embedded,
+            'ok': True, 'docs': len(docs_to_upsert), 'memory': len(mem_items),
+            'eidetic': eidetic_count, 'code_api': code_embedded,
             'breakdown': {
-                'findings': len(findings),
-                'unknowns': len(unknowns),
-                'mistakes': len(mistakes),
-                'dead_ends': len(dead_ends),
-                'lessons': len(lessons),
-                'snapshots': len(snapshots)
+                'findings': len(findings), 'unknowns': len(unknowns),
+                'mistakes': len(mistakes), 'dead_ends': len(dead_ends),
+                'lessons': len(lessons), 'snapshots': len(snapshots)
             },
             'global_synced': global_synced if sync_global else None
         }
@@ -367,8 +361,6 @@ def handle_project_embed_command(args):
                 msg += f" | global: {global_synced}"
             print(msg)
 
-        # Note: Skills are structured metadata (project_skills/*.yaml), not vectors
-        # They are referenced by project-bootstrap via tags and id lookup, not semantic search
         return result
     except Exception as e:
         handle_cli_error(e, "Project embed", getattr(args, 'verbose', False))

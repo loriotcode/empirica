@@ -20,8 +20,8 @@ empirica setup-claude-code --force # Reset/update (preserves non-Empirica hooks)
 
 | Component | Count | Location |
 |-----------|-------|----------|
-| Hooks | 18 | `~/.claude/plugins/local/empirica/hooks/` |
-| Skills | 7 | `~/.claude/plugins/local/empirica/skills/` |
+| Hooks | 15 | `~/.claude/plugins/local/empirica/hooks/` |
+| Skills | 10 | `~/.claude/plugins/local/empirica/skills/` |
 | Commands | 2 | `~/.claude/plugins/local/empirica/commands/` |
 | Agents | 9 | `~/.claude/plugins/local/empirica/agents/` |
 | Statusline | 1 | `scripts/statusline_empirica.py` |
@@ -72,8 +72,6 @@ Hooks fire automatically on Claude Code events. No manual invocation needed.
 | Hook | Event | What It Does |
 |------|-------|-------------|
 | **ewm-protocol-loader** | SessionStart | Loads user's workflow protocol (`~/.empirica/workflow-protocol.yaml`) for personalized AI collaboration |
-| **elicitation** | Elicitation | Tracks AI-initiated questions as objective uncertainty measurements |
-| **elicitation-result** | ElicitationResult | Auto-logs user answers as findings or decisions |
 
 ---
 
@@ -88,8 +86,11 @@ Skills load on demand when the AI detects a relevant situation. Invoke with `/sk
 | **epistemic-transaction** | Complex work, planning | Guides task decomposition into measured transactions — PREFLIGHT through POSTFLIGHT |
 | **code-audit** | `/code-audit`, quality review | Structured noetic investigation of code quality — runs ruff, radon, pyright, produces Empirica artifacts |
 | **code-docs-align** | `/code-docs-align`, doc accuracy | Verifies documentation matches code reality — bridges code-audit and docs-assess |
+| **dispatch-agent** | Agent spawning, complex tasks | Enriches agent prompts with Cortex context (dead-ends, findings, anti-patterns) |
 | **ewm-interview** | `/ewm-interview`, workflow setup | Interviews users to create personalized AI collaboration protocol (workflow-protocol.yaml) |
 | **render** | `/render`, diagram rendering | Generates DiagramSpec JSON for ASCII art diagrams, renders via mdview to SVG |
+| **inkscape** | `/inkscape`, image generation | SVG generation with design patterns, Inkscape CLI for rendering and tracing |
+| **devto** | `/devto`, content publishing | Dev.to article pipeline — epistemic sources to validated publication |
 
 ---
 
@@ -129,6 +130,26 @@ Real-time epistemic state in your terminal:
 ```
 
 Shows: postflight confidence, uncertainty, active goals, grounded calibration scores, and learning deltas.
+
+---
+
+## Compliance Report
+
+Project-wide quality snapshot mapped to regulatory frameworks:
+
+```bash
+empirica compliance-report                    # Fast checks only
+empirica compliance-report --tests            # Include test suite
+empirica compliance-report --dep-audit        # Include CVE scan
+empirica compliance-report --security         # Include OWASP scan
+empirica compliance-report --output json      # Machine-readable
+```
+
+**Always-on checks:** lint (ruff), complexity (C901), type safety (pyright), repo hygiene, epistemic audit trail, grounded calibration.
+
+**Optional checks:** tests (pytest), dependency audit (pip-audit), OWASP security scan (semgrep).
+
+**Mapped frameworks:** EU AI Act (2024/1689), GDPR (2016/679), ISO/IEC 42001:2023.
 
 ---
 

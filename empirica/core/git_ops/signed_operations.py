@@ -104,6 +104,8 @@ class SignedGitOperations:
         if not GIT_PYTHON_AVAILABLE:
             raise ImportError("GitPython not installed - git operations unavailable. Install with: pip install gitpython")
 
+        if GitRepo is None:
+            raise ImportError("GitPython not installed")
         self.repo = GitRepo(repo_path)
         self.git = self.repo.git
 

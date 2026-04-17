@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "empirica"
-version = "1.8.5"
+version = "1.8.6"
 description = "Measurement and calibration layer for AI — track what it knows, gate what it does"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -93,7 +93,7 @@ all = [
 ]
 
 test = [
-    "pytest>=7.4",
+    "pytest>=9.0.3",              # Security: CVE-2025-71176 fix
     "pytest-asyncio>=0.21",
     "pytest-cov>=4.1",
     "pytest-mock>=3.11",
@@ -232,8 +232,8 @@ known-first-party = ["empirica"]
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*.py" = ["S101"]  # allow assert in tests
-"tests/**/*.py" = ["S101"]  # allow assert in nested tests
+"tests/*.py" = ["S101", "S108", "S110"]  # allow assert, temp paths, try-except-pass in tests
+"tests/**/*.py" = ["S101", "S108", "S110"]  # allow assert, temp paths, try-except-pass in nested tests
 "empirica/core/schemas/*.py" = ["S101"]  # validation asserts in schema converters
 "__init__.py" = ["F401", "E402"]  # allow unused imports and late imports in __init__
 "empirica/cli/cli_core.py" = ["F405", "E402", "S110"]  # star import + conditional imports + graceful startup
@@ -262,6 +262,9 @@ exclude = [
     ".venv",
     "venv",
     "**/__pycache__",
+]
+extraPaths = [
+    "empirica/plugins/claude-code-integration/lib",
 ]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"

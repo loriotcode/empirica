@@ -24,7 +24,7 @@ Date: 2025-12-30
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import ClassVar
+from typing import Any, ClassVar
 
 
 @dataclass
@@ -350,7 +350,7 @@ class BayesianBeliefManager:
         beliefs = self.get_beliefs(ai_id)
         adjustments = self.get_calibration_adjustments(ai_id)
 
-        report = {
+        report: dict[str, Any] = {
             'ai_id': ai_id,
             'total_evidence': sum(b.evidence_count for b in beliefs.values()),
             'vectors': {},
@@ -400,6 +400,36 @@ def apply_calibration_to_vectors(vectors: dict[str, float],
         calibrated[vector] = max(0.0, min(1.0, value + adjustment))
 
     return calibrated
+
+
+def _find_yaml_section(
+    lines: list[str],
+    comments: list[str],
+    headers: list[str],
+) -> tuple[int, int]:
+    """Find start/end indices of a YAML section by comment and header markers.
+
+    Returns (section_start, section_end). Both are -1 if not found.
+    """
+    section_start = -1
+    section_end = -1
+    in_section = False
+
+    for i, line in enumerate(lines):
+        if any(c in line for c in comments) and section_start == -1:
+            section_start = i
+        elif any(line.strip().startswith(h) for h in headers):
+            if section_start == -1:
+                section_start = i
+            in_section = True
+        elif in_section and line.strip() and not line.startswith(' ') and not line.startswith('\t'):
+            section_end = i
+            break
+
+    if in_section and section_end == -1:
+        section_end = len(lines)
+
+    return section_start, section_end
 
 
 def export_calibration_to_breadcrumbs(ai_id: str, db, git_root: str | None = None) -> bool:
@@ -457,23 +487,11 @@ def export_calibration_to_breadcrumbs(ai_id: str, db, git_root: str | None = Non
         with open(breadcrumbs_path) as f:
             existing_lines = f.readlines()
 
-        # Find existing section (matches old 'calibration:' or new 'learning_trajectory:')
-        in_calibration = False
-        for i, line in enumerate(existing_lines):
-            # Match comment from either era
-            if ('# Bayesian calibration' in line or '# Learning trajectory' in line) and calibration_start == -1:
-                calibration_start = i
-            elif line.strip().startswith('calibration:') or line.strip().startswith('learning_trajectory:'):
-                if calibration_start == -1:
-                    calibration_start = i
-                in_calibration = True
-            elif in_calibration and line.strip() and not line.startswith(' ') and not line.startswith('\t'):
-                # End of section
-                calibration_end = i
-                break
-
-        if in_calibration and calibration_end == -1:
-            calibration_end = len(existing_lines)
+        calibration_start, calibration_end = _find_yaml_section(
+            existing_lines,
+            comments=['# Bayesian calibration', '# Learning trajectory'],
+            headers=['calibration:', 'learning_trajectory:'],
+        )
 
     # Build calibration YAML block
     timestamp = datetime.now().isoformat()
