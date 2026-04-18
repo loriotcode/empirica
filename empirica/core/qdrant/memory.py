@@ -103,14 +103,14 @@ def upsert_docs(project_id: str, docs: list[dict]) -> int:
             return 0
         coll = _docs_collection(project_id)
 
+        # Batch embed all texts at once (much faster than sequential)
+        texts = [d.get("text", "") for d in docs]
+        vectors = _get_embeddings_batch_for_collection(
+            client, coll, texts, create_if_missing=True,
+        )
+
         points = []
-        for d in docs:
-            vector = _get_embedding_for_collection(
-                client,
-                coll,
-                d.get("text", ""),
-                create_if_missing=not client.collection_exists(coll),
-            )
+        for d, vector in zip(docs, vectors):
             if vector is None:
                 continue
             payload = {
