@@ -100,10 +100,15 @@ class ReleaseManager:
 
         content = formula_path.read_text()
 
-        # Update URL
-        url_pattern = r'url "https://github\.com/Nubaeon/empirica/releases/download/v[^/]+/empirica-[^"]+\.tar\.gz"'
-        new_url = f'url "https://github.com/Nubaeon/empirica/releases/download/v{self.version}/empirica-{self.version}.tar.gz"'
+        # Update URL — handle both PyPI and GitHub release URL formats
+        url_pattern = r'url "https://[^"]+/empirica-[^"]+\.tar\.gz"'
+        new_url = f'url "https://files.pythonhosted.org/packages/source/e/empirica/empirica-{self.version}.tar.gz"'
         content = re.sub(url_pattern, new_url, content)
+
+        # Update assert_match version
+        assert_pattern = r'assert_match "[^"]+", shell_output'
+        new_assert = f'assert_match "{self.version}", shell_output'
+        content = re.sub(assert_pattern, new_assert, content)
 
         # Update SHA256
         sha_pattern = r'sha256 "[a-f0-9]{64}"'
