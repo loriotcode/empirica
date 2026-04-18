@@ -5,6 +5,27 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.8] - 2026-04-18
+
+### Added
+- **Release chain verification** (Art. 10): Checks current version is published to all
+  declared channels (git tag, GitHub release, PyPI, PyPI MCP, Docker, Homebrew).
+  Configurable via `project.yaml publish_channels`. Found real homebrew gap on first run.
+- **Discipline trajectory** check in compliance report (Art. 17).
+- **AI transparency** check — git Co-Authored-By attribution (Art. 50).
+- **Decision transparency** check — rationale coverage (Art. 13).
+- **Tech documentation** check — docs-assess coverage (Art. 11).
+- **Entity-extractor persistence** — state saved to `~/.empirica/entity_extractor_state.json`.
+
+### Fixed
+- **Homebrew formula stuck at 1.6.21** for 20+ releases. Root cause: release script
+  URL regex expected GitHub release format but formula used PyPI URL. SHA updated
+  but version in URL and assert_match never changed.
+- **Release script** now handles both PyPI and GitHub URL formats in homebrew formula,
+  updates assert_match version string.
+- **Compliance report** DB queries: correct table/column names for epistemic audit
+  and calibration checks.
+
 ## [1.8.7] - 2026-04-17
 
 ### Added
