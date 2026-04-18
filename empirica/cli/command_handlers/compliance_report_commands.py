@@ -69,6 +69,13 @@ REGULATORY_MAP: dict[str, dict[str, Any]] = {
             "iso_42001": {"clause": "7.5.1", "requirement": "Documented information — creation and updating"},
         },
     },
+    "release_chain": {
+        "check": "Release chain integrity (publish verification)",
+        "frameworks": {
+            "eu_ai_act": {"article": "Art. 10", "requirement": "Data governance — release traceability"},
+            "iso_42001": {"clause": "8.6", "requirement": "Release management — deployment verification"},
+        },
+    },
     "repo_hygiene": {
         "check": "Repository hygiene (git compliance)",
         "frameworks": {
@@ -348,6 +355,112 @@ def _build_calibration_check(project_root: Path) -> dict[str, Any]:
         "avg_calibration_score": avg_score,
         "status": "pass" if count > 0 else "no_data",
     }
+
+
+def _build_release_chain_check(project_root: Path) -> dict[str, Any]:
+    """Verify current version is published to all declared channels."""
+    # Get current version from pyproject.toml
+    pyproject = project_root / "pyproject.toml"
+    if not pyproject.exists():
+        return {"check": "release_chain", "passed": None, "status": "unavailable"}
+
+    version = None
+    try:
+        with open(pyproject) as f:
+            for line in f:
+                if line.strip().startswith("version"):
+                    version = line.split("=")[1].strip().strip('"').strip("'")
+                    break
+    except Exception:
+        pass
+    if not version:
+        return {"check": "release_chain", "passed": None, "status": "unavailable"}
+
+    # Load publish_channels from project.yaml
+    proj_yaml = project_root / ".empirica" / "project.yaml"
+    channels: list[str] = ["git_tag"]  # always check git tag
+    if proj_yaml.exists():
+        try:
+            import yaml
+            with open(proj_yaml) as f:
+                proj = yaml.safe_load(f) or {}
+            channels = proj.get("publish_channels", channels)
+        except Exception:
+            pass
+
+    # Check each channel
+    results: dict[str, str] = {}
+    for channel in channels:
+        results[channel] = _check_channel(channel, version, project_root)
+
+    published = sum(1 for v in results.values() if v == "published")
+    missing = sum(1 for v in results.values() if v == "missing")
+    passed = missing == 0
+
+    return {
+        "check": "release_chain",
+        "passed": passed,
+        "version": version,
+        "channels": results,
+        "published": published,
+        "missing": missing,
+        "total": len(channels),
+        "status": "pass" if passed else "fail",
+    }
+
+
+def _check_channel(channel: str, version: str, project_root: Path) -> str:
+    """Check if version is published to a specific channel. Returns status string."""
+    try:
+        if channel == "git_tag":
+            result = subprocess.run(
+                ["git", "tag", "-l", f"v{version}"],
+                capture_output=True, text=True, timeout=5, cwd=str(project_root),
+            )
+            return "published" if f"v{version}" in result.stdout else "missing"
+
+        if channel == "github_release":
+            result = subprocess.run(
+                ["gh", "release", "view", f"v{version}", "--json", "tagName"],
+                capture_output=True, text=True, timeout=10,
+            )
+            return "published" if result.returncode == 0 else "missing"
+
+        if channel == "pypi":
+            result = subprocess.run(
+                ["pip", "index", "versions", "empirica"],
+                capture_output=True, text=True, timeout=15,
+            )
+            return "published" if version in result.stdout else "missing"
+
+        if channel == "pypi_mcp":
+            result = subprocess.run(
+                ["pip", "index", "versions", "empirica-mcp"],
+                capture_output=True, text=True, timeout=15,
+            )
+            return "published" if version in result.stdout else "missing"
+
+        if channel == "docker":
+            # Check Docker Hub tag existence via API
+            result = subprocess.run(
+                ["docker", "manifest", "inspect", f"nubaeon/empirica:{version}"],
+                capture_output=True, text=True, timeout=15,
+            )
+            return "published" if result.returncode == 0 else "missing"
+
+        if channel == "homebrew":
+            # Check if homebrew formula has the version
+            tap_dir = project_root.parent / "homebrew-tap"
+            if tap_dir.exists():
+                formula = tap_dir / "empirica.rb"
+                if formula.exists():
+                    content = formula.read_text()
+                    return "published" if version in content else "missing"
+            return "skipped"
+
+        return "unknown_channel"
+    except Exception:
+        return "check_failed"
 
 
 def _build_discipline_check(project_root: Path) -> dict[str, Any]:
@@ -725,6 +838,9 @@ def run_compliance_report(
     docs_raw = _run_check("docs-assess", ["empirica", "docs-assess", "--output", "json"], timeout=60)
     results.append(_parse_docs_result(docs_raw))
 
+    # Release chain (git + network checks)
+    results.append(_build_release_chain_check(project_root))
+
     # Discipline trajectory (fast, DB queries)
     results.append(_build_discipline_check(project_root))
 
@@ -764,6 +880,7 @@ def _format_check_detail(name: str, check: dict[str, Any]) -> str:
         "tests": f"  {c.get('passed_count', '?')} passed, {c.get('failed_count', '?')} failed",
         "dep_audit": f"  {c.get('vulnerabilities', '?')} known CVEs",
         "security_scan": f"  {c.get('findings_critical', '?')} critical, {c.get('findings_total', '?')} total",
+        "release_chain": f"  v{c.get('version', '?')}: {c.get('published', '?')}/{c.get('total', '?')} channels",
         "ai_transparency": f"  {c.get('ai_attributed_commits', '?')}/{c.get('sample_size', '?')} commits attributed",
         "decision_transparency": f"  {c.get('rationale_coverage', '?')}% with rationale ({c.get('decisions_with_rationale', '?')}/{c.get('decisions_total', '?')})",
         "tech_docs": f"  {c.get('coverage_percent', '?')}% coverage ({c.get('documented', '?')}/{c.get('total', '?')})",
