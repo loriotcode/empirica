@@ -2474,8 +2474,18 @@ def _run_grounded_verification(
         return result
     except Exception as e:
         import traceback
+        tb = traceback.format_exc()
         logger.warning(f"Grounded verification failed (non-fatal): {e}")
-        logger.debug(f"Grounded verification traceback:\n{traceback.format_exc()}")
+        logger.debug(f"Grounded verification traceback:\n{tb}")
+        # Write traceback to file for debugging (visible to user)
+        try:
+            from pathlib import Path
+            crash_log = Path.home() / ".empirica" / "grounded_verification_error.log"
+            crash_log.parent.mkdir(parents=True, exist_ok=True)
+            with open(crash_log, "w") as f:
+                f.write(f"Error: {e}\n\n{tb}")
+        except Exception:
+            pass
         return None
 
 
