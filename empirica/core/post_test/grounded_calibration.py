@@ -458,7 +458,8 @@ class GroundedCalibrationManager:
             self_ref = self_ref_beliefs.get(vector)
             grounded = grounded_beliefs.get(vector)
 
-            if self_ref and grounded and grounded.evidence_count > 0:
+            g_ec = grounded.evidence_count if grounded and isinstance(grounded.evidence_count, (int, float)) else 0
+            if self_ref and grounded and g_ec > 0:
                 divergence[vector] = {
                     'self_referential_mean': self_ref.mean,
                     'grounded_mean': grounded.mean,
@@ -484,9 +485,10 @@ class GroundedCalibrationManager:
         max_correction = BayesianBeliefManager.MAX_CORRECTION_MAGNITUDE
 
         for vector, belief in beliefs.items():
-            if belief.evidence_count >= 3:
+            ec = belief.evidence_count if isinstance(belief.evidence_count, (int, float)) else 0
+            if ec >= 3:
                 adjustment = belief.mean - self.DEFAULT_PRIOR_MEAN
-                evidence_weight = min(belief.evidence_count / 10.0, 1.0)
+                evidence_weight = min(ec / 10.0, 1.0)
                 raw = round(adjustment * evidence_weight, 4)
                 # Cap correction magnitude (same limit as self-referential track)
                 capped = max(-max_correction, min(max_correction, raw))
@@ -621,14 +623,17 @@ class GroundedCalibrationManager:
         if not beliefs:
             return False
 
-        total_evidence = sum(b.evidence_count for b in beliefs.values())
+        def _safe_ec(b):
+            return b.evidence_count if isinstance(b.evidence_count, (int, float)) else 0
+
+        total_evidence = sum(_safe_ec(b) for b in beliefs.values())
         if total_evidence == 0:
             return False
 
         # Compute grounded coverage (fraction of vectors with evidence)
         grounded_count = sum(
             1 for b in beliefs.values()
-            if b.evidence_count > 0
+            if _safe_ec(b) > 0
         )
         coverage = grounded_count / len(
             [v for v in self.TRACKED_VECTORS if v not in UNGROUNDABLE_VECTORS]
