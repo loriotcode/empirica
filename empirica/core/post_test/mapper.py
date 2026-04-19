@@ -507,7 +507,9 @@ def _signal_git_activity(summary: dict) -> str | None:
     git = summary.get("git", {})
     if not git:
         return None
-    commits = git.get("commit_count", 0)
+    commit_data = git.get("commit_count", 0)
+    # raw_value is a dict like {"commits": N, "maturity": "..."} — extract the int
+    commits = commit_data.get("commits", 0) if isinstance(commit_data, dict) else commit_data
     if commits == 0:
         return "No commits in this transaction — uncommitted work is invisible to calibration"
     if commits >= 3:
@@ -515,13 +517,22 @@ def _signal_git_activity(summary: dict) -> str | None:
     return None
 
 
+def _extract_int(data, key: str, default: int = 0) -> int:
+    """Safely extract an int from evidence data (which may be a dict raw_value)."""
+    if isinstance(data, dict):
+        return data.get(key, default) if key in data else default
+    return data if isinstance(data, (int, float)) else default
+
+
 def _signal_code_quality(summary: dict) -> str | None:
     """Signal for code quality metrics."""
     cq = summary.get("code_quality", {})
     if not cq:
         return None
-    ruff_violations = cq.get("ruff_violation_count", None)
-    pyright_errors = cq.get("pyright_error_count", None)
+    ruff_data = cq.get("ruff_violation_density", cq.get("ruff_violation_count"))
+    pyright_data = cq.get("pyright_type_safety", cq.get("pyright_error_count"))
+    ruff_violations = _extract_int(ruff_data, "violations") if ruff_data else None
+    pyright_errors = _extract_int(pyright_data, "errors") if pyright_data else None
     if ruff_violations == 0 and pyright_errors == 0:
         return "Code quality clean (0 lint, 0 type errors)"
     if ruff_violations is not None and ruff_violations > 0:
