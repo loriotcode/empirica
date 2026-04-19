@@ -345,6 +345,10 @@ EMPIRICA_TIER1_PREFIXES = (
     'empirica lesson-stats',  # Lesson queries - read-only
     'empirica sentinel-status', 'empirica sentinel-check',  # Sentinel queries - read-only
     'empirica goals-search', 'empirica goals-get-stale',  # Goal queries - read-only
+    'empirica unknown-list', 'empirica assumption-list',  # Artifact queries - read-only
+    'empirica deadend-list', 'empirica finding-list',  # Artifact queries - read-only
+    'empirica decision-list', 'empirica mistake-list',  # Artifact queries - read-only
+    'empirica compliance-report',  # Compliance report - read-only
     'empirica workspace-list', 'empirica ecosystem-check',  # Workspace queries - read-only
     'empirica --help', 'empirica -h',
     'empirica version',
