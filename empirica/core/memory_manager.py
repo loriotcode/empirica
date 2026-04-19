@@ -249,15 +249,33 @@ def _format_auto_section(artifacts: dict, session_id: str) -> str:
     return '\n'.join(auto_lines) + '\n'
 
 
+def _strip_stale_markers(content: str) -> str:
+    """Remove stale HTML comment markers from previous auto-section formats."""
+    import re
+    return re.sub(r'<!--\s*empirica-auto-\w+\s*-->\n?', '', content)
+
+
+def _collapse_blank_runs(content: str, max_consecutive: int = 2) -> str:
+    """Collapse runs of blank lines down to max_consecutive."""
+    import re
+    pattern = r'\n{' + str(max_consecutive + 2) + r',}'
+    return re.sub(pattern, '\n' * (max_consecutive + 1), content)
+
+
 def _replace_auto_section(existing: str, auto_section: str) -> str:
     """Replace or append the auto-generated section in MEMORY.md content."""
+    # Clean stale markers from previous formats
+    existing = _strip_stale_markers(existing)
+
     if MEMORY_AUTO_START not in existing:
-        return existing.rstrip('\n') + '\n' + auto_section
+        manual = existing.rstrip('\n') + '\n\n'
+        return _collapse_blank_runs(manual + auto_section)
 
     start_idx = existing.index(MEMORY_AUTO_START)
     end_marker = "📊 **"
     if end_marker not in existing[start_idx:]:
-        return existing[:start_idx] + auto_section
+        manual = existing[:start_idx].rstrip('\n') + '\n\n'
+        return _collapse_blank_runs(manual + auto_section)
 
     end_search = existing.index(end_marker, start_idx)
     end_idx = existing.find('\n', end_search)
@@ -275,7 +293,9 @@ def _replace_auto_section(existing: str, auto_section: str) -> str:
                 break
         end_idx += 1
 
-    return existing[:start_idx] + auto_section + existing[end_idx:]
+    manual = existing[:start_idx].rstrip('\n') + '\n\n'
+    after = existing[end_idx:]
+    return _collapse_blank_runs(manual + auto_section + after)
 
 
 def update_hot_cache(session_id: str, project_path: str | None = None,
@@ -366,7 +386,6 @@ def get_memory_stats(project_path: str | None = None) -> dict:
 
 # Promotion thresholds
 PROMOTE_MIN_CONFIDENCE = 0.7
-PROMOTE_MIN_CONFIRMATIONS = 3
 
 
 def _slugify(text: str, max_len: int = 40) -> str:
@@ -402,19 +421,19 @@ def promote_eidetic_to_memory(
     project_id: str,
     project_path: str | None = None,
     min_confidence: float = PROMOTE_MIN_CONFIDENCE,
-    min_confirmations: int = PROMOTE_MIN_CONFIRMATIONS,
     max_promote: int = 3,
 ) -> list[str]:
     """Promote high-confidence eidetic facts to CC memory/*.md files.
 
-    Queries Qdrant for eidetic facts meeting thresholds, checks against
-    already-promoted hashes, and creates new memory files for untracked facts.
+    Queries Qdrant for eidetic facts meeting confidence threshold, checks
+    against already-promoted hashes, and creates new memory files.
+
+    Spam prevention: max 3 promotions per call + content hash dedup tracker.
 
     Args:
         project_id: Project UUID for Qdrant collection
         project_path: Explicit project path for memory dir resolution
         min_confidence: Minimum confidence to promote (default 0.7)
-        min_confirmations: Minimum confirmation_count (default 3)
         max_promote: Max new files to create per call (prevents spam)
 
     Returns:
@@ -439,8 +458,12 @@ def promote_eidetic_to_memory(
 
         collection = _eidetic_collection(project_id)
 
-        # Scroll for high-confidence, well-confirmed facts
-        # Filter: confidence >= threshold AND confirmation_count >= threshold AND type=fact
+        # Scroll for high-confidence facts
+        # Filter: confidence >= threshold AND type=fact
+        # Note: confirmation_count filter removed — confirm_eidetic_fact
+        # requires exact content hash match, but findings never repeat
+        # verbatim, so confirmation_count stays at 1 for all facts.
+        # Spam prevention via max_promote cap + content hash dedup.
         from qdrant_client.models import FieldCondition, Filter, MatchValue, Range
 
         results = client.scroll(
@@ -448,7 +471,6 @@ def promote_eidetic_to_memory(
             scroll_filter=Filter(
                 must=[
                     FieldCondition(key="confidence", range=Range(gte=min_confidence)),
-                    FieldCondition(key="confirmation_count", range=Range(gte=min_confirmations)),
                     FieldCondition(key="type", match=MatchValue(value="fact")),
                 ]
             ),
@@ -641,9 +663,19 @@ def enforce_memory_md_cap(
         return 0
 
     content = memory_path.read_text()
+
+    # Strip stale markers and blank runs before measuring
+    content = _strip_stale_markers(content)
+    content = _collapse_blank_runs(content)
+
     total_lines = content.count('\n')
 
     if total_lines <= max_total_lines:
+        # Write cleaned version back even if under cap
+        try:
+            memory_path.write_text(content)
+        except Exception:
+            pass
         return 0
 
     # Find auto section boundaries
