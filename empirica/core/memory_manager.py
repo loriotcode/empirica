@@ -50,6 +50,8 @@ def get_memory_dir(project_path: str | None = None) -> Path | None:
     # Try CWD
     try:
         candidates.append(Path.cwd().resolve())
+    except PermissionError:
+        logger.warning("Permission denied accessing CWD for memory dir resolution")
     except Exception:
         pass
 
@@ -511,12 +513,13 @@ def promote_eidetic_to_memory(
         from empirica.core.qdrant.collections import _eidetic_collection
         from empirica.core.qdrant.connection import _get_qdrant_client
     except ImportError:
-        logger.debug("Qdrant not available for promotion")
+        logger.info("Qdrant package not installed — promotion disabled")
         return []
 
     try:
         client = _get_qdrant_client()
         if not client:
+            logger.warning("Qdrant connection failed — promotion skipped")
             return []
 
         collection = _eidetic_collection(project_id)
