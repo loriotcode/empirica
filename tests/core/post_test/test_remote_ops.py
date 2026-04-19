@@ -176,7 +176,7 @@ def test_run_grounded_verification_remote_ops_combined_mode(tmp_path):
     combined = result.get("combined")
     if combined is not None:
         assert combined.get("calibration_status") == "ungrounded_remote_ops"
-        assert combined.get("gaps") == {}
+        assert combined.get("_internal_gaps", {}) == {}
 
 
 def test_run_grounded_verification_remote_ops_phase_aware(tmp_path):
@@ -222,4 +222,4 @@ def test_run_grounded_verification_remote_ops_phase_aware(tmp_path):
             f"Phase {phase_name} should be ungrounded_remote_ops, got "
             f"{phase_result.get('calibration_status')}"
         )
-        assert phase_result.get("_internal_gaps", phase_result.get("gaps")) == {}
+        assert phase_result.get("_internal_gaps", {}) == {}

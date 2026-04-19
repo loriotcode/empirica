@@ -830,24 +830,10 @@ def _run_single_phase_verification(
             }
             for v, u in updates.items()
         },
-        # Backward compatibility aliases (same data, old key names)
-        'gaps': assessment.calibration_gaps,
         # Vectors the instrument couldn't sample for this work_type.
-        # Their self-assessment stands; no fabricated grounded value, no
-        # false drift in calibration_trajectory. Surfaced here so the AI
-        # can see WHICH vectors were skipped and why — supporting honest
-        # collaboration between the AI and the measurement layer.
         'insufficient_evidence_vectors': getattr(
             assessment, 'insufficient_evidence_vectors', []
         ) or [],
-        'updates': {
-            v: {
-                'observation': u['observation'],
-                'self_assessed': u['self_assessed'],
-                'divergence': u['divergence'],
-            }
-            for v, u in updates.items()
-        },
     }
 
 
@@ -898,14 +884,14 @@ def _compute_holistic_calibration(results: dict, phase_weights: dict) -> tuple:
         nw, pw = phase_weights['noetic'], phase_weights['praxic']
         score = round(nw * (grounded_results['noetic'].get('calibration_score') or 0) +
                        pw * (grounded_results['praxic'].get('calibration_score') or 0), 4)
-        noetic_gaps = grounded_results['noetic'].get('gaps', {}) or {}
-        praxic_gaps = grounded_results['praxic'].get('gaps', {}) or {}
+        noetic_gaps = grounded_results['noetic'].get('_internal_gaps', {}) or {}
+        praxic_gaps = grounded_results['praxic'].get('_internal_gaps', {}) or {}
         gaps = {v: round(nw * noetic_gaps.get(v, 0) + pw * praxic_gaps.get(v, 0), 4)
                 for v in set(noetic_gaps) | set(praxic_gaps)}
         return score, gaps
     elif len(grounded_results) == 1:
         only = next(iter(grounded_results.values()))
-        return (only.get('calibration_score') or 0), (only.get('gaps', {}) or {})
+        return (only.get('calibration_score') or 0), (only.get('_internal_gaps', {}) or {})
     return None, {}
 
 
@@ -1119,9 +1105,9 @@ def run_grounded_verification(
             all_sources.extend(phase_result['sources'])
             all_failed.extend(phase_result['sources_failed'])
             verification_ids.append(phase_result['verification_id'])
-            for v, gap in phase_result['gaps'].items():
+            for v, gap in phase_result.get('_internal_gaps', {}).items():
                 all_gaps[f"{phase_name}:{v}"] = gap
-            for v, u in phase_result['updates'].items():
+            for v, u in phase_result.get('_internal_updates', {}).items():
                 all_updates[f"{phase_name}:{v}"] = u
 
         # Merge evidence summaries from all phases
