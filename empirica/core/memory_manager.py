@@ -321,13 +321,16 @@ def update_hot_cache(session_id: str, project_path: str | None = None,
         lines = auto_section.split('\n')
         auto_section = '\n'.join(lines[:MEMORY_AUTO_MAX_LINES]) + '\n'
 
-    existing = memory_path.read_text() if memory_path.exists() else "# Empirica Project Memory\n"
-    updated = _replace_auto_section(existing, auto_section)
-
     try:
+        import fcntl
         memory_path.parent.mkdir(parents=True, exist_ok=True)
-        memory_path.write_text(updated)
-        logger.debug(f"Updated MEMORY.md hot cache ({auto_section_lines} lines)")
+        lock_path = memory_path.parent / '.memory_lock'
+        with open(lock_path, 'w') as lock_fd:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            existing = memory_path.read_text() if memory_path.exists() else "# Empirica Project Memory\n"
+            updated = _replace_auto_section(existing, auto_section)
+            memory_path.write_text(updated)
+            logger.debug(f"Updated MEMORY.md hot cache ({auto_section_lines} lines)")
         return True
     except Exception as e:
         logger.warning(f"Failed to write MEMORY.md: {e}")
@@ -417,6 +420,62 @@ def _save_promoted_tracker(memory_dir: Path, hashes: set[str]) -> None:
         pass
 
 
+def _try_promote_point(point, memory_dir: Path, promoted_hashes: set[str]) -> str | None:
+    """Try to promote a single eidetic point to a memory file.
+
+    Returns the filename if promoted, None otherwise.
+    """
+    import hashlib
+
+    payload = point.payload or {}
+    content = payload.get('content', '')
+    if not content:
+        return None
+
+    content_hash = hashlib.md5(content.encode()).hexdigest()[:12]
+    if content_hash in promoted_hashes:
+        return None
+
+    domain = payload.get('domain', '')
+    confidence = payload.get('confidence', 0.5)
+    confirmations = payload.get('confirmation_count', 1)
+
+    first_line = content.split('\n')[0][:80]
+    name = f"{domain}: {first_line}" if domain else first_line
+
+    slug = _slugify(name)
+    if not slug:
+        slug = f"eidetic_{content_hash}"
+
+    filename = f"promoted_{slug}.md"
+    filepath = memory_dir / filename
+
+    if filepath.exists():
+        promoted_hashes.add(content_hash)
+        return None
+
+    memory_content = f"""---
+name: {name[:80]}
+description: Auto-promoted from eidetic memory (confidence: {confidence:.2f}, confirmed: {confirmations}x)
+type: project
+---
+
+{content[:500]}
+
+**Source:** Eidetic memory (auto-promoted at POSTFLIGHT)
+**Confidence:** {confidence:.2f} | **Confirmations:** {confirmations}
+"""
+
+    try:
+        filepath.write_text(memory_content)
+        promoted_hashes.add(content_hash)
+        logger.debug(f"Promoted eidetic fact to memory: {filename}")
+        return filename
+    except Exception as e:
+        logger.warning(f"Failed to write promoted memory file: {e}")
+        return None
+
+
 def promote_eidetic_to_memory(
     project_id: str,
     project_path: str | None = None,
@@ -439,6 +498,10 @@ def promote_eidetic_to_memory(
     Returns:
         List of created memory file names
     """
+    if not project_id:
+        logger.debug("promote_eidetic_to_memory: no project_id, skipping")
+        return []
+
     memory_dir = get_memory_dir(project_path)
     if not memory_dir:
         return []
@@ -494,62 +557,9 @@ def promote_eidetic_to_memory(
     for point in points:
         if len(promoted_files) >= max_promote:
             break
-
-        payload = point.payload or {}
-        content = payload.get('content', '')
-        if not content:
-            continue
-
-        # Hash for dedup
-        import hashlib
-        content_hash = hashlib.md5(content.encode()).hexdigest()[:12]
-        if content_hash in promoted_hashes:
-            continue
-
-        # Determine memory type and name from the fact
-        domain = payload.get('domain', '')
-        confidence = payload.get('confidence', 0.5)
-        confirmations = payload.get('confirmation_count', 1)
-
-        # Build a descriptive name from content
-        first_line = content.split('\n')[0][:80]
-        if domain:
-            name = f"{domain}: {first_line}"
-        else:
-            name = first_line
-
-        slug = _slugify(name)
-        if not slug:
-            slug = f"eidetic_{content_hash}"
-
-        filename = f"promoted_{slug}.md"
-        filepath = memory_dir / filename
-
-        # Don't overwrite existing files
-        if filepath.exists():
-            promoted_hashes.add(content_hash)
-            continue
-
-        # Write memory file with CC auto-memory frontmatter format
-        memory_content = f"""---
-name: {name[:80]}
-description: Auto-promoted from eidetic memory (confidence: {confidence:.2f}, confirmed: {confirmations}x)
-type: project
----
-
-{content[:500]}
-
-**Source:** Eidetic memory (auto-promoted at POSTFLIGHT)
-**Confidence:** {confidence:.2f} | **Confirmations:** {confirmations}
-"""
-
-        try:
-            filepath.write_text(memory_content)
-            promoted_hashes.add(content_hash)
-            promoted_files.append(filename)
-            logger.debug(f"Promoted eidetic fact to memory: {filename}")
-        except Exception as e:
-            logger.warning(f"Failed to write promoted memory file: {e}")
+        result = _try_promote_point(point, memory_dir, promoted_hashes)
+        if result:
+            promoted_files.append(result)
 
     # Save updated tracker
     if promoted_files:
@@ -626,12 +636,12 @@ def _remove_from_memory_index(memory_dir: Path, filenames: list[str]) -> None:
     try:
         content = memory_md.read_text()
         for fname in filenames:
-            # Remove lines referencing the file
-            stem = fname.replace('.md', '')
+            # Remove lines that contain a markdown link or reference to this file
+            # Match: [text](filename) or (filename) patterns, not bare substrings
             lines = content.split('\n')
             content = '\n'.join(
                 line for line in lines
-                if stem not in line and fname not in line
+                if f'({fname})' not in line and f'({fname.replace(".md", "")}.md)' not in line
             )
         memory_md.write_text(content)
     except Exception as e:

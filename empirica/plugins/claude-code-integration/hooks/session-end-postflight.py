@@ -565,9 +565,21 @@ def main():
 
     # Non-critical post-POSTFLIGHT tasks
     try:
-        update_memory_hot_cache(session_id)
+        from empirica.core.memory_manager import (
+            demote_stale_memories,
+            enforce_memory_md_cap,
+            promote_eidetic_to_memory,
+            resolve_project_id,
+            update_hot_cache,
+        )
+        update_hot_cache(session_id)
+        _pid = resolve_project_id(session_id)
+        if _pid:
+            promote_eidetic_to_memory(project_id=_pid)
+        demote_stale_memories()
+        enforce_memory_md_cap()
     except Exception:
-        pass
+        pass  # memory management is non-critical at session end
     try:
         _auto_embed_project(session_id)
     except Exception:
