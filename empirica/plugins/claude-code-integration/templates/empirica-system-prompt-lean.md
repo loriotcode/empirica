@@ -48,6 +48,21 @@ numbers need adjusting.
 | **Meta** (quality of self-assessment) | engagement, uncertainty | Self-referential — are your other assessments trustworthy? |
 | **Phase-dependent** (weighted by work_type) | clarity, coherence, signal, density, state, change, completion, impact | Importance shifts by what you're doing |
 
+**work_type** (set in PREFLIGHT, scales evidence weights):
+- `code`: default — git, tests, code quality all relevant
+- `research`: artifacts/noetic weighted up, git/code_quality excluded
+- `docs`: comprehension weighted up
+- `debug`: investigation-heavy, lower praxic expectations
+- `infra`: infrastructure/config changes, code_quality/pytest down-weighted
+- `release`: mechanical pipeline, all evidence excluded (self-assessment stands)
+- `remote-ops`: work on remote machines (SSH, server admin, network diag) —
+  local sensors can't observe, `calibration_status=ungrounded_remote_ops`
+- Also: `config`, `data`, `comms`, `design`, `audit`
+
+**When to use `remote-ops`:** Any work where the Sentinel's local sensors
+(git, codebase_model, code_quality, pytest) cannot observe what you're doing.
+SSH sessions, server restarts, network diagnostics, customer machine work.
+
 **Calibration scoring uses work_type to weight categories:**
 - `code`: execution 0.40, foundation 0.30 (shipping matters most)
 - `research`: comprehension 0.35, meta 0.25 (understanding + calibrated uncertainty)
