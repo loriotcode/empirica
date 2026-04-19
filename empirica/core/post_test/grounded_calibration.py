@@ -991,6 +991,117 @@ def _build_calibration_reflection(
     }
 
 
+def _build_verification_summary(
+    results: dict,
+    session_id: str,
+    db,
+    phase_boundary: dict | None = None,
+    phase_tool_counts: dict[str, int] | None = None,
+) -> dict:
+    """Build unified verification summary from per-phase results.
+
+    Extracted from run_grounded_verification to reduce complexity.
+    """
+    all_gaps = {}
+    all_updates = {}
+    total_evidence = 0
+    all_sources: list[str] = []
+    all_failed: list[str] = []
+    verification_ids = []
+
+    for phase_name, phase_result in results.items():
+        total_evidence += phase_result['evidence_count']
+        all_sources.extend(phase_result['sources'])
+        all_failed.extend(phase_result['sources_failed'])
+        verification_ids.append(phase_result['verification_id'])
+        for v, gap in phase_result.get('_internal_gaps', {}).items():
+            all_gaps[f"{phase_name}:{v}"] = gap
+        for v, u in phase_result.get('_internal_updates', {}).items():
+            all_updates[f"{phase_name}:{v}"] = u
+
+    # Merge evidence summaries from all phases
+    merged_evidence, merged_signals = _merge_phase_evidence_summaries(results)
+
+    # Phase-weighted holistic calibration
+    phase_weights = _compute_phase_weights(phase_tool_counts, phase_boundary, results)
+    holistic_calibration_score, holistic_gaps = _compute_holistic_calibration(results, phase_weights)
+
+    # Calibration insights: analyze recent verifications for systemic patterns
+    calibration_insights = _run_calibration_insights(db, session_id)
+
+    # Export to .breadcrumbs.yaml
+    manager = GroundedCalibrationManager(db)
+    cursor = db.conn.cursor()
+    cursor.execute(
+        "SELECT ai_id FROM sessions WHERE session_id = ?",
+        (session_id,),
+    )
+    row = cursor.fetchone()
+    if row:
+        manager.export_grounded_calibration(
+            row[0],
+            phase_weights=phase_weights,
+            holistic_calibration_score=holistic_calibration_score,
+            holistic_gaps=holistic_gaps,
+            insights=calibration_insights,
+        )
+
+    # Build calibration reflection — narrative for the AI to learn from
+    reflection = _build_calibration_reflection(
+        results, merged_signals, all_sources, all_failed,
+        total_evidence, calibration_insights,
+    )
+
+    return {
+        # === AI-facing output ===
+        'evidence_summary': {
+            'sources': merged_evidence,
+            'signals': merged_signals,
+            'evidence_count': total_evidence,
+        },
+        'calibration_reflection': reflection,
+        'evidence_count': total_evidence,
+        'sources': list(set(all_sources)),
+        'sources_failed': list(set(all_failed)),
+        # === Metadata (structural, not scores) ===
+        'verification_ids': verification_ids,
+        'phase_aware': phase_boundary is not None and phase_boundary.get("has_check", False),
+        'phase_weights': phase_weights,
+        # === Internal storage (NOT for AI optimization) ===
+        '_internal_calibration_score': holistic_calibration_score,
+        '_internal_gaps': all_gaps,
+        '_internal_updates': all_updates,
+        '_internal_holistic_gaps': holistic_gaps,
+        '_internal_phases': results,
+        '_internal_insights': [
+            {
+                'vector': i.vector,
+                'phase': i.phase,
+                'pattern': i.pattern,
+                'severity': i.severity,
+                'description': i.description,
+                'suggestion': i.suggestion,
+            }
+            for i in calibration_insights
+        ],
+    }
+
+
+def _run_calibration_insights(db, session_id: str) -> list:
+    """Run calibration insights analysis (non-fatal on failure)."""
+    try:
+        from empirica.core.post_test.calibration_insights import CalibrationInsightsAnalyzer
+        analyzer = CalibrationInsightsAnalyzer(db, session_id, lookback=10)
+        insights = analyzer.analyze()
+        if insights:
+            analyzer.store_insights(insights)
+            logger.debug(f"Calibration insights: {len(insights)} patterns detected")
+        return insights
+    except Exception as e:
+        logger.debug(f"Calibration insights analysis failed (non-fatal): {e}")
+        return []
+
+
 def run_grounded_verification(
     session_id: str,
     postflight_vectors: dict[str, float],
@@ -1092,103 +1203,11 @@ def run_grounded_verification(
         if not results:
             return None
 
-        # Build unified summary
-        all_gaps = {}
-        all_updates = {}
-        total_evidence = 0
-        all_sources = []
-        all_failed = []
-        verification_ids = []
-
-        for phase_name, phase_result in results.items():
-            total_evidence += phase_result['evidence_count']
-            all_sources.extend(phase_result['sources'])
-            all_failed.extend(phase_result['sources_failed'])
-            verification_ids.append(phase_result['verification_id'])
-            for v, gap in phase_result.get('_internal_gaps', {}).items():
-                all_gaps[f"{phase_name}:{v}"] = gap
-            for v, u in phase_result.get('_internal_updates', {}).items():
-                all_updates[f"{phase_name}:{v}"] = u
-
-        # Merge evidence summaries from all phases
-        merged_evidence, merged_signals = _merge_phase_evidence_summaries(results)
-
-        # Phase-weighted holistic calibration
-        phase_weights = _compute_phase_weights(phase_tool_counts, phase_boundary, results)
-        holistic_calibration_score, holistic_gaps = _compute_holistic_calibration(results, phase_weights)
-
-        # Calibration insights: analyze recent verifications for systemic patterns
-        calibration_insights = []
-        try:
-            from empirica.core.post_test.calibration_insights import CalibrationInsightsAnalyzer
-            analyzer = CalibrationInsightsAnalyzer(db, session_id, lookback=10)
-            calibration_insights = analyzer.analyze()
-            if calibration_insights:
-                analyzer.store_insights(calibration_insights)
-                logger.debug(
-                    f"Calibration insights: {len(calibration_insights)} patterns detected"
-                )
-        except Exception as e:
-            logger.debug(f"Calibration insights analysis failed (non-fatal): {e}")
-
-        # Export to .breadcrumbs.yaml (after holistic computation so weights are included)
-        manager = GroundedCalibrationManager(db)
-        cursor = db.conn.cursor()
-        cursor.execute(
-            "SELECT ai_id FROM sessions WHERE session_id = ?",
-            (session_id,),
+        return _build_verification_summary(
+            results, session_id, db,
+            phase_boundary=phase_boundary,
+            phase_tool_counts=phase_tool_counts,
         )
-        row = cursor.fetchone()
-        if row:
-            manager.export_grounded_calibration(
-                row[0],
-                phase_weights=phase_weights,
-                holistic_calibration_score=holistic_calibration_score,
-                holistic_gaps=holistic_gaps,
-                insights=calibration_insights,
-            )
-
-        # Build calibration reflection — narrative for the AI to learn from
-        reflection = _build_calibration_reflection(
-            results, merged_signals, all_sources, all_failed,
-            total_evidence, calibration_insights,
-        )
-
-        return {
-            # === AI-facing output ===
-            'evidence_summary': {
-                'sources': merged_evidence,
-                'signals': merged_signals,
-                'evidence_count': total_evidence,
-            },
-            'calibration_reflection': reflection,
-            'evidence_count': total_evidence,
-            'sources': list(set(all_sources)),
-            'sources_failed': list(set(all_failed)),
-            # === Metadata (structural, not scores) ===
-            'verification_ids': verification_ids,
-            'phase_aware': phase_boundary is not None and phase_boundary.get("has_check", False),
-            'phase_weights': phase_weights,
-            # === Internal storage (NOT for AI optimization) ===
-            # These feed trajectory tracking, Qdrant embedding, breadcrumbs export.
-            # They are NOT presented as targets. The AI sees evidence_summary instead.
-            '_internal_calibration_score': holistic_calibration_score,
-            '_internal_gaps': all_gaps,
-            '_internal_updates': all_updates,
-            '_internal_holistic_gaps': holistic_gaps,
-            '_internal_phases': results,
-            '_internal_insights': [
-                {
-                    'vector': i.vector,
-                    'phase': i.phase,
-                    'pattern': i.pattern,
-                    'severity': i.severity,
-                    'description': i.description,
-                    'suggestion': i.suggestion,
-                }
-                for i in calibration_insights
-            ],
-        }
 
     except Exception as e:
         import traceback as _tb
@@ -1201,6 +1220,6 @@ def run_grounded_verification(
             crash_log.parent.mkdir(parents=True, exist_ok=True)
             with open(crash_log, "w") as _f:
                 _f.write(f"Error: {e}\n\n{tb_str}")
-        except Exception:
-            pass
+        except Exception as log_err:
+            logger.debug(f"Could not write crash log: {log_err}")
         return None

@@ -91,7 +91,7 @@ def test_upsert_docs_creates_collection_before_upsert():
          patch("empirica.core.qdrant.memory._get_qdrant_imports", return_value=(None, DummyDistance, DummyVectorParams, DummyPointStruct)), \
          patch("empirica.core.qdrant.memory._get_qdrant_client", return_value=client), \
          patch("empirica.core.qdrant.connection._get_qdrant_imports", return_value=(None, DummyDistance, DummyVectorParams, DummyPointStruct)), \
-         patch("empirica.core.qdrant.connection._get_embedding_safe", return_value=[0.1, 0.2, 0.3]), \
+         patch("empirica.core.qdrant.connection._get_embeddings_batch", return_value=[[0.1, 0.2, 0.3]]), \
          patch("empirica.core.qdrant.memory._docs_collection", return_value="project_test_docs"):
         count = upsert_docs("project-id", [{"id": 1, "text": "hello", "metadata": {"doc_path": "a.md"}}])
 
