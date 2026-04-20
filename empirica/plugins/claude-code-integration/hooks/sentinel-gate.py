@@ -1754,6 +1754,15 @@ def _validate_check_record(cursor, session_id: str, current_transaction_id, pref
     check_row = cursor.fetchone()
 
     if not check_row:
+        # Soft-gate if AI has logged findings (did investigate, just skipped CHECK).
+        # Hard-deny if zero evidence of investigation.
+        cursor.execute("""
+            SELECT COUNT(*) FROM project_findings
+            WHERE session_id = ? AND created_timestamp > ?
+        """, (session_id, preflight_timestamp or 0))
+        findings_count = cursor.fetchone()[0]
+        if findings_count > 0:
+            return ("ask", f"No CHECK found but {findings_count} findings logged. Consider running CHECK to formally gate the transition. Command: empirica check-submit - (JSON with vectors on stdin)")
         return ("deny", "No valid CHECK found. Run CHECK after investigation to ground predictions before acting. Command: empirica check-submit - (JSON with vectors on stdin)")
 
     know, uncertainty, reflex_data, check_timestamp = check_row
@@ -1821,7 +1830,7 @@ def _check_prior_investigate(cursor, session_id: str, current_transaction_id, pr
         return ("allow", f"Noetic tool (prior INVESTIGATE, gathering evidence): {tool_name}")
     if tool_name == 'Bash' and is_safe_bash_command(tool_input):
         return ("allow", "Safe Bash (prior INVESTIGATE, gathering evidence)")
-    return ("deny", "Previous transaction ended with INVESTIGATE. Show evidence of investigation (findings) or submit CHECK with proceed decision.")
+    return ("ask", "Previous transaction ended with INVESTIGATE. Show evidence of investigation (findings) or submit CHECK with proceed decision.")
 
 
 def _check_goalless_work(cursor, session_id: str, preflight_project_id, claude_session_id, empirica_root, suffix) -> str:
