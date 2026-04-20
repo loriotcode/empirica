@@ -163,6 +163,10 @@ SAFE_PIPE_TARGETS = (
 # The user explicitly chose the work type — this is a scope declaration.
 _current_work_type: str | None = None
 
+# Remote-ops auto-detection nudge (fires once per transaction)
+_remote_ops_nudge: str = ""
+_remote_ops_nudged: bool = False
+
 # Additional safe commands for infra/config/debug work types
 INFRA_SAFE_PREFIXES = (
     # System inspection
@@ -574,7 +578,7 @@ def _locate_transaction_file(claude_session_id: str | None,
 
 def _classify_tool_phase(tool_name: str, tool_input: dict | None) -> bool:
     """Classify whether a tool call is noetic (True) or praxic (False)."""
-    return bool(
+    return (
         tool_name in NOETIC_TOOLS
         or tool_name in NOETIC_MCP_CHROME
         or tool_name in NOETIC_MCP_CORTEX
@@ -752,11 +756,11 @@ def _compute_nudge(count: int, avg: int) -> str:
 
 def respond(decision: str, reason: str = "") -> None:
     """Output in Claude Code's expected format. Appends nudges on allow."""
-    global _autonomy_nudge, _goalless_nudge, _reread_nudge
+    global _autonomy_nudge, _goalless_nudge, _reread_nudge, _remote_ops_nudge
     full_reason = reason
     show_nudge = False
-    if decision == "allow" and (_autonomy_nudge or _goalless_nudge or _reread_nudge):
-        nudges = " | ".join(n for n in [_autonomy_nudge, _goalless_nudge, _reread_nudge] if n)
+    if decision == "allow" and (_autonomy_nudge or _goalless_nudge or _reread_nudge or _remote_ops_nudge):
+        nudges = " | ".join(n for n in [_autonomy_nudge, _goalless_nudge, _reread_nudge, _remote_ops_nudge] if n)
         full_reason = f"{reason} | {nudges}"
         show_nudge = True
 
@@ -805,7 +809,7 @@ def find_empirica_package() -> Path | None:
     """
     # Check if already importable (pip installed)
     try:
-        import empirica.config.path_resolver  # noqa: F401 — availability check  # pyright: ignore[reportUnusedImport]
+        import empirica.config.path_resolver  # noqa: F401 — availability check; type: ignore[import-not-found]
         return None  # Already available, no path needed
     except ImportError:
         pass
@@ -941,6 +945,21 @@ def _has_dangerous_redirects(command: str) -> bool:
     return '<' in cmd_clean and '<<' not in command
 
 
+def _maybe_nudge_remote_ops(cmd: str) -> None:
+    """Set remote-ops nudge if work_type isn't already remote-ops or infra."""
+    global _remote_ops_nudge, _remote_ops_nudged
+    if _remote_ops_nudged or _current_work_type in ('remote-ops', 'infra', 'config'):
+        return
+    _remote_ops_nudged = True
+    _remote_ops_nudge = (
+        "REMOTE-OPS: SSH/rsync/scp detected but work_type is "
+        f"'{_current_work_type or 'not set'}'. Consider setting "
+        "work_type=remote-ops in PREFLIGHT if this is remote work — "
+        "local sensors can't observe it, so calibration will use "
+        "ungrounded_remote_ops status and self-assessment stands."
+    )
+
+
 def is_safe_bash_command(tool_input: dict) -> bool:
     """Check if a Bash command is in the safe (noetic) whitelist.
 
@@ -981,6 +1000,7 @@ def is_safe_bash_command(tool_input: dict) -> bool:
 
     # Special cases: remote, sqlite, python
     if cmd.startswith(('ssh ', 'rsync ', 'scp ', 'ssh-')):
+        _maybe_nudge_remote_ops(cmd)
         return is_safe_remote_command(cmd)
     if cmd.startswith('sqlite3 ') and is_safe_sqlite_command(cmd):
         return True
