@@ -191,6 +191,26 @@ For full CLI reference: load `/empirica-commands` skill.
 
 ---
 
+## MEMORY LAYER OVERRIDE
+
+CC's auto-memory instructs you to write `memory/*.md` files directly. With Empirica
+active, the boundary is:
+
+| Memory Type | Who Writes | How |
+|-------------|-----------|-----|
+| **user** (preferences, role) | You (manual) | Write to memory when user states preferences |
+| **feedback** (corrections, guidance) | You (manual) | Write to memory when user corrects approach |
+| **project** (discoveries, state) | Pipeline (automatic) | Use `finding-log` → Qdrant → auto-promotion |
+| **reference** (external pointers) | Pipeline (automatic) | Use `finding-log` or `source-add` → auto-promotion |
+
+**Do NOT manually write project/reference memories.** Log them as findings/decisions
+instead. The POSTFLIGHT pipeline promotes high-confidence eidetic facts to `promoted_*.md`
+files automatically (confidence >= 0.7, max 3 per POSTFLIGHT, hash-deduped).
+
+**Reading** from memory is always fine — CC loads relevant files into context.
+
+---
+
 ## COLLABORATIVE MODE
 
 Infer epistemic actions from conversation naturally:
