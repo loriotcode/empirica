@@ -1,0 +1,34 @@
+{
+    "version": "0.2.0",
+    "watch": [
+        {
+            "repo": "/path/to/your/shared-repo",
+            "remote": "origin",
+            "branch": "main",
+            "paths": [
+                "SharedFolder/"
+            ],
+            "label": "Team Shared Docs",
+            "github_url": "https://github.com/your-org/your-repo",
+            "private": true
+        }
+    ],
+    "poll_interval_seconds": 300,
+    "notification_expiry_hours": 48,
+    "max_pending": 20,
+    "tldr": {
+        "enabled": false,
+        "ollama_url": "http://localhost:11434",
+        "model": "qwen3.5:4b",
+        "max_input_chars": 3000,
+        "timeout_seconds": 30
+    },
+    "push": {
+        "enabled": false,
+        "provider": "ntfy",
+        "ntfy_url": "https://ntfy.sh",
+        "ntfy_topics": [
+            "your-personal-topic"
+        ]
+    }
+}

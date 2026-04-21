@@ -64,6 +64,32 @@ Run this after 'brew install empirica' or 'pip install empirica'.
         help='Show detailed output'
     )
 
+    # ENP Setup command - initialize ENP watcher infrastructure
+    enp_parser = subparsers.add_parser(
+        'enp-setup',
+        help='Initialize the Epistemic Network Protocol (ENP) watcher',
+        description="""
+Initialize the ENP watcher — monitors shared git repos for changes
+and notifies AI sessions when relevant files update.
+
+This command:
+1. Creates ~/.empirica/enp/ directory
+2. Copies config template (edit to add your repos and ntfy topics)
+3. Initializes watcher state from current repo HEADs
+4. Shows cron setup instructions
+5. Shows hook registration instructions
+
+The watcher runs via cron (every 5 min) and writes pending notifications.
+SessionStart and PostToolUse hooks surface these to Claude at natural points.
+        """
+    )
+    enp_parser.add_argument(
+        '--output',
+        choices=['human', 'json'],
+        default='human',
+        help='Output format (default: human)'
+    )
+
     # Diagnose command - check Empirica + Claude Code integration health
     diagnose_parser = subparsers.add_parser(
         'diagnose',

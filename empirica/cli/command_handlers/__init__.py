@@ -136,6 +136,7 @@ from .monitor_commands import (
     handle_trajectory_project_command,
     handle_workflow_patterns_command,
 )
+from .enp_commands import handle_enp_setup_command
 from .onboard import handle_onboard_command
 from .performance_commands import handle_benchmark_command, handle_performance_command
 from .profile_commands import (
