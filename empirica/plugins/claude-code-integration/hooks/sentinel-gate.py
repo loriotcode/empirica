@@ -122,6 +122,8 @@ SAFE_BASH_PREFIXES = (
     'df ', 'du ', 'mount', 'lsblk',
     # Network inspection (not modification)
     'curl ', 'wget -O-', 'ping -c', 'dig ', 'nslookup ', 'host ',
+    # Remote inspection (read-only SSH)
+    'ssh ',
     # Documentation
     'man ', 'info ', 'help ',
     # Testing (read-only check)
@@ -1733,7 +1735,7 @@ def _check_postflight_loop_closed(cursor, session_id: str, current_transaction_i
     return None
 
 
-def _validate_check_record(cursor, session_id: str, current_transaction_id, preflight_timestamp):
+def _validate_check_record(cursor, session_id: str, current_transaction_id, preflight_timestamp, tool_input: dict = None):
     """Lookup CHECK record, verify sequence, detect rushed assessments.
 
     Returns (know, uncertainty, decision, check_timestamp) on success,
@@ -1754,6 +1756,11 @@ def _validate_check_record(cursor, session_id: str, current_transaction_id, pref
     check_row = cursor.fetchone()
 
     if not check_row:
+        # Always allow check-submit itself — it's how CHECK gets created.
+        # Without this, sentinel creates a deadlock: can't CHECK without CHECK.
+        if tool_input and 'check-submit' in tool_input.get('command', ''):
+            return None  # Fall through to allow — this IS the CHECK command
+
         # Soft-gate if AI has logged findings (did investigate, just skipped CHECK).
         # Hard-deny if zero evidence of investigation.
         cursor.execute("""
@@ -2450,7 +2457,7 @@ def main():
 
     # VALIDATE CHECK: lookup, sequence, rushed assessment, decision parse
     check_result = _validate_check_record(
-        cursor, session_id, current_transaction_id, preflight_timestamp)
+        cursor, session_id, current_transaction_id, preflight_timestamp, tool_input)
     if isinstance(check_result, tuple) and len(check_result) == 2:
         db.close()
         respond(check_result[0], check_result[1])
