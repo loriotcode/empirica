@@ -247,6 +247,7 @@ __all__ = [
     'handle_doc_check_command',
     'handle_doc_plan_suggest_command',
     'handle_ecosystem_check_command',
+    'handle_enp_setup_command',
     'handle_efficiency_report_command',
     'handle_engagement_focus_command',
     'handle_epistemics_list_command',
