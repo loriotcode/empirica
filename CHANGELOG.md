@@ -5,6 +5,57 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.9] - 2026-04-21
+
+### Added
+- **ENP watcher module** — git folder change detection shipped as core plugin.
+  `enp-watcher.py` (cron-based poller), `enp-notify.py` (SessionStart hook),
+  `enp-postflight-notify.py` (PostToolUse hook). Config template included.
+- **`empirica enp-setup` command** — initializes `~/.empirica/enp/`, copies config
+  template, initializes state from repo HEADs, prints cron + hook setup instructions.
+- **Sentinel soft-gating** — `permissionDecision:ask` for borderline cases. When
+  findings are logged but no CHECK submitted, prompts user instead of hard-blocking.
+  Structural denies (closed loop, no bootstrap) unchanged.
+- **Sentinel remote-ops auto-detect** — nudges when SSH/rsync/scp detected and
+  `work_type` not set to `remote-ops`. Fires once per transaction via respond() nudge.
+- **25 tests for memory_manager.py** — covers hot cache, promotion, demotion, eviction,
+  stale markers, blank runs, file locking, substring safety, edge cases.
+- **Memory layer override** in system prompt — clarifies project/reference memories
+  flow through artifact logging pipeline, not manual writes.
+- **ECO role** (Epistemic Compliance Officer) defined in ENP and Cortex gating specs.
+- **EPISTEMIC_GATING_SPEC.md** in empirica-cortex — boundary spec between core and Cortex
+  for memory lifecycle (promotion, decay, sharing, UQ gating).
+
+### Fixed
+- **Memory hot-cache promotion** was dead code — `confirmation_count >= 3` threshold
+  structurally impossible (confirm_eidetic_fact needs exact hash match, findings never
+  repeat verbatim). Now uses confidence-only filter with 3-per-POSTFLIGHT cap.
+- **MEMORY.md bloated to 443 lines** (CC cap 200) — stale `<!-- empirica-auto-start -->`
+  marker left 300 blank lines. Added `_strip_stale_markers()` and `_collapse_blank_runs()`.
+- **Memory pipeline audit** (4 bugs): None project_id guard, fcntl file locking on
+  MEMORY.md writes, session-end hook now calls full lifecycle, substring matching fixed.
+- **Sentinel check-submit deadlock** — `_validate_check_record` blocked check-submit
+  (the command that CREATES the CHECK record) because no CHECK existed.
+- **Sentinel ACL gap** — `unknown-list`, `assumption-list`, and other read-only artifact
+  commands were not in EMPIRICA_TIER1_PREFIXES, incorrectly gated as praxic.
+- **C901 on `run_grounded_verification`** (CC 16→10) — extracted `_build_verification_summary()`
+  and `_run_calibration_insights()`.
+- **S110 try-except-pass** in grounded_calibration.py — replaced with logged error.
+- **Qdrant test mock** — `test_upsert_docs_creates_collection_before_upsert` mocked
+  wrong function (sequential path instead of batch path).
+- **Qdrant failure visibility** — ImportError logged at info, connection failure at warning
+  (was both debug-level, invisible without verbose).
+
+### Changed
+- **Sentinel** now uses three-level response: allow (safe), ask (borderline), deny (blocked).
+- **Session-end hook** calls full memory lifecycle (promote, demote, enforce cap) via
+  memory_manager imports, not its own partial implementation.
+- **Memory promotion** logs at info/warning for Qdrant failures instead of silent debug.
+
+### Removed
+- 4 stale GitHub branches deleted (claude/empirica-mcp-integration, fix/setup-claude-dir-scope,
+  fix/sqlite-update-order-by-syntax, fix/auto-embed-deadends-mistakes).
+
 ## [1.8.8] - 2026-04-18
 
 ### Added
