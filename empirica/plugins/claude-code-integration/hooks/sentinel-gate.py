@@ -1735,7 +1735,7 @@ def _check_postflight_loop_closed(cursor, session_id: str, current_transaction_i
     return None
 
 
-def _validate_check_record(cursor, session_id: str, current_transaction_id, preflight_timestamp, tool_input: dict = None):
+def _validate_check_record(cursor, session_id: str, current_transaction_id, preflight_timestamp, tool_input: dict | None = None):
     """Lookup CHECK record, verify sequence, detect rushed assessments.
 
     Returns (know, uncertainty, decision, check_timestamp) on success,
