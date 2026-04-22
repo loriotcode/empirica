@@ -377,16 +377,26 @@ The Sentinel outputs JSON to stdout in Claude Code's expected hook format:
 {
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
-    "permissionDecision": "allow|deny",
-    "permissionDecisionReason": "Reason text | optional autonomy nudge"
+    "permissionDecision": "allow|ask|deny",
+    "permissionDecisionReason": "Reason text | optional nudge"
   },
   "suppressOutput": true  // Only on allow without nudge
 }
 ```
 
 - **Allow without nudge:** Output suppressed (no user-visible noise)
-- **Allow with nudge:** Output shown (autonomy nudge visible to AI)
-- **Deny:** Output shown with reason
+- **Allow with nudge:** Output shown (autonomy/remote-ops nudge visible to AI)
+- **Ask:** Prompts user for approval (borderline cases — findings logged but no CHECK, or INVESTIGATE with zero evidence). User can override.
+- **Deny:** Output shown with reason (structural blocks — closed loop, no bootstrap)
+
+### Nudge Types
+
+| Nudge | Trigger | Fires |
+|-------|---------|-------|
+| Autonomy | Transaction tool count past avg | Per tool call (threshold-based) |
+| Goalless work | Tool calls without linked goal | Once per threshold |
+| Re-read | Same file read multiple times | Once per file |
+| **Remote-ops** | SSH/rsync/scp detected, work_type not remote-ops | Once per transaction |
 
 ---
 

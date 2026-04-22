@@ -20,7 +20,7 @@ empirica setup-claude-code --force # Reset/update (preserves non-Empirica hooks)
 
 | Component | Count | Location |
 |-----------|-------|----------|
-| Hooks | 15 | `~/.claude/plugins/local/empirica/hooks/` |
+| Hooks | 18 | `~/.claude/plugins/local/empirica/hooks/` |
 | Skills | 10 | `~/.claude/plugins/local/empirica/skills/` |
 | Commands | 2 | `~/.claude/plugins/local/empirica/commands/` |
 | Agents | 9 | `~/.claude/plugins/local/empirica/agents/` |
@@ -58,6 +58,13 @@ Hooks fire automatically on Claude Code events. No manual invocation needed.
 | **context-shift-tracker** | UserPromptSubmit | Classifies user prompts as solicited (AI-asked) vs unsolicited (human-initiated redirect) for calibration |
 | **tool-failure** | PostToolUseFailure | Auto-logs dead-ends from tool failures — captures the failed approach and error for future avoidance |
 | **curate-snapshots** | SessionEnd | Prunes pre-compact snapshots using importance-weighted algorithm (impact + completion scoring) |
+
+### ENP (Epistemic Network Protocol)
+
+| Hook | Event | What It Does |
+|------|-------|-------------|
+| **enp-notify** | SessionStart | Surfaces pending ENP notifications (git folder changes detected by cron watcher) |
+| **enp-postflight-notify** | PostToolUse | Surfaces new ENP notifications at POSTFLIGHT boundaries — only fires after postflight-submit |
 
 ### Subagent Governance
 

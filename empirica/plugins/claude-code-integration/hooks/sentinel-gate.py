@@ -712,8 +712,9 @@ def _try_increment_tool_count(claude_session_id: str | None = None,
             is_noetic = _classify_tool_phase(tool_name, tool_input)
             _update_phase_counters(counters, tool_name, is_noetic)
 
-        _track_edited_files(counters, tool_name, tool_input)
-        _track_read_files(counters, tool_name, tool_input)
+        if tool_name:
+            _track_edited_files(counters, tool_name, tool_input)
+            _track_read_files(counters, tool_name, tool_input)
 
         if tool_name == 'AskUserQuestion':
             counters['pending_user_response'] = True
