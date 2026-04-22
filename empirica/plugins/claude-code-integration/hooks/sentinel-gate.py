@@ -2153,7 +2153,7 @@ def _read_transaction_state(empirica_root: Path | None, claude_session_id: str |
     result['suffix'] = suffix
     empirica_session_id = _resolve_empirica_session_id(claude_session_id)
     tx_file = _find_transaction_file(empirica_root, suffix, empirica_session_id)
-    result['tx_file'] = tx_file
+    result['tx_file'] = str(tx_file) if tx_file else None
 
     if not tx_file:
         return result
@@ -2387,10 +2387,16 @@ def main():
     # Get session_id - transaction file takes priority (survives compaction)
     # Fallback to active_work file for when no transaction is open
     session_id = _resolve_session(tx_state['tx_session_id'], claude_session_id, env_annotation)
+    if not session_id:
+        respond("allow", "No session resolved — sentinel inactive")
+        sys.exit(0)
 
     # SessionDatabase uses path_resolver internally for DB location
     from empirica.data.session_database import SessionDatabase  # type: ignore[import-not-found]
     db = SessionDatabase()
+    if db.conn is None:
+        respond("allow", "No database connection — sentinel inactive")
+        sys.exit(0)
     cursor = db.conn.cursor()
 
     # Optional: Bootstrap requirement
