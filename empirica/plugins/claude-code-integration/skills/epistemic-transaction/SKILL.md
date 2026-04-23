@@ -598,12 +598,13 @@ visible task tracking vs when it's overhead.
 |-------|----------|
 | **Planning** | `goals-create`, `goals-add-subtask`, `unknown-log`, `assumption-log` |
 | **PREFLIGHT** | `preflight-submit` (opens transaction) |
-| **Noetic** | `source-add`, `finding-log --source <id>`, `unknown-log`, `deadend-log`, `assumption-log` |
+| **Noetic** | `source-add`, `finding-log`, `unknown-log`, `deadend-log`, `assumption-log` |
 | **CHECK** | `check-submit` (gates noetic → praxic) |
-| **Praxic** | `finding-log`, `decision-log --evidence <id>`, `goals-complete-subtask` |
-| **Before POSTFLIGHT** | `goals-complete`, `unknown-resolve` (close artifacts before measurement window closes) |
+| **Praxic** | `finding-log`, `decision-log`, `goals-complete-subtask` |
+| **Before POSTFLIGHT** | `goals-complete`, `unknown-resolve`, or batch: `resolve-artifacts` |
 | **POSTFLIGHT** | `postflight-submit` (closes transaction + triggers grounded verification) |
-| **Between** | `goals-list`, review open artifacts, resolve what's no longer pertinent |
+| **Between** | `goals-list`, `resolve-artifacts` (batch), `delete-artifacts` (cleanup) |
+| **Batch** | `log-artifacts` (connected graph), `resolve-artifacts`, `delete-artifacts` |
 
 ---
 

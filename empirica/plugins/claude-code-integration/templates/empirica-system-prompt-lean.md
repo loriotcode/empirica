@@ -175,6 +175,10 @@ empirica deadend-log --approach "..." --why-failed "..."
 empirica goals-create --objective "..."
 empirica goals-complete --goal-id <ID> --reason "..."
 empirica project-search --task "..." --global
+# Batch operations (connected artifacts, cleanup)
+empirica log-artifacts -             # JSON graph: nodes + edges
+empirica resolve-artifacts -         # JSON: batch resolve unknowns/assumptions/goals
+empirica delete-artifacts -          # JSON: batch delete stale artifacts
 ```
 
 For full CLI reference: load `/empirica-commands` skill.
