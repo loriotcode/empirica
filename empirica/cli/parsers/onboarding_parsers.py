@@ -90,6 +90,49 @@ SessionStart and PostToolUse hooks surface these to Claude at natural points.
         help='Output format (default: human)'
     )
 
+    # Release command - thin wrapper around scripts/release.py
+    release_parser = subparsers.add_parser(
+        'release',
+        help='Run the release pipeline (wraps scripts/release.py)',
+        description="""
+Thin wrapper around scripts/release.py for the Empirica release pipeline.
+Does NOT require PREFLIGHT/POSTFLIGHT (mechanical pipeline, work_type=release).
+
+Recommended flow:
+  empirica release --prepare          # merge, build, test
+  (review artifacts, smoke test)
+  empirica release --publish          # push to all channels
+
+One-shot:
+  empirica release                    # prepare + publish
+  empirica release --dry-run          # preview without executing
+        """
+    )
+    release_parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Preview changes without executing'
+    )
+    release_parser.add_argument(
+        '--prepare',
+        action='store_true',
+        help='Merge to main, build, and test — but do NOT publish'
+    )
+    release_parser.add_argument(
+        '--publish',
+        action='store_true',
+        help='Publish a prepared release (requires --prepare to have been run first)'
+    )
+    release_parser.add_argument(
+        '--version-only',
+        action='store_true',
+        help='Update version strings only (no build/publish). Requires --old-version.'
+    )
+    release_parser.add_argument(
+        '--old-version',
+        help='Previous version for broad sweep replacement (e.g. 1.5.6)'
+    )
+
     # Diagnose command - check Empirica + Claude Code integration health
     diagnose_parser = subparsers.add_parser(
         'diagnose',

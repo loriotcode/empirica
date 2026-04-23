@@ -19,6 +19,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -684,4 +685,41 @@ def handle_release_ready_command(args):
 
     except Exception as e:
         handle_cli_error(e, "release-ready", getattr(args, 'output', 'json'))
+        return 1
+
+
+def handle_release_command(args):
+    """Handle release command — thin wrapper around scripts/release.py.
+
+    Runs the release pipeline as a subprocess, passing through all flags.
+    This is a mechanical pipeline command (work_type=release) and does NOT
+    require PREFLIGHT/POSTFLIGHT.
+    """
+    # Find the repo root (scripts/release.py lives at repo root)
+    repo_root = Path(os.getcwd())
+    release_script = repo_root / "scripts" / "release.py"
+
+    if not release_script.exists():
+        print(f"Error: scripts/release.py not found at {release_script}", file=sys.stderr)
+        return 1
+
+    # Build subprocess command, forwarding flags
+    cmd = [sys.executable, str(release_script)]
+
+    if getattr(args, 'dry_run', False):
+        cmd.append('--dry-run')
+    if getattr(args, 'prepare', False):
+        cmd.append('--prepare')
+    if getattr(args, 'publish', False):
+        cmd.append('--publish')
+    if getattr(args, 'version_only', False):
+        cmd.append('--version-only')
+    if getattr(args, 'old_version', None):
+        cmd.extend(['--old-version', args.old_version])
+
+    try:
+        result = subprocess.run(cmd, cwd=str(repo_root))
+        return result.returncode
+    except Exception as e:
+        print(f"Error running release script: {e}", file=sys.stderr)
         return 1

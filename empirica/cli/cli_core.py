@@ -166,7 +166,7 @@ from .command_handlers.persona_commands import (
     handle_persona_show_command,
 )
 from .command_handlers.query_commands import handle_query_command
-from .command_handlers.release_commands import handle_release_ready_command
+from .command_handlers.release_commands import handle_release_command, handle_release_ready_command
 from .command_handlers.sentinel_commands import (
     handle_sentinel_check_command,
     handle_sentinel_load_profile_command,
@@ -319,7 +319,7 @@ _HELP_CATEGORIES = {
     'memory': ['memory-prime', 'memory-scope', 'memory-value', 'pattern-check', 'session-rollup', 'memory-report'],
     'vision': ['vision'],
     'domains': ['domain-list', 'domain-show', 'domain-resolve', 'domain-validate'],
-    'setup': ['onboard', 'setup-claude-code', 'enp-setup', 'diagnose', 'serve'],
+    'setup': ['onboard', 'setup-claude-code', 'enp-setup', 'diagnose', 'release', 'serve'],
 }
 
 
@@ -635,6 +635,7 @@ def main(args=None):
             'setup-claude-code': handle_setup_claude_code_command,
             'enp-setup': handle_enp_setup_command,
             'diagnose': handle_diagnose_command,
+            'release': handle_release_command,
 
             # Trajectory commands (experimental epistemic prediction)
             'trajectory-show': handle_trajectory_show_command,

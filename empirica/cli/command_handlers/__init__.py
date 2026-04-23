@@ -88,6 +88,7 @@ from .goal_commands import (
     handle_goals_search_command,
     handle_sessions_resume_command,
 )
+from .graph_commands import handle_log_artifacts_command, handle_resolve_artifacts_command
 from .handoff_commands import handle_handoff_create_command, handle_handoff_query_command
 from .identity_commands import (
     handle_identity_create_command,
@@ -137,6 +138,7 @@ from .monitor_commands import (
     handle_workflow_patterns_command,
 )
 from .enp_commands import handle_enp_setup_command
+from .release_commands import handle_release_command
 from .onboard import handle_onboard_command
 from .performance_commands import handle_benchmark_command, handle_performance_command
 from .profile_commands import (
@@ -277,6 +279,8 @@ __all__ = [
     # Handoff Reports commands (Phase 1.6)
     'handle_handoff_create_command',
     'handle_handoff_query_command',
+    'handle_log_artifacts_command',
+    'handle_resolve_artifacts_command',
     'handle_history_command',
     # NEW: Identity Management Commands (Phase 2 - EEP-1)
     'handle_identity_create_command',
@@ -342,6 +346,7 @@ __all__ = [
     'handle_project_update_command',
     'handle_rebuild_command',
     'handle_refdoc_add_command',
+    'handle_release_command',
     'handle_save_command',
     'handle_sentinel_check_command',
     'handle_sentinel_load_profile_command',
