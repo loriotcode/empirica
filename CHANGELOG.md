@@ -5,6 +5,33 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.10] - 2026-04-23
+
+### Added
+- **Artifact Graph API** — batch artifact operations with connected graphs:
+  - `empirica log-artifacts`: batch create artifacts (7 types) with relationship
+    edges (9 types). Creates in dependency order, resolves refs to UUIDs.
+  - `empirica resolve-artifacts`: batch resolve unknowns, assumptions, goals.
+  - `empirica delete-artifacts`: batch delete stale artifacts with audit trail
+    and `--dry-run` preview. Anti-pollution for epistemic chains.
+- **`empirica release` command** — sentinel-bypassing wrapper for release.py.
+- **Sentinel work_type nudge** — prompts when PREFLIGHT has no work_type set.
+
+### Fixed
+- **Calibration data leak** — `_internal_*` keys (per-vector gaps, divergences)
+  were visible in POSTFLIGHT CLI output. AIs were reading them and optimizing
+  against per-vector scores, defeating the calibration reframe. Now stripped
+  from AI-facing output; writes to DB/breadcrumbs only.
+- **Sentinel INVESTIGATE over-gating** — noetic tools (grep, ls, Read) were
+  getting `ask` prompts during INVESTIGATE mode. Now silently allowed.
+- **Sentinel MCP tool classification** — `mcp__empirica__*` and Cortex MCP tools
+  had no classification entries, falling through to praxic default. Added
+  `EMPIRICA_MCP_PREFIX` auto-allow and expanded `NOETIC_MCP_CORTEX` (4→18 tools).
+
+### Changed
+- System prompt and epistemic transaction skill updated with batch artifact
+  commands in quick reference and collaborative mode tables.
+
 ## [1.8.9] - 2026-04-21
 
 ### Added
