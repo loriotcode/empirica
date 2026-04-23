@@ -59,6 +59,7 @@ from .doc_commands import (
 from .ecosystem_commands import (
     handle_ecosystem_check_command,
 )
+from .enp_commands import handle_enp_setup_command
 from .epistemics_commands import (
     handle_epistemics_list_command,
     handle_epistemics_search_command,
@@ -88,7 +89,11 @@ from .goal_commands import (
     handle_goals_search_command,
     handle_sessions_resume_command,
 )
-from .graph_commands import handle_delete_artifacts_command, handle_log_artifacts_command, handle_resolve_artifacts_command
+from .graph_commands import (
+    handle_delete_artifacts_command,
+    handle_log_artifacts_command,
+    handle_resolve_artifacts_command,
+)
 from .handoff_commands import handle_handoff_create_command, handle_handoff_query_command
 from .identity_commands import (
     handle_identity_create_command,
@@ -137,8 +142,6 @@ from .monitor_commands import (
     handle_trajectory_project_command,
     handle_workflow_patterns_command,
 )
-from .enp_commands import handle_enp_setup_command
-from .release_commands import handle_release_command
 from .onboard import handle_onboard_command
 from .performance_commands import handle_benchmark_command, handle_performance_command
 from .profile_commands import (
@@ -162,6 +165,7 @@ from .project_search import (
     handle_project_search_command,
 )
 from .project_update import handle_project_update_command
+from .release_commands import handle_release_command
 from .sentinel_commands import (
     handle_sentinel_check_command,
     handle_sentinel_load_profile_command,
@@ -245,13 +249,14 @@ __all__ = [
     'handle_config_validate_command',
     'handle_deadend_log_command',
     'handle_decision_log_command',
+    'handle_delete_artifacts_command',
     'handle_diagnose_command',
     'handle_doc_check_command',
     'handle_doc_plan_suggest_command',
     'handle_ecosystem_check_command',
-    'handle_enp_setup_command',
     'handle_efficiency_report_command',
     'handle_engagement_focus_command',
+    'handle_enp_setup_command',
     'handle_epistemics_list_command',
     # Epistemic trajectory commands
     'handle_epistemics_search_command',
@@ -279,9 +284,6 @@ __all__ = [
     # Handoff Reports commands (Phase 1.6)
     'handle_handoff_create_command',
     'handle_handoff_query_command',
-    'handle_delete_artifacts_command',
-    'handle_log_artifacts_command',
-    'handle_resolve_artifacts_command',
     'handle_history_command',
     # NEW: Identity Management Commands (Phase 2 - EEP-1)
     'handle_identity_create_command',
@@ -307,6 +309,7 @@ __all__ = [
     'handle_lesson_replay_start_command',
     'handle_lesson_search_command',
     'handle_lesson_stats_command',
+    'handle_log_artifacts_command',
     'handle_mco_load_command',
     'handle_mcp_call_command',
     'handle_mcp_list_tools_command',
@@ -348,6 +351,7 @@ __all__ = [
     'handle_rebuild_command',
     'handle_refdoc_add_command',
     'handle_release_command',
+    'handle_resolve_artifacts_command',
     'handle_save_command',
     'handle_sentinel_check_command',
     'handle_sentinel_load_profile_command',

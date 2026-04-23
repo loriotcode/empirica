@@ -1819,7 +1819,12 @@ def _validate_check_record(cursor, session_id: str, current_transaction_id, pref
 
 def _check_prior_investigate(cursor, session_id: str, current_transaction_id, preflight_timestamp,
                              tool_name: str, tool_input: dict) -> 'tuple | None':
-    """Block auto-proceed if previous transaction ended with INVESTIGATE and no evidence gathered."""
+    """Advisory nudge if previous transaction ended with INVESTIGATE and no evidence gathered.
+
+    INVESTIGATE is a suggestion to gather more evidence, not a hard gate.
+    The user starting a new PREFLIGHT overrides it. All noetic tools always
+    pass through. Praxic tools get a one-time ask (per transaction).
+    """
     cursor.execute("""
         SELECT json_extract(reflex_data, '$.decision') as decision, transaction_id
         FROM reflexes WHERE session_id = ? AND phase = 'CHECK'
@@ -1833,6 +1838,7 @@ def _check_prior_investigate(cursor, session_id: str, current_transaction_id, pr
     if prev_decision != 'investigate' or prev_tx_id == current_transaction_id:
         return None
 
+    # If findings have been logged, INVESTIGATE is satisfied — allow everything
     cursor.execute("""
         SELECT COUNT(*) FROM project_findings
         WHERE session_id = ? AND created_timestamp > ?
@@ -1840,11 +1846,15 @@ def _check_prior_investigate(cursor, session_id: str, current_transaction_id, pr
     if (cursor.fetchone()[0] or 0) > 0:
         return None
 
+    # All noetic tools always allowed — INVESTIGATE means "investigate more",
+    # not "stop using tools". Read, Grep, Glob, Bash grep/ls/cat, etc.
     if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME or tool_name in NOETIC_MCP_CORTEX:
-        return ("allow", f"Noetic tool (prior INVESTIGATE, gathering evidence): {tool_name}")
+        return None  # Silent allow — don't even log it as a decision
     if tool_name == 'Bash' and is_safe_bash_command(tool_input):
-        return ("allow", "Safe Bash (prior INVESTIGATE, gathering evidence)")
-    return ("ask", "Previous transaction ended with INVESTIGATE. Show evidence of investigation (findings) or submit CHECK with proceed decision.")
+        return None  # Safe Bash is noetic
+
+    # Only genuinely praxic tools (Edit, Write, destructive Bash) get ask
+    return ("ask", "Previous CHECK returned INVESTIGATE. Consider running CHECK with proceed before praxic actions.")
 
 
 def _check_goalless_work(cursor, session_id: str, preflight_project_id, claude_session_id, empirica_root, suffix) -> str:
