@@ -636,6 +636,43 @@ def add_checkpoint_parsers(subparsers):
     source_list_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     source_list_parser.add_argument('--verbose', action='store_true', help='Show detailed info')
 
+    # Graph artifact commands — batch logging and resolution
+    log_artifacts_parser = subparsers.add_parser(
+        'log-artifacts',
+        help='Batch log connected artifacts with graph format (nodes + edges)',
+        description="""
+Log a connected set of epistemic artifacts in one call.
+
+Accepts JSON on stdin (or from file) with nodes (typed artifacts)
+and edges (relationships between them). Creates in dependency order,
+resolves local refs to UUIDs, wires edges.
+
+Example:
+  echo '{"nodes": [{"ref": "f1", "type": "finding", "data": {"finding": "X", "impact": 0.7}}]}' | empirica log-artifacts -
+        """
+    )
+    log_artifacts_parser.add_argument('config', nargs='?', default='-', help='JSON file or - for stdin (default: stdin)')
+    log_artifacts_parser.add_argument('--session-id', help='Session UUID (auto-derived)')
+    log_artifacts_parser.add_argument('--project-id', help='Project UUID (auto-derived)')
+    log_artifacts_parser.add_argument('--output', choices=['human', 'json'], default='json', help='Output format')
+    log_artifacts_parser.add_argument('--verbose', action='store_true', help='Show detailed output')
+
+    resolve_artifacts_parser = subparsers.add_parser(
+        'resolve-artifacts',
+        help='Batch resolve open artifacts (unknowns, assumptions, goals)',
+        description="""
+Batch resolve multiple open artifacts in one call.
+
+Accepts JSON with resolutions array. Each item specifies type, id, and resolution.
+
+Example:
+  echo '{"resolutions": [{"type": "unknown", "id": "abc123", "resolution": "Answered by X"}]}' | empirica resolve-artifacts -
+        """
+    )
+    resolve_artifacts_parser.add_argument('config', nargs='?', default='-', help='JSON file or - for stdin (default: stdin)')
+    resolve_artifacts_parser.add_argument('--output', choices=['human', 'json'], default='json', help='Output format')
+    resolve_artifacts_parser.add_argument('--verbose', action='store_true', help='Show detailed output')
+
     # EPP activation telemetry
     # Self-reported: Claude logs when it invoked EPP protocol during a turn.
     # Writes to ~/.empirica/hook_counters{suffix}.json (counter + log).
