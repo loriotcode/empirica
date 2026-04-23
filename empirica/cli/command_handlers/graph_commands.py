@@ -102,21 +102,21 @@ def _create_node(db, node: dict, context: dict) -> str | None:
 
     try:
         if ntype == 'finding':
-            return db.log_project_finding(
+            return db.log_finding(
                 project_id=project_id, session_id=session_id,
                 finding=data['finding'], impact=data.get('impact', 0.5),
                 goal_id=goal_id, subject=data.get('subject'),
                 transaction_id=transaction_id,
             )
         elif ntype == 'unknown':
-            return db.log_project_unknown(
+            return db.log_unknown(
                 project_id=project_id, session_id=session_id,
                 unknown=data['unknown'],
                 goal_id=goal_id, subject=data.get('subject'),
                 transaction_id=transaction_id,
             )
         elif ntype == 'dead_end':
-            return db.log_project_dead_end(
+            return db.log_dead_end(
                 project_id=project_id, session_id=session_id,
                 approach=data['approach'], why_failed=data['why_failed'],
                 impact=data.get('impact', 0.5),
@@ -133,7 +133,7 @@ def _create_node(db, node: dict, context: dict) -> str | None:
                 goal_id=goal_id,
             )
         elif ntype == 'assumption':
-            return db.log_project_assumption(
+            return db.log_assumption(
                 project_id=project_id, session_id=session_id,
                 assumption=data['assumption'],
                 confidence=data.get('confidence', 0.5),
@@ -142,13 +142,12 @@ def _create_node(db, node: dict, context: dict) -> str | None:
                 transaction_id=transaction_id,
             )
         elif ntype == 'decision':
-            return db.log_project_decision(
+            return db.log_decision(
                 project_id=project_id, session_id=session_id,
                 choice=data['choice'], rationale=data['rationale'],
                 alternatives=data.get('alternatives'),
                 reversibility=data.get('reversibility', 'exploratory'),
                 confidence=data.get('confidence', 0.7),
-                domain=data.get('domain'),
                 goal_id=goal_id,
                 transaction_id=transaction_id,
             )
@@ -189,23 +188,10 @@ def _store_edge(db, from_id: str, to_id: str, relation: str):
 
     cursor = db.conn.cursor()
 
-    # Try each artifact table to find the 'from' artifact
-    tables = [
-        'project_findings', 'project_unknowns', 'project_dead_ends',
-        'project_assumptions', 'project_decisions', 'mistakes_made',
-    ]
-    id_columns = {
-        'project_findings': 'finding_id',
-        'project_unknowns': 'unknown_id',
-        'project_dead_ends': 'dead_end_id',
-        'project_assumptions': 'assumption_id',
-        'project_decisions': 'decision_id',
-        'mistakes_made': 'mistake_id',
-    }
-
-    for table in tables:
-        id_col = id_columns[table]
-        cursor.execute(f"SELECT data FROM {table} WHERE {id_col} = ?", (from_id,))
+    for _atype, (table, id_col, data_col) in _ARTIFACT_TABLES.items():
+        if not data_col:
+            continue
+        cursor.execute(f"SELECT {data_col} FROM {table} WHERE {id_col} = ?", (from_id,))
         row = cursor.fetchone()
         if row is not None:
             existing_data = {}
@@ -220,7 +206,7 @@ def _store_edge(db, from_id: str, to_id: str, relation: str):
             existing_data['edges'] = edges_list
 
             cursor.execute(
-                f"UPDATE {table} SET data = ? WHERE {id_col} = ?",
+                f"UPDATE {table} SET {data_col} = ? WHERE {id_col} = ?",
                 (json.dumps(existing_data), from_id),
             )
             db.conn.commit()
@@ -490,14 +476,15 @@ def handle_resolve_artifacts_command(args):
 
 
 # Table → ID column mapping for deletion
+# Table → (table_name, id_column, data_column_for_edges)
 _ARTIFACT_TABLES = {
-    'finding': ('project_findings', 'finding_id'),
-    'unknown': ('project_unknowns', 'unknown_id'),
-    'dead_end': ('project_dead_ends', 'dead_end_id'),
-    'mistake': ('mistakes_made', 'mistake_id'),
-    'assumption': ('project_assumptions', 'assumption_id'),
-    'decision': ('project_decisions', 'decision_id'),
-    'goal': ('project_goals', 'goal_id'),
+    'finding': ('project_findings', 'id', 'finding_data'),
+    'unknown': ('project_unknowns', 'id', 'unknown_data'),
+    'dead_end': ('project_dead_ends', 'id', 'dead_end_data'),
+    'mistake': ('mistakes_made', 'id', 'mistake_data'),
+    'assumption': ('assumptions', 'id', None),
+    'decision': ('decisions', 'id', None),
+    'goal': ('project_goals', 'goal_id', None),
 }
 
 
@@ -564,7 +551,7 @@ def _delete_single_artifact(cursor, item: dict, project_id: str | None, dry_run:
     if artifact_type not in _ARTIFACT_TABLES:
         return {"error": f"Unknown artifact type: '{artifact_type}'"}
 
-    table, id_col = _ARTIFACT_TABLES[artifact_type]
+    table, id_col, _data_col = _ARTIFACT_TABLES[artifact_type]
 
     cursor.execute(f"SELECT {id_col} FROM {table} WHERE {id_col} LIKE ?", (f"{artifact_id}%",))
     row = cursor.fetchone()
