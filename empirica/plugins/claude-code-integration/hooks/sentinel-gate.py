@@ -1766,7 +1766,7 @@ def _check_postflight_loop_closed(cursor, session_id: str, current_transaction_i
     return None
 
 
-def _validate_check_record(cursor, session_id: str, current_transaction_id, preflight_timestamp, tool_input: dict | None = None):
+def _validate_check_record(cursor, session_id: str, current_transaction_id, preflight_timestamp, tool_input: dict | None = None, tool_name: str = ""):
     """Lookup CHECK record, verify sequence, detect rushed assessments.
 
     Returns (know, uncertainty, decision, check_timestamp) on success,
@@ -1787,21 +1787,25 @@ def _validate_check_record(cursor, session_id: str, current_transaction_id, pref
     check_row = cursor.fetchone()
 
     if not check_row:
-        # Always allow check-submit itself — it's how CHECK gets created.
-        # Without this, sentinel creates a deadlock: can't CHECK without CHECK.
-        if tool_input and 'check-submit' in tool_input.get('command', ''):
-            return None  # Fall through to allow — this IS the CHECK command
+        # PRE-CHECK PHASE: PREFLIGHT submitted, no CHECK yet.
+        # This IS the noetic investigation phase. All noetic tools pass
+        # silently — no ask, no prompts, no friction. Only genuinely
+        # praxic tools (Edit, Write, destructive Bash) get denied.
 
-        # Soft-gate if AI has logged findings (did investigate, just skipped CHECK).
-        # Hard-deny if zero evidence of investigation.
-        cursor.execute("""
-            SELECT COUNT(*) FROM project_findings
-            WHERE session_id = ? AND created_timestamp > ?
-        """, (session_id, preflight_timestamp or 0))
-        findings_count = cursor.fetchone()[0]
-        if findings_count > 0:
-            return ("ask", f"No CHECK found but {findings_count} findings logged. Consider running CHECK to formally gate the transition. Command: empirica check-submit - (JSON with vectors on stdin)")
-        return ("deny", "No valid CHECK found. Run CHECK after investigation to ground predictions before acting. Command: empirica check-submit - (JSON with vectors on stdin)")
+        # Always allow check-submit (creates the CHECK record)
+        if tool_input and 'check-submit' in tool_input.get('command', ''):
+            return None
+
+        # Noetic tools: silent pass (no message, no logging)
+        if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME or tool_name in NOETIC_MCP_CORTEX or _is_empirica_mcp_tool(tool_name):
+            return None
+        if tool_name == 'Bash' and is_safe_bash_command(tool_input):
+            return None
+        if tool_name == 'Bash' and is_safe_empirica_command(tool_input.get('command', '')):
+            return None
+
+        # Praxic tools: deny (need CHECK first)
+        return ("deny", "No valid CHECK found. Run CHECK after investigation to gate the noetic→praxic transition.")
 
     know, uncertainty, reflex_data, check_timestamp = check_row
 
@@ -2512,7 +2516,7 @@ def main():
 
     # VALIDATE CHECK: lookup, sequence, rushed assessment, decision parse
     check_result = _validate_check_record(
-        cursor, session_id, current_transaction_id, preflight_timestamp, tool_input)
+        cursor, session_id, current_transaction_id, preflight_timestamp, tool_input, tool_name)
     if isinstance(check_result, tuple) and len(check_result) == 2:
         db.close()
         respond(check_result[0], check_result[1])
