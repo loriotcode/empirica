@@ -169,6 +169,10 @@ _current_work_type: str | None = None
 _remote_ops_nudge: str = ""
 _remote_ops_nudged: bool = False
 
+# Work-type missing nudge (fires once per transaction)
+_worktype_nudge: str = ""
+_worktype_nudged: bool = False
+
 # Additional safe commands for infra/config/debug work types
 INFRA_SAFE_PREFIXES = (
     # System inspection
@@ -392,6 +396,7 @@ EMPIRICA_TIER2_PREFIXES = (
     'empirica artifacts-generate',  # Artifact generation
     'empirica goals-mark-stale', 'empirica goals-refresh',  # Goal staleness management
     'empirica profile-sync', 'empirica profile-prune',  # Profile management - state-changing
+    'empirica release',  # Release pipeline — mechanical, no PREFLIGHT needed
 )
 
 
@@ -759,11 +764,11 @@ def _compute_nudge(count: int, avg: int) -> str:
 
 def respond(decision: str, reason: str = "") -> None:
     """Output in Claude Code's expected format. Appends nudges on allow."""
-    global _autonomy_nudge, _goalless_nudge, _reread_nudge, _remote_ops_nudge
+    global _autonomy_nudge, _goalless_nudge, _reread_nudge, _remote_ops_nudge, _worktype_nudge
     full_reason = reason
     show_nudge = False
-    if decision == "allow" and (_autonomy_nudge or _goalless_nudge or _reread_nudge or _remote_ops_nudge):
-        nudges = " | ".join(n for n in [_autonomy_nudge, _goalless_nudge, _reread_nudge, _remote_ops_nudge] if n)
+    if decision == "allow" and (_autonomy_nudge or _goalless_nudge or _reread_nudge or _remote_ops_nudge or _worktype_nudge):
+        nudges = " | ".join(n for n in [_autonomy_nudge, _goalless_nudge, _reread_nudge, _remote_ops_nudge, _worktype_nudge] if n)
         full_reason = f"{reason} | {nudges}"
         show_nudge = True
 
@@ -2179,8 +2184,16 @@ def _read_transaction_state(empirica_root: Path | None, claude_session_id: str |
             result['_current_domain'] = tx_data.get('domain')
             result['_current_criticality'] = tx_data.get('criticality')
             # Set module-level work_type for is_safe_bash_command() expansion
-            global _current_work_type
+            global _current_work_type, _worktype_nudge, _worktype_nudged
             _current_work_type = result['_current_work_type']
+            # Nudge once if PREFLIGHT omitted work_type
+            if not result['_current_work_type'] and not _worktype_nudged:
+                _worktype_nudged = True
+                _worktype_nudge = (
+                    "WORK-TYPE: No work_type set in PREFLIGHT. Consider setting "
+                    "work_type (code|infra|research|docs|debug|config|release|remote-ops) "
+                    "for better calibration — evidence weights scale by work type."
+                )
         else:
             # CLOSED TRANSACTION SHORT-CIRCUIT: Don't fall through to
             # stale session fallback which produces confusing errors
