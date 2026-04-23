@@ -373,7 +373,7 @@ EMPIRICA_TIER2_PREFIXES = (
     'empirica preflight-submit', 'empirica check-submit', 'empirica postflight-submit',
     'empirica finding-log', 'empirica unknown-log', 'empirica deadend-log',
     'empirica mistake-log', 'empirica log-mistake',
-    'empirica log-artifacts', 'empirica resolve-artifacts',  # Batch artifact operations
+    'empirica log-artifacts', 'empirica resolve-artifacts', 'empirica delete-artifacts',  # Batch artifact operations
     'empirica goals-create', 'empirica goal-create', 'empirica gc',  # Goal create + aliases
     'empirica goals-complete', 'empirica goal-complete',  # Goal complete + alias
     'empirica goals-add-subtask', 'empirica goal-add-subtask',  # Add subtask + alias

@@ -88,7 +88,7 @@ from .goal_commands import (
     handle_goals_search_command,
     handle_sessions_resume_command,
 )
-from .graph_commands import handle_log_artifacts_command, handle_resolve_artifacts_command
+from .graph_commands import handle_delete_artifacts_command, handle_log_artifacts_command, handle_resolve_artifacts_command
 from .handoff_commands import handle_handoff_create_command, handle_handoff_query_command
 from .identity_commands import (
     handle_identity_create_command,
@@ -279,6 +279,7 @@ __all__ = [
     # Handoff Reports commands (Phase 1.6)
     'handle_handoff_create_command',
     'handle_handoff_query_command',
+    'handle_delete_artifacts_command',
     'handle_log_artifacts_command',
     'handle_resolve_artifacts_command',
     'handle_history_command',

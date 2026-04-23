@@ -673,6 +673,26 @@ Example:
     resolve_artifacts_parser.add_argument('--output', choices=['human', 'json'], default='json', help='Output format')
     resolve_artifacts_parser.add_argument('--verbose', action='store_true', help='Show detailed output')
 
+    delete_artifacts_parser = subparsers.add_parser(
+        'delete-artifacts',
+        help='Batch delete non-pertinent artifacts (anti-pollution cleanup)',
+        description="""
+Delete stale or non-pertinent artifacts from the epistemic chain.
+
+Accepts JSON with deletions array. Each item specifies type and id.
+Deletes from SQLite + Qdrant. Logs deletion as a decision for audit trail.
+
+Supports --dry-run to preview without deleting.
+
+Example:
+  echo '{"deletions": [{"type": "finding", "id": "abc123"}], "reason": "Stale test data"}' | empirica delete-artifacts -
+        """
+    )
+    delete_artifacts_parser.add_argument('config', nargs='?', default='-', help='JSON file or - for stdin (default: stdin)')
+    delete_artifacts_parser.add_argument('--dry-run', action='store_true', help='Preview deletions without executing')
+    delete_artifacts_parser.add_argument('--output', choices=['human', 'json'], default='json', help='Output format')
+    delete_artifacts_parser.add_argument('--verbose', action='store_true', help='Show detailed output')
+
     # EPP activation telemetry
     # Self-reported: Claude logs when it invoked EPP protocol during a turn.
     # Writes to ~/.empirica/hook_counters{suffix}.json (counter + log).

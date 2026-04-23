@@ -487,3 +487,182 @@ def handle_resolve_artifacts_command(args):
     except Exception as e:
         handle_cli_error(e, "Resolve artifacts", getattr(args, 'verbose', False))
         return 1
+
+
+# Table → ID column mapping for deletion
+_ARTIFACT_TABLES = {
+    'finding': ('project_findings', 'finding_id'),
+    'unknown': ('project_unknowns', 'unknown_id'),
+    'dead_end': ('project_dead_ends', 'dead_end_id'),
+    'mistake': ('mistakes_made', 'mistake_id'),
+    'assumption': ('project_assumptions', 'assumption_id'),
+    'decision': ('project_decisions', 'decision_id'),
+    'goal': ('project_goals', 'goal_id'),
+}
+
+
+def _delete_from_qdrant(artifact_id: str, project_id: str):
+    """Remove an artifact from Qdrant memory collections (non-fatal)."""
+    try:
+        from empirica.core.qdrant.collections import _memory_collection
+        from empirica.core.qdrant.connection import _get_qdrant_client
+
+        client = _get_qdrant_client()
+        if not client:
+            return
+
+        import hashlib
+
+        collection = _memory_collection(project_id)
+        # Try to delete by point ID (md5 hash of artifact UUID, matching embed scheme)
+        point_id = int(hashlib.md5(artifact_id.encode()).hexdigest()[:16], 16) % (2**63)
+        try:
+            client.delete(
+                collection_name=collection,
+                points_selector=[point_id],
+            )
+        except Exception:
+            pass  # Collection may not exist or point not found
+    except ImportError:
+        pass
+
+
+def _read_deletion_input(args) -> dict | None:
+    """Read and validate deletion JSON from stdin or file."""
+    from empirica.cli.cli_utils import parse_json_safely
+
+    if hasattr(args, 'config') and args.config:
+        if args.config == '-':
+            raw = sys.stdin.read()
+        else:
+            with open(args.config) as f:
+                raw = f.read()
+    else:
+        raw = sys.stdin.read()
+
+    data = parse_json_safely(raw)
+    if not data:
+        print(json.dumps({"ok": False, "error": "Invalid JSON input"}))
+        return None
+
+    items = data.get('deletions', data.get('items', []))
+    if not items:
+        print(json.dumps({"ok": False, "error": "No deletions specified"}))
+        return None
+
+    return data
+
+
+def _delete_single_artifact(cursor, item: dict, project_id: str | None, dry_run: bool) -> dict | None:
+    """Delete a single artifact. Returns result dict or None on error."""
+    artifact_type = item.get('type')
+    artifact_id = item.get('id')
+
+    if not artifact_id or not artifact_type:
+        return {"error": "Missing 'id' or 'type' in deletion item"}
+
+    if artifact_type not in _ARTIFACT_TABLES:
+        return {"error": f"Unknown artifact type: '{artifact_type}'"}
+
+    table, id_col = _ARTIFACT_TABLES[artifact_type]
+
+    cursor.execute(f"SELECT {id_col} FROM {table} WHERE {id_col} LIKE ?", (f"{artifact_id}%",))
+    row = cursor.fetchone()
+    if not row:
+        return {"error": f"{artifact_type} '{artifact_id}' not found"}
+
+    full_id = row[0]
+
+    if dry_run:
+        return {"type": artifact_type, "id": full_id, "action": "would_delete"}
+
+    cursor.execute(f"DELETE FROM {table} WHERE {id_col} = ?", (full_id,))
+    if project_id:
+        _delete_from_qdrant(full_id, project_id)
+
+    return {"type": artifact_type, "id": full_id, "action": "deleted"}
+
+
+def handle_delete_artifacts_command(args):
+    """Handle delete-artifacts command: batch deletion of stale/non-pertinent artifacts."""
+    try:
+        from empirica.data.session_database import SessionDatabase
+
+        data = _read_deletion_input(args)
+        if not data:
+            return 1
+
+        items = data.get('deletions', data.get('items', []))
+        reason = data.get('reason', 'Batch deletion — non-pertinent')
+        dry_run = data.get('dry_run', getattr(args, 'dry_run', False))
+
+        db = SessionDatabase()
+        if not db.conn:
+            print(json.dumps({"ok": False, "error": "No database connection"}))
+            return 1
+
+        cursor = db.conn.cursor()
+        deleted_count = 0
+        delete_errors: list[str] = []
+        deleted_items: list[dict] = []
+
+        # Resolve project_id for Qdrant cleanup
+        project_id = data.get('project_id')
+        if not project_id:
+            try:
+                from empirica.utils.session_resolver import InstanceResolver as R
+                ctx = R.context()
+                sid = ctx.get('empirica_session_id')
+                if sid:
+                    session = db.get_session(sid)
+                    if session:
+                        project_id = session.get('project_id')
+            except Exception:
+                pass
+
+        for item in items:
+            result_item = _delete_single_artifact(cursor, item, project_id, dry_run)
+            if not result_item:
+                continue
+            if 'error' in result_item:
+                delete_errors.append(result_item['error'])
+            else:
+                deleted_items.append(result_item)
+                deleted_count += 1
+
+        if not dry_run:
+            db.conn.commit()
+
+            # Log the deletion as a decision (audit trail)
+            if deleted_count > 0:
+                try:
+                    from empirica.utils.session_resolver import InstanceResolver as R
+                    ctx = R.context()
+                    sid = ctx.get('empirica_session_id')
+                    if sid and project_id:
+                        cursor.execute(
+                            "INSERT INTO project_decisions "
+                            "(decision_id, project_id, session_id, choice, rationale, reversibility, created_timestamp) "
+                            "VALUES (?, ?, ?, ?, ?, ?, datetime('now'))",
+                            (str(__import__('uuid').uuid4()), project_id, sid,
+                             f"Deleted {deleted_count} artifact(s)", reason, 'committal'),
+                        )
+                        db.conn.commit()
+                except Exception:
+                    pass
+
+        db.close()
+
+        result = {
+            "ok": True,
+            "deleted": deleted_count,
+            "dry_run": dry_run,
+            "items": deleted_items,
+            "errors": delete_errors,
+        }
+        print(json.dumps(result, indent=2))
+        return 0
+
+    except Exception as e:
+        handle_cli_error(e, "Delete artifacts", getattr(args, 'verbose', False))
+        return 1
