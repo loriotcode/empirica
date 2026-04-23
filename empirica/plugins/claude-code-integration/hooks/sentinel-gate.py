@@ -961,9 +961,9 @@ def _is_segment_safe(segment: str) -> bool:
 
 
 def _has_dangerous_operators(command: str) -> bool:
-    """Check for dangerous shell operators (excluding && and || handled separately)."""
+    """Check for dangerous shell operators (excluding &&, ||, ; handled in chain check)."""
     for operator in DANGEROUS_SHELL_OPERATORS:
-        if operator in ('&&', '||'):
+        if operator in ('&&', '||', ';'):
             continue
         if operator in command:
             return True
@@ -1013,8 +1013,8 @@ def is_safe_bash_command(tool_input: dict) -> bool:
         if any(cmd.startswith(prefix) for prefix in INFRA_SAFE_PREFIXES):
             return True
 
-    # Chain commands (&&, ||): safe only if ALL segments are safe
-    for chain_op in ('&&', '||'):
+    # Chain commands (&&, ||, ;): safe only if ALL segments are safe
+    for chain_op in ('&&', '||', ';'):
         if chain_op in command:
             segments = [s.strip() for s in command.split(chain_op)]
             if all(_is_segment_safe(s) for s in segments):
