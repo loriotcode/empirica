@@ -476,8 +476,6 @@ def validate_tty_session(session: dict[str, Any] | None = None) -> dict[str, Any
             - warnings: list[str] - Warning messages if any
             - session: dict - The session data (if valid)
     """
-    from datetime import datetime, timedelta
-
     result: dict[str, Any] = {
         'valid': True,
         'warnings': [],
@@ -506,25 +504,11 @@ def validate_tty_session(session: dict[str, Any] | None = None) -> dict[str, Any
             result['valid'] = False
             result['warnings'].append(f"TTY device {tty_device} no longer exists - terminal closed?")
 
-    # Check 2: Timestamp staleness (4 hour threshold)
-    timestamp_str = session.get('timestamp')
-    if timestamp_str:
-        try:
-            # Handle ISO format with or without timezone
-            if '+' in timestamp_str or 'Z' in timestamp_str:
-                timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-                # Make comparison timezone-aware
-                now = datetime.now(timestamp.tzinfo)
-            else:
-                timestamp = datetime.fromisoformat(timestamp_str)
-                now = datetime.now()
-
-            age = now - timestamp
-            if age > timedelta(hours=4):
-                hours = age.total_seconds() / 3600
-                result['warnings'].append(f"TTY session is {hours:.1f} hours old - may be stale")
-        except (ValueError, TypeError):
-            pass  # Can't parse timestamp, skip check
+    # Note: No timestamp staleness check. The timestamp in the TTY session file
+    # is the WRITE time (from session-init), not a last-active time — it's never
+    # refreshed during a session's lifetime. A long-running active session
+    # would falsely flag stale. TTY device presence (check 1 above) is the
+    # authoritative signal: if /dev/pts/X exists, the terminal is alive.
 
     # Only mark invalid if TTY device is gone (terminal closed)
     # PID being gone is just a warning - project_path can still be valid
