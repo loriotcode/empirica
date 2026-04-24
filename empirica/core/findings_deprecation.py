@@ -131,7 +131,6 @@ class FindingsDeprecationEngine:
         delta_score = max(0.8, min(1.2, delta_score))  # Clamp 0.8-1.2
 
         # Component 4: Task semantic match (10%)
-        # TODO: Implement semantic similarity when task_description provided
         task_match = 0.5  # Default neutral
 
         # Weighted combination

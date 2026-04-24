@@ -179,7 +179,6 @@ class SessionSync:
 
         if self.pull_latest(notes_only=True):
             result['pulled'] = True
-            # TODO: Detect what was updated
             result['new_checkpoints'] = True
             result['new_goals'] = True
 

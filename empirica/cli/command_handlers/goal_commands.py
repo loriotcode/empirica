@@ -2493,7 +2493,6 @@ def handle_goals_resume_command(args):
     """Resume another AI's goal with epistemic handoff"""
     try:
         from empirica.core.canonical.empirica_git import GitGoalStore
-        from empirica.core.goals.repository import GoalRepository
 
         goal_id = args.goal_id
         ai_id = getattr(args, 'ai_id', 'empirica_cli')
@@ -2521,10 +2520,6 @@ def handle_goals_resume_command(args):
 
         # Add lineage entry
         goal_store.add_lineage(goal_id, ai_id, "resumed")
-
-        # Load into local database
-        goal_repo = GoalRepository()
-        # TODO: Import goal into local database
 
         result = {
             "ok": True,
@@ -2559,7 +2554,6 @@ def handle_goals_resume_command(args):
             print(f"   2. Run your own preflight: empirica preflight \"<task>\" --ai-id {ai_id}")
             print("   3. Compare your vectors with original AI's")
 
-        goal_repo.close()
         return result
 
     except Exception as e:

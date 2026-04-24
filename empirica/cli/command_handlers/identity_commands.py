@@ -210,8 +210,6 @@ def handle_identity_verify_command(args):
         # Load session from database
         db = SessionDatabase()
 
-        # TODO: Add signature field to database and load it
-        # For now, check if session exists
         session = db.get_session(session_id)
 
         if not session:
@@ -230,7 +228,6 @@ def handle_identity_verify_command(args):
             return None
 
         # Check if session has signature
-        # TODO: Implement signature storage and retrieval
         result = {
             "ok": False,
             "error": "Signature verification not yet implemented",

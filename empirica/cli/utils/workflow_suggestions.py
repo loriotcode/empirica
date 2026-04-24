@@ -235,9 +235,6 @@ def get_workflow_suggestions(
                     'source': 'architecture/INTERACTIVE_CHECKLIST_TUI.md#phase-3'
                 })
 
-            # TODO: Query Qdrant for semantic suggestions when available
-            # For now, return static suggestions based on analysis
-
         else:
             # No session - general workflow tips
             suggestions.append({

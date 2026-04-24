@@ -519,7 +519,6 @@ class HybridHandoffStorage:
             handoff = self.git_storage.load_handoff(session_id, format)
             if handoff:
                 logger.debug(f"📝 Loaded from git notes: {session_id[:8]}...")
-                # TODO: Sync to database for future queries
             return handoff
 
         else:  # prefer == 'git'
