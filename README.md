@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.8.10-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.8.10)
+[![Version](https://img.shields.io/badge/version-1.8.11-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.8.11)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -100,13 +100,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.8.10-alpine
+docker pull nubaeon/empirica:1.8.11-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.8.10
+docker pull nubaeon/empirica:1.8.11
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.8.10 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.8.11 /bin/bash
 ```
 </details>
 
@@ -266,9 +266,19 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.8.10 — Sentinel Reframe
+## What's New in 1.8.11
 
-The Sentinel is now a **compliance loop coordinator**. Deterministic services produce information; the AI synthesizes the grounded epistemic state.
+- **Session-create race fix** (#91 by @kars85) — concurrent Claude Code sessions on Windows no longer stamp the wrong `project_path` via stale `instance_projects` reads. `EMPIRICA_CWD_RELIABLE` contract extended to `get_active_project_path()`
+- **Pyright clean** — 4 type-safety errors cleared (`mapper.py` int cast, `sentinel-gate.py` return types and null-iterable guard)
+- **Stale `__all__` exports removed** across `empirica`, `empirica.config`, `empirica.core.canonical`, `empirica.core.git_ops` — dead symbols dropped, `TYPE_CHECKING` imports added for lazy-loaded names
+- **`sentinel-gate.py:main()` refactor** — CC 16 → ≤15 via `_run_authorization_pipeline` extraction
+- **Vulture cleanup** — 7 unused parameters removed across core modules
+- **TODO markers → artifact graph** — 7 incomplete-work comments removed from code and logged as empirica unknowns with file:line pointers. Artifacts are the source of truth
+- **Compliance 75% → 100%** — all 11 deterministic quality gates pass (ruff, C901, pyright, security, tech_docs, release_chain, discipline, ai_transparency, decision_transparency, repo_hygiene, epistemic_audit, calibration)
+
+### Sentinel Reframe (1.8.0)
+
+The Sentinel is a **compliance loop coordinator**. Deterministic services produce information; the AI synthesizes the grounded epistemic state.
 
 - **Domain Registry** — `(work_type, domain, criticality)` tuples map to compliance checklists. 4 built-in domains: `default`, `remote-ops`, `cybersec`, `docs`. CLI: `domain-list`, `domain-show`, `domain-resolve`
 - **Domain-aware CHECK gate** — uncertainty threshold scales by criticality. `cybersec/high` is stricter than `default/low`
@@ -318,6 +328,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.8.10
+**Version:** 1.8.11
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*
