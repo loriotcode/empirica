@@ -2370,7 +2370,7 @@ def _pipeline_epistemic_snapshot(
 def _run_postflight_storage_pipeline(
     session_id: str, vectors: dict, deltas: dict, reasoning: str,
     grounded_verification: dict | None, postflight_confidence: float,
-    checkpoint_id: str | None, postflight_transaction_id: str | None,
+    checkpoint_id: str | None,
 ) -> None:
     """Run all POSTFLIGHT storage operations: Qdrant embedding, Cortex push,
     trajectory, episodic memory, auto-embed, workspace index, decay, snapshot.
@@ -3389,7 +3389,7 @@ def handle_postflight_submit_command(args):
                 session_id=session_id, vectors=vectors, deltas=deltas,
                 reasoning=reasoning, grounded_verification=grounded_verification,
                 postflight_confidence=postflight_confidence,
-                checkpoint_id=checkpoint_id, postflight_transaction_id=tx_info["transaction_id"],
+                checkpoint_id=checkpoint_id,
             )
 
             # Stage 7: Compliance + Result

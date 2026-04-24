@@ -13,6 +13,24 @@ Centralized configuration management for:
 # path_resolver consumers (statusline, hooks) should not pay for
 # credentials_loader, profile_loader, threshold_loader, mco_loader.
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .credentials_loader import CredentialsLoader, get_credentials_loader
+    from .mco_loader import MCOLoader, get_mco_config
+    from .profile_loader import (
+        InvestigationConstraints,
+        InvestigationProfile,
+        load_profile,
+    )
+    from .threshold_loader import (
+        ThresholdLoader,
+        get_threshold,
+        get_threshold_config,
+        override_threshold,
+    )
+    from .threshold_loader import load_profile as load_threshold_profile
+
 _LAZY_IMPORTS = {
     'get_credentials_loader': ('.credentials_loader', 'get_credentials_loader'),
     'CredentialsLoader': ('.credentials_loader', 'CredentialsLoader'),
@@ -38,4 +56,17 @@ def __getattr__(name):
     raise AttributeError(f"module 'empirica.config' has no attribute {name!r}")
 
 
-__all__ = list(_LAZY_IMPORTS.keys())
+__all__ = [
+    'CredentialsLoader',
+    'InvestigationConstraints',
+    'InvestigationProfile',
+    'MCOLoader',
+    'ThresholdLoader',
+    'get_credentials_loader',
+    'get_mco_config',
+    'get_threshold',
+    'get_threshold_config',
+    'load_profile',
+    'load_threshold_profile',
+    'override_threshold',
+]

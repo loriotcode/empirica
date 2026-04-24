@@ -520,8 +520,9 @@ def _signal_git_activity(summary: dict) -> str | None:
 def _extract_int(data, key: str, default: int = 0) -> int:
     """Safely extract an int from evidence data (which may be a dict raw_value)."""
     if isinstance(data, dict):
-        return data.get(key, default) if key in data else default
-    return data if isinstance(data, (int, float)) else default
+        value = data.get(key, default) if key in data else default
+        return int(value) if isinstance(value, (int, float)) else default
+    return int(data) if isinstance(data, (int, float)) else default
 
 
 def _signal_code_quality(summary: dict) -> str | None:

@@ -49,10 +49,6 @@ __all__ = [
     'GitEnhancedReflexLogger',
     'GitNotesStorage',
     'GitStateCapture',
-    # Logger
-    'ReflexLogger',
     # Data Structures
     'VectorState',
-    'log_assessment',
-    'log_assessment_sync'
 ]

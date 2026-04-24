@@ -258,7 +258,6 @@ class LessonHotCache:
         self,
         lesson_id: str,
         completed_lessons: set[str],
-        current_epistemic: dict[str, float]
     ) -> tuple[bool, list[str]]:
         """
         Check if a lesson can be executed given current state.

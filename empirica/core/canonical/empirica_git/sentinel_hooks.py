@@ -337,7 +337,6 @@ class SentinelHooks:
     def evaluate_checkpoint(
         cls,
         checkpoint_data: dict[str, Any],
-        blocking: bool = False,
         turtle: bool | None = None  # None = use class default, True/False = override
     ) -> SentinelDecision | None:
         """
@@ -345,7 +344,6 @@ class SentinelHooks:
 
         Args:
             checkpoint_data: Checkpoint from git notes
-            blocking: Wait for decision (default: async)
             turtle: Run turtle check first (None = use _turtle_mode default)
 
         Returns:

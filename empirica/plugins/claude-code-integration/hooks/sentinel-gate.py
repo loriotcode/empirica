@@ -609,7 +609,7 @@ def _is_empirica_mcp_tool(tool_name: str) -> bool:
 
 def _classify_tool_phase(tool_name: str, tool_input: dict | None) -> bool:
     """Classify whether a tool call is noetic (True) or praxic (False)."""
-    return (
+    return bool(
         tool_name in NOETIC_TOOLS
         or tool_name in NOETIC_MCP_CHROME
         or tool_name in NOETIC_MCP_CORTEX
@@ -842,7 +842,7 @@ def find_empirica_package() -> Path | None:
     """
     # Check if already importable (pip installed)
     try:
-        import empirica.config.path_resolver  # noqa: F401 — availability check; type: ignore[import-not-found]
+        import empirica.config.path_resolver  # noqa: F401  # pyright: ignore[reportUnusedImport,reportMissingImports]
         return None  # Already available, no path needed
     except ImportError:
         pass
@@ -2391,6 +2391,88 @@ def _evaluate_check_threshold(know, uncertainty, db, env_annotation: str) -> tup
     return ("allow", f"ADVISORY: Prediction groundedness below threshold (K={raw_check_know:.0%} vs {_dyn_know:.0%}, U={raw_check_unc:.0%} vs {_dyn_unc:.0%}). Consider gathering more grounding evidence.{env_annotation}")
 
 
+def _run_authorization_pipeline(hook_input: dict, tool_name: str, tool_input: dict) -> tuple[str, str]:
+    """Run the full authorization pipeline: session resolution, DB lookup,
+    PREFLIGHT/CHECK validation, auto-proceed, investigate handling, expiry.
+
+    Returns (decision, message) tuple for respond(). db is closed internally.
+    """
+    env_annotation = _build_env_annotation()
+    claude_session_id = hook_input.get('session_id')
+
+    empirica_root = _resolve_empirica_root(claude_session_id)
+    tx_state = _read_transaction_state(empirica_root, claude_session_id, tool_name, tool_input)
+    current_transaction_id = tx_state['current_transaction_id']
+    suffix = tx_state['suffix']
+    tx_file = tx_state['tx_file']
+
+    session_id = _resolve_session(tx_state['tx_session_id'], claude_session_id, env_annotation)
+    if not session_id:
+        return ("allow", "No session resolved — sentinel inactive")
+
+    from empirica.data.session_database import SessionDatabase  # type: ignore[import-not-found]
+    db = SessionDatabase()
+    if db.conn is None:
+        return ("allow", "No database connection — sentinel inactive")
+    cursor = db.conn.cursor()
+
+    try:
+        # Optional: Bootstrap requirement
+        if os.getenv('EMPIRICA_SENTINEL_REQUIRE_BOOTSTRAP', 'false').lower() == 'true':
+            cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
+            row = cursor.fetchone()
+            if not row or not row[0]:
+                return ("deny", f"No bootstrap for {session_id[:8]}. Run: empirica project-bootstrap")
+
+        # PREFLIGHT check (authentication gate)
+        preflight_row = _lookup_preflight(cursor, session_id, current_transaction_id)
+        if not preflight_row:
+            return _handle_no_preflight(tool_name, tool_input, session_id, env_annotation)
+
+        preflight_know, preflight_uncertainty, preflight_timestamp, preflight_project_id = preflight_row
+
+        # Goalless-work advisory nudge
+        global _goalless_nudge
+        _goalless_nudge = _check_goalless_work(
+            cursor, session_id, preflight_project_id, claude_session_id, empirica_root, suffix)
+
+        # Sequential pre-CHECK validations
+        for check in (
+            _check_project_context(cursor, db, session_id, preflight_project_id),
+            _check_postflight_loop_closed(
+                cursor, session_id, current_transaction_id, preflight_timestamp, tool_name, tool_input),
+            _check_prior_investigate(
+                cursor, session_id, current_transaction_id, preflight_timestamp, tool_name, tool_input),
+            _check_auto_proceed(
+                preflight_know or 0, preflight_uncertainty or 1, db, tx_file,
+                tx_state['_current_domain'], tx_state['_current_criticality'], env_annotation),
+        ):
+            if check:
+                return check
+
+        # CHECK validation: returns None (silent pass), len-2 tuple (deny), or len-4 tuple (success)
+        check_result = _validate_check_record(
+            cursor, session_id, current_transaction_id, preflight_timestamp, tool_input, tool_name)
+        if check_result is None:
+            return ("allow", "")
+        if len(check_result) == 2:
+            return (check_result[0], check_result[1])
+        know, uncertainty, decision, check_timestamp = check_result
+
+        investigate_result = _handle_investigate_continuation(
+            decision, tool_name, tool_input, suffix, tx_file, db)
+        if investigate_result:
+            return investigate_result
+
+        expiry_result = _check_expiry_and_compact(check_timestamp, empirica_root)
+        if expiry_result:
+            return expiry_result
+
+        return _evaluate_check_threshold(know, uncertainty, db, env_annotation)
+    finally:
+        db.close()
+
+
 def main():
     try:
         hook_input = json.loads(sys.stdin.read() or '{}')
@@ -2400,149 +2482,23 @@ def main():
     tool_name = hook_input.get('tool_name', 'unknown')
     tool_input = hook_input.get('tool_input', {})
 
-    # === AUTONOMY CALIBRATION + READ DEDUP ===
     _track_tool_usage(hook_input, tool_name, tool_input)
 
-    # === NOETIC FIREWALL: Whitelist-based access control ===
-    # Rules 1, 2, 2b, 2c: noetic tools, safe bash, plan files, remote confidence gate
-    _noetic_result = _noetic_firewall_check(tool_name, tool_input, hook_input)
-    if _noetic_result:
-        respond("allow", _noetic_result[1])
+    # Noetic firewall: whitelist-based access control
+    noetic_result = _noetic_firewall_check(tool_name, tool_input, hook_input)
+    if noetic_result:
+        respond("allow", noetic_result[1])
         sys.exit(0)
 
-    # Rule 3: Everything else is PRAXIC - requires CHECK authorization
-    # This includes: Edit, Write, NotebookEdit, unsafe Bash, unknown tools
-
-    # === EXEMPTIONS: subagent, paused, sentinel disabled ===
+    # Exemptions: subagent, paused, sentinel disabled
     exemption = _check_exemptions(hook_input, tool_name)
     if exemption:
         respond(exemption[0], exemption[1])
         sys.exit(0)
 
-    # === ENVIRONMENT CONTEXT ===
-    env_annotation = _build_env_annotation()
-
-    # === AUTHORIZATION CHECK ===
-    claude_session_id = hook_input.get('session_id')
-
-    # Resolve project root and .empirica directory
-    empirica_root = _resolve_empirica_root(claude_session_id)
-
-    # Read active transaction (transactions can span compaction boundaries)
-    # The transaction file's session_id is authoritative when a transaction is open
-    # Uses _find_transaction_file() for suffix-mismatch resilience (KNOWN_ISSUES 11.21)
-    tx_state = _read_transaction_state(empirica_root, claude_session_id, tool_name, tool_input)
-    current_transaction_id = tx_state['current_transaction_id']
-    suffix = tx_state['suffix']
-    tx_file = tx_state['tx_file']
-
-    # Get session_id - transaction file takes priority (survives compaction)
-    # Fallback to active_work file for when no transaction is open
-    session_id = _resolve_session(tx_state['tx_session_id'], claude_session_id, env_annotation)
-    if not session_id:
-        respond("allow", "No session resolved — sentinel inactive")
-        sys.exit(0)
-
-    # SessionDatabase uses path_resolver internally for DB location
-    from empirica.data.session_database import SessionDatabase  # type: ignore[import-not-found]
-    db = SessionDatabase()
-    if db.conn is None:
-        respond("allow", "No database connection — sentinel inactive")
-        sys.exit(0)
-    cursor = db.conn.cursor()
-
-    # Optional: Bootstrap requirement
-    if os.getenv('EMPIRICA_SENTINEL_REQUIRE_BOOTSTRAP', 'false').lower() == 'true':
-        cursor.execute("SELECT project_id FROM sessions WHERE session_id = ?", (session_id,))
-        row = cursor.fetchone()
-        if not row or not row[0]:
-            db.close()
-            respond("deny", f"No bootstrap for {session_id[:8]}. Run: empirica project-bootstrap")
-            sys.exit(0)
-
-    # Check for PREFLIGHT (authentication) - with vectors for auto-proceed
-    preflight_row = _lookup_preflight(cursor, session_id, current_transaction_id)
-
-    if not preflight_row:
-        result = _handle_no_preflight(tool_name, tool_input, session_id, env_annotation)
-        db.close()
-        respond(result[0], result[1])
-        sys.exit(0)
-
-    preflight_know, preflight_uncertainty, preflight_timestamp, preflight_project_id = preflight_row
-
-    # === GOALLESS-WORK DETECTION (advisory nudge) ===
-    global _goalless_nudge
-    _goalless_nudge = _check_goalless_work(
-        cursor, session_id, preflight_project_id, claude_session_id, empirica_root, suffix)
-
-    # PROJECT CONTEXT CHECK: Require new PREFLIGHT if project changed
-    project_result = _check_project_context(cursor, db, session_id, preflight_project_id)
-    if project_result:
-        db.close()
-        respond(project_result[0], project_result[1])
-        sys.exit(0)
-
-    # POSTFLIGHT LOOP CHECK: If POSTFLIGHT exists after PREFLIGHT, loop is closed
-    _postflight_result = _check_postflight_loop_closed(
-        cursor, session_id, current_transaction_id, preflight_timestamp, tool_name, tool_input)
-    if _postflight_result:
-        db.close()
-        respond(_postflight_result[0], _postflight_result[1])
-        sys.exit(0)
-
-    # Use RAW vectors - bias corrections are feedback for AI to internalize, not silent adjustments
-    raw_know = preflight_know or 0
-    raw_unc = preflight_uncertainty or 1
-
-    # ANTI-GAMING: Check if previous transaction ended with INVESTIGATE
-    anti_game_result = _check_prior_investigate(
-        cursor, session_id, current_transaction_id, preflight_timestamp, tool_name, tool_input)
-    if anti_game_result:
-        db.close()
-        respond(anti_game_result[0], anti_game_result[1])
-        sys.exit(0)
-
-    # AUTO-PROCEED: If PREFLIGHT passes readiness gate, skip CHECK requirement
-    # Uses Brier-based dynamic thresholds when available (miscalibration raises the bar)
-    # B1: Domain-aware scaling — higher criticality = stricter uncertainty threshold
-    auto_result = _check_auto_proceed(
-        raw_know, raw_unc, db, tx_file,
-        tx_state['_current_domain'], tx_state['_current_criticality'], env_annotation)
-    if auto_result:
-        db.close()
-        respond(auto_result[0], auto_result[1])
-        sys.exit(0)
-
-    # VALIDATE CHECK: lookup, sequence, rushed assessment, decision parse
-    check_result = _validate_check_record(
-        cursor, session_id, current_transaction_id, preflight_timestamp, tool_input, tool_name)
-    if isinstance(check_result, tuple) and len(check_result) == 2:
-        db.close()
-        respond(check_result[0], check_result[1])
-        sys.exit(0)
-    know, uncertainty, decision, check_timestamp = check_result
-
-    # Check if decision was "investigate" (not authorized for praxic)
-    # BUT: noetic tools and safe Bash (read-only) are still allowed
-    _investigate_result = _handle_investigate_continuation(
-        decision, tool_name, tool_input, suffix, tx_file, db)
-    if _investigate_result:
-        db.close()
-        respond(_investigate_result[0], _investigate_result[1])
-        sys.exit(0)
-
-    # Optional: Check age expiry and compact invalidation
-    expiry_result = _check_expiry_and_compact(check_timestamp, empirica_root)
-    if expiry_result:
-        db.close()
-        respond(expiry_result[0], expiry_result[1])
-        sys.exit(0)
-
-    # Final CHECK threshold evaluation
-    final_result = _evaluate_check_threshold(know, uncertainty, db, env_annotation)
-    db.close()
-    respond(final_result[0], final_result[1])
+    # Everything else requires CHECK authorization via the pipeline
+    decision, message = _run_authorization_pipeline(hook_input, tool_name, tool_input)
+    respond(decision, message)
     sys.exit(0)
 
 

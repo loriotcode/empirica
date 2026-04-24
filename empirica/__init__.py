@@ -23,6 +23,12 @@ __author__ = "Empirica Project"
 # This drops import time from ~113ms to ~2ms for lightweight consumers
 # like the statusline script that only need path_resolver or signaling.
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from empirica.core.canonical import GitEnhancedReflexLogger
+    from empirica.data.session_database import SessionDatabase
+
 
 def __getattr__(name):
     if name == "GitEnhancedReflexLogger":

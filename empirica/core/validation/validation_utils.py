@@ -12,7 +12,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def get_git_diff_summary(since_preflight: bool = False) -> dict[str, Any]:
+def get_git_diff_summary() -> dict[str, Any]:
     """
     Get summary of git changes since last checkpoint.
 

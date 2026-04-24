@@ -90,7 +90,6 @@ class FindingsDeprecationEngine:
     @staticmethod
     def calculate_relevance_score(
         finding: dict,
-        current_task: str | None = None,
         execution_state_delta: float = 0.0,
         goal_completion: float | None = None
     ) -> float:
@@ -105,7 +104,6 @@ class FindingsDeprecationEngine:
 
         Args:
             finding: Finding dict with 'created_timestamp', 'impact'
-            current_task: Optional current task description
             execution_state_delta: State improvement in current session
             goal_completion: Goal completion percentage if applicable
 

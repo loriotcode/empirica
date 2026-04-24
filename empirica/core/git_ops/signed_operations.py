@@ -240,7 +240,6 @@ class SignedGitOperations:
         self,
         start_commit: str,
         end_commit: str,
-        known_personas: dict[str, str] | None = None
     ) -> list[dict[str, Any]]:
         """
         Verify entire CASCADE trace from start to end commit
@@ -254,8 +253,6 @@ class SignedGitOperations:
         Args:
             start_commit: Starting commit SHA
             end_commit: Ending commit SHA
-            known_personas: Dict mapping persona_id to public_key (for verification)
-                           If not provided, uses keys from signed states
 
         Returns:
             List[Dict] with verification results for each commit:
