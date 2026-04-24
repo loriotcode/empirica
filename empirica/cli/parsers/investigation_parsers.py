@@ -13,6 +13,8 @@ def add_investigation_parsers(subparsers):
     investigate_parser.add_argument('--context', help='JSON context data')
     investigate_parser.add_argument('--detailed', action='store_true', help='Show detailed investigation')
     investigate_parser.add_argument('--verbose', action='store_true', help='Show detailed investigation')
+    investigate_parser.add_argument('--output', choices=['human', 'json'], default='human',
+                                   help='Output format. empirica-mcp always passes --output json; bare CLI users get human by default.')
 
     # REMOVED: analyze command - use investigate --type=comprehensive instead
 
