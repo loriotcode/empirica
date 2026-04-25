@@ -2,7 +2,7 @@
 
 > **We Gave AI a Mirror. Now It Measures What It Believes.**
 
-[![Version](https://img.shields.io/badge/version-1.8.11-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.8.11)
+[![Version](https://img.shields.io/badge/version-1.8.12-blue)](https://github.com/Nubaeon/empirica/releases/tag/v1.8.12)
 [![PyPI](https://img.shields.io/pypi/v/empirica)](https://pypi.org/project/empirica/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -100,13 +100,13 @@ empirica setup-claude-code
 
 ```bash
 # Security-hardened Alpine image (~276MB, recommended)
-docker pull nubaeon/empirica:1.8.11-alpine
+docker pull nubaeon/empirica:1.8.12-alpine
 
 # Standard image (Debian slim, ~414MB)
-docker pull nubaeon/empirica:1.8.11
+docker pull nubaeon/empirica:1.8.12
 
 # Run
-docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.8.11 /bin/bash
+docker run -it -v $(pwd)/.empirica:/data/.empirica nubaeon/empirica:1.8.12 /bin/bash
 ```
 </details>
 
@@ -268,12 +268,13 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ## What's New in 1.8.12
 
-- **`empirica security-audit`** — supply-chain audit cross-referencing pip-audit findings against CISA's Known Exploited Vulnerabilities (KEV) catalog. Findings classified by rotate priority: `now` (in KEV — actively exploited), `month`, `monitor`, `safe`. Maps to EU AI Act 15(4), ISO 42001 8.4, GDPR 32.
-- **Empirica-vs-user scope split** — security-audit walks empirica's installed metadata graph to separate empirica-managed findings (we ship the fix) from user-installed (your dev tools — informational). Pass/fail gates only on empirica scope.
-- **`docs/reference/STATUSLINE_REFERENCE.md`** — first user-facing statusline doc. Every glyph, all 4 modes, color semantics, edge states, env vars, FAQ.
-- **TTY staleness false-positive fixed** — actively-running sessions past 4h wall-clock no longer get warned as "may be stale". TTY device presence at `/dev/pts/X` is the authoritative signal.
-- **Security pins** — `lxml>=6.1.0` (CVE-2026-41066 XXE), `python-dotenv>=1.2.2` (CVE-2026-28684 symlink follow). Both transitive; pinned to force resolver to safe versions.
-- **Known: `pip` CVE-2026-3219** has no upstream fix yet. Tracked as `month` priority in the audit; will resolve when upstream patches.
+- **`empirica security-audit` command** — supply-chain security audit
+- **Empirica-vs-user scope split in security-audit** — `pip-audit` scans
+- **`docs/reference/STATUSLINE_REFERENCE.md`** — first user-facing
+- **TTY staleness false-positive** — `validate_tty_session()` warned
+- **lxml CVE-2026-41066** (XXE in default parser config) — pinned
+- **python-dotenv CVE-2026-28684** (`set_key`/`unset_key` symlink follow)
+- **pip CVE-2026-3219** — pip 26.0.1 handles concatenated tar+ZIP files
 
 ### Sentinel Reframe (1.8.0)
 
@@ -327,6 +328,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 **Author:** David S. L. Van Assche
-**Version:** 1.8.11
+**Version:** 1.8.12
 
 *Turtles all the way down — built with its own epistemic framework, measuring what it knows at every step.*
