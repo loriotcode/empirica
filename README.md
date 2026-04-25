@@ -266,15 +266,14 @@ The result: Claude Code's native capabilities, enhanced with measurement, gating
 
 ---
 
-## What's New in 1.8.11
+## What's New in 1.8.12
 
-- **Session-create race fix** (#91 by @kars85) — concurrent Claude Code sessions on Windows no longer stamp the wrong `project_path` via stale `instance_projects` reads. `EMPIRICA_CWD_RELIABLE` contract extended to `get_active_project_path()`
-- **Pyright clean** — 4 type-safety errors cleared (`mapper.py` int cast, `sentinel-gate.py` return types and null-iterable guard)
-- **Stale `__all__` exports removed** across `empirica`, `empirica.config`, `empirica.core.canonical`, `empirica.core.git_ops` — dead symbols dropped, `TYPE_CHECKING` imports added for lazy-loaded names
-- **`sentinel-gate.py:main()` refactor** — CC 16 → ≤15 via `_run_authorization_pipeline` extraction
-- **Vulture cleanup** — 7 unused parameters removed across core modules
-- **TODO markers → artifact graph** — 7 incomplete-work comments removed from code and logged as empirica unknowns with file:line pointers. Artifacts are the source of truth
-- **Compliance 75% → 100%** — all 11 deterministic quality gates pass (ruff, C901, pyright, security, tech_docs, release_chain, discipline, ai_transparency, decision_transparency, repo_hygiene, epistemic_audit, calibration)
+- **`empirica security-audit`** — supply-chain audit cross-referencing pip-audit findings against CISA's Known Exploited Vulnerabilities (KEV) catalog. Findings classified by rotate priority: `now` (in KEV — actively exploited), `month`, `monitor`, `safe`. Maps to EU AI Act 15(4), ISO 42001 8.4, GDPR 32.
+- **Empirica-vs-user scope split** — security-audit walks empirica's installed metadata graph to separate empirica-managed findings (we ship the fix) from user-installed (your dev tools — informational). Pass/fail gates only on empirica scope.
+- **`docs/reference/STATUSLINE_REFERENCE.md`** — first user-facing statusline doc. Every glyph, all 4 modes, color semantics, edge states, env vars, FAQ.
+- **TTY staleness false-positive fixed** — actively-running sessions past 4h wall-clock no longer get warned as "may be stale". TTY device presence at `/dev/pts/X` is the authoritative signal.
+- **Security pins** — `lxml>=6.1.0` (CVE-2026-41066 XXE), `python-dotenv>=1.2.2` (CVE-2026-28684 symlink follow). Both transitive; pinned to force resolver to safe versions.
+- **Known: `pip` CVE-2026-3219** has no upstream fix yet. Tracked as `month` priority in the audit; will resolve when upstream patches.
 
 ### Sentinel Reframe (1.8.0)
 

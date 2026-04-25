@@ -5,6 +5,62 @@ All notable changes to Empirica will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.12] - 2026-04-25
+
+### Added
+- **`empirica security-audit` command** — supply-chain security audit
+  cross-referencing pip-audit findings against CISA's Known Exploited
+  Vulnerabilities catalog. Phase 1 of a phased rollout (OAuth-supply-chain
+  validation per the Vercel/Context.ai breach 2026-04-23). Cached KEV feed
+  at `~/.empirica/feeds/cisa_kev.json` (24h TTL, urllib stdlib only,
+  stale-cache fallback). Findings classified as `now` (in KEV — actively
+  exploited), `month` (CVE without observed exploitation), `monitor`,
+  `safe`. Maps to EU AI Act Art. 15(4), ISO 42001 8.4, GDPR Art. 32. New
+  modules: `empirica/core/security/{kev_feed,audit,scope}.py`,
+  `empirica/cli/command_handlers/security_audit_commands.py`. 38 new tests.
+- **Empirica-vs-user scope split in security-audit** — `pip-audit` scans
+  the active venv, mixing empirica's deps with user-installed tools. The
+  audit now classifies each finding by scope, walking the installed
+  metadata graph rooted at `empirica` to determine the managed surface.
+  Pass/fail gates only on empirica-scoped KEV matches; user findings are
+  reported but informational. Output is a single command with two clearly
+  labelled sections.
+- **`docs/reference/STATUSLINE_REFERENCE.md`** — first user-facing
+  statusline documentation, triggered by a community discussion thread.
+  Covers all 4 modes (basic / default / learning / full), every glyph in
+  default mode (⚡ ↕ 🎯 ❓ PRE/CHK/POST ⚙/🔍 K:/C: Δ %ctx) with
+  thresholds and formulas, color semantics including the Brier-inflation
+  threshold color, edge states ([no project] / [project:inactive] /
+  OFF-RECORD), extension mechanism, env vars, and a FAQ.
+
+### Fixed
+- **TTY staleness false-positive** — `validate_tty_session()` warned
+  "TTY session is X hours old — may be stale" whenever the session was
+  older than 4 hours, but the timestamp in the TTY session file is the
+  WRITE time (from session-init), never refreshed during a session's
+  lifetime. Any actively-running session past 4h wall-clock got flagged
+  stale despite continuous use. Removed the timestamp check; TTY device
+  presence at `/dev/pts/X` is the authoritative signal (and was already
+  noted as such in the function's own docstring).
+- **lxml CVE-2026-41066** (XXE in default parser config) — pinned
+  `lxml>=6.1.0` in `pyproject.toml`. Transitive dep via
+  newspaper4k/trafilatura/python-docx; the pin forces the resolver to
+  the safe version.
+- **python-dotenv CVE-2026-28684** (`set_key`/`unset_key` symlink follow)
+  — pinned `python-dotenv>=1.2.2`. Transitive dep via `pydantic-settings`.
+
+### Known
+- **pip CVE-2026-3219** — pip 26.0.1 handles concatenated tar+ZIP files
+  as ZIP regardless of filename. **No upstream fix yet.** Empirica doesn't
+  pin pip itself; will resolve when upstream patches and users run
+  `pip install --upgrade pip`. Tracked in security-audit reports as
+  `month` priority (CVE without observed exploitation).
+
+### Compliance
+- `empirica security-audit` on this repo: 3 → 1 findings after this
+  release (lxml + python-dotenv cleared; only the unfixable pip CVE
+  remains). Full test suite: 952 passed, 0 failed.
+
 ## [1.8.11] - 2026-04-24
 
 ### Fixed
