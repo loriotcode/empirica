@@ -31,6 +31,7 @@ dependencies = [
     # Core data validation and settings
     "pydantic>=2.4.0",          # Security: CVE-2024-3772 ReDoS fix
     "pydantic-settings>=2.0",
+    "python-dotenv>=1.2.2",     # Security: CVE-2026-28684 set_key/unset_key symlink follow (transitive via pydantic-settings)
     "sqlalchemy>=2.0",
 
     # Configuration and file handling
@@ -45,6 +46,7 @@ dependencies = [
     # Security and cryptography
     "cryptography>=44.0.1",     # Security: CVE-2024-6119, CVE-2024-12797 fixes
     "gitpython>=3.1.41",        # Security: CVE-2024-22190 RCE fix
+    "lxml>=6.1.0",              # Security: CVE-2026-41066 XXE in default parser config (transitive via newspaper4k/trafilatura/python-docx)
 
     # Optional but commonly used
     "anthropic>=0.39.0",        # Anthropic SDK for adapters

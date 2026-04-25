@@ -43,7 +43,6 @@ from .compact_analysis import handle_compact_analysis
 from .compliance_report_commands import (
     handle_compliance_report_command,
 )
-from .security_audit_commands import handle_security_audit_command
 from .config_commands import (
     handle_config_command,
     handle_config_get_command,
@@ -167,6 +166,7 @@ from .project_search import (
 )
 from .project_update import handle_project_update_command
 from .release_commands import handle_release_command
+from .security_audit_commands import handle_security_audit_command
 from .sentinel_commands import (
     handle_sentinel_check_command,
     handle_sentinel_load_profile_command,
@@ -241,7 +241,6 @@ __all__ = [
     'handle_code_embed_command',
     'handle_compact_analysis',
     'handle_compliance_report_command',
-    'handle_security_audit_command',
     # Config commands
     'handle_config_command',
     'handle_config_get_command',
@@ -355,6 +354,7 @@ __all__ = [
     'handle_release_command',
     'handle_resolve_artifacts_command',
     'handle_save_command',
+    'handle_security_audit_command',
     'handle_sentinel_check_command',
     'handle_sentinel_load_profile_command',
     # Sentinel orchestration commands
