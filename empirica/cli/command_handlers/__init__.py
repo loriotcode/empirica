@@ -43,6 +43,7 @@ from .compact_analysis import handle_compact_analysis
 from .compliance_report_commands import (
     handle_compliance_report_command,
 )
+from .security_audit_commands import handle_security_audit_command
 from .config_commands import (
     handle_config_command,
     handle_config_get_command,
@@ -240,6 +241,7 @@ __all__ = [
     'handle_code_embed_command',
     'handle_compact_analysis',
     'handle_compliance_report_command',
+    'handle_security_audit_command',
     # Config commands
     'handle_config_command',
     'handle_config_get_command',

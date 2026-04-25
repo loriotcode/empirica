@@ -186,3 +186,26 @@ Mapped frameworks: EU AI Act, GDPR, ISO/IEC 42001
         help='Include semgrep OWASP security scan')
     compliance_parser.add_argument('--output', choices=['text', 'json'], default='text',
         help='Output format (default: text)')
+
+    # Security audit — pip-audit + CISA KEV cross-reference
+    security_audit_parser = subparsers.add_parser('security-audit',
+        help='Supply-chain security audit (pip-audit + CISA KEV)',
+        description="""
+Run pip-audit and cross-reference findings with CISA's Known Exploited
+Vulnerabilities (KEV) catalog. Promotes actively-exploited CVEs to top
+priority.
+
+Output priority levels:
+- now:     CVE is in CISA KEV (observed in-the-wild exploitation)
+- month:   CVE found by pip-audit but not in KEV
+- monitor: low-severity finding
+- safe:    no priority action
+
+Maps to: EU AI Act Art. 15(4), ISO 42001 8.4, GDPR Art. 32.
+        """)
+    security_audit_parser.add_argument('--project-root', default='.',
+        help='Project root to audit (default: current directory)')
+    security_audit_parser.add_argument('--refresh-feeds', action='store_true',
+        help='Force re-download of CISA KEV feed (otherwise cached for 24h)')
+    security_audit_parser.add_argument('--output', choices=['text', 'json'], default='text',
+        help='Output format (default: text)')
