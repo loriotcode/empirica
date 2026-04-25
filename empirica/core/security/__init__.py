@@ -11,5 +11,11 @@ local credential enumeration.
 
 from .audit import run_security_audit
 from .kev_feed import KEVFeed
+from .scope import get_empirica_managed_packages, is_empirica_managed
 
-__all__ = ["KEVFeed", "run_security_audit"]
+__all__ = [
+    "KEVFeed",
+    "get_empirica_managed_packages",
+    "is_empirica_managed",
+    "run_security_audit",
+]

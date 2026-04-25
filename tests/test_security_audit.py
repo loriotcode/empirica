@@ -97,9 +97,19 @@ def fake_pip_audit(monkeypatch):
     monkeypatch.setattr(audit_module, "_run_pip_audit", lambda _: (payload, meta))
 
 
+# Default empirica_managed for tests that exercise the empirica scope path.
+_TEST_EMPIRICA_MANAGED: set[str] = {"vulnpkg"}  # vulnpkg is "empirica-managed"; minorpkg/cleanpkg are "user"
+
+
+def _audit(kev, *, managed=_TEST_EMPIRICA_MANAGED):
+    return audit_module.run_security_audit(
+        Path("."), kev_feed=kev, empirica_managed=managed,
+    )
+
+
 def test_audit_returns_structured_report(fake_pip_audit):
     kev = _StubKEVFeed({"CVE-2025-12345"})
-    report = audit_module.run_security_audit(Path("."), kev_feed=kev)
+    report = _audit(kev)
 
     assert report["check"] == "security_audit"
     assert "findings" in report
@@ -109,7 +119,7 @@ def test_audit_returns_structured_report(fake_pip_audit):
 
 def test_kev_match_promotes_to_now(fake_pip_audit):
     kev = _StubKEVFeed({"CVE-2025-12345"})
-    report = audit_module.run_security_audit(Path("."), kev_feed=kev)
+    report = _audit(kev)
     findings_by_pkg = {f["package"]: f for f in report["findings"]}
 
     vp = findings_by_pkg["vulnpkg"]
@@ -119,61 +129,88 @@ def test_kev_match_promotes_to_now(fake_pip_audit):
     assert vp["kev_entry"]["ransomware_campaign_use"] == "Known"
 
 
+def test_scope_classification(fake_pip_audit):
+    """vulnpkg is in empirica_managed → scope=empirica; minorpkg is not → scope=user."""
+    kev = _StubKEVFeed(set())
+    report = _audit(kev)
+    findings_by_pkg = {f["package"]: f for f in report["findings"]}
+    assert findings_by_pkg["vulnpkg"]["scope"] == "empirica"
+    assert findings_by_pkg["minorpkg"]["scope"] == "user"
+
+
 def test_no_kev_match_falls_back_to_severity(fake_pip_audit):
     """A finding not in KEV with severity=critical falls to 'month'."""
     kev = _StubKEVFeed(set())  # empty KEV
-    report = audit_module.run_security_audit(Path("."), kev_feed=kev)
+    report = _audit(kev)
     findings_by_pkg = {f["package"]: f for f in report["findings"]}
     assert findings_by_pkg["vulnpkg"]["rotate_priority"] == "month"
 
 
 def test_severity_low_classified_as_safe(fake_pip_audit):
     kev = _StubKEVFeed(set())
-    report = audit_module.run_security_audit(Path("."), kev_feed=kev)
+    report = _audit(kev)
     findings_by_pkg = {f["package"]: f for f in report["findings"]}
     assert findings_by_pkg["minorpkg"]["rotate_priority"] == "safe"
 
 
-def test_summary_counts(fake_pip_audit):
+def test_summary_split_by_scope(fake_pip_audit):
     kev = _StubKEVFeed({"CVE-2025-12345"})
-    report = audit_module.run_security_audit(Path("."), kev_feed=kev)
+    report = _audit(kev)
     summary = report["summary"]
     assert summary["total"] == 2  # cleanpkg has no vulns
-    assert summary["now"] == 1
-    assert summary["safe"] == 1
+    # vulnpkg (empirica) is in KEV → empirica.now = 1
+    assert summary["empirica"]["now"] == 1
+    assert summary["empirica"]["total"] == 1
+    # minorpkg (user) is severity=low → user.safe = 1
+    assert summary["user"]["safe"] == 1
+    assert summary["user"]["total"] == 1
 
 
-def test_passed_false_when_kev_match(fake_pip_audit):
+def test_passed_false_when_empirica_kev_match(fake_pip_audit):
+    """vulnpkg in empirica scope + KEV match → passed=False."""
     kev = _StubKEVFeed({"CVE-2025-12345"})
-    report = audit_module.run_security_audit(Path("."), kev_feed=kev)
+    report = _audit(kev)
     assert report["passed"] is False
+
+
+def test_passed_true_when_only_user_kev_match(fake_pip_audit):
+    """If the KEV match is on a user-scoped package, empirica still passes."""
+    kev = _StubKEVFeed({"CVE-2024-44444"})  # only minorpkg's CVE
+    report = _audit(kev, managed={"vulnpkg"})  # minorpkg is user
+    # minorpkg gets rotate=now (KEV) but it's user scope
+    findings_by_pkg = {f["package"]: f for f in report["findings"]}
+    assert findings_by_pkg["minorpkg"]["rotate_priority"] == "now"
+    assert findings_by_pkg["minorpkg"]["scope"] == "user"
+    assert report["summary"]["empirica"]["now"] == 0
+    assert report["summary"]["user"]["now"] == 1
+    assert report["passed"] is True  # gate is empirica-only
 
 
 def test_passed_true_when_no_kev_matches(fake_pip_audit):
     kev = _StubKEVFeed(set())
-    report = audit_module.run_security_audit(Path("."), kev_feed=kev)
-    # No KEV matches → passed=True even though pip-audit found vulns
+    report = _audit(kev)
     assert report["passed"] is True
 
 
-def test_findings_sorted_by_priority(fake_pip_audit):
-    kev = _StubKEVFeed({"CVE-2025-12345"})
-    report = audit_module.run_security_audit(Path("."), kev_feed=kev)
-    priorities = [f["rotate_priority"] for f in report["findings"]]
-    # 'now' should come before 'safe'
-    assert priorities == sorted(priorities, key=lambda p: {"now": 0, "month": 1, "monitor": 2, "safe": 3}.get(p, 99))
+def test_findings_sorted_empirica_first(fake_pip_audit):
+    """Empirica-scope findings come before user-scope, then by priority within scope."""
+    kev = _StubKEVFeed(set())
+    report = _audit(kev, managed={"vulnpkg"})
+    scopes = [f["scope"] for f in report["findings"]]
+    # empirica-scoped vulnpkg should appear before user-scoped minorpkg
+    assert scopes == sorted(scopes, key=lambda s: 0 if s == "empirica" else 1)
 
 
 def test_pip_audit_not_installed(monkeypatch):
     monkeypatch.setattr(audit_module.shutil, "which", lambda _: None)
     kev = _StubKEVFeed(set())
-    report = audit_module.run_security_audit(Path("."), kev_feed=kev)
+    report = _audit(kev)
     assert report["scanned"]["status"] == "not_installed"
     assert report["findings"] == []
     assert report["passed"] is True
 
 
-def test_kev_unavailable_marks_findings_without_kev(fake_pip_audit, monkeypatch):
+def test_kev_unavailable_marks_findings_without_kev(fake_pip_audit):
     """If KEV refresh fails completely, findings should still report (no KEV match)."""
 
     class _FailingKEV:
@@ -186,7 +223,7 @@ def test_kev_unavailable_marks_findings_without_kev(fake_pip_audit, monkeypatch)
         def catalog_metadata(self):
             return {}
 
-    report = audit_module.run_security_audit(Path("."), kev_feed=_FailingKEV())
+    report = _audit(_FailingKEV())
     assert "error" in report["kev_metadata"]
     # findings still emitted, none marked KEV
     for f in report["findings"]:
@@ -195,7 +232,7 @@ def test_kev_unavailable_marks_findings_without_kev(fake_pip_audit, monkeypatch)
 
 def test_frameworks_present(fake_pip_audit):
     kev = _StubKEVFeed(set())
-    report = audit_module.run_security_audit(Path("."), kev_feed=kev)
+    report = _audit(kev)
     assert "eu_ai_act" in report["frameworks"]
     assert "iso_42001" in report["frameworks"]
     assert "gdpr" in report["frameworks"]
@@ -203,7 +240,16 @@ def test_frameworks_present(fake_pip_audit):
 
 def test_cve_extraction_from_aliases(fake_pip_audit):
     kev = _StubKEVFeed(set())
-    report = audit_module.run_security_audit(Path("."), kev_feed=kev)
+    report = _audit(kev)
     findings_by_pkg = {f["package"]: f for f in report["findings"]}
     # vulnpkg vuln id is GHSA, alias is CVE — cve_ids should pull only the CVE
     assert findings_by_pkg["vulnpkg"]["cve_ids"] == ["CVE-2025-12345"]
+
+
+def test_scope_metadata_in_report(fake_pip_audit):
+    """Report includes scope_metadata explaining the empirica-managed surface."""
+    kev = _StubKEVFeed(set())
+    report = _audit(kev, managed={"vulnpkg", "empirica"})
+    assert "scope_metadata" in report
+    assert report["scope_metadata"]["empirica_managed_count"] == 2
+    assert report["scope_metadata"]["empirica_root_present"] is True

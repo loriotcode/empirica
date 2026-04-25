@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from .kev_feed import KEVFeed
+from .scope import get_empirica_managed_packages
 
 logger = logging.getLogger(__name__)
 
@@ -33,18 +34,31 @@ def run_security_audit(
     *,
     refresh_feeds: bool = False,
     kev_feed: KEVFeed | None = None,
+    empirica_managed: set[str] | None = None,
 ) -> dict[str, Any]:
     """Run pip-audit + KEV cross-reference. Returns structured report.
+
+    Findings are split into two scopes:
+        - "empirica": package is part of empirica's managed surface
+                       (empirica itself + its transitive Requires).
+                       Empirica's responsibility to ship a fix.
+        - "user":     package is in the active environment but outside
+                       empirica's surface. The user's responsibility.
+
+    The audit `passed` gate considers only empirica-scoped KEV-matched
+    findings — user-scoped findings are reported but don't fail the gate.
 
     Args:
         project_root: project to audit (defaults to CWD)
         refresh_feeds: force re-download of KEV feed even if cache is fresh
         kev_feed: injectable KEVFeed (for testing)
+        empirica_managed: injectable set of empirica-managed package names
+            (for testing); auto-computed otherwise
 
     Returns:
         {
           "check": "security_audit",
-          "passed": bool,                       # True iff zero KEV-matched findings
+          "passed": bool,                       # True iff zero empirica-scoped KEV matches
           "scanned": {"tool": "pip-audit", ...},
           "kev_metadata": {...},
           "findings": [
@@ -76,14 +90,26 @@ def run_security_audit(
         kev_meta = {"error": str(exc)}
         kev_available = False
 
-    findings = _classify_findings(audit_payload, kev if kev_available else None)
+    if empirica_managed is None:
+        empirica_managed = get_empirica_managed_packages()
+
+    findings = _classify_findings(
+        audit_payload,
+        kev if kev_available else None,
+        empirica_managed,
+    )
     summary = _summarize(findings)
 
     return {
         "check": "security_audit",
-        "passed": summary["now"] == 0,
+        # passed gates only on empirica-scoped KEV matches
+        "passed": summary["empirica"]["now"] == 0,
         "scanned": audit_meta,
         "kev_metadata": kev_meta,
+        "scope_metadata": {
+            "empirica_managed_count": len(empirica_managed),
+            "empirica_root_present": "empirica" in empirica_managed,
+        },
         "findings": findings,
         "summary": summary,
         "frameworks": {
@@ -128,12 +154,17 @@ def _run_pip_audit(project_root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     return (payload, {"tool": "pip-audit", "status": "ok", "dependencies_scanned": len(deps)})
 
 
-def _classify_findings(audit_payload: dict[str, Any], kev: KEVFeed | None) -> list[dict[str, Any]]:
-    """Walk pip-audit output, classify each vulnerable dep with rotate_priority."""
+def _classify_findings(
+    audit_payload: dict[str, Any],
+    kev: KEVFeed | None,
+    empirica_managed: set[str],
+) -> list[dict[str, Any]]:
+    """Walk pip-audit output, classify each vulnerable dep with rotate_priority + scope."""
     findings: list[dict[str, Any]] = []
     for dep in audit_payload.get("dependencies", []):
         package = dep.get("name") or dep.get("package", "")
         version = dep.get("version", "")
+        scope = "empirica" if package.lower().replace("_", "-") in empirica_managed else "user"
         for vuln in dep.get("vulns", []) or []:
             vuln_id = vuln.get("id", "")
             aliases = list(vuln.get("aliases", []) or [])
@@ -152,6 +183,7 @@ def _classify_findings(audit_payload: dict[str, Any], kev: KEVFeed | None) -> li
             findings.append({
                 "package": package,
                 "version": version,
+                "scope": scope,
                 "vulnerability_id": vuln_id,
                 "aliases": aliases,
                 "cve_ids": cve_ids,
@@ -161,7 +193,11 @@ def _classify_findings(audit_payload: dict[str, Any], kev: KEVFeed | None) -> li
                 "kev_entry": _summarize_kev_entry(kev_match) if kev_match else None,
                 "rotate_priority": _priority_for(kev_match, vuln),
             })
-    findings.sort(key=lambda f: _priority_rank(f["rotate_priority"]))
+    # Sort: empirica scope first, then by priority within each scope
+    findings.sort(key=lambda f: (
+        0 if f["scope"] == "empirica" else 1,
+        _priority_rank(f["rotate_priority"]),
+    ))
     return findings
 
 
@@ -201,10 +237,35 @@ def _priority_rank(priority: str) -> int:
     return _PRIORITY_RANK.get(priority, 99)
 
 
-def _summarize(findings: list[dict[str, Any]]) -> dict[str, int]:
-    summary = {"now": 0, "month": 0, "monitor": 0, "safe": 0, "total": len(findings)}
+_PRIORITY_BUCKETS = ("now", "month", "monitor", "safe")
+
+
+def _empty_scope_summary() -> dict[str, int]:
+    bucket: dict[str, int] = dict.fromkeys(_PRIORITY_BUCKETS, 0)
+    bucket["total"] = 0
+    return bucket
+
+
+def _summarize(findings: list[dict[str, Any]]) -> dict[str, Any]:
+    """Per-scope priority counts plus overall total.
+
+    Shape:
+        {
+          "total": N,
+          "empirica": {"now": A, "month": B, "monitor": C, "safe": D, "total": A+B+C+D},
+          "user":     {"now": E, ..., "total": E+F+G+H},
+        }
+    """
+    summary: dict[str, Any] = {
+        "total": len(findings),
+        "empirica": _empty_scope_summary(),
+        "user": _empty_scope_summary(),
+    }
     for f in findings:
+        scope = f.get("scope", "user")
         priority = f.get("rotate_priority", "safe")
-        if priority in summary:
-            summary[priority] += 1
+        bucket = summary.get(scope) if scope in ("empirica", "user") else summary["user"]
+        if priority in _PRIORITY_BUCKETS:
+            bucket[priority] += 1
+            bucket["total"] += 1
     return summary
