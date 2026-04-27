@@ -24,7 +24,7 @@ def load_schema() -> dict:
     if not schema_path.exists():
         raise FileNotFoundError(f"Schema not found: {schema_path}")
 
-    with open(schema_path) as f:
+    with open(schema_path, encoding='utf-8') as f:
         return json.load(f)
 
 def validate_persona_profile(profile_data: dict[str, Any]) -> None:
@@ -40,7 +40,7 @@ def validate_persona_profile(profile_data: dict[str, Any]) -> None:
     try:
         schema = load_schema()
         jsonschema.validate(instance=profile_data, schema=schema)
-        logger.info(f"✓ Schema validation passed for persona: {profile_data.get('persona_id')}")
+        logger.info(f"[OK] Schema validation passed for persona: {profile_data.get('persona_id')}")
 
     except jsonschema.ValidationError as e:
         error_path = " -> ".join(str(p) for p in e.path)
@@ -78,7 +78,7 @@ def _validate_business_logic(profile_data: dict) -> None:
 
     if thresholds.get('uncertainty_trigger', 0.5) > thresholds.get('confidence_to_proceed', 0.75):
         logger.warning(
-            "⚠️ uncertainty_trigger > confidence_to_proceed may cause investigation loops"
+            "[WARN] uncertainty_trigger > confidence_to_proceed may cause investigation loops"
         )
 
     # Check focus domains not empty

@@ -191,7 +191,7 @@ class DocCodeIntegrityAnalyzer:
                             "line": i,
                             "context": line.strip()[:100]
                         })
-            except Exception:  # noqa: S110 — skip unreadable doc files during integrity scan
+            except Exception:  # noqa: S110 -- skip unreadable doc files during integrity scan
                 pass
 
         return mentions

@@ -5,7 +5,7 @@ Empirica Session End Hook - Auto-captures POSTFLIGHT
 This hook runs when a session ends and automatically captures a POSTFLIGHT
 assessment based on the session's final state. Since the AI can't respond
 after session end, this uses the last known vectors to complete the
-PREFLIGHT→POSTFLIGHT cycle.
+PREFLIGHT->POSTFLIGHT cycle.
 
 This ensures the learning delta is always captured, even if the AI didn't
 explicitly run POSTFLIGHT.
@@ -116,7 +116,7 @@ def auto_postflight(session_id: str, vectors: dict) -> dict:
     """
     Automatically submit POSTFLIGHT with final vectors.
 
-    This completes the PREFLIGHT→POSTFLIGHT cycle so learning delta
+    This completes the PREFLIGHT->POSTFLIGHT cycle so learning delta
     is captured even if AI didn't explicitly call postflight-submit.
     """
     try:
@@ -168,7 +168,7 @@ def _find_session_via_active_work(claude_session_id: str) -> tuple:
     try:
         active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if active_work_file.exists():
-            with open(active_work_file) as f:
+            with open(active_work_file, encoding='utf-8') as f:
                 data = json.load(f)
             return data.get('empirica_session_id'), data.get('project_path')
     except Exception:
@@ -213,7 +213,7 @@ def _cleanup_session_files(claude_session_id: str | None):
         if tty_sessions_dir.exists():
             for tty_file in tty_sessions_dir.glob('*.json'):
                 try:
-                    with open(tty_file) as f:
+                    with open(tty_file, encoding='utf-8') as f:
                         data = json.load(f)
                     if data.get('claude_session_id') == claude_session_id:
                         tty_file.unlink()
@@ -231,9 +231,9 @@ MEMORY_AUTO_END = "<!-- empirica-auto-end -->"
 def _get_memory_md_path() -> Path | None:
     """Find the MEMORY.md path for current project."""
     try:
-        # Derive project key same way Claude Code does (absolute path with / → -)
+        # Derive project key same way Claude Code does (absolute path with / -> -)
         cwd = Path.cwd().resolve()
-        project_key = str(cwd).replace('/', '-')  # /home/... → -home-...
+        project_key = str(cwd).replace('/', '-')  # /home/... -> -home-...
         memory_dir = Path.home() / '.claude' / 'projects' / project_key / 'memory'
         if memory_dir.exists():
             return memory_dir / 'MEMORY.md'
@@ -285,7 +285,7 @@ def _fetch_breadcrumbs(session_id: str) -> dict:
         conn = _sqlite3.connect(str(db_path))
         cursor = conn.cursor()
 
-        # Build WHERE clause — filter by project_id if available
+        # Build WHERE clause -- filter by project_id if available
         if project_id:
             pf = "WHERE project_id = ?"
             pf_args = (project_id,)
@@ -349,7 +349,7 @@ def _fetch_breadcrumbs(session_id: str) -> dict:
                 'impact': 0.6, 'created_timestamp': row[2]
             })
 
-        # Recent mistakes (no project_id column — filter by session's project via join)
+        # Recent mistakes (no project_id column -- filter by session's project via join)
         if project_id:
             cursor.execute("""
                 SELECT m.mistake, m.created_timestamp FROM mistakes_made m
@@ -443,7 +443,7 @@ def _auto_embed_project(session_id: str):
         if not project_id:
             return
 
-        # Run project-embed with timeout — this is incremental and fast
+        # Run project-embed with timeout -- this is incremental and fast
         subprocess.run(
             ['empirica', 'project-embed', '--project-id', project_id, '--output', 'json'],
             capture_output=True,
@@ -451,7 +451,7 @@ def _auto_embed_project(session_id: str):
             timeout=30,
         )
     except Exception:
-        pass  # Best-effort — never fail session end for embedding
+        pass  # Best-effort -- never fail session end for embedding
 
 
 def _resolve_session_and_project(claude_session_id):
@@ -509,7 +509,7 @@ def _run_postflight_cortex_sync(vectors):
         if project_root:
             project_yaml = project_root / '.empirica' / 'project.yaml'
             if project_yaml.exists():
-                with open(project_yaml) as f:
+                with open(project_yaml, encoding='utf-8') as f:
                     for line in f:
                         if line.startswith('project_id:'):
                             push_project_id = line.split(':', 1)[1].strip()
@@ -531,7 +531,7 @@ def _run_postflight_cortex_sync(vectors):
         },
         method="POST",
     )
-    urllib.request.urlopen(req, timeout=5)
+    urllib.request.urlopen(req, timeout=5, encoding='utf-8')
 
 
 def main():
@@ -589,7 +589,7 @@ def main():
 
     if result.get("ok"):
         print(f"""
-📊 Empirica: Auto-POSTFLIGHT captured
+[STATS] Empirica: Auto-POSTFLIGHT captured
 
 Session: {session_id}
 Vectors: know={vectors.get('know', 'N/A')}, uncertainty={vectors.get('uncertainty', 'N/A')}
@@ -600,7 +600,7 @@ Learning delta will be calculated from PREFLIGHT baseline.
     try:
         _run_postflight_cortex_sync(vectors)
     except Exception:
-        pass  # Cortex unavailable — session ends normally
+        pass  # Cortex unavailable -- session ends normally
 
     output = {
         "ok": result.get("ok", False),

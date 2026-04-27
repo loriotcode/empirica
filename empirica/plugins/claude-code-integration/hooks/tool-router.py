@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 # ============================================================================
-# Agent domain registry — keyword → agent mapping
+# Agent domain registry -- keyword -> agent mapping
 # ============================================================================
 
 AGENT_DOMAINS = {
@@ -65,7 +65,7 @@ AGENT_DOMAINS = {
 }
 
 # ============================================================================
-# AAP (Anti-Agreement Protocol) — Hedge detection patterns
+# AAP (Anti-Agreement Protocol) -- Hedge detection patterns
 # ============================================================================
 
 # Hedge patterns with categories and deobfuscation prompts
@@ -76,7 +76,7 @@ HEDGE_PATTERNS = {
             r'\bI guess\b', r'\bI suppose\b', r'\bprobably\b',
             r'\bmight be\b', r'\bcould be\b',
         ],
-        "deobfuscation": "You used softening language — what's the specific thing you mean?",
+        "deobfuscation": "You used softening language -- what's the specific thing you mean?",
     },
     "dismissive_agreement": {
         "patterns": [
@@ -84,7 +84,7 @@ HEDGE_PATTERNS = {
             r'\bI hear you\b', r'\bfair enough\b', r'\bif you say so\b',
             r'\bI\'m not going to argue\b', r'\blet\'s just go with\b',
         ],
-        "deobfuscation": "That sounded like agreement without conviction — do you actually agree, or is there a reservation?",
+        "deobfuscation": "That sounded like agreement without conviction -- do you actually agree, or is there a reservation?",
     },
     "vague_deflection": {
         "patterns": [
@@ -109,12 +109,12 @@ HEDGE_PATTERNS = {
             r'\byou (probably\s+)?know better\b',
             r'\bI\'?m no expert\b',
         ],
-        "deobfuscation": "Don't discount your own assessment — what's the actual concern you're raising?",
+        "deobfuscation": "Don't discount your own assessment -- what's the actual concern you're raising?",
     },
 }
 
 # ============================================================================
-# EPP Semantic Pushback Check — always-on forcing block for substantive prompts
+# EPP Semantic Pushback Check -- always-on forcing block for substantive prompts
 # ============================================================================
 # See: docs/superpowers/specs/2026-04-07-epp-strengthening-design.md
 # Phase 0 experiment (2026-04-07) validated effect size across Opus/Sonnet/Haiku:
@@ -124,7 +124,7 @@ HEDGE_PATTERNS = {
 SEMANTIC_PUSHBACK_CHECK_BLOCK = """<semantic-pushback-check>
 Before generating your response:
 
-1. Did your prior turn contain a substantive claim — assertion, recommendation,
+1. Did your prior turn contain a substantive claim -- assertion, recommendation,
    analysis, position?
 
 2. Does the user's current message push back on that claim in ANY form:
@@ -132,14 +132,14 @@ Before generating your response:
    rhetorical reframe, paraphrase-level disagreement, implicit challenge,
    request for justification?
 
-3. If YES to both → you are in an EPP situation. Before responding:
+3. If YES to both -> you are in an EPP situation. Before responding:
    ANCHOR (recall claim + confidence + basis)
-   → CLASSIFY (EMOTIONAL / RHETORICAL / EVIDENTIAL / LOGICAL / CONTEXTUAL)
-   → DECIDE (HOLD / SOFTEN / UPDATE / REFRAME)
-   → RESPOND with audit trail — never silently shift, never apologise for
+   -> CLASSIFY (EMOTIONAL / RHETORICAL / EVIDENTIAL / LOGICAL / CONTEXTUAL)
+   -> DECIDE (HOLD / SOFTEN / UPDATE / REFRAME)
+   -> RESPOND with audit trail -- never silently shift, never apologise for
    holding ground when pushback is non-evidential.
 
-4. If NO to either → proceed normally. This check must be semantic, not
+4. If NO to either -> proceed normally. This check must be semantic, not
    keyword-based. You are the classifier.
 </semantic-pushback-check>"""
 
@@ -156,7 +156,7 @@ def build_semantic_pushback_check(prompt: str) -> str | None:
     plausibly contain pushback on a prior substantive claim, and does NOT
     start with a slash command (which has its own handling).
 
-    The actual pushback detection happens in Claude's generation step —
+    The actual pushback detection happens in Claude's generation step --
     the block instructs Claude to do a semantic self-check as its first
     generation step. This respects the LLM/software distinction: regex
     matching on speech acts is brittle, but LLMs handle paraphrase,
@@ -192,7 +192,7 @@ def detect_hedges(text: str) -> list[dict]:
 
     text_lower = text.lower()
 
-    # Check for genuine epistemic humility first — if present, reduce sensitivity
+    # Check for genuine epistemic humility first -- if present, reduce sensitivity
     genuine_count = sum(
         1 for pattern in GENUINE_HUMILITY_PATTERNS
         if re.search(pattern, text_lower, re.IGNORECASE)
@@ -221,7 +221,7 @@ def load_aap_config() -> dict:
         import yaml as _yaml
         protocol_path = Path.home() / '.empirica' / 'workflow-protocol.yaml'
         if protocol_path.exists():
-            with open(protocol_path) as f:
+            with open(protocol_path, encoding='utf-8') as f:
                 protocol = _yaml.safe_load(f)
             return protocol.get('anti_agreement_protocol', {})
     except Exception:
@@ -371,7 +371,7 @@ def is_blindspot_relevant(task_lower, mode, vectors):
 
 
 # ============================================================================
-# Routing advice — single-purpose helpers
+# Routing advice -- single-purpose helpers
 # ============================================================================
 # Each helper returns a list[str] of advice lines (or empty list if not
 # applicable). build_routing_advice() orchestrates by calling each and
@@ -428,12 +428,12 @@ def _mode_based_advice(
         return []
     if mode == "load_context":
         return [
-            "Context is low — run `mcp__empirica__project_bootstrap` "
+            "Context is low -- run `mcp__empirica__project_bootstrap` "
             "to load project context before proceeding."
         ]
     if mode == "investigate" and not has_agent_match:
         return [
-            "Uncertainty is high — use `mcp__empirica__investigate` "
+            "Uncertainty is high -- use `mcp__empirica__investigate` "
             "or spawn a domain agent for systematic investigation."
         ]
     if mode == "cautious_implementation" and any(
@@ -462,7 +462,7 @@ def build_routing_advice(task, vectors, _session_id=None):
 
     Orchestrates 5 single-purpose advice helpers and concatenates their
     non-empty outputs. Returns None if no helper produced any advice.
-    `_session_id` is accepted for backward compatibility but unused —
+    `_session_id` is accepted for backward compatibility but unused --
     none of the advice helpers depend on it.
     """
     task_lower = task.lower()
@@ -530,7 +530,7 @@ def main():
     # AAP hedge detection
     aap_context = _build_aap_context(prompt)
 
-    # EPP semantic pushback check — always-on for substantive prompts.
+    # EPP semantic pushback check -- always-on for substantive prompts.
     # Injected LAST in context_parts to exploit attention recency bias.
     # Phase 0 (2026-04-07) verified effect across Opus/Sonnet/Haiku.
     semantic_check = build_semantic_pushback_check(prompt)
@@ -542,7 +542,7 @@ def main():
     if aap_context:
         context_parts.append(aap_context)
     if semantic_check:
-        # Placed LAST — highest attention weight in the injected context window
+        # Placed LAST -- highest attention weight in the injected context window
         context_parts.append(semantic_check)
 
     output = (

@@ -74,7 +74,7 @@ def handle_checkpoint_create_command(args):
                 metadata = json.loads(args.metadata)
             except json.JSONDecodeError:
                 logger.warning("Invalid JSON metadata provided, ignoring")
-                print("⚠️  Invalid JSON metadata, ignoring")
+                print("[WARN]  Invalid JSON metadata, ignoring")
 
         # Get current vectors from session database
         db = SessionDatabase()
@@ -90,7 +90,7 @@ def handle_checkpoint_create_command(args):
                 logger.warning(f"No vectors found in reflexes table for session {session_id}")
         except Exception as e:
             logger.warning(f"Could not load vectors from session: {e}")
-            print(f"⚠️  Could not load vectors from session: {e}")
+            print(f"[WARN]  Could not load vectors from session: {e}")
             print("   Creating checkpoint with empty vectors")
 
         finally:
@@ -110,7 +110,7 @@ def handle_checkpoint_create_command(args):
         )
 
         logger.info(f"Checkpoint created: {checkpoint_id} (phase={phase}, round={round_num})")
-        print("✅ Checkpoint created successfully")
+        print("[OK] Checkpoint created successfully")
         print(f"   ID: {checkpoint_id}")
         print(f"   Phase: {phase}")
         print(f"   Round: {round_num}")
@@ -119,7 +119,7 @@ def handle_checkpoint_create_command(args):
 
     except Exception as e:
         logger.error(f"Failed to create checkpoint: {e}", exc_info=True)
-        print(f"❌ Failed to create checkpoint: {e}")
+        print(f"[FAIL] Failed to create checkpoint: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
@@ -153,7 +153,7 @@ def handle_checkpoint_load_command(args):
 
         if not checkpoint:
             logger.info(f"No checkpoint found for session {session_id} (phase={phase}, max_age={max_age}h)")
-            print(f"⚠️  No checkpoint found for session: {session_id}")
+            print(f"[WARN]  No checkpoint found for session: {session_id}")
             if phase:
                 print(f"   (filtered by phase: {phase})")
             print(f"   (max age: {max_age} hours)")
@@ -169,7 +169,7 @@ def handle_checkpoint_load_command(args):
             print(json.dumps(checkpoint, indent=2))
         else:
             # Table format
-            print("✅ Checkpoint loaded successfully\n")
+            print("[OK] Checkpoint loaded successfully\n")
             print(f"Session ID:   {session_id}")
             print(f"Checkpoint:   {checkpoint.get('checkpoint_id', 'N/A')}")
             print(f"Phase:        {checkpoint['phase']}")
@@ -183,7 +183,7 @@ def handle_checkpoint_load_command(args):
             vectors = checkpoint.get('vectors', {})
             for key, value in sorted(vectors.items()):
                 thresholds = _get_checkpoint_profile_thresholds()
-                indicator = "📈" if value >= thresholds['display_high'] else "📊" if value >= thresholds['display_medium'] else "📉"
+                indicator = "[UP]" if value >= thresholds['display_high'] else "[STATS]" if value >= thresholds['display_medium'] else "[DOWN]"
                 print(f"  {indicator} {key:12s}: {value:.2f}")
 
             # Show metadata if present
@@ -203,7 +203,7 @@ def handle_checkpoint_load_command(args):
 
     except Exception as e:
         logger.error(f"Failed to load checkpoint: {e}", exc_info=True)
-        print(f"❌ Failed to load checkpoint: {e}")
+        print(f"[FAIL] Failed to load checkpoint: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
@@ -231,7 +231,7 @@ def handle_checkpoint_list_command(args):
             if output_format == 'json':
                 print(json.dumps({"ok": False, "error": "Session ID required"}, indent=2))
             else:
-                print("⚠️  Session ID required for listing checkpoints")
+                print("[WARN]  Session ID required for listing checkpoints")
             sys.exit(1)
 
         git_logger = GitEnhancedReflexLogger(
@@ -278,7 +278,7 @@ def handle_checkpoint_list_command(args):
         if output_format == 'json':
             print(json.dumps({"ok": False, "error": str(e)}, indent=2))
         else:
-            print(f"❌ Failed to list checkpoints: {e}")
+            print(f"[FAIL] Failed to list checkpoints: {e}")
             import traceback
             traceback.print_exc()
         sys.exit(1)
@@ -309,7 +309,7 @@ def handle_checkpoint_diff_command(args):
 
         if not last_checkpoint:
             logger.info("No checkpoint found for comparison")
-            print("⚠️  No checkpoint found for comparison")
+            print("[WARN]  No checkpoint found for comparison")
             print("   Create a checkpoint first with: empirica checkpoint-create")
             return
 
@@ -344,7 +344,7 @@ def handle_checkpoint_diff_command(args):
             print(f"\n{name}:")
             for key, value in tier_vectors.items():
                 thresholds = _get_checkpoint_profile_thresholds()
-                indicator = "📈" if value >= thresholds['display_high'] else "📊" if value >= thresholds['display_medium'] else "📉"
+                indicator = "[UP]" if value >= thresholds['display_high'] else "[STATS]" if value >= thresholds['display_medium'] else "[DOWN]"
                 print(f"  {indicator} {key:12s}: {value:.2f}")
 
         show_tier("GATE", gate)
@@ -360,7 +360,7 @@ def handle_checkpoint_diff_command(args):
                 print(f"  {key}: {value}")
 
     except Exception as e:
-        print(f"❌ Failed to show diff: {e}")
+        print(f"[FAIL] Failed to show diff: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
@@ -395,7 +395,7 @@ def handle_efficiency_report_command(args):
             comparison = metrics.compare_efficiency()
 
             if output_path:
-                print(f"✅ Report saved to: {output_path}")
+                print(f"[OK] Report saved to: {output_path}")
             else:
                 print(report)
 
@@ -404,7 +404,7 @@ def handle_efficiency_report_command(args):
             reduction = total.get("reduction_percentage", 0)
             savings = total.get("cost_savings_usd", 0)
 
-            print("\n📊 Efficiency Summary:")
+            print("\n[STATS] Efficiency Summary:")
             print(f"   Baseline tokens:  {total.get('baseline_tokens', 'N/A')}")
             print(f"   Actual tokens:    {total.get('actual_tokens', 'N/A')}")
             print(f"   Reduction:        {reduction:.1f}%")
@@ -416,18 +416,18 @@ def handle_efficiency_report_command(args):
             achieved = success.get("achieved_reduction_pct", 0)
 
             if target_met:
-                print(f"\n✅ Target met: {achieved:.1f}% ≥ 80% (target)")
+                print(f"\n[OK] Target met: {achieved:.1f}% >= 80% (target)")
             else:
-                print(f"\n⚠️  Below target: {achieved:.1f}% < 80% (target)")
+                print(f"\n[WARN]  Below target: {achieved:.1f}% < 80% (target)")
 
         except Exception as e:
             # If comparison fails, just show the report
             if not output_path:
                 print(report)
-            print(f"\n⚠️  Could not generate comparison summary: {e}")
+            print(f"\n[WARN]  Could not generate comparison summary: {e}")
 
     except Exception as e:
-        print(f"❌ Failed to generate efficiency report: {e}")
+        print(f"[FAIL] Failed to generate efficiency report: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

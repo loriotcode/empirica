@@ -46,7 +46,7 @@ class TurtleStatus(Enum):
     SOLID = "solid"               # 🌔 Well grounded, proceed
     EMERGENT = "emergent"         # 🌓 Forming, proceed with caution
     FORMING = "forming"           # 🌒 Unstable, consider halting
-    DARK = "dark"                 # 🌑 Ungrounded, halt
+    DARK = "dark"                 # - Ungrounded, halt
 
 
 @dataclass
@@ -103,7 +103,7 @@ class SentinelState:
         elif score >= 0.30:
             return TurtleStatus.FORMING, "🌒"
         else:
-            return TurtleStatus.DARK, "🌑"
+            return TurtleStatus.DARK, "-"
 
     def is_safe_to_evaluate(self) -> bool:
         """Can the Sentinel safely evaluate an AI checkpoint?"""
@@ -188,7 +188,7 @@ class SentinelHooks:
         else:
             cls._looping_enabled = enabled
 
-        logger.info(f"🔄 Sentinel epistemic looping: {'enabled' if cls._looping_enabled else 'disabled'}")
+        logger.info(f"[LOAD] Sentinel epistemic looping: {'enabled' if cls._looping_enabled else 'disabled'}")
 
     @classmethod
     def is_looping_enabled(cls) -> bool:
@@ -283,7 +283,7 @@ class SentinelHooks:
                 layer['moon'] = "🌒"
                 layer['status'] = "FORMING"
             else:
-                layer['moon'] = "🌑"
+                layer['moon'] = "-"
                 layer['status'] = "DARK"
 
         # Overall status
@@ -320,7 +320,7 @@ class SentinelHooks:
         """
         cls._evaluators.append(evaluator)
         cls._enabled = True
-        logger.info(f"✓ Registered Sentinel evaluator: {evaluator.__name__}")
+        logger.info(f"[OK] Registered Sentinel evaluator: {evaluator.__name__}")
 
     @classmethod
     def clear_evaluators(cls) -> None:
@@ -414,7 +414,7 @@ class SentinelHooks:
                     # LOOPING CONTROL: If looping is disabled, convert INVESTIGATE to PROCEED
                     if decision_type == SentinelDecision.INVESTIGATE and not cls.is_looping_enabled():
                         logger.info(
-                            "🔄 Sentinel: INVESTIGATE suppressed (looping disabled) → PROCEED"
+                            "[LOAD] Sentinel: INVESTIGATE suppressed (looping disabled) -> PROCEED"
                         )
                         cls._state.last_decision = SentinelDecision.PROCEED
                         return SentinelDecision.PROCEED
@@ -542,19 +542,19 @@ def default_epistemic_evaluator(checkpoint_data: dict[str, Any]) -> SentinelDeci
     reports is what the Sentinel evaluates.
 
     Threshold priority:
-    1. Environment variables (EMPIRICA_KNOW_THRESHOLD, etc.) — always win
-    2. Brier-inflated dynamic thresholds from compute_dynamic_thresholds() —
+    1. Environment variables (EMPIRICA_KNOW_THRESHOLD, etc.) -- always win
+    2. Brier-inflated dynamic thresholds from compute_dynamic_thresholds() --
        uses the SAME thresholds as CHECK, ensuring the Sentinel is never
        weaker than the gate it enforces
-    3. MCO cascade_styles.yaml via ThresholdLoader — user-configured baseline
+    3. MCO cascade_styles.yaml via ThresholdLoader -- user-configured baseline
     4. Defaults (know=0.70, uncertainty=0.35)
 
     Logic:
-    - UNCERTAINTY > 0.7 → INVESTIGATE (too uncertain to proceed)
-    - KNOW < 0.5 and UNCERTAINTY > 0.5 → INVESTIGATE (low knowledge + doubt)
-    - ENGAGEMENT < 0.5 → ESCALATE (human needed)
-    - KNOW >= threshold and UNCERTAINTY <= threshold → PROCEED (readiness gate passed)
-    - Otherwise → INVESTIGATE (gate not passed)
+    - UNCERTAINTY > 0.7 -> INVESTIGATE (too uncertain to proceed)
+    - KNOW < 0.5 and UNCERTAINTY > 0.5 -> INVESTIGATE (low knowledge + doubt)
+    - ENGAGEMENT < 0.5 -> ESCALATE (human needed)
+    - KNOW >= threshold and UNCERTAINTY <= threshold -> PROCEED (readiness gate passed)
+    - Otherwise -> INVESTIGATE (gate not passed)
     """
     vectors = checkpoint_data.get('vectors', {})
 
@@ -585,7 +585,7 @@ def default_epistemic_evaluator(checkpoint_data: dict[str, Any]) -> SentinelDeci
     if uncertainty <= max_uncertainty:
         return SentinelDecision.PROCEED
 
-    # Readiness gate failed — investigate to lower uncertainty
+    # Readiness gate failed -- investigate to lower uncertainty
     return SentinelDecision.INVESTIGATE
 
 
@@ -593,7 +593,7 @@ def _load_evaluator_thresholds() -> tuple:
     """Load thresholds for the Sentinel evaluator.
 
     Priority:
-    1. Env vars (always win — explicit user override)
+    1. Env vars (always win -- explicit user override)
     2. Brier-inflated dynamic thresholds (consistent with CHECK handler)
     3. MCO config / static defaults (fallback)
 
@@ -602,7 +602,7 @@ def _load_evaluator_thresholds() -> tuple:
     """
     import os
 
-    # Check env var overrides first — these always win
+    # Check env var overrides first -- these always win
     env_know = os.getenv('EMPIRICA_KNOW_THRESHOLD')
     env_unc = os.getenv('EMPIRICA_UNCERTAINTY_THRESHOLD')
     if env_know or env_unc:
@@ -618,8 +618,8 @@ def _load_evaluator_thresholds() -> tuple:
         try:
             dt_result = compute_dynamic_thresholds(ai_id="claude-code", db=db)
             if dt_result.get("source") == "dynamic":
-                # Use noetic thresholds — the evaluator gates the
-                # investigation→action boundary, same as CHECK.
+                # Use noetic thresholds -- the evaluator gates the
+                # investigation->action boundary, same as CHECK.
                 # Using max(noetic, praxic) made the evaluator stricter
                 # than CHECK, causing the override to be decorative.
                 noetic = dt_result.get("noetic", {})

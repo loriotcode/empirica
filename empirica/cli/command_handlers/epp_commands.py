@@ -43,7 +43,7 @@ def _get_counters_path() -> Path | None:
         from empirica.utils.session_resolver import InstanceResolver as R
         suffix = R.instance_suffix()
     except Exception:
-        # Fallback: no suffix (global file) — still works for single-instance
+        # Fallback: no suffix (global file) -- still works for single-instance
         suffix = ""
 
     base = Path.home() / ".empirica"
@@ -56,7 +56,7 @@ def _read_counters(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError) as exc:
         logger.warning(f"Could not read hook_counters: {exc}")
@@ -67,7 +67,7 @@ def _write_counters_atomic(path: Path, data: dict[str, Any]) -> None:
     """Atomic write via tempfile + rename to avoid partial-write races."""
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".epp_", suffix=".json")
     try:
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding='utf-8') as f:
             json.dump(data, f, indent=2)
         os.rename(tmp, str(path))
     except BaseException:

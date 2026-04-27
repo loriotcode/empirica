@@ -246,7 +246,7 @@ class GoalRepository:
         Retrieve all goals for an epistemic transaction.
 
         Goals are structurally project-scoped but temporally transaction-scoped.
-        Transactions (PREFLIGHT→POSTFLIGHT measurement windows) span compaction
+        Transactions (PREFLIGHT->POSTFLIGHT measurement windows) span compaction
         boundaries, making them the natural scope for epistemic measurement.
 
         Args:

@@ -108,7 +108,7 @@ SCHEMAS = [
     )
     """,
 
-    # Compliance check results — per-check pass/fail with Brier prediction fields (A3 Wave 1)
+    # Compliance check results -- per-check pass/fail with Brier prediction fields (A3 Wave 1)
     """
     CREATE TABLE IF NOT EXISTS compliance_checks (
         check_record_id TEXT PRIMARY KEY,

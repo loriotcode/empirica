@@ -74,7 +74,7 @@ def load_pre_compact_snapshots(ref_docs_path: Path) -> list[dict]:
 
     for snapshot_file in ref_docs_path.glob('pre_summary_*.json'):
         try:
-            with open(snapshot_file) as f:
+            with open(snapshot_file, encoding='utf-8') as f:
                 data = json.load(f)
                 data['_file'] = str(snapshot_file)
                 snapshots.append(data)
@@ -429,11 +429,11 @@ def format_human_readable(events: list[dict], stats: dict) -> str:
             lines.append(f"   Post-CHECK:      know={post_ck.get('know', 'N/A'):.2f}, unc={post_ck.get('uncertainty', 'N/A'):.2f}")
 
         il = event.get('immediate_loss', {})
-        lines.append(f"   Immediate loss:  Δknow={il.get('know', 'N/A'):+.2f}, Δunc={il.get('uncertainty', 'N/A'):+.2f}")
+        lines.append(f"   Immediate loss:  Dknow={il.get('know', 'N/A'):+.2f}, Dunc={il.get('uncertainty', 'N/A'):+.2f}")
 
         if event.get('net_loss'):
             nl = event['net_loss']
-            lines.append(f"   Net loss:        Δknow={nl.get('know', 'N/A'):+.2f}, Δunc={nl.get('uncertainty', 'N/A'):+.2f}")
+            lines.append(f"   Net loss:        Dknow={nl.get('know', 'N/A'):+.2f}, Dunc={nl.get('uncertainty', 'N/A'):+.2f}")
 
         q = event.get('quality', {})
         lines.append(f"   Quality: {q.get('findings_count', 0)} findings, {q.get('unknowns_count', 0)} unknowns, {'complete' if q.get('has_postflight') else 'incomplete'} loop")

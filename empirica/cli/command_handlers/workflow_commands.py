@@ -161,7 +161,7 @@ def _parse_workflow_input(args, phase: str):
             if not os.path.exists(args.config):
                 print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
                 sys.exit(1)
-            with open(args.config) as f:
+            with open(args.config, encoding='utf-8') as f:
                 config_data = parse_json_safely(f.read())
     elif not sys.stdin.isatty():
         config_data = parse_json_safely(sys.stdin.read())
@@ -316,7 +316,7 @@ def _preflight_check_unclosed_transaction():
                 "impact": "Unmeasured work = epistemic dark matter. Calibration cannot improve without POSTFLIGHT."
             }
     except Exception:
-        pass  # Non-fatal — proceed with new transaction
+        pass  # Non-fatal -- proceed with new transaction
     return None
 
 
@@ -365,7 +365,7 @@ def _preflight_enrich_transaction_file(resolved_project_path, parsed):
             logger.warning(f"Transaction file not found for enrichment: {tx_file}")
             return
 
-        with open(tx_file) as f:
+        with open(tx_file, encoding='utf-8') as f:
             tx_d = _json.load(f)
         for key, val in [('work_context', work_context), ('work_type', work_type),
                          ('domain', domain), ('criticality', criticality),
@@ -378,7 +378,7 @@ def _preflight_enrich_transaction_file(resolved_project_path, parsed):
             work_type=work_type, work_context=work_context
         )
         tx_d['cascade_profile'] = selected_profile
-        with open(tx_file, 'w') as f:
+        with open(tx_file, 'w', encoding='utf-8') as f:
             _json.dump(tx_d, f, indent=2)
         logger.debug(f"Transaction enriched: work_type={work_type}, domain={domain}, criticality={criticality}")
         if selected_profile != 'default':
@@ -456,7 +456,7 @@ def _preflight_inject_avg_turns(session_id, resolved_project_path):
         if past_counts:
             avg_turns = int(sum(past_counts) / len(past_counts))
         else:
-            avg_turns = 0  # No history yet — nudge disabled until first complete cycle
+            avg_turns = 0  # No history yet -- nudge disabled until first complete cycle
 
         # Update the transaction file with avg_turns
         tx_data = R.transaction_read()
@@ -467,7 +467,7 @@ def _preflight_inject_avg_turns(session_id, resolved_project_path):
             if tx_path.exists():
                 import tempfile as _tempfile
                 fd, tmp = _tempfile.mkstemp(dir=str(tx_path.parent))
-                with os.fdopen(fd, 'w') as tf:
+                with os.fdopen(fd, 'w', encoding='utf-8') as tf:
                     _json.dump(tx_data, tf, indent=2)
                 os.replace(tmp, str(tx_path))
     except Exception as e_avg:
@@ -603,7 +603,7 @@ def _feedback_collect_suggestions(cursor, session_id, project_id, retro_meta):
     if missing and len(missing) >= 4:
         suggestions.append("Load /epistemic-transaction for artifact discipline guidance")
     if retro.get('commit_warning'):
-        suggestions.append("Commit per subtask — don't batch to end")
+        suggestions.append("Commit per subtask -- don't batch to end")
 
     try:
         cursor.execute("""
@@ -612,7 +612,7 @@ def _feedback_collect_suggestions(cursor, session_id, project_id, retro_meta):
         """, (session_id,))
         open_unknowns = cursor.fetchone()[0]
         if open_unknowns >= 3:
-            suggestions.append(f"{open_unknowns} unresolved unknowns — run: empirica unknown-list")
+            suggestions.append(f"{open_unknowns} unresolved unknowns -- run: empirica unknown-list")
     except Exception:
         pass
 
@@ -625,7 +625,7 @@ def _feedback_collect_suggestions(cursor, session_id, project_id, retro_meta):
             """, (project_id,))
             active_goals = cursor.fetchone()[0]
             if active_goals == 0:
-                suggestions.append("No active goals — run: empirica goals-create --objective '...'")
+                suggestions.append("No active goals -- run: empirica goals-create --objective '...'")
     except Exception:
         pass
 
@@ -705,7 +705,7 @@ def _preflight_collect_behavioral_feedback(db, session_id, ai_id, project_id):
             previous_transaction_feedback["note"] = (
                 "Behavioral feedback from last transaction. Address through work "
                 "discipline (more noetic work, better artifact logging, commit cadence) "
-                "— not by adjusting vector values."
+                "-- not by adjusting vector values."
             )
             logger.debug(
                 f"Previous transaction feedback: gaps={previous_transaction_feedback.get('artifact_gaps', [])}, "
@@ -748,10 +748,10 @@ def _preflight_persist_pattern_count(patterns, resolved_project_path):
         suffix = R.instance_suffix()
         tx_file = Path(resolved_project_path) / '.empirica' / f'active_transaction{suffix}.json'
         if tx_file.exists():
-            with open(tx_file) as f:
+            with open(tx_file, encoding='utf-8') as f:
                 tx_d = _pjson.load(f)
             tx_d['preflight_pattern_count'] = pattern_count
-            with open(tx_file, 'w') as f:
+            with open(tx_file, 'w', encoding='utf-8') as f:
                 _pjson.dump(tx_d, f, indent=2)
     except Exception:
         pass
@@ -837,7 +837,7 @@ def handle_preflight_submit_command(args):
         task_context = parsed["task_context"]
         output_format = parsed["output_format"]
 
-        # Stage 2: Check for unclosed transaction — warn but don't block
+        # Stage 2: Check for unclosed transaction -- warn but don't block
         unclosed_transaction_warning = _preflight_check_unclosed_transaction()
 
         # Stage 3: Create checkpoint and transaction
@@ -926,14 +926,14 @@ def handle_preflight_submit_command(args):
         else:
             # Human-readable output (legacy)
             if result['ok']:
-                print("✅ PREFLIGHT assessment submitted successfully")
+                print("[OK] PREFLIGHT assessment submitted successfully")
                 print(f"   Session: {session_id[:8]}...")
                 print(f"   Vectors: {len(vectors)} submitted")
                 print("   Storage: Database + Git Notes")
                 if reasoning:
                     print(f"   Reasoning: {reasoning[:80]}...")
             else:
-                print(f"❌ {result.get('message', 'Failed to submit PREFLIGHT assessment')}")
+                print(f"[FAIL] {result.get('message', 'Failed to submit PREFLIGHT assessment')}")
 
         # Return None to avoid exit code issues and duplicate output
         return None
@@ -956,9 +956,9 @@ def _check_patterns_for_warnings(project_id, config_data, checkpoints, current_v
         warnings = check_against_patterns(project_id, approach or "", current_vectors)
         if warnings and warnings.get('has_warnings'):
             for de in warnings.get('dead_end_matches', []):
-                suggestions.append(f"⚠️ Similar to dead end: {de.get('approach', '')[:50]}... (why: {de.get('why_failed', '')[:50]})")
+                suggestions.append(f"[WARN] Similar to dead end: {de.get('approach', '')[:50]}... (why: {de.get('why_failed', '')[:50]})")
             if warnings.get('mistake_risk'):
-                suggestions.append(f"⚠️ {warnings['mistake_risk']}")
+                suggestions.append(f"[WARN] {warnings['mistake_risk']}")
         return warnings
     except Exception:
         return None
@@ -1160,17 +1160,17 @@ def handle_check_command(args):
         if inputs["output_format"] == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print("\n🔍 CHECK - Mid-Session Grounding")
+            print("\n[SEARCH] CHECK - Mid-Session Grounding")
             print("=" * 70)
             print(f"Session: {session_id}")
             print(f"Decision: {decision.upper()} ({strength} suggestion)")
-            print(f"\n📊 Drift Analysis:\n   Overall drift: {drift:.2%} ({drift_level})")
+            print(f"\n[STATS] Drift Analysis:\n   Overall drift: {drift:.2%} ({drift_level})")
             print(f"   Know: {deltas.get('know', 0):+.2f}\n   Uncertainty: {deltas.get('uncertainty', 0):+.2f}")
             print(f"   Completion: {deltas.get('completion', 0):+.2f}")
             print(f"\n📚 Evidence:\n   Findings: {findings_count}\n   Unknowns: {unknowns_count}")
-            print(f"\n💡 Recommendation:\n   {reasoning}")
+            print(f"\n[HINT] Recommendation:\n   {reasoning}")
             for suggestion in suggestions:
-                print(f"   • {suggestion}")
+                print(f"   * {suggestion}")
 
     except Exception as e:
         handle_cli_error(e, "CHECK", getattr(args, 'verbose', False))
@@ -1463,7 +1463,7 @@ def _check_detect_diminishing_returns(previous_check_vectors, know, uncertainty)
             diminishing_returns["reason"] = f"know stagnant ({recent_know_deltas}), uncertainty not decreasing ({recent_uncertainty_deltas})"
 
             # Per the meta-uncertainty design (2026-04-07): the gate is
-            # uncertainty-only — uncertainty IS the meta confidence summary.
+            # uncertainty-only -- uncertainty IS the meta confidence summary.
             if uncertainty <= 0.45:
                 diminishing_returns["recommend_proceed"] = True
                 diminishing_returns["reason"] += " - uncertainty acceptable, investigation plateaued"
@@ -1518,7 +1518,7 @@ def _check_gate_decision(vectors, ready_uncertainty_threshold, diminishing_retur
 
     if not decision or (autopilot_mode and decision != computed_decision):
         if autopilot_mode and decision and decision != computed_decision:
-            logger.info(f"AUTOPILOT override: {decision} → {computed_decision} (autopilot enforcement)")
+            logger.info(f"AUTOPILOT override: {decision} -> {computed_decision} (autopilot enforcement)")
         decision = computed_decision
         logger.info(f"CHECK auto-computed decision: {decision} (uncertainty={uncertainty:.2f} vs threshold={ready_uncertainty_threshold:.2f}, gate uses META uncertainty only)")
 
@@ -1550,7 +1550,7 @@ def _check_store_and_publish(session_id, round_num, vectors, decision, reasoning
     try:
         check_transaction_id = R.transaction_id()
         if check_transaction_id is None:
-            logger.warning("R.transaction_id() returned None — CHECK will be stored without transaction_id. "
+            logger.warning("R.transaction_id() returned None -- CHECK will be stored without transaction_id. "
                            "This may cause Sentinel to not find this CHECK. Check instance_projects/ state.")
     except Exception as e:
         logger.warning(f"Failed to read active transaction: {e}")
@@ -1628,7 +1628,7 @@ def _check_apply_sentinel(session_id, decision, decision_binding, vectors, reaso
         if sentinel_decision in sentinel_map:
             new_decision = sentinel_map[sentinel_decision]
             if new_decision != decision:
-                logger.info(f"Sentinel override: {decision} → {new_decision} (sentinel={sentinel_decision.value})")
+                logger.info(f"Sentinel override: {decision} -> {new_decision} (sentinel={sentinel_decision.value})")
                 decision = new_decision
                 sentinel_override = True
 
@@ -1658,7 +1658,7 @@ def _check_apply_sentinel(session_id, decision, decision_binding, vectors, reaso
 def _check_auto_checkpoint(session_id, vectors, decision, gaps, cycle, round_num):
     """Create git checkpoint if uncertainty > 0.5 (risky decision).
 
-    Non-fatal — failures are logged and swallowed.
+    Non-fatal -- failures are logged and swallowed.
     """
     import json
     import subprocess
@@ -1847,8 +1847,8 @@ def _check_build_praxic_reminders(session_id, check_transaction_id):
     Returns reminders dict.
     """
     reminders = {
-        "commit": "Commit before POSTFLIGHT — uncommitted edits are invisible to grounded calibration (change/state/do will ground near-zero).",
-        "artifacts": "Log the full breadth: assumption-log (beliefs), decision-log (choices), deadend-log (failures), mistake-log (errors) — not just findings.",
+        "commit": "Commit before POSTFLIGHT -- uncommitted edits are invisible to grounded calibration (change/state/do will ground near-zero).",
+        "artifacts": "Log the full breadth: assumption-log (beliefs), decision-log (choices), deadend-log (failures), mistake-log (errors) -- not just findings.",
         "completion": "Rate completion for THIS TRANSACTION only, not the overall plan. If the transaction's objective is met, completion = 1.0 regardless of remaining transactions.",
     }
 
@@ -1862,7 +1862,7 @@ def _check_build_praxic_reminders(session_id, check_transaction_id):
             if total_artifacts == 0:
                 reminders["calibration_nudge"] = (
                     "\u26a0 Current transaction has 0 epistemic artifacts logged. "
-                    "Your grounded calibration score depends on artifact breadth — "
+                    "Your grounded calibration score depends on artifact breadth -- "
                     "zero artifacts means grounded verification has nothing to check "
                     "your self-assessment against, which inflates perceived competence "
                     "and leaves calibration gaps uncorrected. Log at least one finding "
@@ -1919,7 +1919,7 @@ def handle_check_submit_command(args):
         cycle = inputs["cycle"]
         output_format = inputs["output_format"]
 
-        # Stage 2: Bootstrap gate — ensure project context is loaded
+        # Stage 2: Bootstrap gate -- ensure project context is loaded
         bootstrap_status, bootstrap_result = _check_bootstrap_gate(session_id, vectors)
 
         # Stage 3: Get round number and previous CHECK vectors
@@ -2191,7 +2191,7 @@ def _pipeline_cortex_cache_feedback(session_id, vectors, grounded_verification):
         if api_key:
             headers['Authorization'] = f'Bearer {api_key}'
         req = urllib.request.Request(f'{cortex_url}/postflight', data=payload, headers=headers, method='POST')
-        urllib.request.urlopen(req, timeout=1.0)
+        urllib.request.urlopen(req, timeout=1.0, encoding='utf-8')
         logger.debug("Wrote verified predictions to Cortex cache")
     except Exception:
         pass  # Cortex not running
@@ -2375,7 +2375,7 @@ def _run_postflight_storage_pipeline(
     """Run all POSTFLIGHT storage operations: Qdrant embedding, Cortex push,
     trajectory, episodic memory, auto-embed, workspace index, decay, snapshot.
 
-    All operations are non-fatal — failures are logged and skipped.
+    All operations are non-fatal -- failures are logged and skipped.
     """
     import time
 
@@ -2452,7 +2452,7 @@ def _run_grounded_verification(
             proj_yaml = _Path.cwd() / ".empirica" / "project.yaml"
             if proj_yaml.exists():
                 import yaml
-                with open(proj_yaml) as _f:
+                with open(proj_yaml, encoding='utf-8') as _f:
                     tier2_weights = (yaml.safe_load(_f) or {}).get("calibration_weights")
             if not tier2_weights:
                 from .project_init import _seed_calibration_weights
@@ -2482,7 +2482,7 @@ def _run_grounded_verification(
             from pathlib import Path
             crash_log = Path.home() / ".empirica" / "grounded_verification_error.log"
             crash_log.parent.mkdir(parents=True, exist_ok=True)
-            with open(crash_log, "w") as f:
+            with open(crash_log, "w", encoding='utf-8') as f:
                 f.write(f"Error: {e}\n\n{tb}")
         except Exception:
             pass
@@ -2532,7 +2532,7 @@ def _build_retrospective(session_id: str, transaction_id: str | None) -> dict:
             retro["breadth_note"] = (
                 f"Only {', '.join(types_used) or 'no'} artifacts logged. "
                 f"Missing: {', '.join(types_missing)}. "
-                "Unlogged artifact types are ungrounded prediction domains — "
+                "Unlogged artifact types are ungrounded prediction domains -- "
                 "were there assumptions, decisions, dead-ends, or mistakes worth capturing?"
             )
 
@@ -2541,7 +2541,7 @@ def _build_retrospective(session_id: str, transaction_id: str | None) -> dict:
             if _gr.returncode == 0 and _gr.stdout.strip():
                 retro["commit_warning"] = (
                     "Uncommitted changes detected. Grounded calibration for change/state/do "
-                    "will be based on committed work only — uncommitted edits are invisible."
+                    "will be based on committed work only -- uncommitted edits are invisible."
                 )
         except Exception:
             pass
@@ -2555,7 +2555,7 @@ def _build_retrospective(session_id: str, transaction_id: str | None) -> dict:
             goals_completed = cursor.fetchone()[0]
             if goals_completed > 0:
                 retro["completion_hint"] = (
-                    f"{goals_completed} goal(s) completed in this transaction — "
+                    f"{goals_completed} goal(s) completed in this transaction -- "
                     "completion for this transaction should be near 1.0."
                 )
         except Exception:
@@ -2792,7 +2792,7 @@ def _postflight_close_and_capture_counters(result, resolved_project_path, suffix
     if not tx_file.exists():
         return
 
-    with open(tx_file) as f:
+    with open(tx_file, encoding='utf-8') as f:
         tx_data = _json.load(f)
     result["transaction_id"] = tx_data.get('transaction_id')
     result["avg_turns"] = tx_data.get('avg_turns', 0)
@@ -2804,7 +2804,7 @@ def _postflight_close_and_capture_counters(result, resolved_project_path, suffix
     counters = {}
     if counters_file.exists():
         try:
-            with open(counters_file) as f:
+            with open(counters_file, encoding='utf-8') as f:
                 counters = _json.load(f)
         except Exception:
             pass
@@ -2840,7 +2840,7 @@ def _postflight_close_and_capture_counters(result, resolved_project_path, suffix
             _tx_suffix = R.instance_suffix()
             _tx_proj = _closed_tx.get('project_path', resolved_project_path)
             _tx_path = Path(_tx_proj) / '.empirica' / f'active_transaction{_tx_suffix}.json'
-            with open(_tx_path, 'w') as f:
+            with open(_tx_path, 'w', encoding='utf-8') as f:
                 _json.dump(_closed_tx, f, indent=2)
         except Exception as e:
             logger.warning(f"Failed to preserve enrichment on close: {e}")
@@ -3085,7 +3085,7 @@ def _build_postflight_result(
     Returns result dict.
     """
     # Extract evidence_summary from grounded verification to surface
-    # prominently — this is what the AI should attend to for calibration,
+    # prominently -- this is what the AI should attend to for calibration,
     # not the per-vector observation scores buried in the calibration dict.
     evidence_summary = None
     calibration_for_ai = None
@@ -3134,7 +3134,7 @@ def _cortex_resolve_project_id():
         from empirica.cli.utils.project_resolver import resolve_project_id as _rpi
         _pyaml = Path.cwd() / '.empirica' / 'project.yaml'
         if _pyaml.exists():
-            with open(_pyaml) as _pf:
+            with open(_pyaml, encoding='utf-8') as _pf:
                 for _ln in _pf:
                     if _ln.startswith('project_id:'):
                         _pn = _ln.split(':', 1)[1].strip()
@@ -3187,7 +3187,7 @@ def _cortex_read_calibration_summary():
         import yaml as _yaml
         _bcf = Path.cwd() / ".breadcrumbs.yaml"
         if _bcf.exists():
-            with open(_bcf) as _bf:
+            with open(_bcf, encoding='utf-8') as _bf:
                 _bcd = _yaml.safe_load(_bf) or {}
             _gc = _bcd.get("grounded_calibration", {})
             if _gc:
@@ -3234,7 +3234,7 @@ def _run_postflight_cortex_sync(session_id, reasoning, resolved_project_path):
             headers={"Authorization": f"Bearer {_cortex_key}", "Content-Type": "application/json"},
             method="POST",
         )
-        urllib.request.urlopen(_req, timeout=5)
+        urllib.request.urlopen(_req, timeout=5, encoding='utf-8')
         logger.debug("Cortex sync push at POSTFLIGHT boundary")
     except Exception:
         pass  # Non-fatal
@@ -3289,7 +3289,7 @@ def _postflight_format_human_output(result, session_id, vectors, reasoning,
                                      deltas, trajectory_issues, grounded_verification):
     """Print human-readable POSTFLIGHT output with project context."""
     if result['ok']:
-        print("✅ POSTFLIGHT assessment submitted successfully")
+        print("[OK] POSTFLIGHT assessment submitted successfully")
         print(f"   Session: {session_id[:8]}...")
         print(f"   Vectors: {len(vectors)} submitted")
         print("   Storage: Database + Git Notes")
@@ -3306,13 +3306,13 @@ def _postflight_format_human_output(result, session_id, vectors, reasoning,
             if signals:
                 print("   Evidence signals:")
                 for signal in signals:
-                    print(f"     • {signal}")
+                    print(f"     * {signal}")
         if trajectory_issues:
-            print(f"\n⚠️  Trajectory issues detected: {len(trajectory_issues)}")
+            print(f"\n[WARN]  Trajectory issues detected: {len(trajectory_issues)}")
             for issue in trajectory_issues:
-                print(f"   • {issue['pattern']}: {issue['description']}")
+                print(f"   * {issue['pattern']}: {issue['description']}")
     else:
-        print(f"❌ {result.get('message', 'Failed to submit POSTFLIGHT assessment')}")
+        print(f"[FAIL] {result.get('message', 'Failed to submit POSTFLIGHT assessment')}")
 
     _postflight_print_project_context(session_id)
 

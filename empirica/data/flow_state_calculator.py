@@ -72,15 +72,15 @@ def classify_flow_state(flow_score: float) -> tuple[str, str]:
         Tuple of (state_name, emoji)
     """
     if flow_score >= 80:
-        return ("Deep Flow", "🔥")
+        return ("Deep Flow", "[HOT]")
     elif flow_score >= 65:
         return ("Flow State", "✨")
     elif flow_score >= 50:
-        return ("Productive", "⚡")
+        return ("Productive", "[FAST]")
     elif flow_score >= 35:
         return ("Working", "💼")
     else:
-        return ("Struggling", "⚠️")
+        return ("Struggling", "[WARN]")
 
 
 def identify_flow_blockers(vectors: dict[str, float], threshold: float = 0.4) -> list[str]:
@@ -141,15 +141,15 @@ def calculate_flow_trend(flow_scores: list[float]) -> tuple[str, str]:
     delta = recent_avg - older_avg
 
     if delta > 10:
-        return ("Strong improvement", "📈")
+        return ("Strong improvement", "[UP]")
     elif delta > 5:
         return ("Improving", "↗️")
     elif delta > -5:
-        return ("Stable", "→")
+        return ("Stable", "->")
     elif delta > -10:
         return ("Declining", "↘️")
     else:
-        return ("Sharp decline", "📉")
+        return ("Sharp decline", "[DOWN]")
 
 
 def get_flow_triggers() -> list[dict[str, str | float]]:

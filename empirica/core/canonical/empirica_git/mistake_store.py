@@ -156,7 +156,7 @@ class GitMistakeStore:
                 check=True
             )
 
-            logger.info(f"✓ Stored mistake {mistake_id[:8]} in git notes")
+            logger.info(f"[OK] Stored mistake {mistake_id[:8]} in git notes")
             return True
 
         except Exception as e:

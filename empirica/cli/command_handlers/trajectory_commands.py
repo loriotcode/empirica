@@ -100,12 +100,12 @@ def handle_trajectory_show(args):
 
             # Pattern emoji
             pattern_emoji = {
-                'breakthrough': '🚀',
-                'stable': '📈',
+                'breakthrough': '[RUN]',
+                'stable': '[UP]',
                 'dead_end': '🛑',
                 'oscillating': '〰️',
-                'unknown': '❓'
-            }.get(pattern, '❓')
+                'unknown': '[?]'
+            }.get(pattern, '[?]')
 
             print(f"{pattern_emoji} {pattern.upper()} (confidence: {confidence:.2f})")
             print(f"   Session: {session_id[:12]}...")
@@ -116,7 +116,7 @@ def handle_trajectory_show(args):
             for key in ['know', 'uncertainty', 'clarity', 'completion']:
                 if key in start and key in end:
                     delta = deltas.get(key, 0)
-                    direction = "↑" if delta > 0 else "↓" if delta < 0 else "→"
+                    direction = "^" if delta > 0 else "v" if delta < 0 else "->"
                     print(f"      {key}: {start[key]:.2f} {direction} {end[key]:.2f} ({delta:+.2f})")
 
             print()
@@ -179,8 +179,8 @@ def handle_trajectory_stats(args):
         print("Pattern Distribution:")
         for pattern, count, avg_conf in pattern_stats:
             pct = count / total * 100 if total else 0
-            emoji = {'breakthrough': '🚀', 'stable': '📈', 'dead_end': '🛑',
-                     'oscillating': '〰️', 'unknown': '❓'}.get(pattern, '❓')
+            emoji = {'breakthrough': '[RUN]', 'stable': '[UP]', 'dead_end': '🛑',
+                     'oscillating': '〰️', 'unknown': '[?]'}.get(pattern, '[?]')
             print(f"  {emoji} {pattern}: {count} ({pct:.1f}%) - avg confidence: {avg_conf:.2f}")
 
         if top_breakthroughs:
@@ -226,4 +226,4 @@ def handle_trajectory_backfill(args):
             "patterns": patterns if args.analyze else None
         }))
     else:
-        print(f"\n✅ Backfill complete: {stored} trajectories stored")
+        print(f"\n[OK] Backfill complete: {stored} trajectories stored")

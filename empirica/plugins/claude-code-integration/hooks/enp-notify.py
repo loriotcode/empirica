@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ENP Notification Hook — Surfaces pending git folder notifications.
+ENP Notification Hook -- Surfaces pending git folder notifications.
 
 SessionStart hook. Checks ~/.empirica/enp/pending.json for unacknowledged
 notifications and injects them into the session context.
@@ -39,7 +39,7 @@ def format_notification(n: dict) -> str:
             msg_summary += f' (+{len(messages) - 3} more)'
 
     return (
-        f'**{label}** — {authors} pushed {commit_count} commit(s) '
+        f'**{label}** -- {authors} pushed {commit_count} commit(s) '
         f'affecting {len(files)} watched file(s):\n'
         f'{file_list}{msg_summary}'
     )

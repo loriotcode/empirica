@@ -860,7 +860,7 @@ def load_thresholds_from_config() -> BudgetThresholds:
     if config_path.exists():
         try:
             import yaml
-            with open(config_path) as f:
+            with open(config_path, encoding='utf-8') as f:
                 data = yaml.safe_load(f) or {}
             thresholds_data = data.get("context_budget", data)
             return BudgetThresholds.from_dict(thresholds_data)

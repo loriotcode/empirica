@@ -1,8 +1,8 @@
 """
-Entity Extractor — Regex-based codebase entity extraction from file edits.
+Entity Extractor -- Regex-based codebase entity extraction from file edits.
 
 Extracts functions, classes, APIs, and imports from diffs/content using
-language-specific regex patterns. No external dependencies — stdlib only.
+language-specific regex patterns. No external dependencies -- stdlib only.
 
 Adapted from world-model-mcp's extraction.py (MIT license).
 """
@@ -62,7 +62,7 @@ def extract_entities_from_diff(
     """
     Extract entities and facts from a diff (added lines only).
 
-    Lighter than full content extraction — only looks at new/changed lines.
+    Lighter than full content extraction -- only looks at new/changed lines.
     Returns (entities, facts) where facts are assertions about the change.
     """
     # Extract only added lines from diff

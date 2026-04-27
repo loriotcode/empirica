@@ -49,7 +49,7 @@ class GoalDataRepository(BaseRepository):
             scope_duration: 0.0-1.0 (0=minutes, 1=months)
             scope_coordination: 0.0-1.0 (0=solo, 1=heavy multi-agent)
             beads_issue_id: Optional BEADS issue ID (e.g., "bd-a1b2")
-            status: Initial status — 'planned' (logged, not started) or 'in_progress' (active)
+            status: Initial status -- 'planned' (logged, not started) or 'in_progress' (active)
 
         Returns:
             goal_id (UUID string)
@@ -331,7 +331,7 @@ class GoalDataRepository(BaseRepository):
     def mark_goals_stale(self, session_id: str, stale_reason: str = "memory_compact") -> int:
         """Record compact metadata on in_progress goals (status unchanged).
 
-        Goals stay in_progress across compaction — the post-compact AI
+        Goals stay in_progress across compaction -- the post-compact AI
         picks them up naturally via goals-list. The 'stale' status was
         removed: goals are either planned, in_progress, or completed.
 
@@ -408,7 +408,7 @@ class GoalDataRepository(BaseRepository):
         return stale_goals
 
     def activate_goal(self, goal_id: str, transaction_id: str | None = None) -> bool:
-        """Activate a planned goal — set status to in_progress and link to transaction.
+        """Activate a planned goal -- set status to in_progress and link to transaction.
 
         Args:
             goal_id: Goal UUID (prefix match supported)
@@ -444,7 +444,7 @@ class GoalDataRepository(BaseRepository):
         return True
 
     def refresh_goal(self, goal_id: str) -> bool:
-        """No-op — stale status removed. Goals stay in_progress across compaction.
+        """No-op -- stale status removed. Goals stay in_progress across compaction.
 
         Kept for backward compatibility with CLI command.
 

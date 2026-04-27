@@ -53,7 +53,7 @@ def handle_epistemics_search_command(args):
             }, indent=2))
         else:
             # Human-readable format
-            print("\n🧠 Epistemic Trajectory Search Results")
+            print("\n[THINK] Epistemic Trajectory Search Results")
             print(f"{'=' * 70}")
             print(f"Query: {query}")
             if min_learning:
@@ -187,7 +187,7 @@ def handle_epistemics_stats_command(args):
                 "trajectories": reflexes
             }, indent=2))
         else:
-            print(f"\n📊 Epistemic Trajectory for Session: {session_id}")
+            print(f"\n[STATS] Epistemic Trajectory for Session: {session_id}")
             print(f"{'=' * 70}")
             print(f"Project: {project_id}")
             print(f"AI: {ai_id}")
@@ -304,7 +304,7 @@ def handle_epistemics_list_command(args):
                 "trajectories": reflexes
             }, indent=2))
         else:
-            print(f"📊 Epistemic Trajectories for Session: {session_id}")
+            print(f"[STATS] Epistemic Trajectories for Session: {session_id}")
             print(f"   Project: {project_id}")
             print(f"   AI: {ai_id}")
             print(f"   Count: {len(reflexes)}\n")

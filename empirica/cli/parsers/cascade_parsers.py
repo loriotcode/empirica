@@ -1,8 +1,8 @@
 """Epistemic transaction workflow command parsers.
 
 Aliases:
-- preflight-submit → pre, preflight
-- postflight-submit → post, postflight
+- preflight-submit -> pre, preflight
+- postflight-submit -> post, postflight
 """
 
 def add_cascade_parsers(subparsers):

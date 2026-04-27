@@ -116,7 +116,7 @@ def check_bridge_polls():
     # Find the highest consecutive empty poll count
     poll_pattern = re.findall(r"no work, (\d+) consecutive empty polls", tail)
     if not poll_pattern:
-        # No bridge polling found — might mean chrome not enabled
+        # No bridge polling found -- might mean chrome not enabled
         # Check if there's a successful chrome connection
         if "claude-in-chrome" in tail and "Successfully connected" in tail:
             return {"status": "healthy", "detail": "Chrome MCP connected (no bridge polling)"}
@@ -138,19 +138,19 @@ def check_bridge_polls():
     if max_empty > 1000:
         return {
             "status": "dead",
-            "detail": f"{max_empty} consecutive empty bridge polls — connection likely dead",
+            "detail": f"{max_empty} consecutive empty bridge polls -- connection likely dead",
             "empty_polls": max_empty
         }
     elif max_empty > 100:
         return {
             "status": "degraded",
-            "detail": f"{max_empty} consecutive empty bridge polls — connection may be degraded",
+            "detail": f"{max_empty} consecutive empty bridge polls -- connection may be degraded",
             "empty_polls": max_empty
         }
     else:
         return {
             "status": "healthy",
-            "detail": f"Bridge polling active ({max_empty} empty polls — normal range)",
+            "detail": f"Bridge polling active ({max_empty} empty polls -- normal range)",
             "empty_polls": max_empty
         }
 
@@ -189,7 +189,7 @@ def check_mcp_tools_registered():
                 last_drop = line
 
         if last_drop and last_connect:
-            # Both exist — check which is more recent (by position in file)
+            # Both exist -- check which is more recent (by position in file)
             connect_pos = tail.rfind('Successfully connected')
             drop_pos = tail.rfind('dropped') if 'dropped' in tail else tail.rfind('Broken pipe')
             if drop_pos > connect_pos:

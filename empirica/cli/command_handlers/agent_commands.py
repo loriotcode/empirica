@@ -204,7 +204,7 @@ def handle_agent_report_command(args) -> dict | int | None:
                     ):
                         embedded_count += 1
 
-                # Embed epistemic trajectory (preflight → postflight)
+                # Embed epistemic trajectory (preflight -> postflight)
                 trajectory_text = f"Agent {branch_id[:8]}: {postflight_data.get('summary', 'epistemic investigation')}"
                 upsert_epistemics(project_id, [{
                     "id": int(uuid.uuid4().int % (2**31 - 1)),
@@ -401,13 +401,13 @@ def handle_agent_export_command(args) -> dict | int | None:
                 registered_id = registry.register_agent(agent_package)
                 print(f"📡 Registered to sharing network (ID: {registered_id})")
             except Exception as e:
-                print(f"⚠️  Registration failed (Qdrant unavailable?): {e}")
+                print(f"[WARN]  Registration failed (Qdrant unavailable?): {e}")
 
         # Output
         if output_file:
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(agent_package, f, indent=2)
-            print(f"✅ Agent exported to {output_file}")
+            print(f"[OK] Agent exported to {output_file}")
             print(f"   Agent ID: {agent_package['agent_id']}")
             print(f"   Merge Score: {branch.get('merge_score', 'N/A')}")
         else:
@@ -442,7 +442,7 @@ def handle_agent_import_command(args) -> dict | int | None:
 
     # Load agent package
     try:
-        with open(input_file) as f:
+        with open(input_file, encoding='utf-8') as f:
             agent_package = json.load(f)
     except Exception as e:
         return {"ok": False, "error": f"Failed to load agent file: {e}"}
@@ -479,7 +479,7 @@ def handle_agent_import_command(args) -> dict | int | None:
         if output_format == 'json':
             print(json.dumps(response, indent=2))
         else:
-            print("✅ Agent imported successfully")
+            print("[OK] Agent imported successfully")
             print(f"   Imported: {agent_package.get('agent_id')}")
             print(f"   New Branch: {branch_id[:8]}...")
             print(f"   Source Score: {agent_package.get('epistemic_profile', {}).get('merge_score', 'N/A')}")
@@ -531,7 +531,7 @@ def handle_agent_discover_command(args) -> dict | int | None:
         if output_format == 'json':
             print(json.dumps(response, indent=2))
         else:
-            print(f"🔍 Searching: {search_type}")
+            print(f"[SEARCH] Searching: {search_type}")
             print(f"   Found: {len(agents)} agents\n")
 
             for agent in agents:
@@ -551,7 +551,7 @@ def handle_agent_discover_command(args) -> dict | int | None:
         if output_format == 'json':
             print(json.dumps({"ok": False, "error": error_msg}))
         else:
-            print(f"❌ {error_msg}")
+            print(f"[FAIL] {error_msg}")
         return 1
 
 

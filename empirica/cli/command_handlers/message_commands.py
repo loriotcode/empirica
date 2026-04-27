@@ -88,7 +88,7 @@ def _load_config(args) -> dict:
         if config_file == '-':
             return json.load(sys.stdin)
         else:
-            with open(config_file) as f:
+            with open(config_file, encoding='utf-8') as f:
                 return json.load(f)
     return {}
 

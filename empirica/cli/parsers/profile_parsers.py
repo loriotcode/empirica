@@ -15,7 +15,7 @@ def add_profile_parsers(subparsers):
     # profile-sync
     sync_parser = subparsers.add_parser(
         'profile-sync',
-        help='Sync epistemic profile: fetch notes → import to SQLite → rebuild Qdrant',
+        help='Sync epistemic profile: fetch notes -> import to SQLite -> rebuild Qdrant',
         description='Full profile sync pipeline. Fetches git notes from remote, '
                     'imports artifacts idempotently into SQLite (preserving original UUIDs), '
                     'and optionally rebuilds Qdrant semantic index.',

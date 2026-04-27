@@ -85,13 +85,13 @@ def handle_persona_show_command(args):
             print()
 
             print("Vector Profile:")
-            print("  Initial → Final (Delta)")
+            print("  Initial -> Final (Delta)")
             for key in sorted(persona.delta_pattern.keys()):
                 initial = persona.initial_vectors.get(key, 0.5)
                 final = persona.final_vectors.get(key, 0.5)
                 delta = persona.delta_pattern[key]
-                arrow = "↑" if delta > 0 else "↓" if delta < 0 else "→"
-                print(f"    {key:15s}: {initial:.2f} → {final:.2f} ({arrow}{abs(delta):.2f})")
+                arrow = "^" if delta > 0 else "v" if delta < 0 else "->"
+                print(f"    {key:15s}: {initial:.2f} -> {final:.2f} ({arrow}{abs(delta):.2f})")
             print()
 
             print("Convergence:")
@@ -148,7 +148,7 @@ def handle_persona_promote_command(args):
 
         # Load existing personas or create new
         if mco_path.exists():
-            with open(mco_path) as f:
+            with open(mco_path, encoding='utf-8') as f:
                 mco_data = yaml.safe_load(f) or {"personas": []}
         else:
             mco_data = {"personas": []}
@@ -182,7 +182,7 @@ def handle_persona_promote_command(args):
         mco_data["personas"].append(mco_persona)
 
         # Save
-        with open(mco_path, 'w') as f:
+        with open(mco_path, 'w', encoding='utf-8') as f:
             yaml.dump(mco_data, f, default_flow_style=False, sort_keys=False)
 
         result = {

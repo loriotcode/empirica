@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Empirica PostToolUseFailure Hook — Auto-log dead-ends from tool failures.
+Empirica PostToolUseFailure Hook -- Auto-log dead-ends from tool failures.
 
 Fires when a tool call fails. Logs the failure as a dead-end to prevent
 re-exploration of failed approaches. Tracks failure patterns.
@@ -69,7 +69,7 @@ def main():
 
     logger.info(f"ToolFailure: {tool_name} | interrupt={is_interrupt} | {_truncate(error, 100)}")
 
-    # Skip interrupts — user cancelled, not a real failure
+    # Skip interrupts -- user cancelled, not a real failure
     if is_interrupt:
         logger.debug("  Skipping interrupt")
         sys.exit(0)

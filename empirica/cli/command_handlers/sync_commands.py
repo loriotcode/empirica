@@ -48,7 +48,7 @@ def _load_sync_config() -> dict[str, Any]:
         return DEFAULT_SYNC_CONFIG.copy()
 
     try:
-        with open(config_path) as f:
+        with open(config_path, encoding='utf-8') as f:
             config = yaml.safe_load(f) or {}
 
         sync_config = config.get('sync', {})
@@ -69,7 +69,7 @@ def _save_sync_config(sync_config: dict[str, Any]) -> bool:
     try:
         # Load existing config
         if config_path.exists():
-            with open(config_path) as f:
+            with open(config_path, encoding='utf-8') as f:
                 config = yaml.safe_load(f) or {}
         else:
             config = {'version': '2.0'}
@@ -81,7 +81,7 @@ def _save_sync_config(sync_config: dict[str, Any]) -> bool:
         config_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Write back
-        with open(config_path, 'w') as f:
+        with open(config_path, 'w', encoding='utf-8') as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
         return True
@@ -273,7 +273,7 @@ def _handle_sync_config_command_helper(key, output_format, sync_config, value):
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"✅ Set sync.{key} = {value}")
+            print(f"[OK] Set sync.{key} = {value}")
 
         return 0 if result['ok'] else 1
 
@@ -335,7 +335,7 @@ def handle_sync_config_command(args):
             if all_remotes and len(all_remotes) > 1:
                 print("\n   Available remotes:")
                 for name, url in all_remotes.items():
-                    marker = "→" if name == current_remote else " "
+                    marker = "->" if name == current_remote else " "
                     print(f"   {marker} {name}: {url}")
 
             print(f"\n   Config file: {_get_config_path()}")
@@ -374,12 +374,12 @@ def _handle_sync_push_command_helper(errors, output_format, push_results, remote
         print(json.dumps(result, indent=2))
     else:
         if success:
-            print(f"✅ Pushed epistemic notes to {remote}")
+            print(f"[OK] Pushed epistemic notes to {remote}")
             for ref, ok in push_results.items():
-                status = "✓" if ok else "✗"
+                status = "[OK]" if ok else "[FAIL]"
                 print(f"   {status} {ref}")
         else:
-            print(f"❌ Push failed to {remote}")
+            print(f"[FAIL] Push failed to {remote}")
             for err in errors:
                 print(f"   Error: {err}")
 
@@ -458,7 +458,7 @@ def handle_sync_push_command(args):
             if output_format == 'json':
                 print(json.dumps(result, indent=2))
             else:
-                print(f"🔍 Dry run - would push {total_refs} note refs to {remote}")
+                print(f"[SEARCH] Dry run - would push {total_refs} note refs to {remote}")
                 for ref, count in local_counts.items():
                     if count > 0:
                         print(f"   refs/notes/{ref}: {count} notes")
@@ -529,16 +529,16 @@ def _handle_sync_pull_command_helper(changes, errors, output_format, rebuild, re
         print(json.dumps(result, indent=2))
     else:
         if success:
-            print(f"✅ Pulled epistemic notes from {remote}")
+            print(f"[OK] Pulled epistemic notes from {remote}")
             if changes:
                 for ref, change in changes.items():
-                    print(f"   {ref}: {change['before']} → {change['after']} ({change['delta']:+d})")
+                    print(f"   {ref}: {change['before']} -> {change['after']} ({change['delta']:+d})")
             else:
                 print("   No changes (already up to date)")
             if rebuild and 'rebuild' in result:
-                print("   🔄 Rebuilt SQLite from notes")
+                print("   [LOAD] Rebuilt SQLite from notes")
         else:
-            print(f"❌ Pull failed from {remote}")
+            print(f"[FAIL] Pull failed from {remote}")
             for err in errors:
                 print(f"   Error: {err}")
 
@@ -680,7 +680,7 @@ def handle_sync_status_command(args):
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print("📊 Empirica Sync Status")
+            print("[STATS] Empirica Sync Status")
             print(f"   Remote: {remote} ({'configured' if remote_configured else 'NOT configured'})")
             print(f"   Local refs with data: {refs_with_data}")
             print(f"   Total notes: {total_notes}")
@@ -691,7 +691,7 @@ def handle_sync_status_command(args):
                         print(f"      refs/notes/{ref}: {count}")
 
             if not remote_configured:
-                print("\n   ⚠️ No remote configured. Run 'git remote add origin <url>' to enable sync.")
+                print("\n   [WARN] No remote configured. Run 'git remote add origin <url>' to enable sync.")
 
         return 0
 
@@ -982,14 +982,14 @@ def handle_rebuild_command(args):
             print(json.dumps(result, indent=2))
         else:
             if result['ok']:
-                print(f"✅ Rebuilt {total_rebuilt} records from git notes")
+                print(f"[OK] Rebuilt {total_rebuilt} records from git notes")
                 for type_name, count in rebuild_result.items():
                     if type_name != 'error' and count > 0:
                         print(f"   {type_name}: {count}")
                 if qdrant and 'qdrant' in result:
-                    print("   🔍 Qdrant: rebuilt")
+                    print("   [SEARCH] Qdrant: rebuilt")
             else:
-                print(f"❌ Rebuild failed: {rebuild_result.get('error', 'Unknown error')}")
+                print(f"[FAIL] Rebuild failed: {rebuild_result.get('error', 'Unknown error')}")
 
         return 0 if result['ok'] else 1
 

@@ -72,7 +72,7 @@ def load_manifest(manifest_path: str | None = None) -> dict:
             "ecosystem.yaml not found. Create one at your workspace root."
         )
 
-    with open(path) as f:
+    with open(path, encoding='utf-8') as f:
         data = yaml.safe_load(f)
 
     if not data or 'projects' not in data:

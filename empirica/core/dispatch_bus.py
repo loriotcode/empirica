@@ -1,5 +1,5 @@
 """
-Dispatch Bus — Typed cross-instance communication for Empirica.
+Dispatch Bus -- Typed cross-instance communication for Empirica.
 
 A thin protocol layer on top of GitMessageStore that adds:
 - Typed action dispatch (DispatchMessage with structured payload)
@@ -15,13 +15,13 @@ Use cases:
 
 Architecture:
     DispatchBus
-      ├── GitMessageStore (transport/persistence)  ← existing
-      ├── InstanceRegistry (YAML-backed, user-scoped)
-      └── CapabilityMatcher (routes actions to capable instances)
+      +-- GitMessageStore (transport/persistence)  <- existing
+      +-- InstanceRegistry (YAML-backed, user-scoped)
+      +-- CapabilityMatcher (routes actions to capable instances)
 
 The dispatch messages use channel "dispatch" by default and encode the typed
 action in the message body as JSON. Regular GitMessageStore operations
-(inbox, read, reply) all continue to work — dispatch is just a typed overlay.
+(inbox, read, reply) all continue to work -- dispatch is just a typed overlay.
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ DEFAULT_REGISTRY_PATH = Path.home() / ".empirica" / "bus-instances.yaml"
 @dataclass
 class DispatchMessage:
     """
-    A typed dispatch — an action request routed to another instance.
+    A typed dispatch -- an action request routed to another instance.
 
     Maps to a GitMessageStore message with:
     - channel = dispatch channel (default "dispatch")
@@ -229,12 +229,12 @@ class InstanceRegistry:
     def _load(self) -> None:
         """Load registry from disk."""
         if not _YAML_AVAILABLE or yaml is None:
-            logger.warning("PyYAML not available — instance registry disabled")
+            logger.warning("PyYAML not available -- instance registry disabled")
             return
         if not self.path.exists():
             return
         try:
-            with open(self.path) as f:
+            with open(self.path, encoding='utf-8') as f:
                 data = yaml.safe_load(f) or {}
             instances_data = data.get("instances", {})
             for inst_id, inst_data in instances_data.items():
@@ -273,7 +273,7 @@ class InstanceRegistry:
             }
         }
         try:
-            with open(self.path, "w") as f:
+            with open(self.path, "w", encoding='utf-8') as f:
                 yaml.safe_dump(data, f, default_flow_style=False, sort_keys=True)
         except OSError as e:
             logger.warning(f"Failed to save instance registry: {e}")
@@ -461,7 +461,7 @@ class DispatchBus:
             logger.warning(f"Failed to send dispatch {action} to {to_instance}")
             return None
 
-        logger.info(f"Dispatched {action} → {to_instance} (correlation: {correlation_id[:16]}...)")
+        logger.info(f"Dispatched {action} -> {to_instance} (correlation: {correlation_id[:16]}...)")
         return correlation_id
 
     # --- Result reporting ---

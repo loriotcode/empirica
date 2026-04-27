@@ -123,7 +123,7 @@ class DatabaseAdapter(ABC):
         row = self.fetchone()
         if row is None:
             return False
-        # Row is a dict — get the first value
+        # Row is a dict -- get the first value
         return next(iter(row.values())) > 0
 
     def table_exists(self, table: str) -> bool:
@@ -182,7 +182,7 @@ class SQLiteAdapter(DatabaseAdapter):
 
         self._cursor = None
 
-        logger.info(f"📊 SQLite adapter initialized: {self.db_path} (WAL+IMMEDIATE mode)")
+        logger.info(f"[STATS] SQLite adapter initialized: {self.db_path} (WAL+IMMEDIATE mode)")
 
     @property
     def conn(self):
@@ -255,7 +255,7 @@ class SQLiteAdapter(DatabaseAdapter):
         if self._cursor:
             self._cursor.close()
         self._conn.close()
-        logger.info(f"📊 SQLite adapter closed: {self.db_path}")
+        logger.info(f"[STATS] SQLite adapter closed: {self.db_path}")
 
 
 class PostgreSQLAdapter(DatabaseAdapter):
@@ -283,7 +283,7 @@ class PostgreSQLAdapter(DatabaseAdapter):
         """
         try:
             import psycopg2
-            import psycopg2.extras  # pyright: ignore[reportUnusedImport] — used in execute()
+            import psycopg2.extras  # pyright: ignore[reportUnusedImport] -- used in execute()
         except ImportError as e:
             raise ImportError(
                 "PostgreSQL support requires psycopg2. Install with: pip install psycopg2-binary"
@@ -299,7 +299,7 @@ class PostgreSQLAdapter(DatabaseAdapter):
         )
         self._cursor = None
 
-        logger.info(f"📊 PostgreSQL adapter initialized: {host}:{port}/{database}")
+        logger.info(f"[STATS] PostgreSQL adapter initialized: {host}:{port}/{database}")
 
     @property
     def conn(self):
@@ -357,4 +357,4 @@ class PostgreSQLAdapter(DatabaseAdapter):
         if self._cursor:
             self._cursor.close()
         self._conn.close()
-        logger.info("📊 PostgreSQL adapter closed")
+        logger.info("[STATS] PostgreSQL adapter closed")

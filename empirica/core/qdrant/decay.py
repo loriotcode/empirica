@@ -70,7 +70,7 @@ def decay_eidetic_fact(
         updated_point = PointStruct(id=point.id, vector=point.vector, payload=payload)
         client.upsert(collection_name=coll, points=[updated_point])
 
-        logger.info(f"Decayed eidetic fact: {old_confidence:.2f} → {new_confidence:.2f} ({reason or 'finding'})")
+        logger.info(f"Decayed eidetic fact: {old_confidence:.2f} -> {new_confidence:.2f} ({reason or 'finding'})")
         return True
     except Exception as e:
         logger.warning(f"Failed to decay eidetic fact: {e}")
@@ -89,10 +89,10 @@ def decay_eidetic_by_finding(
     """Decay eidetic facts semantically similar to a contradicting finding.
 
     CENTRAL TOLERANCE: If domain provided, only decay facts in that domain.
-    Lighter decay (0.03) than lessons (0.05) — eidetic facts have higher
+    Lighter decay (0.03) than lessons (0.05) -- eidetic facts have higher
     inertia from multiple confirmations.
 
-    Threshold is deliberately high (0.85) to prevent autoimmune decay —
+    Threshold is deliberately high (0.85) to prevent autoimmune decay --
     semantic similarity alone doesn't imply contradiction. Only near-exact
     matches with opposing content should trigger decay.
 
@@ -254,7 +254,7 @@ def apply_staleness_signal(
 ) -> int:
     """Apply staleness-based signal to memory items based on age.
 
-    Items are NOT deleted — staleness_factor is informational for retrieval
+    Items are NOT deleted -- staleness_factor is informational for retrieval
     ranking. Formula: staleness = min(1.0, age_days / max_age_days).
 
     Also updates assumption urgency via update_assumption_urgency().
@@ -363,7 +363,7 @@ def update_assumption_urgency(
 ) -> int:
     """Update urgency_signal on unverified assumptions based on age.
 
-    Urgency = age_days / max_age_days × (1 - confidence).
+    Urgency = age_days / max_age_days x (1 - confidence).
     Verified/falsified assumptions get urgency = 0.
 
     Returns number of assumptions updated.

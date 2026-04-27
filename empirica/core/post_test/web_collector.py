@@ -99,7 +99,7 @@ class _HTMLStructureValidator(HTMLParser):
         for attr_err in self._empty_attrs:
             self.errors.append(attr_err)
 
-        # Structure warnings (not errors — many frameworks omit these)
+        # Structure warnings (not errors -- many frameworks omit these)
         if not self._has_html:
             self.warnings.append("Missing <html> tag")
         if not self._has_head:
@@ -170,10 +170,10 @@ class WebEvidenceCollector:
             import yaml
             config_path = project_path / ".empirica" / "project.yaml"
             if config_path.exists():
-                with open(config_path) as f:
+                with open(config_path, encoding='utf-8') as f:
                     config = yaml.safe_load(f) or {}
                 self._web_config = config.get("web_evidence", {})
-        except Exception:  # noqa: S110 — best-effort config load; empty dict fallback
+        except Exception:  # noqa: S110 -- best-effort config load; empty dict fallback
             pass
         return self._web_config or {}
 
@@ -210,7 +210,7 @@ class WebEvidenceCollector:
                 pkg = json.loads(pkg_json.read_text())
                 if "build" in pkg.get("scripts", {}):
                     return {"tool": "npm", "command": "npm run build", "output_dir": "dist"}
-            except Exception:  # noqa: S110 — best-effort package.json parsing; other detectors below
+            except Exception:  # noqa: S110 -- best-effort package.json parsing; other detectors below
                 pass
 
         makefile = project_path / "Makefile"
@@ -484,7 +484,7 @@ class WebEvidenceCollector:
 
         try:
             import yaml
-            with open(glossary_path) as f:
+            with open(glossary_path, encoding='utf-8') as f:
                 glossary = yaml.safe_load(f) or {}
         except Exception:
             return items

@@ -69,7 +69,7 @@ class UsageMonitor:
         """Load existing stats or create new."""
         if self.stats_file.exists():
             try:
-                with open(self.stats_file) as f:
+                with open(self.stats_file, encoding='utf-8') as f:
                     return json.load(f)
             except Exception as e:
                 logger.warning(f"Could not load stats from {self.stats_file}: {e}")
@@ -91,7 +91,7 @@ class UsageMonitor:
 
     def _save_stats(self):
         """Save stats to file."""
-        with open(self.stats_file, 'w') as f:
+        with open(self.stats_file, 'w', encoding='utf-8') as f:
             json.dump(self.stats, f, indent=2)
 
     def record_request(
@@ -167,15 +167,15 @@ def handle_monitor_command(args):
     Use session and project commands for Empirica monitoring.
     """
     try:
-        print("\n📊 Empirica Usage Monitor")
+        print("\n[STATS] Empirica Usage Monitor")
         print("=" * 70)
 
-        print("\n⚠️  Adapter Monitoring Deprecated")
+        print("\n[WARN]  Adapter Monitoring Deprecated")
         print("-" * 70)
         print("The modality switcher (adapter routing) feature has been deprecated.")
         print("Adapter usage statistics are no longer tracked.")
 
-        print("\n💡 Alternative Monitoring Commands:")
+        print("\n[HINT] Alternative Monitoring Commands:")
         print("-" * 70)
         print("   empirica sessions-list          - View session history")
         print("   empirica project-bootstrap      - View project state")
@@ -183,7 +183,7 @@ def handle_monitor_command(args):
         print("   empirica query findings         - View learnings")
         print("   empirica query issues           - View auto-captured issues")
 
-        print("\n📈 Session Statistics:")
+        print("\n[UP] Session Statistics:")
         print("-" * 70)
 
         # Try to show basic session stats from Empirica core
@@ -196,7 +196,7 @@ def handle_monitor_command(args):
             if sessions:
                 print(f"   Recent sessions: {len(sessions)}")
                 for s in sessions[:3]:
-                    print(f"     • {s.get('session_id', 'N/A')[:8]}... ({s.get('ai_id', 'unknown')})")
+                    print(f"     * {s.get('session_id', 'N/A')[:8]}... ({s.get('ai_id', 'unknown')})")
             else:
                 print("   No sessions recorded yet")
         except Exception:
@@ -226,10 +226,10 @@ def handle_monitor_export_command(args):
 
         if output_format == 'json':
             # Export as JSON
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(stats, f, indent=2)
 
-            print(f"\n✅ Exported to JSON: {output_file}")
+            print(f"\n[OK] Exported to JSON: {output_file}")
 
         elif output_format == 'csv':
             # Export history as CSV
@@ -238,10 +238,10 @@ def handle_monitor_export_command(args):
             history = stats.get("history", [])
 
             if not history:
-                print("⚠️  No history to export")
+                print("[WARN]  No history to export")
                 return
 
-            with open(output_file, 'w', newline='') as f:
+            with open(output_file, 'w', newline='', encoding='utf-8') as f:
                 fieldnames = ['timestamp', 'adapter', 'success', 'tokens', 'cost', 'latency']
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
 
@@ -249,7 +249,7 @@ def handle_monitor_export_command(args):
                 for record in history:
                     writer.writerow({k: record.get(k, '') for k in fieldnames})
 
-            print(f"\n✅ Exported to CSV: {output_file}")
+            print(f"\n[OK] Exported to CSV: {output_file}")
             print(f"   Records: {len(history)}")
 
         print("=" * 70)
@@ -265,20 +265,20 @@ def handle_monitor_reset_command(args):
     Clears all recorded data.
     """
     try:
-        print("\n🔄 Resetting Monitoring Statistics")
+        print("\n[LOAD] Resetting Monitoring Statistics")
         print("=" * 70)
 
         # Confirm unless --yes flag
         if not getattr(args, 'yes', False):
-            confirm = input("\n⚠️  This will clear all monitoring data. Continue? [y/N]: ").strip().lower()
+            confirm = input("\n[WARN]  This will clear all monitoring data. Continue? [y/N]: ").strip().lower()
             if confirm not in ['y', 'yes']:
-                print("❌ Reset cancelled")
+                print("[FAIL] Reset cancelled")
                 return
 
         monitor = UsageMonitor()
         monitor.reset_stats()
 
-        print("\n✅ Statistics reset")
+        print("\n[OK] Statistics reset")
         print(f"   Stats file: {monitor.stats_file}")
         print("=" * 70)
 
@@ -302,7 +302,7 @@ def handle_monitor_cost_command(args):
         total_cost = stats.get("total_cost", 0.0)
         adapters_stats = stats.get("adapters", {})
 
-        print(f"\n📊 Total Cost: ${total_cost:.4f}")
+        print(f"\n[STATS] Total Cost: ${total_cost:.4f}")
 
         print("\n" + "=" * 70)
         print("Cost by Adapter:")
@@ -324,7 +324,7 @@ def handle_monitor_cost_command(args):
         # Project costs
         if getattr(args, 'project', False):
             print("\n" + "=" * 70)
-            print("📈 Cost Projections")
+            print("[UP] Cost Projections")
             print("=" * 70)
 
             total_requests = stats.get("total_requests", 0)
@@ -346,7 +346,7 @@ def handle_monitor_cost_command(args):
 
 # NOTE: handle_pre_summary_snapshot, handle_post_summary_drift_check, and
 # handle_check_drift_command were removed in v1.6.6. MirrorDriftMonitor was
-# superseded by the grounded calibration pipeline (postflight → post-test →
+# superseded by the grounded calibration pipeline (postflight -> post-test ->
 # bayesian updates) which detects drift through objective evidence rather
 # than vector-to-vector temporal comparison.
 
@@ -388,7 +388,7 @@ def handle_mco_load_command(args):
         # Load from snapshot if post-compact
         if snapshot_path:
             try:
-                with open(snapshot_path) as f:
+                with open(snapshot_path, encoding='utf-8') as f:
                     snapshot_data = json.load(f)
                     mco_snapshot = snapshot_data.get('mco_config', {})
 
@@ -400,7 +400,7 @@ def handle_mco_load_command(args):
                             "message": "Snapshot may be from older version before MCO integration"
                         }))
                     else:
-                        print("\n⚠️  No MCO Configuration in Snapshot")
+                        print("\n[WARN]  No MCO Configuration in Snapshot")
                         print("=" * 70)
                         print("   This snapshot was created before MCO integration.")
                         print("   Falling back to fresh MCO load from files...")
@@ -425,7 +425,7 @@ def handle_mco_load_command(args):
                         print(f"   Source: {snapshot_path}")
                         print("=" * 70)
                         print(formatted)
-                        print("\n💡 Your configuration has been restored from pre-compact snapshot.")
+                        print("\n[HINT] Your configuration has been restored from pre-compact snapshot.")
                         print("   Apply these bias corrections when doing PREFLIGHT/CHECK/POSTFLIGHT.")
 
                     return
@@ -435,7 +435,7 @@ def handle_mco_load_command(args):
                 if output_format == 'json':
                     print(json.dumps({"ok": False, "error": str(e)}))
                 else:
-                    print(f"\n❌ Error loading snapshot: {e}")
+                    print(f"\n[FAIL] Error loading snapshot: {e}")
                 return
 
         # Fresh load from MCO files
@@ -477,7 +477,7 @@ def handle_mco_load_command(args):
                 print(f"   AI ID: {ai_id}")
             print("=" * 70)
             print(formatted)
-            print("\n💡 Internalize these values. Apply bias corrections during transaction assessments.")
+            print("\n[HINT] Internalize these values. Apply bias corrections during transaction assessments.")
 
     except Exception as e:
         handle_cli_error(e, "MCO Load", getattr(args, 'verbose', False))
@@ -568,7 +568,7 @@ def handle_assess_state_command(args):
 
         # Print header only for human output
         if output_format != 'json':
-            print("\n🔍 Epistemic State Assessment (Sessionless)")
+            print("\n[SEARCH] Epistemic State Assessment (Sessionless)")
             print("=" * 70)
             if session_id:
                 print(f"   Session ID: {session_id}")
@@ -599,7 +599,7 @@ def handle_assess_state_command(args):
                 'timestamp': state['timestamp']
             }))
         else:
-            print("\n📊 Current Epistemic Vectors:")
+            print("\n[STATS] Current Epistemic Vectors:")
             print("-" * 70)
             if vectors:
                 for key, value in sorted(vectors.items()):
@@ -610,7 +610,7 @@ def handle_assess_state_command(args):
                     else:
                         print(f"   {key:20s} {value!s}")
             else:
-                print("   ⚠️  No vectors available")
+                print("   [WARN]  No vectors available")
                 print("   Run PREFLIGHT or CHECK to establish baseline")
             print("-" * 70)
             print(f"\n   Timestamp: {state['timestamp']}")
@@ -652,7 +652,7 @@ def _display_turtle_stack(vectors: dict, session_id: str | None = None, prompt: 
         elif score >= 0.30:
             return "🌒", "FORMING"
         else:
-            return "🌑", "DARK"
+            return "-", "DARK"
 
     # Calculate layer scores from vectors
     layers = []
@@ -725,10 +725,10 @@ def _display_turtle_stack(vectors: dict, session_id: str | None = None, prompt: 
 
         # Check for warnings
         if layer['score'] < 0.50:
-            print(f"     ⚠️  Warning: {layer['name']} is below grounding threshold")
+            print(f"     [WARN]  Warning: {layer['name']} is below grounding threshold")
             safe_to_proceed = False
         elif layer['score'] < 0.70:
-            print(f"     ⚡ Caution: {layer['name']} may need investigation")
+            print(f"     [FAST] Caution: {layer['name']} may need investigation")
 
     # Overall status
     print("\n" + "-" * 70)
@@ -760,27 +760,27 @@ def _print_trajectory_human(overall_moon, overall_status, overall_grounding, lay
     print(f"\nCurrent Grounding: {overall_moon} {overall_status} ({overall_grounding:.2f})")
 
     if show_turtle:
-        print("\n┌─ TURTLE STACK ─────────────────────────────────────────────────────┐")
+        print("\n+- TURTLE STACK -----------------------------------------------------+")
         for i, layer in enumerate(layers):
             moon, status = layer['moon']
-            print(f"│  Layer {i}: {layer['name']:20} {moon} {status:12} ({layer['score']:.2f}) │")
-        print("└────────────────────────────────────────────────────────────────────┘")
+            print(f"|  Layer {i}: {layer['name']:20} {moon} {status:12} ({layer['score']:.2f}) |")
+        print("+--------------------------------------------------------------------+")
 
     print(f"\nContext: {unknowns_count} unknowns | {findings_count} findings")
     if sentinel_status:
         print(f"Sentinel: {sentinel_moon} {sentinel_status.upper()}")
 
-    print("\n┌─ VIABLE PATHS ─────────────────────────────────────────────────────┐")
+    print("\n+- VIABLE PATHS -----------------------------------------------------+")
     for path in paths[:depth + 2]:
-        viable_marker = "✓" if path['viable'] else "○"
-        print("│                                                                    │")
-        print(f"│  {path['icon']} {path['name']:15} (confidence: {path['confidence']:.2f}) [{viable_marker}]")
-        print(f"│     {path['description'][:60]}")
+        viable_marker = "[OK]" if path['viable'] else "○"
+        print("|                                                                    |")
+        print(f"|  {path['icon']} {path['name']:15} (confidence: {path['confidence']:.2f}) [{viable_marker}]")
+        print(f"|     {path['description'][:60]}")
         if verbose and path['blockers']:
             for blocker in path['blockers'][:2]:
-                print(f"│     ⚠ {blocker[:55]}")
-    print("│                                                                    │")
-    print("└────────────────────────────────────────────────────────────────────┘")
+                print(f"|     [WARN] {blocker[:55]}")
+    print("|                                                                    |")
+    print("+--------------------------------------------------------------------+")
     print(f"\n📍 RECOMMENDATION: {recommendation}")
     print(f"   {recommendation_action}")
     print("=" * 70 + "\n")
@@ -984,7 +984,7 @@ def handle_trajectory_project_command(args):
             elif score >= 0.30:
                 return "🌒", "FORMING"
             else:
-                return "🌑", "DARK"
+                return "-", "DARK"
 
         # Layer calculations
         layer0_score = (vectors.get('context', 0.5) + vectors.get('signal', 0.5)) / 2  # USER INTENT
@@ -1301,7 +1301,7 @@ def _print_grounded_calibration_human(
     print()
 
     if divergence:
-        print("📊 CALIBRATION (self-assessment vs evidence):")
+        print("[STATS] CALIBRATION (self-assessment vs evidence):")
         print("-" * 70)
         print(f"{'Vector':<15} {'Self-Assessed':>12} {'Grounded':>10} {'Gap':>8} {'Evidence':>10}")
         print("-" * 70)
@@ -1315,7 +1315,7 @@ def _print_grounded_calibration_human(
             gap = data['gap']
             sign = "+" if gap >= 0 else ""
             disputed = vector in open_disputes
-            prefix = "⚖️ " if disputed else ("⚠️ " if abs(gap) >= 0.15 else "   ")
+            prefix = "⚖️ " if disputed else ("[WARN] " if abs(gap) >= 0.15 else "   ")
             suffix = " [DISPUTED]" if disputed else ""
             print(
                 f"{prefix}{vector:<12} "
@@ -1333,7 +1333,7 @@ def _print_grounded_calibration_human(
             print("⚖️  OPEN DISPUTES (measurement artifacts flagged by AI):")
             for vector, dispute in open_disputes.items():
                 print(f"   {vector}: reported={dispute['reported']:.2f}, "
-                      f"expected={dispute['expected']:.2f} — {dispute['reason']}")
+                      f"expected={dispute['expected']:.2f} -- {dispute['reason']}")
             print("   (Disputed vectors have reduced weight in Bayesian updates)")
     else:
         print("   No grounded data yet. Run POSTFLIGHT sessions to collect evidence.")
@@ -1353,7 +1353,7 @@ def _print_grounded_calibration_human(
 
 
 def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str, show_trajectory: bool):
-    """Show grounded calibration (POSTFLIGHT → POST-TEST evidence comparison).
+    """Show grounded calibration (POSTFLIGHT -> POST-TEST evidence comparison).
 
     This is the default output for calibration-report - real calibration
     measuring accuracy of self-assessment against objective evidence.
@@ -1407,7 +1407,7 @@ def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str,
                 print(json.dumps({"trajectory": summary}, indent=2))
             else:
                 print("=" * 70)
-                print("📈 CALIBRATION TRAJECTORY (is gap closing/widening/stable?)")
+                print("[UP] CALIBRATION TRAJECTORY (is gap closing/widening/stable?)")
                 print("=" * 70)
 
                 if summary['status'] == 'insufficient_data':
@@ -1419,11 +1419,11 @@ def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str,
 
                     trend_summary = summary.get('summary', {})
                     if trend_summary.get('closing'):
-                        print(f"   ✅ Closing (improving): {', '.join(trend_summary['closing'])}")
+                        print(f"   [OK] Closing (improving): {', '.join(trend_summary['closing'])}")
                     if trend_summary.get('widening'):
-                        print(f"   ⚠️  Widening (degrading): {', '.join(trend_summary['widening'])}")
+                        print(f"   [WARN]  Widening (degrading): {', '.join(trend_summary['widening'])}")
                     if trend_summary.get('stable'):
-                        print(f"   ➡️  Stable: {', '.join(trend_summary['stable'])}")
+                        print(f"   ->️  Stable: {', '.join(trend_summary['stable'])}")
                 print()
 
         db.close()
@@ -1432,7 +1432,7 @@ def _show_grounded_calibration(args, ai_id: str, weeks: int, output_format: str,
         if output_format == 'json':
             print(json.dumps({"ok": False, "error": str(e)}, indent=2))
         else:
-            print(f"❌ Grounded calibration unavailable: {e}")
+            print(f"[FAIL] Grounded calibration unavailable: {e}")
             print("   Hint: Run POSTFLIGHT sessions to collect evidence")
 
 
@@ -1576,7 +1576,7 @@ def _compute_trend(weekly_data, vector_name):
     """Determine trend direction from weekly data for a given vector."""
     weeks_list = sorted(weekly_data.keys())
     if len(weeks_list) < 2:
-        return "→ stable"
+        return "-> stable"
 
     early_weeks = weeks_list[:len(weeks_list)//2]
     late_weeks = weeks_list[len(weeks_list)//2:]
@@ -1593,10 +1593,10 @@ def _compute_trend(weekly_data, vector_name):
 
     delta = late_mean - early_mean
     if delta > 0.05:
-        return "↑ improving"
+        return "^ improving"
     elif delta < -0.05:
-        return "↓ declining"
-    return "→ stable"
+        return "v declining"
+    return "-> stable"
 
 
 def _identify_key_issues(sorted_vectors):
@@ -1642,7 +1642,7 @@ def _print_markdown_table(sorted_vectors, valid_trajectories, weeks):
     """Print markdown-formatted learning trajectory table."""
     print(f"## Learning Trajectory ({valid_trajectories} trajectories over {weeks} weeks)")
     print()
-    print("*PREFLIGHT→POSTFLIGHT deltas. NOT calibration (use grounded evidence for that).*")
+    print("*PREFLIGHT->POSTFLIGHT deltas. NOT calibration (use grounded evidence for that).*")
     print()
     print("| Vector | Correction | End Mean | Trend | Meaning |")
     print("|--------|------------|----------|-------|---------|")
@@ -1661,7 +1661,7 @@ def _print_human_trajectory(result, sorted_vectors, key_issues, filtered_traject
                              valid_trajectories, weeks, weekly_data, verbose, update_prompt):
     """Print human-readable learning trajectory output."""
     print("=" * 70)
-    print("📊 LEARNING TRAJECTORY (PREFLIGHT→POSTFLIGHT)")
+    print("[STATS] LEARNING TRAJECTORY (PREFLIGHT->POSTFLIGHT)")
     print("=" * 70)
     print("NOTE: This is learning data, NOT calibration. For grounded calibration,")
     print("      run: empirica calibration-report (without --learning-trajectory)")
@@ -1673,13 +1673,13 @@ def _print_human_trajectory(result, sorted_vectors, key_issues, filtered_traject
     print()
 
     if key_issues:
-        print("🎯 KEY PATTERNS (|delta| >= 0.15):")
+        print("[TARGET] KEY PATTERNS (|delta| >= 0.15):")
         for issue in key_issues:
             sign = "+" if issue['correction'] >= 0 else ""
             print(f"   {issue['vector']}: {sign}{issue['correction']:.2f} - {issue['meaning']}")
         print()
 
-    print("📈 PER-VECTOR LEARNING DELTAS:")
+    print("[UP] PER-VECTOR LEARNING DELTAS:")
     print("-" * 70)
     print(f"{'Vector':<15} {'Correction':>10} {'End Mean':>10} {'Samples':>8} {'Trend':>15}")
     print("-" * 70)
@@ -1687,7 +1687,7 @@ def _print_human_trajectory(result, sorted_vectors, key_issues, filtered_traject
     for vector_name, data in sorted_vectors:
         correction = data['correction']
         sign = "+" if correction >= 0 else ""
-        prefix = "⚠️ " if abs(correction) >= 0.15 else "   "
+        prefix = "[WARN] " if abs(correction) >= 0.15 else "   "
         print(f"{prefix}{vector_name:<12} {sign}{correction:>8.2f} {data['end_mean']:>10.2f} {data['count']:>8} {data['trend']:>15}")
 
     print("-" * 70)
@@ -1698,7 +1698,7 @@ def _print_human_trajectory(result, sorted_vectors, key_issues, filtered_traject
     print()
 
     if verbose:
-        print("📊 WEEKLY TREND DATA:")
+        print("[STATS] WEEKLY TREND DATA:")
         weeks_list = sorted(weekly_data.keys())
         for week in weeks_list[-4:]:
             week_vectors = weekly_data[week]
@@ -1712,7 +1712,7 @@ def _print_human_trajectory(result, sorted_vectors, key_issues, filtered_traject
     if update_prompt:
         print()
         print("=" * 70)
-        print("📝 COPY-PASTE FOR SYSTEM PROMPT:")
+        print("[NOTE] COPY-PASTE FOR SYSTEM PROMPT:")
         print("=" * 70)
         print()
         print("| Vector | Correction | End Mean | Trend | Meaning |")
@@ -1725,7 +1725,7 @@ def _print_human_trajectory(result, sorted_vectors, key_issues, filtered_traject
     print()
     print("=" * 70)
     print()
-    print("Note: This shows learning trajectory (PREFLIGHT→POSTFLIGHT deltas).")
+    print("Note: This shows learning trajectory (PREFLIGHT->POSTFLIGHT deltas).")
     print("      For actual calibration (grounded evidence), run without --learning-trajectory.")
 
 
@@ -1777,7 +1777,7 @@ def handle_calibration_report_command(args):
             if output_format == 'json':
                 print(json.dumps(result, indent=2))
             else:
-                print(f"❌ No calibration data found in last {weeks} weeks")
+                print(f"[FAIL] No calibration data found in last {weeks} weeks")
             return
 
         vector_data, weekly_data, valid_trajectories, filtered_trajectories = \
@@ -1793,7 +1793,7 @@ def handle_calibration_report_command(args):
             if output_format == 'json':
                 print(json.dumps(result, indent=2))
             else:
-                print(f"❌ No valid calibration data (filtered {filtered_trajectories} placeholder sessions)")
+                print(f"[FAIL] No valid calibration data (filtered {filtered_trajectories} placeholder sessions)")
             return
 
         trajectory = _compute_trajectory_metrics(vector_data, weekly_data, min_samples)
@@ -1811,7 +1811,7 @@ def handle_calibration_report_command(args):
         result = {
             "ok": True,
             "type": "learning_trajectory",
-            "note": "PREFLIGHT→POSTFLIGHT deltas (NOT calibration - use grounded evidence for that)",
+            "note": "PREFLIGHT->POSTFLIGHT deltas (NOT calibration - use grounded evidence for that)",
             "data_source": "vector_trajectories",
             "total_trajectories": valid_trajectories,
             "filtered_trajectories": filtered_trajectories,
@@ -1889,7 +1889,7 @@ def handle_system_status_command(args):
 
 
 def handle_calibration_dispute_command(args):
-    """Handle calibration-dispute command — AI pushback on measurement artifacts.
+    """Handle calibration-dispute command -- AI pushback on measurement artifacts.
 
     When grounded calibration reports a gap that's a measurement bug (not a real
     overestimate), the AI files a dispute. Disputes are stored in SQLite and
@@ -1936,7 +1936,7 @@ def handle_calibration_dispute_command(args):
             if project_path:
                 tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
                 if tx_file.exists():
-                    with open(tx_file) as f:
+                    with open(tx_file, encoding='utf-8') as f:
                         tx = json.load(f)
                     work_context = tx.get('work_context')
         except Exception:
@@ -2010,7 +2010,7 @@ def handle_workflow_patterns_command(args):
                                   "message": "No tool traces found. Traces are recorded after POSTFLIGHT."}))
             else:
                 print("No tool traces found yet. Traces are recorded at POSTFLIGHT.")
-                print("Complete a full transaction (PREFLIGHT → work → POSTFLIGHT) to start recording.")
+                print("Complete a full transaction (PREFLIGHT -> work -> POSTFLIGHT) to start recording.")
             return
 
         patterns = detect_patterns(traces, min_frequency=min_freq)

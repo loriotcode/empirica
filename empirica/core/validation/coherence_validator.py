@@ -229,7 +229,7 @@ class CoherenceValidator:
     ) -> str:
         """Format human-readable validation message"""
         if coherent:
-            return "✅ Coherence check PASSED. Ready to hand off."
+            return "[OK] Coherence check PASSED. Ready to hand off."
         else:
             concerns_text = "\n   ".join(concerns)
-            return f"⚠️ Coherence check FAILED:\n   {concerns_text}\n   Recommendation: {recommendation}"
+            return f"[WARN] Coherence check FAILED:\n   {concerns_text}\n   Recommendation: {recommendation}"

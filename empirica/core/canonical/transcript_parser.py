@@ -1,5 +1,5 @@
 """
-Transcript Parser — Parse Claude Code and Claude.ai transcripts for epistemic mining.
+Transcript Parser -- Parse Claude Code and Claude.ai transcripts for epistemic mining.
 
 Reads .jsonl session transcripts from Claude Code (.claude/projects/{path}/*.jsonl)
 and Claude.ai exports, producing structured ConversationTurn objects suitable for
@@ -8,18 +8,18 @@ artifact extraction.
 Record types handled:
 - user: User messages (prompts, corrections, feedback)
 - assistant: AI responses (text, tool_use, thinking)
-- progress: Hook execution events (filtered out — operational noise)
+- progress: Hook execution events (filtered out -- operational noise)
 - system: Compact boundaries, hook summaries, errors
 - file-history-snapshot: File change tracking (useful for change context)
 - summary: Conversation summaries (post-compaction)
 
 Architecture:
-    .jsonl file ──> TranscriptParser.parse_session()
-                         ├── iter_conversation_turns() ──> ConversationTurn[]
-                         ├── extract_tool_chains() ──> ToolChain[]
-                         └── session_metadata() ──> SessionMetadata
+    .jsonl file --> TranscriptParser.parse_session()
+                         +-- iter_conversation_turns() --> ConversationTurn[]
+                         +-- extract_tool_chains() --> ToolChain[]
+                         +-- session_metadata() --> SessionMetadata
 
-    sessions-index.json ──> SessionIndex.discover_sessions()
+    sessions-index.json --> SessionIndex.discover_sessions()
 """
 
 import json
@@ -277,7 +277,7 @@ class TranscriptParser:
         except ValueError:
             record_type = RecordType.UNKNOWN
 
-        # Skip progress records — they're operational noise
+        # Skip progress records -- they're operational noise
         if record_type == RecordType.PROGRESS:
             return None
 
@@ -397,14 +397,14 @@ class TranscriptParser:
     def iter_conversation_turns(
         self, records: list[TranscriptRecord], include_sidechains: bool = False
     ) -> Iterator[ConversationTurn]:
-        """Thread records into conversation turns (user → assistant pairs).
+        """Thread records into conversation turns (user -> assistant pairs).
 
         Args:
             records: Parsed transcript records (should be sorted by timestamp).
             include_sidechains: Whether to include subagent conversations.
 
         Yields:
-            ConversationTurn objects representing complete user→assistant exchanges.
+            ConversationTurn objects representing complete user->assistant exchanges.
         """
         # Filter to signal-bearing records
         filtered = [
@@ -629,7 +629,7 @@ class ClaudeAIParser:
     - users.json: User profile
 
     Messages have content[] blocks (text, tool_use, tool_result).
-    IMPORTANT: Always parse content[] as canonical source — the `text` field
+    IMPORTANT: Always parse content[] as canonical source -- the `text` field
     is a display-oriented flattening that drops tool blocks and has mismatches
     in ~13% of messages.
 

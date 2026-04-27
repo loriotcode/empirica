@@ -17,7 +17,7 @@ NOTE on proxy limitations: All evidence sources here are deterministic proxies.
 Test pass rates approximate 'know' but miss conceptual understanding depth.
 Git metrics approximate 'do' but miss quality of thought behind changes.
 Artifact counts approximate 'signal' but can't judge relevance of what was logged.
-The calibration gaps computed here are drift indicators — useful for detecting
+The calibration gaps computed here are drift indicators -- useful for detecting
 systematic bias patterns over time, but not ground truth for any single transaction.
 """
 
@@ -56,15 +56,15 @@ META_VECTORS = {"uncertainty"}
 #   sentinel, pytest, git, code_quality
 #
 # Semantics:
-#   missing source key   → defaults to 1.0 (full weight, neutral)
-#   value == 0.0         → EXCLUDED. The source is instrument-blind for this
+#   missing source key   -> defaults to 1.0 (full weight, neutral)
+#   value == 0.0         -> EXCLUDED. The source is instrument-blind for this
 #                          work_type and is filtered out of the evidence pool
 #                          entirely. Vectors that ONLY had evidence from
 #                          excluded sources will be marked insufficient_evidence
 #                          and will fall back to the AI's self-assessment
 #                          (no fabricated grounded value, no false drift).
-#   0.0 < value < 1.0    → down-weight (still contributes but reduced)
-#   value > 1.0          → up-weight (primary evidence for this work_type)
+#   0.0 < value < 1.0    -> down-weight (still contributes but reduced)
+#   value > 1.0          -> up-weight (primary evidence for this work_type)
 #
 # Design principle: when the instrument can't sample the work, report honest
 # absence (None) rather than computing a misleading score from absent signal.
@@ -73,10 +73,10 @@ META_VECTORS = {"uncertainty"}
 #
 # History: This dict previously used keys like "git_metrics", "test_results",
 # "goal_completion", "artifact_counts" which DID NOT MATCH the source IDs
-# emitted by collector.py — making the entire work_type scaling a silent no-op.
+# emitted by collector.py -- making the entire work_type scaling a silent no-op.
 # Fixed 2026-04-07 along with adding the 0.0 = excluded semantic.
 WORK_TYPE_RELEVANCE: dict[str, dict[str, float]] = {
-    # code: baseline — all sources at default 1.0 weight
+    # code: baseline -- all sources at default 1.0 weight
     "code": {},
 
     # infra: infrastructure changes (yaml, dockerfile, k8s manifests)
@@ -157,7 +157,7 @@ WORK_TYPE_RELEVANCE: dict[str, dict[str, float]] = {
     # remote-ops: work done on a machine the local Sentinel doesn't observe
     # (SSH sessions, customer machines, remote config, deploys without local
     # commits, on-site assistance). No source can ground vectors for this
-    # work — every collector is set to 0.0 relevance, which routes every
+    # work -- every collector is set to 0.0 relevance, which routes every
     # vector that had any evidence to insufficient_evidence_vectors.
     # The AI's self-assessment stands unchallenged.
     #
@@ -167,7 +167,7 @@ WORK_TYPE_RELEVANCE: dict[str, dict[str, float]] = {
     #
     # Note: every known collector source is listed explicitly so nothing
     # defaults to the 1.0 multiplier. Adding a new collector source means
-    # adding it here too — the test_remote_ops_covers_all_known_collector_sources
+    # adding it here too -- the test_remote_ops_covers_all_known_collector_sources
     # regression test will catch the omission.
     "remote-ops": {
         "artifacts": 0.0,
@@ -208,14 +208,14 @@ class GroundedAssessment:
     Three-vector model (A3 Wave 1, SPEC 1 Part 3):
     - self_assessed: AI's PREFLIGHT/POSTFLIGHT vectors (unchanged)
     - grounded: service-computed observations mapped to vectors
-      (NOTE: this field holds what SPEC 1 calls "observed" — the rename
+      (NOTE: this field holds what SPEC 1 calls "observed" -- the rename
       to an explicit observed/grounded split happens when B3 wires the
       AI-reasoned grounded state. Until then, the field name stays to
       avoid breaking 6+ consumers.)
     - grounded_rationale: AI's reasoning for divergence (B3 will populate)
 
     insufficient_evidence_vectors lists vector names that had ALL their
-    evidence sources excluded for the current work_type — meaning the
+    evidence sources excluded for the current work_type -- meaning the
     instrument is fundamentally blind to this kind of work for these vectors.
 
     calibration_status uses ComplianceStatus enum values (string-compatible).
@@ -231,7 +231,7 @@ class GroundedAssessment:
     phase: str = "combined"
     insufficient_evidence_vectors: list[str] = None  # type: ignore[assignment]
     calibration_status: str = "grounded"
-    # A3 additions — optional with defaults for backward compatibility
+    # A3 additions -- optional with defaults for backward compatibility
     grounded_rationale: str | None = None
     criticality: str | None = None
     parent_transaction_id: str | None = None
@@ -242,12 +242,12 @@ class GroundedAssessment:
 
     @property
     def observed(self) -> dict[str, GroundedVectorEstimate]:
-        """Alias for 'grounded' — the SPEC 1 name for service-computed vectors.
+        """Alias for 'grounded' -- the SPEC 1 name for service-computed vectors.
 
         The field is named 'grounded' for backward compatibility. When B3
         wires the AI-reasoned grounded state, the distinction becomes:
-        - self.observed → what the services measured
-        - self.grounded → what the AI reasoned (not yet implemented)
+        - self.observed -> what the services measured
+        - self.grounded -> what the AI reasoned (not yet implemented)
         For now they are the same object.
         """
         return self.grounded
@@ -271,7 +271,7 @@ def _load_domain_weights(domain: str = "default", work_type: str | None = None) 
     config_path = Path(__file__).parent.parent.parent / "config" / "mco" / "confidence_weights.yaml"
     defaults = {
         # Categories: foundation, comprehension, execution, meta.
-        # Renamed from "engagement" → "meta" on 2026-04-07 — the 4th
+        # Renamed from "engagement" -> "meta" on 2026-04-07 -- the 4th
         # category contains both engagement AND uncertainty (relational
         # vectors), so "meta" is the truth-aligned name.
         "category_weights": {"foundation": 0.35, "comprehension": 0.25, "execution": 0.25, "meta": 0.15},
@@ -290,7 +290,7 @@ def _load_domain_weights(domain: str = "default", work_type: str | None = None) 
         return defaults
 
     try:
-        with open(config_path) as f:
+        with open(config_path, encoding='utf-8') as f:
             config = yaml.safe_load(f) or {}
 
         vector_map = config.get("vector_category_map", defaults["vector_category_map"])
@@ -334,14 +334,14 @@ def _compute_meta_uncertainty(
     """Compute the grounded uncertainty observation as a META quantity.
 
     Uncertainty = "how confident is the AI in the other 12 vectors it just
-    reported?" — derived from the coverage (how much we could verify) and
+    reported?" -- derived from the coverage (how much we could verify) and
     gap magnitudes (how wrong the verified parts were) of the OTHER vectors.
 
     NOTE: This value is computed for FEEDBACK and REPORTING only. It appears
     in calibration_gaps so the AI can see the divergence, and it gates CHECK
     via the uncertainty threshold. However, it is EXCLUDED from the calibration
     score computation because its grounded value is derived from the same gaps
-    it would be scored against — a circular dependency that adds noise, not signal.
+    it would be scored against -- a circular dependency that adds noise, not signal.
 
     This aligns with the statusline's confidence formula, which treats
     confidence as a derived display quantity computed from know/context/
@@ -362,7 +362,7 @@ def _compute_meta_uncertainty(
             Scaled so a mean gap of 0.5 = max uncertainty contribution.
             Uses absolute gaps to treat over- and under-estimation equally.
         uncertainty = 0.4 * coverage_u + 0.6 * gap_u
-            Gaps weighted more heavily than coverage — actually being wrong
+            Gaps weighted more heavily than coverage -- actually being wrong
             is a stronger uncertainty signal than having less evidence.
 
     Args:
@@ -373,7 +373,7 @@ def _compute_meta_uncertainty(
 
     Returns:
         Float in [0.0, 1.0], or None if there's nothing to compute from
-        (no grounded vectors → insufficient evidence for meta-uncertainty).
+        (no grounded vectors -> insufficient evidence for meta-uncertainty).
     """
     # Use gaps from OTHER vectors (exclude meta vectors to avoid circularity)
     other_gaps = [
@@ -385,16 +385,16 @@ def _compute_meta_uncertainty(
     if not other_gaps and grounded_coverage == 0:
         return None
 
-    # Coverage term: missing evidence → uncertainty
+    # Coverage term: missing evidence -> uncertainty
     coverage_uncertainty = max(0.0, 1.0 - grounded_coverage)
 
-    # Gap term: wrong predictions → uncertainty.
+    # Gap term: wrong predictions -> uncertainty.
     # Scale so mean gap of 0.5 = max uncertainty contribution.
     if other_gaps:
         mean_gap = sum(other_gaps) / len(other_gaps)
         gap_uncertainty = min(1.0, mean_gap * 2.0)
     else:
-        # Coverage exists but no gap data — use coverage alone
+        # Coverage exists but no gap data -- use coverage alone
         gap_uncertainty = 0.0
 
     # Weighted combination: gaps matter more than coverage absence
@@ -416,7 +416,7 @@ def _compute_weighted_calibration(
     Resolution: work_type > domain > default (the triad).
 
     Args:
-        calibration_gaps: Dict of vector_name → gap (self - grounded)
+        calibration_gaps: Dict of vector_name -> gap (self - grounded)
         domain: Domain for Tier 1 category weights
         per_vector_weights: Optional Tier 2 per-vector weights (from project.yaml)
 
@@ -464,7 +464,7 @@ def summarize_evidence(bundle: EvidenceBundle, work_type: str | None = None) -> 
 
     Instead of mapping evidence to per-vector scores, presents raw
     evidence grouped by source. The AI interprets this to calibrate
-    its own vectors — it's the calibrator, not the system.
+    its own vectors -- it's the calibrator, not the system.
     """
     relevance = WORK_TYPE_RELEVANCE.get(work_type, {}) if work_type else {}
 
@@ -496,7 +496,7 @@ def _signal_artifact_breadth(summary: dict) -> str | None:
         return None
     artifact_types = [k for k, v in artifacts.items() if isinstance(v, (int, float)) and v > 0]
     if len(artifact_types) <= 1:
-        return "Narrow artifact breadth — consider logging decisions, assumptions, or dead-ends"
+        return "Narrow artifact breadth -- consider logging decisions, assumptions, or dead-ends"
     if len(artifact_types) >= 4:
         return f"Good artifact breadth ({len(artifact_types)} types)"
     return None
@@ -508,10 +508,10 @@ def _signal_git_activity(summary: dict) -> str | None:
     if not git:
         return None
     commit_data = git.get("commit_count", 0)
-    # raw_value is a dict like {"commits": N, "maturity": "..."} — extract the int
+    # raw_value is a dict like {"commits": N, "maturity": "..."} -- extract the int
     commits = commit_data.get("commits", 0) if isinstance(commit_data, dict) else commit_data
     if commits == 0:
-        return "No commits in this transaction — uncommitted work is invisible to calibration"
+        return "No commits in this transaction -- uncommitted work is invisible to calibration"
     if commits >= 3:
         return f"Active execution ({commits} commits)"
     return None
@@ -618,7 +618,7 @@ class EvidenceMapper:
             (instrument-blind: cannot sample the kind of work being done).
           - Sources with relevance > 0.0 contribute with that multiplier.
           - Vectors that ONLY had evidence from excluded sources are marked
-            insufficient_evidence — no grounded value is computed, no gap
+            insufficient_evidence -- no grounded value is computed, no gap
             is recorded, no false drift is written to the trajectory.
             The AI's self-assessment stands as the best available estimate.
         """
@@ -685,7 +685,7 @@ class EvidenceMapper:
 
         # Compute calibration gaps (self - grounded)
         # Positive = AI overestimates, Negative = AI underestimates.
-        # Insufficient-evidence vectors are NOT included — no fabricated drift.
+        # Insufficient-evidence vectors are NOT included -- no fabricated drift.
         calibration_gaps = {}
         for vector_name, estimate in grounded.items():
             self_val = self_assessed_vectors.get(vector_name, 0.5)
@@ -696,7 +696,7 @@ class EvidenceMapper:
         # Meta-uncertainty computation: uncertainty is derived from the
         # OTHER 12 vectors' coverage and gap magnitudes, not from direct
         # measurement of first-order doubt proxies. See statusline's
-        # confidence formula — this keeps the vector layer aligned with
+        # confidence formula -- this keeps the vector layer aligned with
         # how the UI already presents calibration state.
         #
         # Only computed when self_assessed has uncertainty (so we can
@@ -716,11 +716,11 @@ class EvidenceMapper:
                 self_u = self_assessed_vectors["uncertainty"]
                 calibration_gaps["uncertainty"] = round(self_u - meta_u, 4)
 
-        # Overall calibration score — work-type/domain-weighted (Tier 1 + optional Tier 2)
+        # Overall calibration score -- work-type/domain-weighted (Tier 1 + optional Tier 2)
         # Exclude uncertainty from scoring: it's a meta-vector whose "grounded"
         # value is derived from the same gaps it would be scored against (circular).
         # Uncertainty still appears in calibration_gaps for feedback/reporting
-        # and still gates CHECK — it's just not part of the Brier score.
+        # and still gates CHECK -- it's just not part of the Brier score.
         scoring_gaps = {k: v for k, v in calibration_gaps.items() if k != "uncertainty"}
         overall_score = _compute_weighted_calibration(
             scoring_gaps, domain=domain, per_vector_weights=per_vector_weights,

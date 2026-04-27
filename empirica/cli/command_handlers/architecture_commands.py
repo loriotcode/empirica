@@ -119,11 +119,11 @@ def _print_assessment_text(assessment):
     print(f"Path: {assessment.component_path}")
     print(f"Analyzed: {assessment.analyzed_at.strftime('%Y-%m-%d %H:%M:%S')}")
 
-    print(f"\n📊 CONFIDENCE: {confidence:.0%} | RISK: {risk_color}{assessment.risk_level.upper()}{reset}")
+    print(f"\n[STATS] CONFIDENCE: {confidence:.0%} | RISK: {risk_color}{assessment.risk_level.upper()}{reset}")
 
-    print(f"\n{'─'*60}")
-    print("📈 EPISTEMIC VECTORS")
-    print(f"{'─'*60}")
+    print(f"\n{'-'*60}")
+    print("[UP] EPISTEMIC VECTORS")
+    print(f"{'-'*60}")
 
     # Group vectors by category
     foundation = [
@@ -156,7 +156,7 @@ def _print_assessment_text(assessment):
         bar_width = 20
         filled = int(value * bar_width)
         bar = '█' * filled + '░' * (bar_width - filled)
-        indicator = ' ⚠' if inverted and value > 0.6 else ''
+        indicator = ' [WARN]' if inverted and value > 0.6 else ''
         print(f"  {name:12s} [{bar}] {value:.0%}{indicator}")
 
     print("\nFoundation:")
@@ -178,9 +178,9 @@ def _print_assessment_text(assessment):
     # Coupling metrics
     if assessment.coupling:
         c = assessment.coupling
-        print(f"\n{'─'*60}")
-        print("🔗 COUPLING METRICS")
-        print(f"{'─'*60}")
+        print(f"\n{'-'*60}")
+        print("[LINK] COUPLING METRICS")
+        print(f"{'-'*60}")
         print(f"  Afferent (incoming):  {c.afferent_coupling}")
         print(f"  Efferent (outgoing):  {c.efferent_coupling}")
         print(f"  Instability:          {c.instability:.2f}")
@@ -190,14 +190,14 @@ def _print_assessment_text(assessment):
         print(f"  Public functions:     {c.public_functions}")
         print(f"  Private functions:    {c.private_functions}")
         if c.leaked_internals:
-            print(f"  ⚠️ Leaked internals:   {c.leaked_internals}")
+            print(f"  [WARN] Leaked internals:   {c.leaked_internals}")
 
     # Stability metrics
     if assessment.stability:
         s = assessment.stability
-        print(f"\n{'─'*60}")
-        print("📉 STABILITY METRICS")
-        print(f"{'─'*60}")
+        print(f"\n{'-'*60}")
+        print("[DOWN] STABILITY METRICS")
+        print(f"{'-'*60}")
         print(f"  Total commits:        {s.total_commits}")
         print(f"  Recent (30d):         {s.recent_commits_30d}")
         print(f"  Unique authors:       {s.unique_authors}")
@@ -210,17 +210,17 @@ def _print_assessment_text(assessment):
 
     # Recommendations
     if assessment.recommendations:
-        print(f"\n{'─'*60}")
-        print("💡 RECOMMENDATIONS")
-        print(f"{'─'*60}")
+        print(f"\n{'-'*60}")
+        print("[HINT] RECOMMENDATIONS")
+        print(f"{'-'*60}")
         for i, rec in enumerate(assessment.recommendations, 1):
             print(f"  {i}. {rec}")
 
     # Priority improvements
     if assessment.improvement_priority:
-        print(f"\n{'─'*60}")
-        print("🎯 PRIORITY IMPROVEMENTS")
-        print(f"{'─'*60}")
+        print(f"\n{'-'*60}")
+        print("[TARGET] PRIORITY IMPROVEMENTS")
+        print(f"{'-'*60}")
         print(f"  Focus on: {', '.join(assessment.improvement_priority)}")
 
     print(f"\n{'='*60}\n")
@@ -229,11 +229,11 @@ def _print_assessment_text(assessment):
 def _print_comparison_text(comparison):
     """Print comparison in text format."""
     print(f"\n{'='*60}")
-    print("🔍 COMPONENT COMPARISON")
+    print("[SEARCH] COMPONENT COMPARISON")
     print(f"{'='*60}")
 
     print(f"\n{comparison['component_a']:^29s} vs {comparison['component_b']:^29s}")
-    print(f"{'─'*60}")
+    print(f"{'-'*60}")
 
     # Confidence and risk
     conf_a = comparison['confidence_a']
@@ -242,13 +242,13 @@ def _print_comparison_text(comparison):
     print(f"  Risk:        {comparison['risk_a']:20s} {comparison['risk_b']}")
 
     # Vector differences
-    print(f"\n{'─'*60}")
+    print(f"\n{'-'*60}")
     print("Vector Differences (A - B):")
-    print(f"{'─'*60}")
+    print(f"{'-'*60}")
 
     for vector, diff in comparison['vector_differences'].items():
         if abs(diff) > 0.1:
-            direction = "←" if diff < 0 else "→"
+            direction = "<-" if diff < 0 else "->"
             print(f"  {vector:12s}: {diff:+.0%} {direction}")
 
     print(f"\n🏆 Healthier: {comparison['healthier']}")
@@ -258,7 +258,7 @@ def _print_comparison_text(comparison):
 def _print_directory_assessment(assessments, top_n, target_dir):
     """Print directory assessment summary."""
     print(f"\n{'='*60}")
-    print(f"📁 DIRECTORY ASSESSMENT: {target_dir.name}")
+    print(f"[DIR] DIRECTORY ASSESSMENT: {target_dir.name}")
     print(f"{'='*60}")
     print(f"Total files assessed: {len(assessments)}")
 
@@ -273,14 +273,14 @@ def _print_directory_assessment(assessments, top_n, target_dir):
         print(f"Risk distribution: 🟢 {risk_counts['low']} low | 🟡 {risk_counts['medium']} medium | 🔴 {risk_counts['high']} high | 💀 {risk_counts['critical']} critical")
 
     # Worst components
-    print(f"\n{'─'*60}")
-    print(f"⚠️ TOP {top_n} WORST COMPONENTS (by confidence)")
-    print(f"{'─'*60}")
+    print(f"\n{'-'*60}")
+    print(f"[WARN] TOP {top_n} WORST COMPONENTS (by confidence)")
+    print(f"{'-'*60}")
 
     for i, assessment in enumerate(assessments[:top_n], 1):
         conf = assessment.vectors.confidence_score()
         risk_symbols = {'low': '🟢', 'medium': '🟡', 'high': '🔴', 'critical': '💀'}
-        symbol = risk_symbols.get(assessment.risk_level, '❓')
+        symbol = risk_symbols.get(assessment.risk_level, '[?]')
 
         # Truncate path for display
         display_path = str(Path(assessment.component_path).relative_to(target_dir))

@@ -110,7 +110,7 @@ def format_item(weight: float, item: dict, item_type: str) -> str:
     elif item_type == 'dead_end':
         approach = item.get('approach', '?')
         why_failed = item.get('why_failed', '?')
-        text = f"{approach} → {why_failed}"
+        text = f"{approach} -> {why_failed}"
     elif item_type == 'goal':
         text = item.get('objective', 'Unknown goal')
         status = item.get('status', 'pending')
@@ -120,7 +120,7 @@ def format_item(weight: float, item: dict, item_type: str) -> str:
         importance = item.get('importance', 'medium')
         goal_context = item.get('goal_objective', '')
         if goal_context:
-            text = f"[{importance}] {text} (→ {goal_context})"
+            text = f"[{importance}] {text} (-> {goal_context})"
         else:
             text = f"[{importance}] {text}"
     elif item_type == 'mistake':
@@ -225,7 +225,7 @@ def format_epistemic_focus(
 
     # Retrieval guidance footer
     session_hint = f" --session-id {session_id}" if session_id else ""
-    lines.append(f"📊 **{len(ranked)} items ranked** | For deeper context:")
+    lines.append(f"[STATS] **{len(ranked)} items ranked** | For deeper context:")
     lines.append(f"- `empirica project-bootstrap{session_hint}` (full load + subtasks)")
     lines.append("- `empirica project-search --task \"<query>\"` (Qdrant semantic)")
     lines.append("- `git notes show --ref=breadcrumbs HEAD` (session narrative)\n")

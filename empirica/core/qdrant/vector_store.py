@@ -1,6 +1,6 @@
 # pyright: reportUnusedImport=false
 """
-Qdrant vector store for Empirica projects — backward-compatible re-export shim.
+Qdrant vector store for Empirica projects -- backward-compatible re-export shim.
 
 All implementations have been modularized into sub-modules:
   connection.py      - Client, availability, embedding infrastructure

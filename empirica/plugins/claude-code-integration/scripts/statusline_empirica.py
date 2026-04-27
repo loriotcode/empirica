@@ -29,8 +29,8 @@ from pathlib import Path
 EMPIRICA_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(EMPIRICA_ROOT))
 
-from empirica.core.signaling import format_vectors_compact  # noqa: E402 — after sys.path setup
-from empirica.data.session_database import SessionDatabase  # noqa: E402 — after sys.path setup
+from empirica.core.signaling import format_vectors_compact  # noqa: E402 -- after sys.path setup
+from empirica.data.session_database import SessionDatabase  # noqa: E402 -- after sys.path setup
 
 
 # ANSI color codes
@@ -241,7 +241,7 @@ def format_open_counts(open_counts: dict | None) -> str:
     Shows what needs to be closed - useful for peeking into AI reality.
 
     Returns:
-        String like "🎯3 ❓6/4" (3 goals, 6 unknowns total, 4 goal-linked blockers)
+        String like "[TARGET]3 [?]6/4" (3 goals, 6 unknowns total, 4 goal-linked blockers)
     """
     if not open_counts:
         return f"{Colors.GRAY}--{Colors.RESET}"
@@ -266,13 +266,13 @@ def format_open_counts(open_counts: dict | None) -> str:
     else:
         unknown_color = Colors.CYAN
 
-    # Format: ❓total/blockers (e.g., ❓119/70 means 119 unresolved, 70 blocking goals)
+    # Format: [?]total/blockers (e.g., [?]119/70 means 119 unresolved, 70 blocking goals)
     if goal_linked > 0 and goal_linked != unknowns:
-        unknown_str = f"❓{unknowns}/{goal_linked}"
+        unknown_str = f"[?]{unknowns}/{goal_linked}"
     else:
-        unknown_str = f"❓{unknowns}"
+        unknown_str = f"[?]{unknowns}"
 
-    return f"{goal_color}🎯{goals}{Colors.RESET} {unknown_color}{unknown_str}{Colors.RESET}"
+    return f"{goal_color}[TARGET]{goals}{Colors.RESET} {unknown_color}{unknown_str}{Colors.RESET}"
 
 
 def format_goal_progress(goal: dict, max_name_len: int = 12) -> str:
@@ -341,16 +341,16 @@ def format_confidence(confidence: float) -> str:
 
     if confidence >= 0.75:
         color = Colors.BRIGHT_GREEN
-        emoji = "⚡"  # High energy/power
+        emoji = "[FAST]"  # High energy/power
     elif confidence >= 0.50:
         color = Colors.GREEN
-        emoji = "💡"  # Good understanding
+        emoji = "[HINT]"  # Good understanding
     elif confidence >= 0.35:
         color = Colors.YELLOW
-        emoji = "💫"  # Some uncertainty
+        emoji = "~"  # Some uncertainty
     else:
         color = Colors.RED
-        emoji = "🌑"  # Low confidence/dark
+        emoji = "-"  # Low confidence/dark
 
     return f"{emoji}{color}{pct}%{Colors.RESET}"
 
@@ -384,7 +384,7 @@ def get_dynamic_threshold(db) -> tuple:
                 inflation = noetic.get("threshold_inflation", 0)
                 # Color by inflation level (how much the Sentinel distrusts the AI)
                 if inflation <= 0.03:
-                    color = Colors.BRIGHT_GREEN  # Trusted — at baseline
+                    color = Colors.BRIGHT_GREEN  # Trusted -- at baseline
                 elif inflation <= 0.10:
                     color = Colors.YELLOW         # Moderate inflation
                 else:
@@ -396,9 +396,9 @@ def get_dynamic_threshold(db) -> tuple:
 
 
 def format_threshold(know_threshold: float, color: str) -> str:
-    """Format threshold as colored percentage with ↕ indicator."""
+    """Format threshold as colored percentage with <-> indicator."""
     pct = int(know_threshold * 100)
-    return f"{color}↕{pct}%{Colors.RESET}"
+    return f"{color}<->{pct}%{Colors.RESET}"
 
 
 def calculate_phase_composite(vectors: dict, phase: str) -> float:
@@ -407,7 +407,7 @@ def calculate_phase_composite(vectors: dict, phase: str) -> float:
     Noetic (investigating): avg of clarity, coherence, signal, density
     Praxic (acting): avg of state, change, completion, impact
     Check (readiness gate): avg of know, context, clarity, coherence, signal, density
-      — CHECK evaluates readiness-to-act, not execution progress
+      -- CHECK evaluates readiness-to-act, not execution progress
     """
     if not vectors:
         return 0.0
@@ -427,10 +427,10 @@ def determine_work_phase(phase: str, gate_decision: str | None = None) -> str:
     """Determine if AI is in noetic (investigating) or praxic (acting) mode.
 
     Logic:
-      PREFLIGHT / CHECK with investigate → noetic
-      CHECK with proceed → transitioning to praxic
-      POSTFLIGHT → last phase (show praxic since work completed)
-      No phase → noetic (default to investigating)
+      PREFLIGHT / CHECK with investigate -> noetic
+      CHECK with proceed -> transitioning to praxic
+      POSTFLIGHT -> last phase (show praxic since work completed)
+      No phase -> noetic (default to investigating)
     """
     if not phase:
         return 'noetic'
@@ -446,7 +446,7 @@ def determine_work_phase(phase: str, gate_decision: str | None = None) -> str:
 def format_phase_state(phase: str, work_phase: str, composite: float, gate_decision: str | None = None) -> str:
     """Format transaction phase + work state as compact indicator.
 
-    Examples: PRE 🔍65% | CHK 🔍82%→ | CHK ⚙65%… | POST ⚙92% Δ ✓
+    Examples: PRE [SEARCH]65% | CHK [SEARCH]82%-> | CHK ⚙65%... | POST ⚙92% D [OK]
     """
     # Phase abbreviation
     phase_abbrev = {
@@ -457,7 +457,7 @@ def format_phase_state(phase: str, work_phase: str, composite: float, gate_decis
 
     # Work state emoji + composite
     if work_phase == 'noetic':
-        emoji = "🔍"
+        emoji = "[SEARCH]"
     else:
         emoji = "⚙"
 
@@ -467,9 +467,9 @@ def format_phase_state(phase: str, work_phase: str, composite: float, gate_decis
     # CHECK with decision: show percentage AND transition indicator
     if phase == 'CHECK' and gate_decision:
         if gate_decision == 'proceed':
-            return f"{Colors.BLUE}{phase_abbrev}{Colors.RESET} {emoji}{color}{pct}%{Colors.GREEN}→{Colors.RESET}"
+            return f"{Colors.BLUE}{phase_abbrev}{Colors.RESET} {emoji}{color}{pct}%{Colors.GREEN}->{Colors.RESET}"
         else:
-            return f"{Colors.BLUE}{phase_abbrev}{Colors.RESET} {emoji}{color}{pct}%{Colors.YELLOW}…{Colors.RESET}"
+            return f"{Colors.BLUE}{phase_abbrev}{Colors.RESET} {emoji}{color}{pct}%{Colors.YELLOW}...{Colors.RESET}"
 
     return f"{Colors.BLUE}{phase_abbrev}{Colors.RESET} {emoji}{color}{pct}%{Colors.RESET}"
 
@@ -566,7 +566,7 @@ def _read_project_path_from_json(file_path: Path, key: str = 'project_path') -> 
     try:
         import json as _json
         if file_path.exists():
-            with open(file_path) as f:
+            with open(file_path, encoding='utf-8') as f:
                 pp = _json.load(f).get(key)
             if pp and _has_db(pp):
                 return pp
@@ -679,7 +679,7 @@ def _search_session_files(cursor, start_dir: Path, filename: str) -> dict | None
 
 
 def _get_session_from_instance_projects(cursor):
-    """Priority 0: instance_projects → empirica_session_id. Returns dict or None."""
+    """Priority 0: instance_projects -> empirica_session_id. Returns dict or None."""
     try:
         import json as _json
 
@@ -688,7 +688,7 @@ def _get_session_from_instance_projects(cursor):
         if inst_id:
             inst_file = Path.home() / '.empirica' / 'instance_projects' / f'{inst_id}.json'
             if inst_file.exists():
-                with open(inst_file) as f:
+                with open(inst_file, encoding='utf-8') as f:
                     session_id = _json.load(f).get('empirica_session_id')
                 return _lookup_session_by_id(cursor, session_id, require_active=False)
     except Exception:
@@ -697,7 +697,7 @@ def _get_session_from_instance_projects(cursor):
 
 
 def _get_session_from_claude_id(cursor, stdin_claude_session_id):
-    """Priority 1: Claude session_id → active_work/TTY → empirica_session_id. Returns dict or None."""
+    """Priority 1: Claude session_id -> active_work/TTY -> empirica_session_id. Returns dict or None."""
     try:
         import json as _json
         claude_session_id = _resolve_claude_session_id(stdin_claude_session_id)
@@ -707,7 +707,7 @@ def _get_session_from_claude_id(cursor, stdin_claude_session_id):
         empirica_session_id = None
         active_work_path = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if active_work_path.exists():
-            with open(active_work_path) as f:
+            with open(active_work_path, encoding='utf-8') as f:
                 empirica_session_id = _json.load(f).get('empirica_session_id')
 
         if not empirica_session_id:
@@ -771,8 +771,8 @@ def get_active_session(db: SessionDatabase, ai_id: str, stdin_claude_session_id:
     Get the active session with strict pane isolation.
 
     Priority:
-    0. instance_projects → empirica_session_id
-    1. Claude session_id → active_work → empirica_session_id
+    0. instance_projects -> empirica_session_id
+    1. Claude session_id -> active_work -> empirica_session_id
     2. Instance-specific active_session files / DB query
 
     IMPORTANT: Never fall back to instance_id IS NULL - that causes
@@ -873,7 +873,7 @@ def get_latest_vectors(db: SessionDatabase, session_id: str, transaction_session
 
 def get_vector_deltas(db: SessionDatabase, session_id: str) -> dict:
     """
-    Get learning deltas: PREFLIGHT → POSTFLIGHT only.
+    Get learning deltas: PREFLIGHT -> POSTFLIGHT only.
 
     This measures actual learning across the session, ignoring CHECK
     phases which are for gating, not learning measurement.
@@ -933,7 +933,7 @@ def get_vector_deltas(db: SessionDatabase, session_id: str) -> dict:
 def format_deltas(deltas: dict) -> str:
     """Format deltas as a single summary symbol to prevent statusline overflow.
 
-    Returns: green ✓ (net positive), red ⚠ (net negative), or white △ (neutral).
+    Returns: green [OK] (net positive), red [WARN] (net negative), or white ~ (neutral).
     """
     if not deltas:
         return ""
@@ -948,11 +948,11 @@ def format_deltas(deltas: dict) -> str:
             net += delta
 
     if net > 0.05:
-        return f"{Colors.GREEN}✓{Colors.RESET}"
+        return f"{Colors.GREEN}[OK]{Colors.RESET}"
     elif net < -0.05:
-        return f"{Colors.RED}⚠{Colors.RESET}"
+        return f"{Colors.RED}[WARN]{Colors.RESET}"
     else:
-        return f"{Colors.WHITE}△{Colors.RESET}"
+        return f"{Colors.WHITE}~{Colors.RESET}"
 
 
 def format_context_window(stdin_context: dict) -> str:
@@ -993,7 +993,7 @@ def _append_postflight_deltas(parts, phase, deltas):
     if phase == 'POSTFLIGHT' and deltas:
         delta_str = format_deltas(deltas)
         if delta_str:
-            parts.append(f"Δ {delta_str}")
+            parts.append(f"D {delta_str}")
 
 
 def _format_statusline_header(project_name, vectors, threshold_info):
@@ -1044,7 +1044,7 @@ def _format_statusline_default(parts, phase, vectors, deltas, gate_decision, ope
         if ctx_str:
             parts.append(ctx_str)
 
-    return ' │ '.join(parts)
+    return ' | '.join(parts)
 
 
 def _format_statusline_learning(parts, phase, vectors, deltas, open_counts):
@@ -1059,7 +1059,7 @@ def _format_statusline_learning(parts, phase, vectors, deltas, open_counts):
         parts.append(format_vectors_compact(vectors, keys=all_keys, use_percentage=True))
 
     _append_postflight_deltas(parts, phase, deltas)
-    return ' │ '.join(parts)
+    return ' | '.join(parts)
 
 
 def _format_statusline_full(label, session, phase, vectors, deltas, goal):
@@ -1085,7 +1085,7 @@ def _format_statusline_full(label, session, phase, vectors, deltas, goal):
         parts.append(format_vectors_compact(vectors, keys=all_keys, use_percentage=True))
 
     _append_postflight_deltas(parts, phase, deltas)
-    return ' │ '.join(parts)
+    return ' | '.join(parts)
 
 
 def format_statusline(
@@ -1188,19 +1188,19 @@ def format_tmux_statusline(confidence: float, phase: str) -> str:
     Format a super-compact statusline for tmux status-right.
 
     Target: ~20 characters max for tmux status bar
-    Format: "E:💡63% PRE"
+    Format: "E:[HINT]63% PRE"
     """
     pct = int(confidence * 100) if confidence else 0
 
     # Confidence emoji (no ANSI colors for tmux)
     if confidence >= 0.75:
-        emoji = "⚡"
+        emoji = "[FAST]"
     elif confidence >= 0.50:
-        emoji = "💡"
+        emoji = "[HINT]"
     elif confidence >= 0.35:
-        emoji = "💫"
+        emoji = "~"
     else:
-        emoji = "🌑"
+        emoji = "-"
 
     # Phase abbreviation
     phase_abbrev = {
@@ -1295,7 +1295,7 @@ def _read_open_transaction(project_path) -> tuple:
         else:
             tx_path = Path.home() / '.empirica' / f'active_transaction{suffix}.json'
         if tx_path and tx_path.exists():
-            with open(tx_path) as f:
+            with open(tx_path, encoding='utf-8') as f:
                 tx_data = _json.load(f)
             if tx_data.get('status') == 'open':
                 return tx_data.get('session_id'), tx_data.get('transaction_id')
@@ -1385,7 +1385,7 @@ def main():
         print(f"{Colors.GRAY}[empirica:error]{Colors.RESET}")
         try:
             from empirica.config.path_resolver import get_empirica_root
-            with open(get_empirica_root() / 'statusline.log', 'a') as f:
+            with open(get_empirica_root(, encoding='utf-8') / 'statusline.log', 'a') as f:
                 f.write(f"ERROR: {e}\n")
         except Exception:
             pass

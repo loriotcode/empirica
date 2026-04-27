@@ -144,7 +144,7 @@ class CheckpointStorage:
 
         for filepath in checkpoint_files:
             try:
-                with open(filepath) as f:
+                with open(filepath, encoding='utf-8') as f:
                     checkpoint = json.load(f)
 
                 # Check age
@@ -185,7 +185,7 @@ class CheckpointStorage:
             filename = f"checkpoint_{phase}_{round_num}_{timestamp}.json"
             filepath = checkpoint_dir / filename
 
-            with open(filepath, 'w') as f:
+            with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(checkpoint, f, indent=2)
 
             logger.debug(f"Checkpoint saved to JSON: {filepath}")

@@ -150,7 +150,7 @@ def _load_user_profile() -> dict:
             wp_path = Path.home() / ".empirica" / "workflow-protocol.yaml"
         if wp_path.exists():
             import yaml
-            with open(wp_path) as wp_f:
+            with open(wp_path, encoding='utf-8') as wp_f:
                 wp = yaml.safe_load(wp_f)
             if wp:
                 up = wp.get("user_profile", {})
@@ -177,7 +177,7 @@ def _write_cortex_cache(sync_result: dict, sync_project_id: str) -> dict:
 
     cache_file = Path.home() / ".empirica" / f"cortex_remote_cache{_suffix}.json"
     cache_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(cache_file, "w") as cf:
+    with open(cache_file, "w", encoding='utf-8') as cf:
         json.dump({
             "timestamp": _sync_time.time(),
             "project_id": sync_project_id,
@@ -195,7 +195,7 @@ def _write_cortex_cache(sync_result: dict, sync_project_id: str) -> dict:
 def _cortex_remote_sync(result: dict) -> None:
     """Pull cross-domain context from Cortex at session start.
 
-    Graceful degradation — if Cortex unavailable, session continues normally.
+    Graceful degradation -- if Cortex unavailable, session continues normally.
     """
     cortex_api_key = os.environ.get('CORTEX_API_KEY', '')
     cortex_url = os.environ.get('CORTEX_REMOTE_URL', '')
@@ -229,7 +229,7 @@ def _cortex_remote_sync(result: dict) -> None:
         method="POST",
     )
 
-    with urllib.request.urlopen(req, timeout=10) as resp:
+    with urllib.request.urlopen(req, timeout=10, encoding='utf-8') as resp:
         sync_result = json.loads(resp.read())
 
     if sync_result.get("ok"):
@@ -272,7 +272,7 @@ def create_session_and_bootstrap(ai_id: str, project_id: str | None = None) -> d
         try:
             _cortex_remote_sync(result)
         except Exception:
-            pass  # Cortex unavailable — session continues normally
+            pass  # Cortex unavailable -- session continues normally
 
     except subprocess.TimeoutExpired:
         result["error"] = "Command timed out"
@@ -313,7 +313,7 @@ def format_context(ctx: dict) -> str:
 def _write_instance_projects(project_path: str, claude_session_id: str, empirica_session_id: str) -> bool:
     """
     Write instance isolation files. Establishes linkage between Claude's
-    conversation ID and the Empirica session — critical for project-switch,
+    conversation ID and the Empirica session -- critical for project-switch,
     statusline, and sentinel to work correctly.
 
     Works with or without tmux. Falls back to TTY or 'default' instance.
@@ -333,19 +333,19 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
             pass
 
         # Check if another Claude session owns this pane with an open transaction
-        # Don't overwrite if they have active work — causes resolver warnings
+        # Don't overwrite if they have active work -- causes resolver warnings
         if instance_file.exists() and claude_session_id:
             try:
-                with open(instance_file) as f:
+                with open(instance_file, encoding='utf-8') as f:
                     existing = json.load(f)
                 existing_claude_id = existing.get('claude_session_id')
                 if existing_claude_id and existing_claude_id != claude_session_id:
-                    # Different Claude session — check for open transaction
+                    # Different Claude session -- check for open transaction
                     from project_resolver import _get_instance_suffix
                     suffix = _get_instance_suffix()
                     tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
                     if tx_file.exists():
-                        with open(tx_file) as tx_f:
+                        with open(tx_file, encoding='utf-8') as tx_f:
                             tx_data = json.load(tx_f)
                         if tx_data.get('status') == 'open' and tx_data.get('session_id') == existing.get('empirica_session_id'):
                             print(f"Warning: Pane {instance_id} has open transaction from another session ({existing_claude_id[:8]}). Not overwriting.", file=sys.stderr)
@@ -361,7 +361,7 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
             'instance_id': instance_id,
             'timestamp': datetime.now().isoformat()
         }
-        with open(instance_file, 'w') as f:
+        with open(instance_file, 'w', encoding='utf-8') as f:
             json.dump(instance_data, f, indent=2)
         os.chmod(instance_file, 0o600)
 
@@ -379,7 +379,7 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
 
         if claude_session_id:
             active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
-            with open(active_work_file, 'w') as f:
+            with open(active_work_file, 'w', encoding='utf-8') as f:
                 json.dump(active_work_data, f, indent=2)
             os.chmod(active_work_file, 0o600)
 
@@ -387,7 +387,7 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
         # In interactive mode, instance_projects + active_work_{uuid} handle everything
         if not instance_id and not claude_session_id:
             generic_file = Path.home() / '.empirica' / 'active_work.json'
-            with open(generic_file, 'w') as f:
+            with open(generic_file, 'w', encoding='utf-8') as f:
                 json.dump(active_work_data, f, indent=2)
             os.chmod(generic_file, 0o600)
 
@@ -404,7 +404,7 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
             tty_data = {}
             if tty_session_file.exists():
                 try:
-                    with open(tty_session_file) as f:
+                    with open(tty_session_file, encoding='utf-8') as f:
                         tty_data = json.load(f)
                 except Exception:
                     pass
@@ -419,7 +419,7 @@ def _write_instance_projects(project_path: str, claude_session_id: str, empirica
             tty_data['pid'] = os.getpid()
             tty_data['ppid'] = os.getppid()
 
-            with open(tty_session_file, 'w') as f:
+            with open(tty_session_file, 'w', encoding='utf-8') as f:
                 json.dump(tty_data, f, indent=2)
             os.chmod(tty_session_file, 0o600)
 
@@ -435,7 +435,7 @@ def _check_active_work_file(claude_session_id: str) -> dict:
     if not active_work_file.exists():
         return {}
     try:
-        with open(active_work_file) as f:
+        with open(active_work_file, encoding='utf-8') as f:
             data = json.load(f)
         session_id = data.get('empirica_session_id')
         if session_id:
@@ -449,7 +449,7 @@ def _check_active_session_files(project_root: Path) -> dict:
     """Scan all active_session files for a matching project path."""
     for as_file in Path.home().glob('.empirica/active_session_*'):
         try:
-            with open(as_file) as f:
+            with open(as_file, encoding='utf-8') as f:
                 data = json.load(f)
             if data.get('project_path') == str(project_root):
                 session_id = data.get('session_id')
@@ -472,7 +472,7 @@ def _find_best_orphaned_transaction(empirica_dir: Path) -> tuple:
             mtime = tx_file.stat().st_mtime
             if mtime <= best_mtime:
                 continue
-            with open(tx_file) as f:
+            with open(tx_file, encoding='utf-8') as f:
                 tx_data = json.load(f)
             if tx_data.get('status') == 'open':
                 best_tx = (tx_file, tx_data)
@@ -584,7 +584,7 @@ def _try_cwd_adoption() -> tuple:
         for tx_candidate in sorted(empirica_dir.glob('active_transaction*.json'),
                                    key=lambda p: p.stat().st_mtime, reverse=True):
             try:
-                with open(tx_candidate) as f:
+                with open(tx_candidate, encoding='utf-8') as f:
                     tx_data = json.load(f)
                 if tx_data.get('status') == 'open':
                     print(f"Adopted open transaction from CWD: {tx_candidate.name}", file=sys.stderr)

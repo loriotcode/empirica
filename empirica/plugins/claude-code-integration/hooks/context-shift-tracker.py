@@ -2,10 +2,10 @@
 """UserPromptSubmit hook: Track context shifts in epistemic transactions.
 
 Classifies user prompts as:
-- SOLICITED: AI asked a question (AskUserQuestion) → user responded
+- SOLICITED: AI asked a question (AskUserQuestion) -> user responded
 - UNSOLICITED: User initiated a new prompt without being asked
 
-Uses a purely structural signal — no keyword matching:
+Uses a purely structural signal -- no keyword matching:
 - sentinel-gate.py sets pending_user_response=True when AskUserQuestion fires
 - This hook checks that flag on each UserPromptSubmit event
 
@@ -24,7 +24,7 @@ _lib_path = Path(__file__).parent.parent / 'lib'
 if str(_lib_path) not in sys.path:
     sys.path.insert(0, str(_lib_path))
 
-from project_resolver import _get_instance_suffix, get_instance_id  # noqa: E402 — after sys.path setup
+from project_resolver import _get_instance_suffix, get_instance_id  # noqa: E402 -- after sys.path setup
 
 
 def _find_transaction_file(claude_session_id: 'str | None' = None) -> 'Path | None':
@@ -37,7 +37,7 @@ def _find_transaction_file(claude_session_id: 'str | None' = None) -> 'Path | No
         aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if aw_file.exists():
             try:
-                with open(aw_file) as f:
+                with open(aw_file, encoding='utf-8') as f:
                     pp = json.load(f).get('project_path')
                 if pp:
                     candidate = Path(pp) / '.empirica' / f'active_transaction{suffix}.json'
@@ -51,7 +51,7 @@ def _find_transaction_file(claude_session_id: 'str | None' = None) -> 'Path | No
         ip_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
         if ip_file.exists():
             try:
-                with open(ip_file) as f:
+                with open(ip_file, encoding='utf-8') as f:
                     pp = json.load(f).get('project_path')
                 if pp:
                     candidate = Path(pp) / '.empirica' / f'active_transaction{suffix}.json'
@@ -116,7 +116,7 @@ def _maybe_append_project_switch_hint(ctx_msg, claude_session_id):
             if tx_project and str(Path(tx_project).resolve()) != cwd:
                 ctx_msg += (
                     f" | CWD project differs from transaction project"
-                    f" — consider project-switch to {Path(cwd).name}"
+                    f" -- consider project-switch to {Path(cwd).name}"
                     f" before compaction"
                 )
     except Exception:
@@ -137,7 +137,7 @@ def _append_to_output(output, message):
 
 def _build_no_transaction_nudge(hook_input):
     """Build a skill nudge message when no active transaction exists."""
-    skill_nudge = "no active transaction — load /empirica-constitution for orientation before PREFLIGHT"
+    skill_nudge = "no active transaction -- load /empirica-constitution for orientation before PREFLIGHT"
 
     user_prompt = hook_input.get('prompt', '').lower()
     complex_work_signals = [
@@ -146,7 +146,7 @@ def _build_no_transaction_nudge(hook_input):
         'how should i approach', 'decompose', 'multi-step', 'complex',
     ]
     if any(signal in user_prompt for signal in complex_work_signals):
-        skill_nudge += " | complex work detected — consider /epistemic-transaction for structured decomposition"
+        skill_nudge += " | complex work detected -- consider /epistemic-transaction for structured decomposition"
 
     return skill_nudge
 
@@ -155,7 +155,7 @@ def _atomic_write_counters(counters, counters_path):
     """Atomically write counters dict to counters_path."""
     fd, tmp = tempfile.mkstemp(dir=str(counters_path.parent))
     try:
-        with os.fdopen(fd, 'w') as tf:
+        with os.fdopen(fd, 'w', encoding='utf-8') as tf:
             json.dump(counters, tf, indent=2)
         os.replace(tmp, str(counters_path))
     except BaseException:
@@ -175,7 +175,7 @@ def _get_reminder_turns(tx_path):
             tx_path.parent.parent / 'PROJECT_CONFIG.yaml',
         ]:
             if cfg_path.exists():
-                with open(cfg_path) as f:
+                with open(cfg_path, encoding='utf-8') as f:
                     cfg = yaml.safe_load(f) or {}
                 reminder_turns = int(cfg.get('transaction', {}).get(
                     'log_artifacts_reminder_turns', reminder_turns))
@@ -251,8 +251,8 @@ def _get_goal_hint(tx_id):
             scope = json.loads(row[1]) if row[1] else {}
             breadth = scope.get('breadth', 0.3)
             if breadth >= 0.5:
-                return f" Working on '{row[0][:50]}...' (breadth {breadth}) — decisions and assumptions are likely worth capturing."
-            return f" Working on '{row[0][:50]}...' — at minimum log a finding."
+                return f" Working on '{row[0][:50]}...' (breadth {breadth}) -- decisions and assumptions are likely worth capturing."
+            return f" Working on '{row[0][:50]}...' -- at minimum log a finding."
     except Exception:
         pass
     return ""
@@ -267,13 +267,13 @@ def main():
 
     tx_path = _find_transaction_file(claude_session_id)
     if not tx_path:
-        # No active transaction — suggest constitution skill for orientation
+        # No active transaction -- suggest constitution skill for orientation
         _append_to_output(output, _build_no_transaction_nudge(hook_input))
         print(json.dumps(output))
         return
 
     try:
-        with open(tx_path) as f:
+        with open(tx_path, encoding='utf-8') as f:
             tx = json.load(f)
 
         if tx.get('status') != 'open':
@@ -286,7 +286,7 @@ def main():
         counters = {}
         if counters_path.exists():
             try:
-                with open(counters_path) as f:
+                with open(counters_path, encoding='utf-8') as f:
                     counters = json.load(f)
             except Exception:
                 counters = {}

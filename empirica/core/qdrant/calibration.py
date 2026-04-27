@@ -109,7 +109,7 @@ def embed_calibration_trajectory(
     timestamp: float | None = None,
 ) -> bool:
     """
-    Embed a calibration trajectory point — one per POSTFLIGHT.
+    Embed a calibration trajectory point -- one per POSTFLIGHT.
 
     Trajectory points enable trend detection:
     - "Is my calibration improving over time?"
@@ -190,9 +190,9 @@ def search_calibration_patterns(
     Search calibration data for patterns.
 
     Use cases:
-    - "overconfident about completion" → finds sessions with positive completion gaps
-    - "security task calibration" → finds calibration for similar tasks
-    - "when was I most accurate" → finds low calibration_score entries
+    - "overconfident about completion" -> finds sessions with positive completion gaps
+    - "security task calibration" -> finds calibration for similar tasks
+    - "when was I most accurate" -> finds low calibration_score entries
 
     Args:
         project_id: Project UUID
@@ -268,5 +268,5 @@ def search_calibration_patterns(
 # =============================================================================
 # These embed/search functions are ready for use when CLI commands
 # (assumption-log, decision-log, intent-forward/reverse) are implemented.
-# Until then, collections exist but are empty — zero overhead.
+# Until then, collections exist but are empty -- zero overhead.
 

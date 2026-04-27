@@ -9,9 +9,9 @@ Philosophy:
 - No complex routing tables
 
 Decision:
-- High clarity + signal + know + context → Create goal and act
-- High clarity but low know/context → Investigate then create goal
-- Low clarity/signal → Ask for clarification
+- High clarity + signal + know + context -> Create goal and act
+- High clarity but low know/context -> Investigate then create goal
+- Low clarity/signal -> Ask for clarification
 """
 
 from dataclasses import dataclass
@@ -72,14 +72,14 @@ def decide_goal_creation(
         GoalDecision with recommendation
 
     Decision Matrix:
-        health_score ≥ health_threshold → "Epistemic health is good"
-        clarity ≥ threshold AND signal ≥ threshold → "I understand the request"
-        know ≥ threshold AND context ≥ threshold → "I can operate"
+        health_score >= health_threshold -> "Epistemic health is good"
+        clarity >= threshold AND signal >= threshold -> "I understand the request"
+        know >= threshold AND context >= threshold -> "I can operate"
 
-        healthy + understand + can_operate → create_goal
-        healthy + understand + can't_operate → investigate_first
-        not_healthy → improve_epistemic_health
-        don't_understand → ask_clarification
+        healthy + understand + can_operate -> create_goal
+        healthy + understand + can't_operate -> investigate_first
+        not_healthy -> improve_epistemic_health
+        don't_understand -> ask_clarification
     """
 
     # Step 1: Check CLARITY GATE (epistemic health)
@@ -212,13 +212,13 @@ def format_decision_for_ai(decision: GoalDecision) -> str:
     This is GUIDANCE for AI, not a command.
     """
     output = [
-        "📊 Goal Creation Decision:",
+        "[STATS] Goal Creation Decision:",
         "",
         "Assessment:",
-        f"  • Clarity: {decision.clarity_score:.2f}",
-        f"  • Signal: {decision.signal_score:.2f}",
-        f"  • Know: {decision.know_score:.2f}",
-        f"  • Context: {decision.context_score:.2f}",
+        f"  * Clarity: {decision.clarity_score:.2f}",
+        f"  * Signal: {decision.signal_score:.2f}",
+        f"  * Know: {decision.know_score:.2f}",
+        f"  * Context: {decision.context_score:.2f}",
         "",
         f"Reasoning: {decision.reasoning}",
         "",
@@ -228,7 +228,7 @@ def format_decision_for_ai(decision: GoalDecision) -> str:
     if decision.suggested_action == 'investigate_first':
         focus = get_investigation_focus(decision)
         if focus:
-            output.append(f"  → Investigation Focus: {focus}")
+            output.append(f"  -> Investigation Focus: {focus}")
 
     output.append("")
     output.append(f"Confidence in Decision: {decision.confidence:.2f}")

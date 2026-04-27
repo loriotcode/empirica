@@ -1,5 +1,5 @@
 """
-FastAPI application for `empirica serve` — local daemon for Chrome extension.
+FastAPI application for `empirica serve` -- local daemon for Chrome extension.
 
 Exposes profile operations as REST endpoints on localhost. The extension
 extracts artifacts client-side (TypeScript) and POSTs them here for storage.
@@ -8,10 +8,10 @@ Security: Localhost-only by default. No authentication required for local use.
 CORS allows chrome-extension:// origins for browser extension access.
 
 API contract matches empirica-extension/src/api/empirica-client.ts:
-- GET  /api/v1/health          → HealthResponse
-- POST /api/v1/artifacts/import → ArtifactImportResponse
-- GET  /api/v1/profile/status  → ProfileStatusResponse
-- POST /api/v1/profile/sync    → SyncResponse
+- GET  /api/v1/health          -> HealthResponse
+- POST /api/v1/artifacts/import -> ArtifactImportResponse
+- GET  /api/v1/profile/status  -> ProfileStatusResponse
+- POST /api/v1/profile/sync    -> SyncResponse
 """
 
 import logging
@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 
-# ── Request/Response Models ──────────────────────────────────────────
+# -- Request/Response Models ------------------------------------------
 # These mirror the TypeScript interfaces in empirica-client.ts
 
 class HealthResponse(BaseModel):
@@ -74,7 +74,7 @@ class SyncResponse(BaseModel):
     imported: int = 0
 
 
-# ── FastAPI App ──────────────────────────────────────────────────────
+# -- FastAPI App ------------------------------------------------------
 
 def create_serve_app() -> FastAPI:
     """Create FastAPI app for the serve daemon."""
@@ -99,7 +99,7 @@ def create_serve_app() -> FastAPI:
 
     @app.get("/api/v1/health", response_model=HealthResponse)
     async def health():  # pyright: ignore[reportUnusedFunction]
-        """Health check — reports available integrations."""
+        """Health check -- reports available integrations."""
         return HealthResponse(
             ollama=_check_ollama(),
             qdrant=_check_qdrant(),
@@ -121,7 +121,7 @@ def create_serve_app() -> FastAPI:
 
     @app.get("/api/v1/profile/status", response_model=ProfileStatusResponse)
     async def profile_status():  # pyright: ignore[reportUnusedFunction]
-        """Get epistemic profile status — artifact counts and sync state."""
+        """Get epistemic profile status -- artifact counts and sync state."""
         try:
             result = _run_profile_status()
             return ProfileStatusResponse(ok=True, **result)
@@ -142,14 +142,14 @@ def create_serve_app() -> FastAPI:
     return app
 
 
-# ── Internal Handlers ────────────────────────────────────────────────
+# -- Internal Handlers ------------------------------------------------
 
 def _check_ollama() -> bool:
     """Check if Ollama is available locally."""
     try:
         import urllib.request
         req = urllib.request.Request("http://localhost:11434/api/tags", method="GET")
-        with urllib.request.urlopen(req, timeout=2):
+        with urllib.request.urlopen(req, timeout=2, encoding='utf-8'):
             return True
     except Exception:
         return False
@@ -160,7 +160,7 @@ def _check_qdrant() -> bool:
     try:
         import urllib.request
         req = urllib.request.Request("http://localhost:6333/collections", method="GET")
-        with urllib.request.urlopen(req, timeout=2):
+        with urllib.request.urlopen(req, timeout=2, encoding='utf-8'):
             return True
     except Exception:
         return False
@@ -196,7 +196,7 @@ def _store_artifacts(artifacts: list[ArtifactPayload]) -> dict:
                 if existing:
                     duplicates_skipped += 1
                     continue
-            except Exception:  # noqa: S110 — table schema may lack column; proceed with insert
+            except Exception:  # noqa: S110 -- table schema may lack column; proceed with insert
                 pass
 
         try:
@@ -251,7 +251,7 @@ def _store_artifacts(artifacts: list[ArtifactPayload]) -> dict:
 
 
 def _run_profile_status() -> dict:
-    """Get profile status — artifact counts from database."""
+    """Get profile status -- artifact counts from database."""
     from empirica.data.session_database import SessionDatabase
 
     db = SessionDatabase()

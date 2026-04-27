@@ -34,7 +34,7 @@ def export_to_reflex_logs(
             # Load the confidence weights configuration
             config_path = Path(__file__).parent.parent.parent / "config" / "mco" / "confidence_weights.yaml"
             if config_path.exists():
-                with open(config_path) as f:
+                with open(config_path, encoding='utf-8') as f:
                     config = yaml.safe_load(f)
 
                 foundation_weights = config.get("foundation_confidence_weights", {
@@ -195,7 +195,7 @@ def export_to_reflex_logs(
         filename = f"reflex_frame_{timestamp}_{phase}.json"
         log_path = agent_dir / filename
 
-        with open(log_path, 'w') as f:
+        with open(log_path, 'w', encoding='utf-8') as f:
             json.dump(frame_data, f, indent=2)
 
         return log_path

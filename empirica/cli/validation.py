@@ -33,10 +33,10 @@ class VectorValues(BaseModel):
 
     The vectors are grouped semantically:
 
-    * **Knowledge axis** — `know`, `uncertainty`, `signal`, `density`
-    * **Context axis** — `context`, `clarity`, `coherence`, `state`
-    * **Action axis** — `change`, `completion`, `do`
-    * **Engagement axis** — `engagement`, `impact`
+    * **Knowledge axis** -- `know`, `uncertainty`, `signal`, `density`
+    * **Context axis** -- `context`, `clarity`, `coherence`, `state`
+    * **Action axis** -- `change`, `completion`, `do`
+    * **Engagement axis** -- `engagement`, `impact`
 
     See `docs/reference/api/core_session_management.md` and the EWM
     protocol docs for the full vector semantics. Used by `PreflightInput`,
@@ -74,10 +74,10 @@ class PreflightInput(BaseModel):
             max 5000 chars). Captured for retrospective grounding.
         task_context: Brief task description used for pattern retrieval
             from prior transactions (optional, max 2000 chars).
-        work_context: Project maturity context — one of `greenfield`,
+        work_context: Project maturity context -- one of `greenfield`,
             `iteration`, `investigation`, `refactor`. Adjusts calibration
             normalization baselines.
-        work_type: Domain context — one of `code`, `infra`, `research`,
+        work_type: Domain context -- one of `code`, `infra`, `research`,
             `release`, `debug`, `config`, `docs`, `data`, `comms`,
             `design`, `audit`, `remote-ops`. Determines which evidence
             sources are relevant for grounded calibration. `remote-ops`
@@ -102,10 +102,10 @@ class PreflightInput(BaseModel):
     work_type: str | None = Field(
         default=None,
         description=(
-            "Type of work being done — determines which evidence sources are "
+            "Type of work being done -- determines which evidence sources are "
             "relevant for grounded calibration. Use 'remote-ops' for work on "
             "machines the local Sentinel doesn't observe (SSH, customer "
-            "machines, remote config) — self-assessment stands."
+            "machines, remote config) -- self-assessment stands."
         ),
         pattern="^(code|infra|research|release|debug|config|docs|data|comms|design|audit|remote-ops)$",
     )
@@ -116,7 +116,7 @@ class PreflightInput(BaseModel):
     )
     criticality: str | None = Field(
         default=None,
-        description="Criticality level — determines required check rigor",
+        description="Criticality level -- determines required check rigor",
         pattern="^(low|medium|high|critical)$",
     )
     predicted_check_outcomes: dict[str, float] | None = Field(
@@ -267,14 +267,14 @@ class FindingInput(BaseModel):
     """Pydantic input schema for the `finding-log` CLI command.
 
     Findings record concrete discoveries made during noetic or praxic
-    work — observations, root causes, behavioral patterns, dependencies
+    work -- observations, root causes, behavioral patterns, dependencies
     learned, etc. They are first-class epistemic artifacts and feed
     into the calibration loop and pattern retrieval.
 
     Fields:
         session_id: UUID of the active Empirica session (1-100 chars)
         finding: The discovery text (1-5000 chars). Should be specific
-            and actionable — "Auth middleware uses JWT in cookie, not
+            and actionable -- "Auth middleware uses JWT in cookie, not
             Bearer header" rather than "Auth is complicated".
         impact: How significant this finding is (0.0-1.0, default 0.5).
             Higher impact findings get prioritized in retrieval.
@@ -293,7 +293,7 @@ class UnknownInput(BaseModel):
     """Pydantic input schema for the `unknown-log` CLI command.
 
     Unknowns record open questions that need investigation. Logging an
-    unknown is the noetic-phase complement to logging a finding —
+    unknown is the noetic-phase complement to logging a finding --
     findings are what you DO know, unknowns are what you don't.
     Unknowns can later be resolved (which generates a finding) or
     determined to be out-of-scope.

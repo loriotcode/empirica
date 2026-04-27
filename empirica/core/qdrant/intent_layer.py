@@ -107,7 +107,7 @@ def embed_decision(
 ) -> bool:
     """Embed a decision (recorded choice point) for semantic search.
 
-    Decisions are permanent audit trail — no decay applied.
+    Decisions are permanent audit trail -- no decay applied.
     """
     if not _check_qdrant_available():
         return False
@@ -180,7 +180,7 @@ def embed_intent_edge(
 ) -> bool:
     """Embed an IntentEdge (provenance graph: noetic↔praxic transform).
 
-    IntentEdges are permanent provenance — no decay. Retrieval ranks by recency.
+    IntentEdges are permanent provenance -- no decay. Retrieval ranks by recency.
     """
     if not _check_qdrant_available():
         return False
@@ -203,7 +203,7 @@ def embed_intent_edge(
         # Rich text for semantic search over intent reasoning
         embed_text = (
             f"{direction} intent: {reasoning or 'no reasoning provided'}. "
-            f"{source_artifact_type} → {target_artifact_type} at confidence {confidence_at_crossing:.2f}"
+            f"{source_artifact_type} -> {target_artifact_type} at confidence {confidence_at_crossing:.2f}"
         )
 
         vector = _get_embedding_safe(embed_text)

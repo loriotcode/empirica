@@ -1,5 +1,5 @@
 """
-A1 Domain Registry — SPEC 1 Part 1 implementation.
+A1 Domain Registry -- SPEC 1 Part 1 implementation.
 
 Maps (work_type, domain, criticality) tuples to compliance checklists.
 Each checklist declares which deterministic checks are required for "done"
@@ -22,7 +22,7 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-# Criticality levels in order (lowest → highest).
+# Criticality levels in order (lowest -> highest).
 # Used for fallback resolution: if exact level not found, walk down.
 CRITICALITY_ORDER = ("critical", "high", "medium", "low")
 
@@ -74,7 +74,7 @@ class _DomainEntry:
 
 
 class DomainRegistry:
-    """Loads and resolves domain/criticality → checklist mappings.
+    """Loads and resolves domain/criticality -> checklist mappings.
 
     Resolution order at lookup:
     1. Exact (work_type, domain, criticality) match
@@ -96,7 +96,7 @@ class DomainRegistry:
         if user_dir is None:
             user_dir = Path.home() / ".empirica" / "domains"
 
-        # Load in reverse precedence order — later loads override earlier
+        # Load in reverse precedence order -- later loads override earlier
         self._load_directory(builtin_dir, source="builtin")
         self._load_directory(user_dir, source="user")
         if project_path is not None:

@@ -2,7 +2,7 @@
 Trajectory Tracker
 
 Tracks POSTFLIGHT-to-POSTFLIGHT evolution per vector.
-Unlike the existing calibration (which compares PREFLIGHT→POSTFLIGHT within a session),
+Unlike the existing calibration (which compares PREFLIGHT->POSTFLIGHT within a session),
 this compares POSTFLIGHTs across sessions to detect calibration trends.
 
 Key question: Is the gap between self-assessment and objective evidence
@@ -82,7 +82,7 @@ class TrajectoryTracker:
         timestamp = datetime.now().timestamp()
         recorded = 0
 
-        # Vectors that were instrument-blind for this work_type — skip
+        # Vectors that were instrument-blind for this work_type -- skip
         # entirely so we don't pollute trajectory with absent-signal points
         # that downstream drift analysis could mistake for real overconfidence.
         # The AI's self-assessment stands as the best available estimate
@@ -93,7 +93,7 @@ class TrajectoryTracker:
             if vector_name in UNGROUNDABLE_VECTORS:
                 continue
             if vector_name in insufficient:
-                continue  # Honest absence — no row written.
+                continue  # Honest absence -- no row written.
 
             grounded_est = assessment.grounded.get(vector_name)
             grounded_val = grounded_est.estimated_value if grounded_est else None

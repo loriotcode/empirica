@@ -2,9 +2,9 @@
 Phase Boundary Detection
 
 Detects the CHECK proceed boundary in a transaction to split calibration
-into noetic (PREFLIGHT→CHECK) and praxic (CHECK→POSTFLIGHT) phases.
+into noetic (PREFLIGHT->CHECK) and praxic (CHECK->POSTFLIGHT) phases.
 
-The CHECK gate is the natural boundary — it already separates investigation
+The CHECK gate is the natural boundary -- it already separates investigation
 from action. Phase-aware calibration respects this boundary instead of
 treating the entire transaction as one undifferentiated block.
 """
@@ -18,7 +18,7 @@ def detect_phase_boundary(session_id: str, db) -> dict:
     """Find the CHECK proceed boundary in a transaction.
 
     Queries the reflexes table for PREFLIGHT, CHECK, POSTFLIGHT entries.
-    The last CHECK with decision="proceed" marks the noetic→praxic boundary.
+    The last CHECK with decision="proceed" marks the noetic->praxic boundary.
 
     Returns:
         {
@@ -114,7 +114,7 @@ def detect_phase_boundary(session_id: str, db) -> dict:
                 "engagement": proceed_row[9],
             }
         else:
-            # All CHECKs were investigate — noetic-only session
+            # All CHECKs were investigate -- noetic-only session
             result["noetic_only"] = True
             # Use the last CHECK vectors as the noetic endpoint
             last_check = check_rows[-1]

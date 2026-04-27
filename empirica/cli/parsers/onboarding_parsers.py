@@ -69,7 +69,7 @@ Run this after 'brew install empirica' or 'pip install empirica'.
         'enp-setup',
         help='Initialize the Epistemic Network Protocol (ENP) watcher',
         description="""
-Initialize the ENP watcher — monitors shared git repos for changes
+Initialize the ENP watcher -- monitors shared git repos for changes
 and notifies AI sessions when relevant files update.
 
 This command:
@@ -116,7 +116,7 @@ One-shot:
     release_parser.add_argument(
         '--prepare',
         action='store_true',
-        help='Merge to main, build, and test — but do NOT publish'
+        help='Merge to main, build, and test -- but do NOT publish'
     )
     release_parser.add_argument(
         '--publish',

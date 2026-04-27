@@ -1,5 +1,5 @@
 """
-Memory Manager — manages the CC memory/*.md KV cache layer.
+Memory Manager -- manages the CC memory/*.md KV cache layer.
 
 5-tier memory hierarchy:
   L1: MEMORY.md index (~200 lines, always loaded)
@@ -9,7 +9,7 @@ Memory Manager — manages the CC memory/*.md KV cache layer.
   L5: git notes (portable, cold storage)
 
 This module manages L1 and L2, driven by the transaction cycle:
-  POSTFLIGHT → update hot cache, promote high-value facts, demote stale files
+  POSTFLIGHT -> update hot cache, promote high-value facts, demote stale files
 
 Extracted from session-end-postflight.py for shared use by both
 POSTFLIGHT handler (workflow_commands.py) and session-end hook.
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Markers for auto-generated section in MEMORY.md
 MEMORY_AUTO_START = "## EPISTEMIC FOCUS (Confidence-Ranked)"
-MEMORY_AUTO_END = "---\n📊"
+MEMORY_AUTO_END = "---\n[STATS]"
 # Max lines for auto section (leaves room for manual notes within CC's 200 line cap)
 MEMORY_AUTO_MAX_LINES = 100
 
@@ -243,7 +243,7 @@ def _format_auto_section(artifacts: dict, session_id: str) -> str:
 
     total_items = sum(len(v) for v in artifacts.values())
     auto_lines.append("\n---")
-    auto_lines.append(f"📊 **{total_items} items ranked** | For deeper context:")
+    auto_lines.append(f"[STATS] **{total_items} items ranked** | For deeper context:")
     auto_lines.append(f"- `empirica project-bootstrap --session-id {session_id[:8]}` (full load + subtasks)")
     auto_lines.append("- `empirica project-search --task \"<query>\"` (Qdrant semantic)")
     auto_lines.append("- `git notes show --ref=breadcrumbs HEAD` (session narrative)")
@@ -274,7 +274,7 @@ def _replace_auto_section(existing: str, auto_section: str) -> str:
         return _collapse_blank_runs(manual + auto_section)
 
     start_idx = existing.index(MEMORY_AUTO_START)
-    end_marker = "📊 **"
+    end_marker = "[STATS] **"
     if end_marker not in existing[start_idx:]:
         manual = existing[:start_idx].rstrip('\n') + '\n\n'
         return _collapse_blank_runs(manual + auto_section)
@@ -327,7 +327,7 @@ def update_hot_cache(session_id: str, project_path: str | None = None,
         import fcntl
         memory_path.parent.mkdir(parents=True, exist_ok=True)
         lock_path = memory_path.parent / '.memory_lock'
-        with open(lock_path, 'w') as lock_fd:
+        with open(lock_path, 'w', encoding='utf-8') as lock_fd:
             fcntl.flock(lock_fd, fcntl.LOCK_EX)
             existing = memory_path.read_text() if memory_path.exists() else "# Empirica Project Memory\n"
             updated = _replace_auto_section(existing, auto_section)
@@ -386,7 +386,7 @@ def get_memory_stats(project_path: str | None = None) -> dict:
 
 
 # =============================================================================
-# Promotion: Qdrant eidetic facts → CC memory/*.md files
+# Promotion: Qdrant eidetic facts -> CC memory/*.md files
 # =============================================================================
 
 # Promotion thresholds
@@ -513,20 +513,20 @@ def promote_eidetic_to_memory(
         from empirica.core.qdrant.collections import _eidetic_collection
         from empirica.core.qdrant.connection import _get_qdrant_client
     except ImportError:
-        logger.info("Qdrant package not installed — promotion disabled")
+        logger.info("Qdrant package not installed -- promotion disabled")
         return []
 
     try:
         client = _get_qdrant_client()
         if not client:
-            logger.warning("Qdrant connection failed — promotion skipped")
+            logger.warning("Qdrant connection failed -- promotion skipped")
             return []
 
         collection = _eidetic_collection(project_id)
 
         # Scroll for high-confidence facts
         # Filter: confidence >= threshold AND type=fact
-        # Note: confirmation_count filter removed — confirm_eidetic_fact
+        # Note: confirmation_count filter removed -- confirm_eidetic_fact
         # requires exact content hash match, but findings never repeat
         # verbatim, so confirmation_count stays at 1 for all facts.
         # Spam prevention via max_promote cap + content hash dedup.
@@ -623,7 +623,7 @@ def demote_stale_memories(
                 except Exception as e:
                     logger.warning(f"Failed to archive {f.name}: {e}")
 
-    # Update MEMORY.md index — remove references to archived files
+    # Update MEMORY.md index -- remove references to archived files
     if archived and not dry_run:
         _remove_from_memory_index(memory_dir, archived)
 

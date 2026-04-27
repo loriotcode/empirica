@@ -53,7 +53,7 @@ class BranchMapping:
             return {"mappings": {}, "history": []}
 
         try:
-            with open(self.mapping_file) as f:
+            with open(self.mapping_file, encoding='utf-8') as f:
                 return json.load(f)
         except json.JSONDecodeError:
             # Corrupt file, start fresh
@@ -61,7 +61,7 @@ class BranchMapping:
 
     def _save_mappings(self):
         """Save mappings to file."""
-        with open(self.mapping_file, 'w') as f:
+        with open(self.mapping_file, 'w', encoding='utf-8') as f:
             json.dump(self._mappings, f, indent=2)
 
     def add_mapping(

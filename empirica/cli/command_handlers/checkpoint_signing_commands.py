@@ -48,8 +48,8 @@ def handle_checkpoint_sign_command(args):
             if output_format == 'json':
                 print(json.dumps(error_result, indent=2))
             else:
-                print(f"❌ Identity not found for AI: {ai_id}")
-                print("\n💡 Create identity first:")
+                print(f"[FAIL] Identity not found for AI: {ai_id}")
+                print("\n[HINT] Create identity first:")
                 print(f"   empirica identity-create --ai-id {ai_id}")
 
             sys.exit(1)
@@ -65,19 +65,19 @@ def handle_checkpoint_sign_command(args):
             print(json.dumps(result, indent=2))
         else:
             if result['ok']:
-                print("✅ Checkpoint signed successfully")
+                print("[OK] Checkpoint signed successfully")
                 print("\n📋 Details:")
                 print(f"   Checkpoint: {result['checkpoint_ref']}")
                 print(f"   SHA: {result['checkpoint_sha'][:16]}...")
                 print(f"   Signature: {result['signature_hex'][:32]}...")
                 print(f"   Signed by: {result['ai_id']}")
                 print(f"   Signed at: {result['signed_at']}")
-                print("\n💾 Signature stored in:")
+                print("\n[SAVE] Signature stored in:")
                 print(f"   refs/notes/{result['signature_ref']}")
-                print("\n🔍 Verify with:")
+                print("\n[SEARCH] Verify with:")
                 print(f"   empirica checkpoint-verify --session-id {session_id} --phase {phase} --round {round_num}")
             else:
-                print(f"❌ Failed to sign checkpoint: {result.get('message')}")
+                print(f"[FAIL] Failed to sign checkpoint: {result.get('message')}")
                 sys.exit(1)
 
         return result
@@ -110,7 +110,7 @@ def handle_checkpoint_verify_command(args):
                 public_key_hex = identity.public_key_hex()
             except FileNotFoundError:
                 if output_format != 'json':
-                    print(f"⚠️  Identity not found for {ai_id}, will use embedded public key from signature")
+                    print(f"[WARN]  Identity not found for {ai_id}, will use embedded public key from signature")
 
         # For verification, we don't actually need to load a signer identity
         # We just use the public key from the signature payload
@@ -138,21 +138,21 @@ def handle_checkpoint_verify_command(args):
             print(json.dumps(result, indent=2))
         else:
             if not result['ok']:
-                print(f"❌ Verification failed: {result.get('message', result.get('error'))}")
+                print(f"[FAIL] Verification failed: {result.get('message', result.get('error'))}")
                 sys.exit(1)
 
             if result['valid']:
-                print("✅ Valid signature")
+                print("[OK] Valid signature")
                 print("\n📋 Details:")
                 print(f"   Checkpoint: {result['checkpoint_ref']}")
                 print(f"   SHA: {result['checkpoint_sha'][:16]}...")
                 print(f"   Signed by: {result['signed_by']}")
                 print(f"   Signed at: {result['signed_at']}")
                 print(f"   Verified with: {result['verified_with']}")
-                print("\n🔒 Checkpoint integrity confirmed")
+                print("\n[LOCK] Checkpoint integrity confirmed")
             else:
-                print("❌ Invalid signature")
-                print("\n⚠️  Checkpoint may have been tampered with")
+                print("[FAIL] Invalid signature")
+                print("\n[WARN]  Checkpoint may have been tampered with")
                 print(f"   Checkpoint: {result.get('checkpoint_ref')}")
                 if result.get('error') == 'sha_mismatch':
                     print(f"   Expected SHA: {result.get('signed_sha', '')[:16]}...")
@@ -211,7 +211,7 @@ def handle_checkpoint_signatures_command(args):
                 print()
 
             if session_id:
-                print("💡 Verify a checkpoint:")
+                print("[HINT] Verify a checkpoint:")
                 first_sig = signatures[0]
                 print(f"   empirica checkpoint-verify --session-id {first_sig['session_id']} --phase {first_sig['phase']} --round {first_sig['round']}")
 

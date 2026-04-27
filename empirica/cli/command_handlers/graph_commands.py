@@ -1,5 +1,5 @@
 """
-Graph Artifact Commands — batch logging and resolution of connected artifacts.
+Graph Artifact Commands -- batch logging and resolution of connected artifacts.
 
 Implements the Artifact Graph API (spec: empirica-cortex/.empirica/plans/artifact-graph-api.md).
 Nodes are typed artifacts, edges are relationships between them.
@@ -30,7 +30,7 @@ VALID_RELATIONS = {
     'invalidates', 'sourced_from', 'caused_by', 'prevents', 'attached_to',
 }
 
-# Creation order — dependencies resolved top-down
+# Creation order -- dependencies resolved top-down
 CREATION_ORDER = ['source', 'finding', 'unknown', 'dead_end', 'mistake', 'assumption', 'decision']
 
 
@@ -255,7 +255,7 @@ def _read_graph_input(args) -> dict | None:
         if args.config == '-':
             raw = sys.stdin.read()
         else:
-            with open(args.config) as f:
+            with open(args.config, encoding='utf-8') as f:
                 raw = f.read()
     else:
         raw = sys.stdin.read()
@@ -387,7 +387,7 @@ def handle_resolve_artifacts_command(args):
             if args.config == '-':
                 raw = sys.stdin.read()
             else:
-                with open(args.config) as f:
+                with open(args.config, encoding='utf-8') as f:
                     raw = f.read()
         else:
             raw = sys.stdin.read()
@@ -475,8 +475,8 @@ def handle_resolve_artifacts_command(args):
         return 1
 
 
-# Table → ID column mapping for deletion
-# Table → (table_name, id_column, data_column_for_edges)
+# Table -> ID column mapping for deletion
+# Table -> (table_name, id_column, data_column_for_edges)
 _ARTIFACT_TABLES = {
     'finding': ('project_findings', 'id', 'finding_data'),
     'unknown': ('project_unknowns', 'id', 'unknown_data'),
@@ -522,7 +522,7 @@ def _read_deletion_input(args) -> dict | None:
         if args.config == '-':
             raw = sys.stdin.read()
         else:
-            with open(args.config) as f:
+            with open(args.config, encoding='utf-8') as f:
                 raw = f.read()
     else:
         raw = sys.stdin.read()
@@ -580,7 +580,7 @@ def handle_delete_artifacts_command(args):
             return 1
 
         items = data.get('deletions', data.get('items', []))
-        reason = data.get('reason', 'Batch deletion — non-pertinent')
+        reason = data.get('reason', 'Batch deletion -- non-pertinent')
         dry_run = data.get('dry_run', getattr(args, 'dry_run', False))
 
         db = SessionDatabase()

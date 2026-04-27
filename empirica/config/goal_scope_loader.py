@@ -85,7 +85,7 @@ class GoalScopeLoader:
                 self._load_hardcoded_defaults()
                 return
 
-            with open(self.config_path) as f:
+            with open(self.config_path, encoding='utf-8') as f:
                 data = yaml.safe_load(f)
 
                 if not data or 'scope_recommendations' not in data:
@@ -97,7 +97,7 @@ class GoalScopeLoader:
                 self.adjustment_rules = data.get('adjustment_rules', {})
                 self.validation_rules = data.get('validation_coherence', {})
 
-                logger.info(f"✅ Loaded {len(self.scope_recommendations)} scope recommendations")
+                logger.info(f"[OK] Loaded {len(self.scope_recommendations)} scope recommendations")
 
         except Exception as e:
             logger.error(f"Failed to load goal scope config: {e}")
@@ -105,7 +105,7 @@ class GoalScopeLoader:
 
     def _load_hardcoded_defaults(self):
         """Fallback hardcoded recommendations if YAML loading fails"""
-        logger.warning("⚠️  Using hardcoded goal scope defaults")
+        logger.warning("[WARN]  Using hardcoded goal scope defaults")
 
         self.scope_recommendations = {
             'knowledge_leader': {
@@ -172,7 +172,7 @@ class GoalScopeLoader:
         # Extract scope recommendation
         recommended_scope = best_match.get('recommended_scope', {})
 
-        logger.info(f"✅ Scope recommendation: {best_match['pattern']} (score: {best_score:.2f})")
+        logger.info(f"[OK] Scope recommendation: {best_match['pattern']} (score: {best_score:.2f})")
         logger.info(f"   Recommended: breadth={recommended_scope['breadth']:.2f}, "
                    f"duration={recommended_scope['duration']:.2f}, "
                    f"coordination={recommended_scope['coordination']:.2f}")

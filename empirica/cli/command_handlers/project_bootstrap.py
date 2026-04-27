@@ -26,7 +26,7 @@ def _bootstrap_error_output(output_format: str, error_msg: str, hint: str | None
             result['hint'] = hint
         safe_print(json.dumps(result))
     else:
-        safe_print(f"❌ Error: {error_msg}")
+        safe_print(f"[FAIL] Error: {error_msg}")
         if hint:
             safe_print(f"\nTip: {hint}")
     return None
@@ -52,7 +52,7 @@ def _resolve_project_via_context():
         import yaml
         project_yaml = os.path.join(active_project, '.empirica', 'project.yaml')
         if os.path.exists(project_yaml):
-            with open(project_yaml) as f:
+            with open(project_yaml, encoding='utf-8') as f:
                 project_config = yaml.safe_load(f)
                 if project_config and project_config.get('project_id'):
                     return project_config['project_id']
@@ -171,14 +171,14 @@ def _backfill_calibration_weights():
             return
 
         import yaml
-        with open(_proj_yaml) as _f:
+        with open(_proj_yaml, encoding='utf-8') as _f:
             _proj_cfg = yaml.safe_load(_f) or {}
 
         if 'calibration_weights' not in _proj_cfg:
             from .project_init import _seed_calibration_weights
             _ptype = _proj_cfg.get('type', 'software')
             _proj_cfg['calibration_weights'] = _seed_calibration_weights(_ptype)
-            with open(_proj_yaml, 'w') as _f:
+            with open(_proj_yaml, 'w', encoding='utf-8') as _f:
                 yaml.dump(_proj_cfg, _f, default_flow_style=False, sort_keys=False)
             logger.info(f"Backfilled calibration_weights for project type '{_ptype}'")
     except Exception as e:
@@ -211,7 +211,7 @@ def _load_mco_config(session_id, ai_id):
 
     latest_snapshot = snapshot_files[0]
     try:
-        with open(latest_snapshot) as f:
+        with open(latest_snapshot, encoding='utf-8') as f:
             snapshot_data = json.load(f)
             mco_snapshot = snapshot_data.get('mco_config')
 
@@ -381,7 +381,7 @@ def handle_project_bootstrap_command(args):
             try:
                 epistemic_state = json.loads(epistemic_state_str)
             except json.JSONDecodeError as e:
-                safe_print(f"❌ Invalid JSON in --epistemic-state: {e}")
+                safe_print(f"[FAIL] Invalid JSON in --epistemic-state: {e}")
                 return None
 
         # Auto-detect subject from current directory
@@ -456,10 +456,10 @@ def handle_project_bootstrap_command(args):
         db.close()
 
         if "error" in breadcrumbs:
-            safe_print(f"❌ {breadcrumbs['error']}")
+            safe_print(f"[FAIL] {breadcrumbs['error']}")
             return None
 
-        # Format output — delegated to project_bootstrap_formatter.py
+        # Format output -- delegated to project_bootstrap_formatter.py
         from .project_bootstrap_formatter import format_bootstrap_output
         format_bootstrap_output(
             args=args, project_id=project_id, breadcrumbs=breadcrumbs,

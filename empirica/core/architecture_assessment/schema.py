@@ -4,19 +4,19 @@ Architecture Assessment Schema
 Maps Empirica's 13 epistemic vectors to code architecture concerns.
 
 Vector Mappings:
-- KNOW → Code Understanding: How well-documented, tested, readable
-- UNCERTAINTY → Technical Debt: Hidden complexity, undocumented behavior
-- CONTEXT → Integration Clarity: How well it fits in the system
-- CLARITY → API Surface: Clean interfaces, low coupling
-- COHERENCE → Single Responsibility: Focused purpose, minimal scope creep
-- SIGNAL → Change Patterns: Meaningful vs noise commits
-- DENSITY → Complexity Hotspots: Cyclomatic complexity, nesting depth
-- ENGAGEMENT → Activity Level: Recent development, maintenance attention
-- STATE → Health Indicators: Test coverage, linting, type coverage
-- CHANGE → Volatility: Churn rate, stability over time
-- COMPLETION → Feature Completeness: TODO density, stub methods
-- IMPACT → Blast Radius: What breaks if this changes
-- DO → Actionability: Clear next steps for improvement
+- KNOW -> Code Understanding: How well-documented, tested, readable
+- UNCERTAINTY -> Technical Debt: Hidden complexity, undocumented behavior
+- CONTEXT -> Integration Clarity: How well it fits in the system
+- CLARITY -> API Surface: Clean interfaces, low coupling
+- COHERENCE -> Single Responsibility: Focused purpose, minimal scope creep
+- SIGNAL -> Change Patterns: Meaningful vs noise commits
+- DENSITY -> Complexity Hotspots: Cyclomatic complexity, nesting depth
+- ENGAGEMENT -> Activity Level: Recent development, maintenance attention
+- STATE -> Health Indicators: Test coverage, linting, type coverage
+- CHANGE -> Volatility: Churn rate, stability over time
+- COMPLETION -> Feature Completeness: TODO density, stub methods
+- IMPACT -> Blast Radius: What breaks if this changes
+- DO -> Actionability: Clear next steps for improvement
 """
 
 from dataclasses import dataclass, field

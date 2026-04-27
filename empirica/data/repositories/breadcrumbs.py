@@ -141,7 +141,7 @@ class BreadcrumbRepository(BaseRepository):
         # Check for duplicate existing finding (full content match)
         existing_id = self._find_duplicate_finding(project_id, finding)
         if existing_id:
-            logger.info(f"📝 Finding deduplicated (duplicate exists): {finding[:50]}...")
+            logger.info(f"[NOTE] Finding deduplicated (duplicate exists): {finding[:50]}...")
             return existing_id
 
         finding_id = str(uuid.uuid4())
@@ -194,7 +194,7 @@ class BreadcrumbRepository(BaseRepository):
         ))
 
         self.commit()
-        logger.info(f"📝 Finding logged: {finding[:50]}...")
+        logger.info(f"[NOTE] Finding logged: {finding[:50]}...")
 
         return finding_id
 
@@ -225,7 +225,7 @@ class BreadcrumbRepository(BaseRepository):
         # Check for duplicate existing unknown (full content match)
         existing_id = self._find_duplicate_unknown(project_id, unknown)
         if existing_id:
-            logger.info(f"📝 Unknown deduplicated (duplicate exists): {unknown[:50]}...")
+            logger.info(f"[NOTE] Unknown deduplicated (duplicate exists): {unknown[:50]}...")
             return existing_id
 
         unknown_id = str(uuid.uuid4())
@@ -271,7 +271,7 @@ class BreadcrumbRepository(BaseRepository):
         ))
 
         self.commit()
-        logger.info(f"❓ Unknown logged: {unknown[:50]}...")
+        logger.info(f"[?] Unknown logged: {unknown[:50]}...")
 
         return unknown_id
 
@@ -303,7 +303,7 @@ class BreadcrumbRepository(BaseRepository):
             """, (resolved_by, time.time(), resolution_finding_id, unknown_id))
 
         self.commit()
-        logger.info(f"✅ Unknown resolved: {unknown_id[:8]}...")
+        logger.info(f"[OK] Unknown resolved: {unknown_id[:8]}...")
 
     def log_dead_end(
         self,
@@ -333,7 +333,7 @@ class BreadcrumbRepository(BaseRepository):
         # Check for duplicate existing dead end (full content match)
         existing_id = self._find_duplicate_dead_end(project_id, approach, why_failed)
         if existing_id:
-            logger.info(f"📝 Dead end deduplicated (duplicate exists): {approach[:50]}...")
+            logger.info(f"[NOTE] Dead end deduplicated (duplicate exists): {approach[:50]}...")
             return existing_id
 
         dead_end_id = str(uuid.uuid4())
@@ -657,7 +657,7 @@ class BreadcrumbRepository(BaseRepository):
         ))
 
         self.commit()
-        logger.info(f"📝 Mistake logged: {mistake[:50]}...")
+        logger.info(f"[NOTE] Mistake logged: {mistake[:50]}...")
 
         return mistake_id
 

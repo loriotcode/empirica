@@ -1,12 +1,12 @@
 """
-Epistemic Brief — Quantified project epistemic profile.
+Epistemic Brief -- Quantified project epistemic profile.
 
 Generates a categorised, ranked summary of a project's epistemic state:
 - Knowledge State: findings density, domain coverage, fact confidence
 - Risk Profile: unresolved unknowns, dead-ends, stale assumptions
 - Calibration Health: grounded score, bias patterns, drift
 - Active Work: open goals, stale goals, transaction velocity
-- Anti-Patterns: dead-ends and mistakes ranked by impact × recency
+- Anti-Patterns: dead-ends and mistakes ranked by impact x recency
 
 The brief is generated at bootstrap time and surfaced at project-switch.
 """
@@ -207,7 +207,7 @@ def _build_calibration_health(project_id: str, db_path: str | None = None) -> di
             if root:
                 bc_path = root.parent / '.breadcrumbs.yaml'
                 if bc_path.exists():
-                    with open(bc_path) as f:
+                    with open(bc_path, encoding='utf-8') as f:
                         bc = yaml.safe_load(f) or {}
                     cal = bc.get('calibration', {})
                     gcal = bc.get('grounded_calibration', {})
@@ -325,7 +325,7 @@ def _build_learning_velocity(project_id: str, db_path: str | None = None) -> dic
         db = _get_db(db_path)
         cursor = db.conn.cursor()
 
-        # Get recent PREFLIGHT→POSTFLIGHT deltas
+        # Get recent PREFLIGHT->POSTFLIGHT deltas
         deltas = []
         try:
             cursor.execute("""
@@ -366,7 +366,7 @@ def _format_knowledge_state(brief: dict, lines: list) -> None:
     if not counts:
         return
     lines.append("")
-    lines.append("📊 Knowledge State")
+    lines.append("[STATS] Knowledge State")
     parts = []
     if counts.get('findings', 0):
         parts.append(f"{counts['findings']} findings")
@@ -375,7 +375,7 @@ def _format_knowledge_state(brief: dict, lines: list) -> None:
     if counts.get('goals', 0):
         parts.append(f"{counts['goals']} goals")
     if parts:
-        lines.append(f"   {' │ '.join(parts)}")
+        lines.append(f"   {' | '.join(parts)}")
     for d in ks.get('domains', [])[:3]:
         lines.append(f"   Domain: {d['domain']} ({d['findings_count']} findings, impact: {d['avg_impact']})")
     if ks.get('avg_fact_confidence'):
@@ -388,11 +388,11 @@ def _format_risk_profile(brief: dict, lines: list) -> None:
     if rp.get('unresolved_count', 0) <= 0 and not rp.get('stale_assumptions'):
         return
     lines.append("")
-    lines.append("⚠️  Risk Profile")
+    lines.append("[WARN]  Risk Profile")
     if rp['unresolved_count']:
         lines.append(f"   {rp['unresolved_count']} unresolved unknowns")
     for u in rp.get('unresolved_unknowns', [])[:3]:
-        lines.append(f"   ❓ {u['unknown'][:70]}")
+        lines.append(f"   [?] {u['unknown'][:70]}")
     for a in rp.get('stale_assumptions', [])[:2]:
         lines.append(f"   ⏰ Stale assumption ({a['age_days']}d): {a['assumption'][:60]}")
 
@@ -406,7 +406,7 @@ def _format_anti_patterns(brief: dict, lines: list) -> None:
     lines.append("🚫 Anti-Patterns")
     for de in ap.get('dead_ends', [])[:3]:
         lines.append(f"   AVOID: {de['approach'][:50]}")
-        lines.append(f"          → {de['why_failed'][:50]}")
+        lines.append(f"          -> {de['why_failed'][:50]}")
     for m in ap.get('mistakes', [])[:2]:
         lines.append(f"   FIX: {m['mistake'][:50]}")
         if m.get('prevention'):
@@ -419,10 +419,10 @@ def _format_calibration_health(brief: dict, lines: list) -> None:
     if ch.get('grounded_score') is None:
         return
     lines.append("")
-    lines.append("🎯 Calibration")
+    lines.append("[TARGET] Calibration")
     score = ch['grounded_score']
     coverage = ch.get('grounded_coverage', 0)
-    lines.append(f"   Score: {score:.2f} │ Coverage: {coverage:.0%} │ Observations: {ch.get('observations', 0)}")
+    lines.append(f"   Score: {score:.2f} | Coverage: {coverage:.0%} | Observations: {ch.get('observations', 0)}")
     if ch.get('overestimates'):
         lines.append(f"   Tends to overestimate: {', '.join(ch['overestimates'][:4])}")
     if ch.get('underestimates'):
@@ -435,7 +435,7 @@ def _format_active_work(brief: dict, lines: list) -> None:
     if aw.get('open_goals', 0) <= 0 and aw.get('recent_transactions_7d', 0) <= 0:
         return
     lines.append("")
-    lines.append("🔄 Active Work")
+    lines.append("[LOAD] Active Work")
     parts = []
     if aw.get('open_goals'):
         parts.append(f"{aw['open_goals']} open goals")
@@ -443,16 +443,16 @@ def _format_active_work(brief: dict, lines: list) -> None:
         parts.append(f"{aw['stale_goals']} stale")
     if aw.get('recent_transactions_7d'):
         parts.append(f"{aw['recent_transactions_7d']} transactions (7d)")
-    lines.append(f"   {' │ '.join(parts)}")
+    lines.append(f"   {' | '.join(parts)}")
 
 
 def format_brief_human(brief: dict) -> str:
     """Format epistemic brief for human-readable terminal output."""
     lines = []
     lines.append("")
-    lines.append("━" * 50)
+    lines.append("=" * 50)
     lines.append("📋 EPISTEMIC BRIEF")
-    lines.append("━" * 50)
+    lines.append("=" * 50)
 
     _format_knowledge_state(brief, lines)
     _format_risk_profile(brief, lines)
@@ -464,11 +464,11 @@ def format_brief_human(brief: dict) -> str:
     lv = brief.get('learning_velocity', {})
     if lv.get('transactions_sampled'):
         lines.append("")
-        lines.append("📈 Learning Velocity")
+        lines.append("[UP] Learning Velocity")
         lines.append(f"   Last {lv['transactions_sampled']} transactions: "
                       f"know={lv.get('avg_know', '?')} "
                       f"uncertainty={lv.get('avg_uncertainty', '?')} "
                       f"completion={lv.get('avg_completion', '?')}")
 
-    lines.append("━" * 50)
+    lines.append("=" * 50)
     return "\n".join(lines)

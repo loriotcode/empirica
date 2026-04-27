@@ -278,7 +278,7 @@ if __name__ == "__main__":
 
     # Test case 1: High confidence (fresh view, simple string)
     assessment1 = assessor.assess(
-        file_path="/tmp/test.py",  # noqa: S108 — test harness path
+        file_path="/tmp/test.py",  # noqa: S108 -- test harness path
         old_str="def my_function():",
         context_source="view_output"
     )
@@ -290,7 +290,7 @@ if __name__ == "__main__":
 
     # Test case 2: Medium confidence (memory, multi-line)
     assessment2 = assessor.assess(
-        file_path="/tmp/test.py",  # noqa: S108 — test harness path
+        file_path="/tmp/test.py",  # noqa: S108 -- test harness path
         old_str="    def my_function():\n        return 42",
         context_source="memory"
     )

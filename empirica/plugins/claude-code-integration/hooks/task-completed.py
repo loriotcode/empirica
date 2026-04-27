@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Empirica TaskCompleted Hook — Bridge Claude Code tasks to Empirica goals.
+Empirica TaskCompleted Hook -- Bridge Claude Code tasks to Empirica goals.
 
 Fires when Claude marks a task as completed. Two functions:
 1. Enforce POSTFLIGHT before task completion (measurement discipline)
@@ -40,13 +40,13 @@ def _find_open_transaction(instance_id: str) -> dict | None:
     instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
     if instance_file.exists():
         try:
-            with open(instance_file) as f:
+            with open(instance_file, encoding='utf-8') as f:
                 data = json.load(f)
             project_path = data.get('project_path')
             if project_path:
                 tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
                 if tx_file.exists():
-                    with open(tx_file) as f:
+                    with open(tx_file, encoding='utf-8') as f:
                         tx_data = json.load(f)
                     if tx_data.get('status') == 'open':
                         return tx_data
@@ -56,13 +56,13 @@ def _find_open_transaction(instance_id: str) -> dict | None:
     # Fallback: scan active_work files
     for aw_file in Path.home().glob('.empirica/active_work_*.json'):
         try:
-            with open(aw_file) as f:
+            with open(aw_file, encoding='utf-8') as f:
                 data = json.load(f)
             project_path = data.get('project_path')
             if project_path:
                 tx_file = Path(project_path) / '.empirica' / f'active_transaction{suffix}.json'
                 if tx_file.exists():
-                    with open(tx_file) as f:
+                    with open(tx_file, encoding='utf-8') as f:
                         tx_data = json.load(f)
                     if tx_data.get('status') == 'open':
                         return tx_data
@@ -197,7 +197,7 @@ def main():
 
         # Only enforce if we have meaningful work (>3 tool calls)
         if tool_calls > 3:
-            logger.info(f"  Open transaction {tx_id[:8]}... with {tool_calls} tool calls — requesting POSTFLIGHT")
+            logger.info(f"  Open transaction {tx_id[:8]}... with {tool_calls} tool calls -- requesting POSTFLIGHT")
             print(
                 f"Task '{task_subject}' has an open transaction ({tx_id[:8]}..., "
                 f"{tool_calls} tool calls). Submit POSTFLIGHT to close the measurement "
@@ -206,7 +206,7 @@ def main():
             )
             sys.exit(2)  # Block completion
         else:
-            logger.info(f"  Open transaction but only {tool_calls} tool calls — allowing completion")
+            logger.info(f"  Open transaction but only {tool_calls} tool calls -- allowing completion")
 
     # --- Task↔Goal Bridge ---
     db_path = _get_db_path()

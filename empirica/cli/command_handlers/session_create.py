@@ -181,7 +181,7 @@ def _parse_session_config(args):
             if not os.path.exists(args.config):
                 print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
                 sys.exit(1)
-            with open(args.config) as f:
+            with open(args.config, encoding='utf-8') as f:
                 config_data = parse_json_safely(f.read())
 
     if config_data:
@@ -236,7 +236,7 @@ def _handle_auto_init(args, output_format, project_id):
     """Handle --auto-init flag: initialize .empirica/ if missing.
 
     Returns:
-        (auto_init_performed, project_id) — updated project_id if auto-init created one.
+        (auto_init_performed, project_id) -- updated project_id if auto-init created one.
     """
     auto_init_performed = False
     if not getattr(args, 'auto_init', False):
@@ -253,7 +253,7 @@ def _handle_auto_init(args, output_format, project_id):
                 "hint": "Run 'git init' first, then try again"
             }))
         else:
-            print("❌ Cannot auto-init: Not in a git repository")
+            print("[FAIL] Cannot auto-init: Not in a git repository")
             print("   Run 'git init' first, then try again")
         sys.exit(1)
 
@@ -280,14 +280,14 @@ def _handle_auto_init(args, output_format, project_id):
             result = handle_project_init_command(init_args)
             if result is None:
                 if output_format != 'json':
-                    print("❌ Auto-init failed. Run 'empirica project-init' manually.")
+                    print("[FAIL] Auto-init failed. Run 'empirica project-init' manually.")
                 sys.exit(1)
 
             auto_init_performed = True
             project_id = result.get('project_id')
 
             if output_format != 'json':
-                print(f"✅ Project auto-initialized: {git_root.name}")
+                print(f"[OK] Project auto-initialized: {git_root.name}")
                 print()
 
         except Exception as e:
@@ -298,7 +298,7 @@ def _handle_auto_init(args, output_format, project_id):
                     "hint": "Run 'empirica project-init' manually"
                 }))
             else:
-                print(f"❌ Auto-init failed: {e}")
+                print(f"[FAIL] Auto-init failed: {e}")
                 print("   Run 'empirica project-init' manually")
             sys.exit(1)
 
@@ -320,7 +320,7 @@ def _require_project_initialized(ai_id, output_format):
                     "git_root": str(git_root)
                 }))
             else:
-                print(f"❌ Project not initialized in {git_root.name}")
+                print(f"[FAIL] Project not initialized in {git_root.name}")
                 print("\nOptions:")
                 print("  1. Initialize: empirica project-init")
                 print(f"  2. Auto-init:  empirica session-create --ai-id {ai_id} --auto-init")
@@ -373,7 +373,7 @@ def _get_project_id_from_context(context_data):
         project_yaml = os.path.join(project_path, '.empirica', 'project.yaml')
         if os.path.exists(project_yaml):
             try:
-                with open(project_yaml) as f:
+                with open(project_yaml, encoding='utf-8') as f:
                     config = yaml.safe_load(f)
                     if config and config.get('project_id'):
                         return config['project_id']
@@ -399,7 +399,7 @@ def _resolve_from_context_files():
             'instance_projects', f'{_sc_instance_id}.json'
         )
         if os.path.exists(instance_file):
-            with open(instance_file) as f:
+            with open(instance_file, encoding='utf-8') as f:
                 instance_data = _json.load(f)
                 pid = _get_project_id_from_context(instance_data)
                 if pid:
@@ -415,7 +415,7 @@ def _resolve_from_context_files():
                 f'active_work_{claude_session_id}.json'
             )
             if os.path.exists(active_work_path):
-                with open(active_work_path) as f:
+                with open(active_work_path, encoding='utf-8') as f:
                     active_work = _json.load(f)
                     pid = _get_project_id_from_context(active_work)
                     if pid:
@@ -424,7 +424,7 @@ def _resolve_from_context_files():
     # Priority 0c: canonical active_work.json
     canonical_path = os.path.join(os.path.expanduser('~'), '.empirica', 'active_work.json')
     if os.path.exists(canonical_path):
-        with open(canonical_path) as f:
+        with open(canonical_path, encoding='utf-8') as f:
             active_work = _json.load(f)
             return _get_project_id_from_context(active_work)
 
@@ -450,7 +450,7 @@ def _resolve_from_sessions_db():
     project_yaml = os.path.join(context_project, '.empirica', 'project.yaml')
     if os.path.exists(project_yaml):
         try:
-            with open(project_yaml) as f:
+            with open(project_yaml, encoding='utf-8') as f:
                 project_config = yaml.safe_load(f)
                 if project_config and project_config.get('project_id'):
                     return project_config['project_id']
@@ -543,11 +543,11 @@ def _close_and_create_session(ai_id, early_project_id, subject, parent_session_i
 
     if close_result["closed_sessions"] and output_format != 'json':
         for closed in close_result["closed_sessions"]:
-            print(f"🔄 Auto-closed previous session: {closed['session_id'][:8]}... (POSTFLIGHT submitted)")
+            print(f"[LOAD] Auto-closed previous session: {closed['session_id'][:8]}... (POSTFLIGHT submitted)")
 
     if close_result["warnings"] and output_format != 'json':
         for warning in close_result["warnings"]:
-            print(f"⚠️  {warning['message']}")
+            print(f"[WARN]  {warning['message']}")
 
     session_id = db.create_session(
         ai_id=ai_id,
@@ -592,7 +592,7 @@ def _write_active_session_file(session_id, ai_id):
     }
     tmp_fd, tmp_path = tempfile.mkstemp(dir=str(active_session_file.parent))
     try:
-        with os.fdopen(tmp_fd, 'w') as tmp_f:
+        with os.fdopen(tmp_fd, 'w', encoding='utf-8') as tmp_f:
             tmp_f.write(json.dumps(active_session_data))
         os.replace(tmp_path, str(active_session_file))
     except BaseException:
@@ -625,10 +625,10 @@ def _init_auto_capture(session_id, output_format):
         auto_capture = initialize_auto_capture(session_id, enable=True)
         install_auto_capture_hooks(auto_capture)
         if output_format != 'json':
-            print("✅ Auto-capture enabled with logging hooks")
+            print("[OK] Auto-capture enabled with logging hooks")
     except Exception as e:
         if output_format != 'json':
-            print(f"⚠️  Auto-capture initialization warning: {e}")
+            print(f"[WARN]  Auto-capture initialization warning: {e}")
 
 
 def _link_session_to_project(session_id, project_id, output_format):
@@ -649,7 +649,7 @@ def _link_session_to_project(session_id, project_id, output_format):
         cursor.execute("SELECT name FROM projects WHERE id = ?", (project_id,))
         row = cursor.fetchone()
         if row:
-            print(f"✅ Session linked to project: {row['name']}")
+            print(f"[OK] Session linked to project: {row['name']}")
             print()
 
     db.close()
@@ -677,12 +677,12 @@ def _format_session_output(output_format, session_id, ai_id, user_id, project_id
         }
         print(json.dumps(result, indent=2))
     else:
-        print("✅ Session created successfully!")
+        print("[OK] Session created successfully!")
         print(f"   📋 Session ID: {session_id}")
         print(f"   🤖 AI ID: {ai_id}")
 
         if project_id:
-            print(f"   📁 Project: {project_id[:8]}...")
+            print(f"   [DIR] Project: {project_id[:8]}...")
             print("\n📚 Project Context:")
             db = SessionDatabase()
             breadcrumbs = db.bootstrap_project_breadcrumbs(project_id, mode="session_start")
@@ -696,18 +696,18 @@ def _format_session_output(output_format, session_id, ai_id, user_id, project_id
                 if breadcrumbs.get('findings'):
                     print("\n   Recent Findings (last 5):")
                     for finding in breadcrumbs['findings'][:5]:
-                        print(f"     • {finding}")
+                        print(f"     * {finding}")
 
                 unresolved = [u for u in breadcrumbs.get('unknowns', []) if not u['is_resolved']]
                 if unresolved:
                     print("\n   Unresolved Unknowns:")
                     for u in unresolved[:3]:
-                        print(f"     • {u['unknown']}")
+                        print(f"     * {u['unknown']}")
 
                 if breadcrumbs.get('available_skills'):
                     print("\n   Available Skills:")
                     for skill in breadcrumbs['available_skills'][:3]:
-                        print(f"     • {skill['title']} ({', '.join(skill['tags'])})")
+                        print(f"     * {skill['title']} ({', '.join(skill['tags'])})")
 
         print("\nNext steps:")
         print(f"   empirica preflight --session-id {session_id} --prompt \"Your task\"")
@@ -771,6 +771,6 @@ def handle_session_create_command(args):
         if getattr(args, 'output', 'default') == 'json':
             print(json.dumps({"ok": False, "error": str(e)}, indent=2))
         else:
-            print(f"❌ Failed to create session: {e}")
+            print(f"[FAIL] Failed to create session: {e}")
         handle_cli_error(e, "Session create", getattr(args, 'verbose', False))
         sys.exit(1)

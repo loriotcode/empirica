@@ -35,8 +35,8 @@ def _print_text_report(report: dict[str, Any]) -> None:
     """Emit a human-readable security audit report.
 
     Findings are split into two scopes:
-      EMPIRICA-MANAGED — fixes are empirica's responsibility (gates pass/fail)
-      USER-INSTALLED   — outside empirica's surface (informational only)
+      EMPIRICA-MANAGED -- fixes are empirica's responsibility (gates pass/fail)
+      USER-INSTALLED   -- outside empirica's surface (informational only)
     """
     summary = report.get("summary", {})
     scanned = report.get("scanned", {})
@@ -57,7 +57,7 @@ def _print_text_report(report: dict[str, Any]) -> None:
             f"(empirica root {'present' if scope_meta.get('empirica_root_present') else 'NOT present'})"
         )
     if "error" in kev_meta:
-        print(f"  KEV:       UNAVAILABLE — {kev_meta['error']}")
+        print(f"  KEV:       UNAVAILABLE -- {kev_meta['error']}")
     else:
         age = kev_meta.get("cache_age_hours")
         age_str = f"cache {age:.1f}h old" if age is not None else "fresh"
@@ -88,12 +88,12 @@ def _print_text_report(report: dict[str, Any]) -> None:
         _print_scope_section(
             findings,
             scope="empirica",
-            heading="EMPIRICA-MANAGED FINDINGS  (empirica's responsibility — gates pass/fail)",
+            heading="EMPIRICA-MANAGED FINDINGS  (empirica's responsibility -- gates pass/fail)",
         )
         _print_scope_section(
             findings,
             scope="user",
-            heading="USER-INSTALLED FINDINGS  (outside empirica's surface — informational)",
+            heading="USER-INSTALLED FINDINGS  (outside empirica's surface -- informational)",
         )
 
     print("=" * 60)
@@ -113,7 +113,7 @@ def _print_scope_section(findings: list[dict[str, Any]], *, scope: str, heading:
     print(f"  {heading}")
     print(f"  {'=' * len(heading)}")
     for priority, label in (
-        ("now", "ROTATE NOW (in CISA KEV — actively exploited)"),
+        ("now", "ROTATE NOW (in CISA KEV -- actively exploited)"),
         ("month", "ROTATE THIS MONTH (CVE without observed exploitation)"),
         ("monitor", "MONITOR"),
         ("safe", "SAFE"),

@@ -82,7 +82,7 @@ class StatuslineCacheEntry:
     phase: str | None = None  # PREFLIGHT, CHECK, POSTFLIGHT
     vectors: dict[str, float] | None = None
     gate_decision: str | None = None  # proceed, investigate
-    deltas: dict[str, float] | None = None  # PREFLIGHT→POSTFLIGHT learning delta
+    deltas: dict[str, float] | None = None  # PREFLIGHT->POSTFLIGHT learning delta
 
     # Counts
     open_goals: int = 0
@@ -213,7 +213,7 @@ class StatuslineCache:
                 entry.project_path = self.project_path
 
             # Write with exclusive lock
-            with open(self.cache_file, 'w') as f:
+            with open(self.cache_file, 'w', encoding='utf-8') as f:
                 _lock_file(f, exclusive=True)
                 try:
                     json.dump(entry.to_dict(), f, indent=2)
@@ -240,7 +240,7 @@ class StatuslineCache:
             return None
 
         try:
-            with open(self.cache_file) as f:
+            with open(self.cache_file, encoding='utf-8') as f:
                 _lock_file(f, exclusive=False)
                 try:
                     data = json.load(f)
@@ -334,7 +334,7 @@ class StatuslineCache:
                 try:
                     age = time.time() - cache_file.stat().st_mtime
                     if age <= max_age:
-                        with open(cache_file) as f:
+                        with open(cache_file, encoding='utf-8') as f:
                             data = json.load(f)
                         entry = StatuslineCacheEntry.from_dict(data)
                         active.append((entry.instance_id, entry.project_path, entry))

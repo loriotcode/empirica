@@ -6,7 +6,7 @@ Generates compressed, semantic session summaries for multi-agent coordination.
 
 Structure:
 - Session metadata (who, when, what)
-- Epistemic trajectory (PREFLIGHT → POSTFLIGHT deltas)
+- Epistemic trajectory (PREFLIGHT -> POSTFLIGHT deltas)
 - Key learnings (findings, gaps filled)
 - Context for next session
 - Recommended next steps
@@ -70,7 +70,7 @@ class EpistemicHandoffReportGenerator:
             artifacts_created: Files/commits produced
             start_assessment: PREFLIGHT assessment (optional, will query if not provided)
             end_assessment: POSTFLIGHT or CHECK assessment (optional, will query if not provided)
-            handoff_subtype: "complete" (PREFLIGHT→POSTFLIGHT) or "investigation" (PREFLIGHT→CHECK)
+            handoff_subtype: "complete" (PREFLIGHT->POSTFLIGHT) or "investigation" (PREFLIGHT->CHECK)
 
         Returns:
             {
@@ -113,7 +113,7 @@ class EpistemicHandoffReportGenerator:
             raise ValueError(
                 f"Missing assessments for {handoff_subtype} handoff. "
                 f"PREFLIGHT: {bool(start_assessment)}, END: {bool(end_assessment)}\n\n"
-                f"💡 Handoff reports require assessments:\n"
+                f"[HINT] Handoff reports require assessments:\n"
                 f"   Investigation handoff: PREFLIGHT + CHECK\n"
                 f"   Complete handoff: PREFLIGHT + POSTFLIGHT\n"
             )
@@ -176,7 +176,7 @@ class EpistemicHandoffReportGenerator:
         # Generate compressed JSON (minimal, for storage)
         report['compressed_json'] = self._compress_report(report)
 
-        logger.info(f"✅ Handoff report generated ({len(report['compressed_json'])} chars)")
+        logger.info(f"[OK] Handoff report generated ({len(report['compressed_json'])} chars)")
 
         return report
 
@@ -274,7 +274,7 @@ class EpistemicHandoffReportGenerator:
         # Generate compressed JSON
         report['compressed_json'] = self._compress_planning_handoff(report)
 
-        logger.info(f"✅ Planning handoff generated ({len(report['compressed_json'])} chars)")
+        logger.info(f"[OK] Planning handoff generated ({len(report['compressed_json'])} chars)")
 
         return report
 
@@ -346,7 +346,7 @@ class EpistemicHandoffReportGenerator:
         """
         Get calibration status - prioritize genuine introspection, validate with heuristics
 
-        For investigation handoffs (PREFLIGHT→CHECK), calibration is not applicable
+        For investigation handoffs (PREFLIGHT->CHECK), calibration is not applicable
         since CHECK is a decision gate, not a learning measurement.
 
         Returns:
@@ -362,7 +362,7 @@ class EpistemicHandoffReportGenerator:
         if end_assessment and end_assessment.get('phase') == 'CHECK':
             return {
                 'status': 'investigation-only',
-                'reasoning': 'Investigation handoff (PREFLIGHT→CHECK) - calibration not applicable',
+                'reasoning': 'Investigation handoff (PREFLIGHT->CHECK) - calibration not applicable',
                 'source': 'n/a'
             }
 
@@ -662,7 +662,7 @@ class EpistemicHandoffReportGenerator:
         # Calibration indicator
         cal_status = report['calibration_status']
         cal_source = calibration.get('source', 'unknown')
-        cal_emoji = '✅' if cal_status == 'well_calibrated' else '⚠️'
+        cal_emoji = '[OK]' if cal_status == 'well_calibrated' else '[WARN]'
 
         # Show source and any validation notes
         cal_display = f"{cal_emoji} **{cal_status.replace('_', ' ').title()}** ({cal_source})"
@@ -770,11 +770,11 @@ class EpistemicHandoffReportGenerator:
 
                 # Status indicator
                 if abs(delta) < 0.05:
-                    status = "→ Stable"
+                    status = "-> Stable"
                 elif delta > 0:
-                    status = "✅ Improved" if vec != 'uncertainty' else "⚠️ Increased"
+                    status = "[OK] Improved" if vec != 'uncertainty' else "[WARN] Increased"
                 else:
-                    status = "⚠️ Decreased" if vec != 'uncertainty' else "✅ Reduced"
+                    status = "[WARN] Decreased" if vec != 'uncertainty' else "[OK] Reduced"
 
                 lines.append(f"| {vec.upper()} | {before:.2f} | {after:.2f} | {delta:+.2f} | {status} |")
 

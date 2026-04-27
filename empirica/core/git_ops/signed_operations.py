@@ -50,7 +50,7 @@ finally:
     if _empirica_git_module is not None:
         sys.modules['empirica.core.git'] = _empirica_git_module
 
-from empirica.core.persona.signing_persona import SigningPersona  # noqa: E402 — after sys.modules guard
+from empirica.core.persona.signing_persona import SigningPersona  # noqa: E402 -- after sys.modules guard
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ class SignedGitOperations:
         self.enforce_cascade_phases = enforce_cascade_phases or env_enforce
 
         mode_str = "with CASCADE enforcement" if self.enforce_cascade_phases else "without enforcement"
-        logger.info(f"✓ Initialized SignedGitOperations for {repo_path} {mode_str}")
+        logger.info(f"[OK] Initialized SignedGitOperations for {repo_path} {mode_str}")
 
     def commit_signed_state(
         self,
@@ -204,7 +204,7 @@ class SignedGitOperations:
             )
 
             logger.info(
-                f"✓ Committed signed state: {phase} "
+                f"[OK] Committed signed state: {phase} "
                 f"SHA={commit_sha[:7]} "
                 f"persona={author_name}"
             )
@@ -351,13 +351,13 @@ class SignedGitOperations:
 
                             if is_valid:
                                 logger.info(
-                                    f"✓ Verified: {verification['commit']} "
+                                    f"[OK] Verified: {verification['commit']} "
                                     f"phase={verification['phase']} "
                                     f"persona={verification['persona_id']}"
                                 )
                             else:
                                 logger.warning(
-                                    f"✗ Signature invalid: {verification['commit']} "
+                                    f"[FAIL] Signature invalid: {verification['commit']} "
                                     f"phase={verification['phase']}"
                                 )
 
@@ -423,10 +423,10 @@ class SignedGitOperations:
             output_path = Path(output_file)
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(output_path, 'w') as f:
+            with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(report, f, indent=2)
 
-            logger.info(f"✓ Wrote CASCADE report to {output_file}")
+            logger.info(f"[OK] Wrote CASCADE report to {output_file}")
 
         return report
 
@@ -460,7 +460,7 @@ class SignedGitOperations:
             if current_idx <= last_idx:
                 raise ValueError(
                     f"Phase {phase} cannot follow {last_phase}. "
-                    f"CASCADE must progress: {' → '.join(CASCADE_ORDER)}"
+                    f"CASCADE must progress: {' -> '.join(CASCADE_ORDER)}"
                 )
 
         if required_personas:
@@ -468,7 +468,7 @@ class SignedGitOperations:
             # Implementation depends on CASCADE orchestration logic
             logger.info(f"Phase {phase} requires sign-off from: {required_personas}")
 
-        logger.info(f"✓ CASCADE phase validation passed: {phase}")
+        logger.info(f"[OK] CASCADE phase validation passed: {phase}")
 
     def _get_last_cascade_phase(self) -> str | None:
         """

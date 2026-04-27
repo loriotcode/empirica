@@ -267,7 +267,7 @@ class CompletionTracker:
         Scan recent git commits and auto-mark subtasks complete
 
         Looks for commit message patterns like:
-        - ✅ [TASK:subtask-uuid]
+        - [OK] [TASK:subtask-uuid]
         - [COMPLETE:subtask-uuid]
         - Addresses subtask subtask-uuid
 
@@ -304,7 +304,7 @@ class CompletionTracker:
 
                 # Look for task completion markers
                 patterns = [
-                    r'✅\s*\[TASK:([a-f0-9-]+)\]',
+                    r'[OK]\s*\[TASK:([a-f0-9-]+)\]',
                     r'\[COMPLETE:([a-f0-9-]+)\]',
                     r'Addresses subtask ([a-f0-9-]+)',
                 ]

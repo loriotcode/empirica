@@ -236,7 +236,7 @@ def main():
     parent_session_id = get_parent_session_id()
 
     if not parent_session_id:
-        # No active session — allow agent to proceed without tracking
+        # No active session -- allow agent to proceed without tracking
         result = {
             "continue": True,
             "message": f"SubagentStart: No active Empirica session. Agent '{agent_name}' proceeding without lineage tracking."
@@ -245,7 +245,7 @@ def main():
         return
 
     # PRE-SPAWN BUDGET CHECK: Warn strongly if budget is exhausted
-    # This is advisory (fail-open) — the rollup gate will reject findings anyway,
+    # This is advisory (fail-open) -- the rollup gate will reject findings anyway,
     # but warning at spawn time saves compute by letting Claude decide not to spawn.
     budget_warning = ""
     try:
@@ -273,7 +273,7 @@ def main():
             "message": f"SubagentStart: Created child session {child_session_id[:8]} for '{agent_name}' (parent: {parent_session_id[:8]}){budget_warning}"
         }
     else:
-        # Creation failed — allow agent to proceed anyway (fail-open)
+        # Creation failed -- allow agent to proceed anyway (fail-open)
         result = {
             "continue": True,
             "message": f"SubagentStart: Failed to create child session for '{agent_name}': {child_result.get('error', 'unknown')}. Proceeding without tracking."

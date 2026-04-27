@@ -35,7 +35,7 @@ class BeadsConfig:
             return self._default_config()
 
         try:
-            with open(self.config_path) as f:
+            with open(self.config_path, encoding='utf-8') as f:
                 config = yaml.safe_load(f) or {}
                 return config.get('integrations', {}).get('beads', self._default_config())
         except Exception as e:
@@ -85,7 +85,7 @@ class BeadsConfig:
         # Load full config
         full_config = {}
         if self.config_path.exists():
-            with open(self.config_path) as f:
+            with open(self.config_path, encoding='utf-8') as f:
                 full_config = yaml.safe_load(f) or {}
 
         # Update BEADS section
@@ -95,7 +95,7 @@ class BeadsConfig:
         full_config['integrations']['beads'] = self._config
 
         # Write back
-        with open(self.config_path, 'w') as f:
+        with open(self.config_path, 'w', encoding='utf-8') as f:
             yaml.dump(full_config, f, default_flow_style=False, sort_keys=False)
 
         logger.info(f"Saved BEADS config to {self.config_path}")

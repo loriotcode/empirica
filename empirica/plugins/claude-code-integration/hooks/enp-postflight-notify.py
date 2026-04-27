@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ENP PostToolUse Hook — Surfaces new notifications after POSTFLIGHT.
+ENP PostToolUse Hook -- Surfaces new notifications after POSTFLIGHT.
 
 Fires on Bash PostToolUse, checks if the command was postflight-submit.
 If so, checks for a flag file written by the cron watcher.
@@ -31,7 +31,7 @@ def format_notification(n: dict) -> str:
 
     msg_hint = ''
     if messages:
-        msg_hint = f' — "{messages[0]}"'
+        msg_hint = f' -- "{messages[0]}"'
         if len(messages) > 1:
             msg_hint += f' +{len(messages) - 1} more'
 
@@ -56,7 +56,7 @@ def main():
         print(json.dumps({"continue": True}))
         return
 
-    # Flag exists — read notifications
+    # Flag exists -- read notifications
     try:
         FLAG_PATH.unlink()  # Clear flag immediately (atomic-ish)
     except OSError:

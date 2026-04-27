@@ -1,5 +1,5 @@
 """
-A2 Service Registry — SPEC 1 Part 2 implementation.
+A2 Service Registry -- SPEC 1 Part 2 implementation.
 
 Registry of deterministic compliance checks. Each check self-declares:
 - A unique check_id
@@ -8,7 +8,7 @@ Registry of deterministic compliance checks. Each check self-declares:
 - Pass criteria and timeout
 
 The Sentinel looks up checks by ID via the registry and invokes their
-runner. The registry never imports specific services — services register
+runner. The registry never imports specific services -- services register
 themselves.
 
 See: .empirica/visions/2026-04-08-sentinel-reframe-api-contract-spec.md
@@ -44,7 +44,7 @@ class CheckResult:
     predicted_pass: float | None = None
     predicted_at: float | None = None
 
-    # Cache/tier metadata — informs the AI what actually ran
+    # Cache/tier metadata -- informs the AI what actually ran
     cached: bool = False          # True if result came from cache
     deferred: bool = False        # True if check was deferred (tier too high)
     tier: str = "always"          # "always" | "goal_completion" | "release"
@@ -67,7 +67,7 @@ class CheckDeclaration:
 class ServiceRegistry:
     """Registry of available deterministic checks.
 
-    Class-level registry — all methods are classmethods for singleton access.
+    Class-level registry -- all methods are classmethods for singleton access.
 
     Cache: check results are cached by (check_id, content_hash) where
     content_hash is derived from changed_files. If the same files produce
@@ -76,7 +76,7 @@ class ServiceRegistry:
     """
 
     _registered: ClassVar[dict[str, CheckDeclaration]] = {}
-    _cache: ClassVar[dict[tuple[str, str], CheckResult]] = {}  # (check_id, content_hash) → result
+    _cache: ClassVar[dict[tuple[str, str], CheckResult]] = {}  # (check_id, content_hash) -> result
 
     @classmethod
     def register(cls, declaration: CheckDeclaration) -> None:
@@ -88,7 +88,7 @@ class ServiceRegistry:
         existing = cls._registered.get(declaration.check_id)
         if existing is not None:
             if existing is declaration:
-                return  # exact same object — no-op
+                return  # exact same object -- no-op
             # Compare by value (excluding runner which is a callable)
             if (
                 existing.tool == declaration.tool
@@ -97,7 +97,7 @@ class ServiceRegistry:
                 and existing.timeout_seconds == declaration.timeout_seconds
                 and existing.tags == declaration.tags
             ):
-                return  # equivalent — no-op
+                return  # equivalent -- no-op
             raise RegistrationConflict(
                 f"Check '{declaration.check_id}' already registered with "
                 f"tool='{existing.tool}', cannot re-register with "
@@ -250,10 +250,10 @@ class ServiceRegistry:
 
 
 # ---------------------------------------------------------------------------
-# Built-in check runners (C2 — goal-scoped subprocess execution)
+# Built-in check runners (C2 -- goal-scoped subprocess execution)
 #
 # All runners receive context["changed_files"] from the compliance loop.
-# When available, checks scope to changed files only — making compliance
+# When available, checks scope to changed files only -- making compliance
 # meaningful per-goal rather than repo-wide.
 # ---------------------------------------------------------------------------
 
@@ -263,7 +263,7 @@ def _py_files_from_changed(context: dict[str, Any]) -> list[str]:
 
 
 def _run_tests_check(context: dict[str, Any]) -> CheckResult:
-    """Run pytest — scoped to changed modules when available."""
+    """Run pytest -- scoped to changed modules when available."""
     import subprocess
     project_path = context.get("project_path", ".")
     changed_py = _py_files_from_changed(context)
@@ -317,12 +317,12 @@ def _run_tests_check(context: dict[str, Any]) -> CheckResult:
     except FileNotFoundError:
         return CheckResult(
             check_id="tests", passed=True, details={"skipped": True},
-            summary="pytest not available — skipped", duration_ms=0, ran_at=time.time(),
+            summary="pytest not available -- skipped", duration_ms=0, ran_at=time.time(),
         )
 
 
 def _run_lint_check(context: dict[str, Any]) -> CheckResult:
-    """Run ruff check — scoped to changed files when available."""
+    """Run ruff check -- scoped to changed files when available."""
     import subprocess
     project_path = context.get("project_path", ".")
     changed_py = _py_files_from_changed(context)
@@ -363,7 +363,7 @@ def _run_lint_check(context: dict[str, Any]) -> CheckResult:
     except FileNotFoundError:
         return CheckResult(
             check_id="lint", passed=True, details={"skipped": True},
-            summary="ruff not available — skipped", duration_ms=0, ran_at=time.time(),
+            summary="ruff not available -- skipped", duration_ms=0, ran_at=time.time(),
         )
 
 
@@ -388,7 +388,7 @@ def _run_git_metrics_check(context: dict[str, Any]) -> CheckResult:
     except Exception:
         return CheckResult(
             check_id="git_metrics", passed=True, details={"skipped": True},
-            summary="git not available — skipped", duration_ms=0, ran_at=time.time(),
+            summary="git not available -- skipped", duration_ms=0, ran_at=time.time(),
         )
 
 
@@ -437,7 +437,7 @@ def _run_complexity_check(context: dict[str, Any]) -> CheckResult:
     except FileNotFoundError:
         return CheckResult(
             check_id="complexity", passed=True, details={"skipped": True},
-            summary="radon not available — skipped", duration_ms=0, ran_at=time.time(),
+            summary="radon not available -- skipped", duration_ms=0, ran_at=time.time(),
         )
     except Exception as e:
         return CheckResult(
@@ -477,7 +477,7 @@ def _run_dep_audit_check(context: dict[str, Any]) -> CheckResult:
     except FileNotFoundError:
         return CheckResult(
             check_id="dep_audit", passed=True, details={"skipped": True},
-            summary="pip-audit not available — skipped", duration_ms=0, ran_at=time.time(),
+            summary="pip-audit not available -- skipped", duration_ms=0, ran_at=time.time(),
         )
     except subprocess.TimeoutExpired:
         return CheckResult(
@@ -487,7 +487,7 @@ def _run_dep_audit_check(context: dict[str, Any]) -> CheckResult:
 
 
 # ---------------------------------------------------------------------------
-# Artifact-based check runners (universal — query Empirica DB, not subprocess)
+# Artifact-based check runners (universal -- query Empirica DB, not subprocess)
 #
 # These checks work across ALL domains: consulting, research, operations,
 # marketing. They verify epistemic process quality by querying the artifact
@@ -561,7 +561,7 @@ def _run_assumptions_flagged_check(context: dict[str, Any]) -> CheckResult:
             db.close()
             return CheckResult(
                 check_id="assumptions_flagged", passed=True, details={"skipped": True},
-                summary="no session — skipped", duration_ms=0, ran_at=time.time(),
+                summary="no session -- skipped", duration_ms=0, ran_at=time.time(),
             )
 
         cursor.execute(
@@ -613,7 +613,7 @@ def _run_unknowns_resolved_check(context: dict[str, Any]) -> CheckResult:
             db.close()
             return CheckResult(
                 check_id="unknowns_resolved", passed=True, details={"skipped": True},
-                summary="no session — skipped", duration_ms=0, ran_at=time.time(),
+                summary="no session -- skipped", duration_ms=0, ran_at=time.time(),
             )
 
         cursor.execute(
@@ -656,7 +656,7 @@ def _run_scope_coverage_check(context: dict[str, Any]) -> CheckResult:
             db.close()
             return CheckResult(
                 check_id="scope_coverage", passed=True, details={"skipped": True},
-                summary="no session — skipped", duration_ms=0, ran_at=time.time(),
+                summary="no session -- skipped", duration_ms=0, ran_at=time.time(),
             )
 
         # Count goals and completion for this session
@@ -703,7 +703,7 @@ def _run_recommendation_traceability_check(context: dict[str, Any]) -> CheckResu
     """Verify that decisions reference findings (evidence-backed choices).
 
     At least half of decisions should cite evidence via evidence_refs.
-    Decisions without evidence are hunches — still valid but flagged.
+    Decisions without evidence are hunches -- still valid but flagged.
     """
     try:
         from empirica.data.session_database import SessionDatabase
@@ -715,7 +715,7 @@ def _run_recommendation_traceability_check(context: dict[str, Any]) -> CheckResu
             db.close()
             return CheckResult(
                 check_id="recommendation_traceability", passed=True, details={"skipped": True},
-                summary="no session — skipped", duration_ms=0, ran_at=time.time(),
+                summary="no session -- skipped", duration_ms=0, ran_at=time.time(),
             )
 
         cursor.execute(
@@ -757,7 +757,7 @@ def _run_recommendation_traceability_check(context: dict[str, Any]) -> CheckResu
 def _run_finding_sourced_check(context: dict[str, Any]) -> CheckResult:
     """Verify that findings reference sources (not just observations).
 
-    Informational — many valid findings are observations without external
+    Informational -- many valid findings are observations without external
     sources. Only flags when source ratio is very low (< 25%) and there
     are enough findings to be meaningful (>= 3).
     """
@@ -771,7 +771,7 @@ def _run_finding_sourced_check(context: dict[str, Any]) -> CheckResult:
             db.close()
             return CheckResult(
                 check_id="finding_sourced", passed=True, details={"skipped": True},
-                summary="no session — skipped", duration_ms=0, ran_at=time.time(),
+                summary="no session -- skipped", duration_ms=0, ran_at=time.time(),
             )
 
         cursor.execute(
@@ -812,7 +812,7 @@ def _run_finding_sourced_check(context: dict[str, Any]) -> CheckResult:
 
 
 def _run_provenance_depth_check(context: dict[str, Any]) -> CheckResult:
-    """Verify the full chain: source → finding → decision exists at least once.
+    """Verify the full chain: source -> finding -> decision exists at least once.
 
     Checks that at least one decision has evidence_refs pointing to a finding
     that has source_refs pointing to a source. This proves the provenance
@@ -830,7 +830,7 @@ def _run_provenance_depth_check(context: dict[str, Any]) -> CheckResult:
             db.close()
             return CheckResult(
                 check_id="provenance_depth", passed=True, details={"skipped": True},
-                summary="no session — skipped", duration_ms=0, ran_at=time.time(),
+                summary="no session -- skipped", duration_ms=0, ran_at=time.time(),
             )
 
         # Find decisions with evidence_refs in this session
@@ -887,7 +887,7 @@ def _run_provenance_depth_check(context: dict[str, Any]) -> CheckResult:
                 "sourced_findings": sourced_findings,
                 "complete_chains": sourced_findings,
             },
-            summary=f"{sourced_findings} complete source→finding→decision chain(s)" if sourced_findings
+            summary=f"{sourced_findings} complete source->finding->decision chain(s)" if sourced_findings
             else "no complete provenance chain",
             duration_ms=0, ran_at=time.time(),
         )
@@ -948,7 +948,7 @@ def _register_builtin_checks() -> None:
             tags=("security",),
             tier="release",
         ),
-        # Artifact-based checks (universal — all domains)
+        # Artifact-based checks (universal -- all domains)
         CheckDeclaration(
             check_id="artifact_breadth",
             tool="empirica-db",
@@ -987,7 +987,7 @@ def _register_builtin_checks() -> None:
             tags=("epistemic", "deliverable"),
             tier="goal_completion",
         ),
-        # Provenance graph checks (T2 — query source→finding→decision links)
+        # Provenance graph checks (T2 -- query source->finding->decision links)
         CheckDeclaration(
             check_id="recommendation_traceability",
             tool="empirica-db",
@@ -1001,7 +1001,7 @@ def _register_builtin_checks() -> None:
             check_id="finding_sourced",
             tool="empirica-db",
             applies_to=(("*", "research"), ("*", "consulting")),
-            criterion_description="Findings cite sources (informational — low threshold)",
+            criterion_description="Findings cite sources (informational -- low threshold)",
             runner=_run_finding_sourced_check,
             timeout_seconds=5,
             tags=("epistemic", "provenance"),
@@ -1010,7 +1010,7 @@ def _register_builtin_checks() -> None:
             check_id="provenance_depth",
             tool="empirica-db",
             applies_to=(("*", "consulting"), ("*", "research")),
-            criterion_description="At least one complete source→finding→decision chain exists",
+            criterion_description="At least one complete source->finding->decision chain exists",
             runner=_run_provenance_depth_check,
             timeout_seconds=5,
             tags=("epistemic", "provenance"),

@@ -27,9 +27,9 @@ def _classify_quality(context_value: float) -> str:
     if context_value >= 0.7:
         return "🌟 Excellent"
     elif context_value >= 0.5:
-        return "✅ Good"
+        return "[OK] Good"
     elif context_value >= 0.3:
-        return "⚠️ Fair"
+        return "[WARN] Fair"
     return "⛔ Needs Work"
 
 
@@ -56,7 +56,7 @@ def _classify_priority(impact: float) -> str:
     if impact >= 0.7:
         return "⭐ Core Concept - Essential"
     elif impact >= 0.5:
-        return "📌 Important - Don't Skip"
+        return "[PIN] Important - Don't Skip"
     return "📚 Background - Skim if short on time"
 
 
@@ -74,17 +74,17 @@ def _generate_suggestions(assessment) -> list[str]:
     """Generate study suggestions from assessment metrics."""
     suggestions = []
     if assessment.clarity < 0.5:
-        suggestions.append("💡 Visual quality low - try zooming in or viewing on larger screen")
+        suggestions.append("[HINT] Visual quality low - try zooming in or viewing on larger screen")
     if assessment.density > 0.7:
         suggestions.append("⏰ Dense content - budget extra time, consider making notes")
     if assessment.has_diagram:
-        suggestions.append("📊 Contains diagrams - trace connections visually")
+        suggestions.append("[STATS] Contains diagrams - trace connections visually")
     if assessment.has_code:
         suggestions.append("💻 Contains code - try typing it out instead of just reading")
     if assessment.impact > 0.7 and assessment.clarity < 0.6:
         suggestions.append("⭐ Core concept with unclear presentation - seek supplementary materials")
     if not suggestions:
-        suggestions.append("👍 Standard slide - read at normal pace")
+        suggestions.append("[OK] Standard slide - read at normal pace")
     return suggestions
 
 
@@ -136,46 +136,46 @@ class HumanReadableTranslator:
         guide.append("")
 
         # Study path
-        guide.append("🎯 RECOMMENDED STUDY PATH")
+        guide.append("[TARGET] RECOMMENDED STUDY PATH")
         guide.append("-" * 70)
         guide.append("")
 
         if essential:
             guide.append("⭐ START HERE - Core Concepts (MUST READ):")
             for a in essential[:5]:
-                guide.append(f"   • Slide {a.slide_number}: {a.summary[:60]}...")
+                guide.append(f"   * Slide {a.slide_number}: {a.summary[:60]}...")
             guide.append(f"   Estimated time: {len(essential[:5]) * 4} minutes")
             guide.append("")
 
         if important:
-            guide.append("📌 NEXT - Supporting Material (Important):")
+            guide.append("[PIN] NEXT - Supporting Material (Important):")
             for a in important[:5]:
-                guide.append(f"   • Slide {a.slide_number}: {a.summary[:60]}...")
+                guide.append(f"   * Slide {a.slide_number}: {a.summary[:60]}...")
             guide.append(f"   Estimated time: {len(important[:5]) * 3} minutes")
             guide.append("")
 
         if background:
             guide.append("📚 OPTIONAL - Background Context:")
             for a in background[:5]:
-                guide.append(f"   • Slide {a.slide_number}: {a.summary[:60]}...")
+                guide.append(f"   * Slide {a.slide_number}: {a.summary[:60]}...")
             guide.append(f"   Estimated time: {len(background[:5]) * 2} minutes")
             guide.append("")
 
         # Special attention
-        guide.append("⚠️ NEEDS SPECIAL ATTENTION")
+        guide.append("[WARN] NEEDS SPECIAL ATTENTION")
         guide.append("-" * 70)
         guide.append("")
 
         if dense:
             guide.append("⏰ INFORMATION-DENSE (Budget Extra Time):")
             for a in dense[:5]:
-                guide.append(f"   • Slide {a.slide_number} - Allow 5+ minutes")
+                guide.append(f"   * Slide {a.slide_number} - Allow 5+ minutes")
             guide.append("")
 
         if unclear:
-            guide.append("💡 VISUALLY UNCLEAR (Zoom In / Use Larger Screen):")
+            guide.append("[HINT] VISUALLY UNCLEAR (Zoom In / Use Larger Screen):")
             for a in unclear[:5]:
-                guide.append(f"   • Slide {a.slide_number}")
+                guide.append(f"   * Slide {a.slide_number}")
             guide.append("")
 
         # Time estimate
@@ -190,7 +190,7 @@ class HumanReadableTranslator:
         avg_clarity = sum(a.clarity for a in assessments) / len(assessments)
         avg_density = sum(a.density for a in assessments) / len(assessments)
 
-        guide.append("📊 OVERALL QUALITY")
+        guide.append("[STATS] OVERALL QUALITY")
         guide.append("-" * 70)
         guide.append(f"Visual Clarity: {self._score_to_grade(avg_clarity)}")
         guide.append(f"Content Density: {self._density_to_description(avg_density)}")
@@ -218,21 +218,21 @@ class HumanReadableTranslator:
         card.append(f"   Study Time: ~{readable.study_time_minutes} minutes")
         card.append("")
 
-        card.append("📝 CONTENT SUMMARY")
+        card.append("[NOTE] CONTENT SUMMARY")
         card.append(f"   {readable.summary}")
         card.append("")
 
         if readable.key_terms:
-            card.append("🔑 KEY TERMS")
+            card.append("[KEY] KEY TERMS")
             card.append("   " + ", ".join(readable.key_terms))
             card.append("")
 
-        card.append("💡 STUDY TIPS")
+        card.append("[HINT] STUDY TIPS")
         for suggestion in readable.suggestions:
             card.append(f"   {suggestion}")
         card.append("")
 
-        card.append("📊 QUALITY METRICS")
+        card.append("[STATS] QUALITY METRICS")
         card.append(f"   Visual Clarity:  {self._score_to_grade(assessment.clarity)} [{assessment.clarity:.2f}]")
         card.append(f"   Content Signal:  {self._score_to_grade(assessment.signal)} [{assessment.signal:.2f}]")
         card.append(f"   Easy to Process: {self._score_to_grade(1.0 - assessment.density)} [{1.0-assessment.density:.2f}]")
@@ -292,7 +292,7 @@ def main():
     args = parser.parse_args()
 
     # Load assessment
-    with open(args.assessment_file) as f:
+    with open(args.assessment_file, encoding='utf-8') as f:
         data = json.load(f)
 
     assessments = [

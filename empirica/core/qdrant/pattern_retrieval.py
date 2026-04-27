@@ -208,9 +208,9 @@ def _search_related_docs(
 def _compute_adaptive_limits(vectors: dict | None, base_limit: int) -> dict[str, int]:
     """Compute per-collection retrieval limits based on vector state.
 
-    Higher uncertainty → more context from all collections (up to 2x).
-    Low know → more lessons, dead-ends, assumptions.
-    Low context → more episodic, goals, decisions.
+    Higher uncertainty -> more context from all collections (up to 2x).
+    Low know -> more lessons, dead-ends, assumptions.
+    Low context -> more episodic, goals, decisions.
     """
     if not vectors:
         return dict.fromkeys(["lessons", "dead_ends", "findings", "eidetic", "episodic", "goals", "assumptions", "decisions", "global_dead_ends", "docs"], base_limit)
@@ -222,10 +222,10 @@ def _compute_adaptive_limits(vectors: dict | None, base_limit: int) -> dict[str,
     # Base multiplier: scales 1.0x at u=0.0 to 2.0x at u=1.0
     uncertainty_mult = 1.0 + uncertainty
 
-    # Knowledge gap: low know → more procedural/warning context
+    # Knowledge gap: low know -> more procedural/warning context
     know_gap = max(0.0, 1.0 - know)  # 0.0 at know=1.0, 1.0 at know=0.0
 
-    # Context gap: low context → more situational awareness
+    # Context gap: low context -> more situational awareness
     context_gap = max(0.0, 1.0 - context)  # 0.0 at context=1.0, 1.0 at context=0.0
 
     def _limit(base_mult: float, gap_bonus: float = 0.0) -> int:

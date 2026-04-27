@@ -192,7 +192,7 @@ class ProseEvidenceCollector:
             word_count = len(text.split())
 
             if word_count > 0:
-                # Violations per 100 words — lower is better
+                # Violations per 100 words -- lower is better
                 violations_per_100 = (violation_count / word_count) * 100
                 # Normalize: 0 violations = 1.0, 5+ per 100 words = 0.0
                 coherence_score = max(0.0, 1.0 - (violations_per_100 / 5.0))
@@ -340,7 +340,7 @@ class ProseEvidenceCollector:
             ))
 
         # Goal completion as document output
-        # Exclude 'planned' goals — they exist but haven't been started
+        # Exclude 'planned' goals -- they exist but haven't been started
         cursor.execute("""
             SELECT id, objective FROM goals
             WHERE session_id = ? AND is_completed = 1 AND status != 'planned'
@@ -411,7 +411,7 @@ class ProseEvidenceCollector:
                 supports_vectors=["know", "signal"],
             ))
         elif finding_count > 0 and source_count == 0:
-            # Findings without sources — low evidence quality
+            # Findings without sources -- low evidence quality
             items.append(EvidenceItem(
                 source="source_quality",
                 metric_name="source_to_finding_ratio",

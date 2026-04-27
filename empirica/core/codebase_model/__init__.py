@@ -1,5 +1,5 @@
 """
-Codebase Model — Temporal Entity Tracking for Empirica
+Codebase Model -- Temporal Entity Tracking for Empirica
 
 Tracks codebase entities (functions, classes, APIs, files) with temporal
 validity, evidence chains, and relationship graphs. Inspired by world-model-mcp

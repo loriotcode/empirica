@@ -153,7 +153,7 @@ def _write_unified_breadcrumbs_note(
     commits = git_context.get('recent_commits', '') or '[No recent commits]'
 
     note = f"""🍞 BREADCRUMBS - {timestamp}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+========================================
 
 BRANCH: {branch}
 
@@ -166,14 +166,14 @@ MODIFIED_FILES:
 RECENT_COMMITS:
 {commits}
 
-🧠 EPISTEMIC STATE
+[THINK] EPISTEMIC STATE
 Session: {session_id}
 Vectors: know={know}, uncertainty={uncertainty}, completion={completion}, context={context_v}
 Snapshot: {snapshot_filename}
 
 Artifacts: {breadcrumbs_summary.get('findings_count', 0)} findings, {breadcrumbs_summary.get('unknowns_count', 0)} unknowns, {breadcrumbs_summary.get('goals_count', 0)} goals, {breadcrumbs_summary.get('dead_ends_count', 0)} dead-ends
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+========================================
 RETRIEVAL:
   empirica project-bootstrap --session-id {session_id[:8]}...
   empirica project-search --task "<what you need>"
@@ -206,7 +206,7 @@ def _write_compact_handoff(project_root, claude_session_id):
             'instance_id': instance_id,
             'timestamp': datetime.now().isoformat()
         }
-        with open(handoff_file, 'w') as f:
+        with open(handoff_file, 'w', encoding='utf-8') as f:
             json.dump(handoff_data, f, indent=2)
     except Exception:
         pass  # Handoff write failure is non-fatal
@@ -309,17 +309,17 @@ def _capture_transaction_state(project_root):
         if suffix:
             tx_path = project_root / '.empirica' / f'active_transaction{suffix}.json'
             if tx_path.exists():
-                with open(tx_path) as f:
+                with open(tx_path, encoding='utf-8') as f:
                     active_transaction = json.load(f)
             counters_path = project_root / '.empirica' / f'hook_counters{suffix}.json'
             if counters_path.exists():
-                with open(counters_path) as f:
+                with open(counters_path, encoding='utf-8') as f:
                     hook_counters = json.load(f)
         else:
             tx_files = list((project_root / '.empirica').glob('active_transaction_*.json'))
             if tx_files:
                 tx_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-                with open(tx_files[0]) as f:
+                with open(tx_files[0], encoding='utf-8') as f:
                     active_transaction = json.load(f)
     except Exception:
         pass
@@ -365,15 +365,15 @@ def _build_compact_guidance(breadcrumbs, active_transaction, display_vectors):
         tx_status = active_transaction.get('status', 'unknown')
         know_val = display_vectors.get('know', 'N/A')
         unc_val = display_vectors.get('uncertainty', 'N/A')
-        vector_line = f"\n3. OPEN TRANSACTION {tx_id} (status: {tx_status}) — vectors: know={know_val}, uncertainty={unc_val}"
+        vector_line = f"\n3. OPEN TRANSACTION {tx_id} (status: {tx_status}) -- vectors: know={know_val}, uncertainty={unc_val}"
         vector_line += "\n   These vectors represent mid-transaction state. Resume from where you left off."
     else:
-        vector_line = f"\n3. Session {session_short} COMPLETED (no open transaction). Previous vectors are historical — run fresh PREFLIGHT."
+        vector_line = f"\n3. Session {session_short} COMPLETED (no open transaction). Previous vectors are historical -- run fresh PREFLIGHT."
 
     compact_guidance = f"""Compaction summary guidance: Epistemic state has been captured externally (Empirica breadcrumbs, git notes). The summarizer should prioritize:
 1. What the user asked for and decisions made (not file contents)
 2. Current task context and open questions (not code snippets){vector_line}{last_task_line}
-File contents read during this session are available via Read tool — do NOT include them in the summary."""
+File contents read during this session are available via Read tool -- do NOT include them in the summary."""
 
     return compact_guidance, has_open_transaction
 
@@ -475,7 +475,7 @@ def main():
             "git_context": git_context,
         }
 
-        with open(snapshot_path, 'w') as f:
+        with open(snapshot_path, 'w', encoding='utf-8') as f:
             json.dump(snapshot, f, indent=2)
 
         # Write unified breadcrumbs git note
@@ -502,7 +502,7 @@ def main():
         session_id_str = breadcrumbs.get('session_id', 'Unknown')
         session_display = session_id_str[:8] if session_id_str else 'Unknown'
         stale_msg = f", {stale_goals_count} goals marked stale" if stale_goals_count > 0 else ""
-        notes_msg = "✓" if git_notes_written else "✗"
+        notes_msg = "[OK]" if git_notes_written else "[FAIL]"
         stash_msg = " (stash: saved+restored)" if stash_created else ""
         tx_state_msg = "OPEN (carrying through)" if has_open_transaction else "CLOSED (vectors historical)"
         print(f"""

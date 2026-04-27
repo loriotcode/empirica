@@ -55,12 +55,12 @@ def get_git_diff_summary() -> dict[str, Any]:
                     if '+' in part:
                         try:
                             total_additions += int(part.replace('+', ''))
-                        except Exception:  # noqa: S110 — non-numeric diff stat; skip
+                        except Exception:  # noqa: S110 -- non-numeric diff stat; skip
                             pass
                     if '-' in part:
                         try:
                             total_deletions += int(part.replace('-', ''))
-                        except Exception:  # noqa: S110 — non-numeric diff stat; skip
+                        except Exception:  # noqa: S110 -- non-numeric diff stat; skip
                             pass
 
         # Estimate scope
@@ -99,9 +99,9 @@ def analyze_epistemic_trajectory(
     Analyze if epistemic trajectory is coherent.
 
     Coherent patterns:
-    - KNOW↑ + CLARITY↑ + UNCERTAINTY↓ = learning happened
-    - KNOW↓ + CLARITY↓ + UNCERTAINTY↑ = discovered complexity
-    - KNOW→ + CLARITY→ = no learning (possible issue)
+    - KNOW^ + CLARITY^ + UNCERTAINTYv = learning happened
+    - KNOWv + CLARITYv + UNCERTAINTY^ = discovered complexity
+    - KNOW-> + CLARITY-> = no learning (possible issue)
 
     Args:
         preflight_vectors: Assessment at start

@@ -11,7 +11,7 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# Public API — these underscore-prefixed functions are intentionally imported
+# Public API -- these underscore-prefixed functions are intentionally imported
 # by other qdrant modules (vector_store, calibration, decay, memory, etc.)
 __all__ = [
     "_check_qdrant_available",
@@ -49,7 +49,7 @@ def _check_qdrant_available() -> bool:
         return False
 
     try:
-        from qdrant_client import QdrantClient  # noqa: F401 — availability check  # pyright: ignore[reportUnusedImport]
+        from qdrant_client import QdrantClient  # noqa: F401 -- availability check  # pyright: ignore[reportUnusedImport]
         _qdrant_available = True
         return True
     except ImportError:
@@ -246,13 +246,13 @@ def _get_qdrant_client():
     try:
         import urllib.request
         req = urllib.request.Request(f"{default_url}/collections", method='GET')
-        with urllib.request.urlopen(req, timeout=1) as resp:
+        with urllib.request.urlopen(req, timeout=1, encoding='utf-8') as resp:
             if resp.status == 200:
                 return QdrantClient(url=default_url)
     except Exception:
         pass  # Server not available
 
-    # No Qdrant server available — skip gracefully
+    # No Qdrant server available -- skip gracefully
     logger.debug("Qdrant server not available. Start with: qdrant or empirica mcp-start")
     return None
 

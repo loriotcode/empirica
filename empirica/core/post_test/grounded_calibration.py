@@ -5,19 +5,19 @@ Parallel Bayesian track that uses objective evidence as observations
 instead of self-assessed POSTFLIGHT vectors.
 
 Mirrors BayesianBeliefManager but with:
-- Lower observation variance (0.05 vs 0.1) — higher trust in objective evidence
+- Lower observation variance (0.05 vs 0.1) -- higher trust in objective evidence
 - Evidence from PostTestCollector/EvidenceMapper instead of self-assessment
 - Tracks divergence between self-referential and grounded tracks
 - Stores in grounded_beliefs table (parallel to bayesian_beliefs)
 
-The key insight: the existing calibration measures learning (PREFLIGHT→POSTFLIGHT delta),
+The key insight: the existing calibration measures learning (PREFLIGHT->POSTFLIGHT delta),
 not calibration accuracy. This track measures how well POSTFLIGHT self-assessment
 matches what actually happened (objective evidence).
 
-IMPORTANT — Dual-Track Calibration Philosophy:
+IMPORTANT -- Dual-Track Calibration Philosophy:
 
 Track 2 (grounded) is INFORMATIVE, not AUTHORITATIVE. The deterministic evidence
-sources (test results, git metrics, artifact counts, code quality) are proxies —
+sources (test results, git metrics, artifact counts, code quality) are proxies --
 useful signals that detect drift patterns, but they cannot fully measure holistic
 epistemic state. An AI's self-assessment captures dimensions (understanding depth,
 conceptual clarity, engagement quality) that no deterministic service can observe.
@@ -26,10 +26,10 @@ The two tracks are complementary:
 - Track 1 (self-referential): Measures learning trajectory. The AI knows what it
   learned, but may have systematic biases in self-reporting.
 - Track 2 (grounded): Detects those biases by comparing self-reports against
-  observable outcomes. But the observables are incomplete — they're a flashlight
+  observable outcomes. But the observables are incomplete -- they're a flashlight
   on a few corners of the epistemic room, not a full map.
 
-When the tracks diverge, that's a signal worth investigating — not an automatic
+When the tracks diverge, that's a signal worth investigating -- not an automatic
 override. The AI should examine WHY they diverge and calibrate accordingly, not
 blindly chase grounded scores by deflating vectors.
 
@@ -54,10 +54,10 @@ from .mapper import (
 logger = logging.getLogger(__name__)
 
 
-# Below this grounded coverage, calibration is statistically meaningless —
+# Below this grounded coverage, calibration is statistically meaningless --
 # halt gap computation rather than emit phantom scores from sparse data.
 # The AI's self-assessment stands. Promotable to project.yaml later (deferred
-# work item — see docs/superpowers/specs/2026-04-08-sentinel-measurer-remote-ops-design.md).
+# work item -- see docs/superpowers/specs/2026-04-08-sentinel-measurer-remote-ops-design.md).
 INSUFFICIENT_EVIDENCE_THRESHOLD = 0.3
 
 
@@ -141,7 +141,7 @@ class GroundedCalibrationManager:
     DEFAULT_PRIOR_MEAN = 0.5
     DEFAULT_PRIOR_VARIANCE = 0.25
 
-    # Lower than self-referential (0.1) — we trust objective evidence more
+    # Lower than self-referential (0.1) -- we trust objective evidence more
     OBSERVATION_VARIANCE = 0.05
 
     TRACKED_VECTORS: ClassVar[list[str]] = [
@@ -239,7 +239,7 @@ class GroundedCalibrationManager:
         Disputed vectors get 4x observation variance (less trusted evidence)
         until the dispute is resolved.
 
-        Returns dict of vector → update details.
+        Returns dict of vector -> update details.
         """
         cursor = self.conn.cursor()
 
@@ -280,7 +280,7 @@ class GroundedCalibrationManager:
             if is_disputed:
                 obs_var *= 4.0
                 logger.debug(
-                    f"Vector '{vector_name}' has open dispute — "
+                    f"Vector '{vector_name}' has open dispute -- "
                     f"observation variance increased 4x to {obs_var:.4f}"
                 )
 
@@ -419,7 +419,7 @@ class GroundedCalibrationManager:
             session_id,
             ai_id,
             json.dumps(assessment.self_assessed),
-            json.dumps(grounded_data),  # legacy column — keeps working
+            json.dumps(grounded_data),  # legacy column -- keeps working
             json.dumps(assessment.calibration_gaps),
             assessment.grounded_coverage,
             assessment.overall_calibration_score,
@@ -553,7 +553,7 @@ class GroundedCalibrationManager:
         try:
             existing_lines = []
             if os.path.exists(breadcrumbs_path):
-                with open(breadcrumbs_path) as f:
+                with open(breadcrumbs_path, encoding='utf-8') as f:
                     existing_lines = f.readlines()
             section_start = -1
             section_end = -1
@@ -576,7 +576,7 @@ class GroundedCalibrationManager:
                 new_lines = existing_lines + [yaml_block]
             else:
                 new_lines = [yaml_block]
-            with open(breadcrumbs_path, 'w') as f:
+            with open(breadcrumbs_path, 'w', encoding='utf-8') as f:
                 f.writelines(new_lines)
             return True
         except Exception as e:
@@ -595,7 +595,7 @@ class GroundedCalibrationManager:
         """
         Export grounded calibration to .breadcrumbs.yaml as a new section.
 
-        Does NOT replace the existing `calibration:` section — adds a
+        Does NOT replace the existing `calibration:` section -- adds a
         parallel `grounded_calibration:` section for comparison.
         """
         import os
@@ -707,7 +707,7 @@ def _run_single_phase_verification(
     )
     bundle = collector.collect_all()
 
-    # Empty bundle is no longer a silent None return — surface it as
+    # Empty bundle is no longer a silent None return -- surface it as
     # insufficient_evidence so the AI knows what happened. Reaches the same
     # response builder as the threshold gate below.
     if not bundle.items:
@@ -760,7 +760,7 @@ def _run_single_phase_verification(
 
         if total_weight > 0:
             # Category breadth: how many of the 4 categories have evidence?
-            # Single-category coverage is risky even if high-weight — apply
+            # Single-category coverage is risky even if high-weight -- apply
             # breadth penalty to require evidence across multiple categories.
             categories_covered = sum(
                 1 for cat in ("foundation", "comprehension", "execution", "meta")
@@ -769,13 +769,13 @@ def _run_single_phase_verification(
             )
             breadth_factor = categories_covered / 4.0  # 1 cat = 0.25, 2 = 0.50, etc.
             effective_coverage = (covered_weight / total_weight) * breadth_factor
-    except Exception:  # noqa: S110 — breadth weighting is optional; raw coverage fallback
+    except Exception:  # noqa: S110 -- breadth weighting is optional; raw coverage fallback
         pass
 
     # Coverage threshold gate. If grounded_coverage is below the threshold,
     # the bundle had items but they didn't ground enough vectors to produce
     # statistically meaningful calibration. Halt and surface as insufficient.
-    # Storage operations below are skipped — the trajectory and verifications
+    # Storage operations below are skipped -- the trajectory and verifications
     # tables only contain grounded data.
     if effective_coverage < INSUFFICIENT_EVIDENCE_THRESHOLD:
         return _build_insufficient_evidence_response(
@@ -949,7 +949,7 @@ def _build_calibration_reflection(
     # Discipline: source coverage
     if sources_failed:
         discipline_notes.append(
-            f"Evidence sources failed: {', '.join(sources_failed)} — "
+            f"Evidence sources failed: {', '.join(sources_failed)} -- "
             "these couldn't contribute data this transaction"
         )
 
@@ -958,7 +958,7 @@ def _build_calibration_reflection(
         insufficient = phase_data.get("insufficient_evidence_vectors", [])
         if insufficient:
             assessment_notes.append(
-                f"{phase_name} phase: no evidence for {', '.join(insufficient)} — "
+                f"{phase_name} phase: no evidence for {', '.join(insufficient)} -- "
                 "your self-assessment stands for these (evidence can't sample them here)"
             )
 
@@ -967,7 +967,7 @@ def _build_calibration_reflection(
         coverage = phase_data.get("grounded_coverage", 0)
         if coverage < 0.3:
             assessment_notes.append(
-                f"{phase_name} phase: low evidence coverage ({coverage:.0%}) — "
+                f"{phase_name} phase: low evidence coverage ({coverage:.0%}) -- "
                 "most vectors have no independent evidence this transaction"
             )
         elif coverage > 0.7:
@@ -1046,7 +1046,7 @@ def _build_verification_summary(
             insights=calibration_insights,
         )
 
-    # Build calibration reflection — narrative for the AI to learn from
+    # Build calibration reflection -- narrative for the AI to learn from
     reflection = _build_calibration_reflection(
         results, merged_signals, all_sources, all_failed,
         total_evidence, calibration_insights,
@@ -1120,10 +1120,10 @@ def run_grounded_verification(
     """
     Full grounded verification pipeline.
 
-    Called after POSTFLIGHT: collect → map → update → store → trajectory → export.
+    Called after POSTFLIGHT: collect -> map -> update -> store -> trajectory -> export.
 
     Phase-aware when phase_boundary is provided (from detect_phase_boundary()):
-    - Splits into noetic (PREFLIGHT→CHECK) and praxic (CHECK→POSTFLIGHT) passes
+    - Splits into noetic (PREFLIGHT->CHECK) and praxic (CHECK->POSTFLIGHT) passes
     - Each phase gets independent evidence collection and calibration
     - Falls back to combined when no CHECK boundary exists
 
@@ -1183,7 +1183,7 @@ def run_grounded_verification(
                 if praxic_result:
                     results["praxic"] = praxic_result
         else:
-            # No phase boundary — combined mode (backward-compatible)
+            # No phase boundary -- combined mode (backward-compatible)
             # Use praxic weights as best default for combined mode
             combined_weights = (per_vector_weights or {}).get('praxic')
             combined_result = _run_single_phase_verification(
@@ -1218,7 +1218,7 @@ def run_grounded_verification(
             from pathlib import Path as _P
             crash_log = _P.home() / ".empirica" / "grounded_verification_error.log"
             crash_log.parent.mkdir(parents=True, exist_ok=True)
-            with open(crash_log, "w") as _f:
+            with open(crash_log, "w", encoding='utf-8') as _f:
                 _f.write(f"Error: {e}\n\n{tb_str}")
         except Exception as log_err:
             logger.debug(f"Could not write crash log: {log_err}")

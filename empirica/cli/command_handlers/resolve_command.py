@@ -1,5 +1,5 @@
 """
-Unified resolve command — auto-detects artifact type from ID.
+Unified resolve command -- auto-detects artifact type from ID.
 
 Usage:
   empirica resolve <artifact-id> [--resolved-by "reason"]
@@ -28,7 +28,7 @@ ARTIFACT_TABLES = [
 
 
 def handle_resolve_command(args):
-    """Resolve any artifact by ID — auto-detects type."""
+    """Resolve any artifact by ID -- auto-detects type."""
     try:
         artifact_id = args.artifact_id
         resolved_by = getattr(args, "resolved_by", None) or "Resolved via unified resolve command"

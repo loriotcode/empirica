@@ -108,7 +108,7 @@ class AttentionStatus:
 
 @dataclass
 class IntegrityStatus:
-    """Placeholder for removed MemoryGapDetector — always returns healthy."""
+    """Placeholder for removed MemoryGapDetector -- always returns healthy."""
     gaps_detected: bool = False
     gap_count: int = 0
     overall_gap: float = 0.0
@@ -202,15 +202,15 @@ class SystemStatus:
             f"  Node:     {n.ai_id} (session: {n.session_id[:8]}...)",
             f"  Uptime:   {n.uptime_seconds:.0f}s",
             "",
-            "  ── Config ──────────────────────────────────────────────",
+            "  -- Config ----------------------------------------------",
             f"  Model:    {c.model}  |  Persona: {c.persona}",
             f"  Configs:  {c.load_count}/{len(c.available_configs)} loaded"
             f"  ({', '.join(c.loaded_configs) if c.loaded_configs else 'none'})",
             "",
-            "  ── Memory ──────────────────────────────────────────────",
+            "  -- Memory ----------------------------------------------",
             f"  Usage:    {m.tokens_used:,}t / {m.tokens_used + m.tokens_available:,}t"
             f"  ({m.utilization_pct:.1f}%)"
-            f"{'  ⚠ PRESSURE' if m.under_pressure else ''}",
+            f"{'  [WARN] PRESSURE' if m.under_pressure else ''}",
             f"  Zones:    anchor={m.anchor_tokens:,}t"
             f"  working={m.working_tokens:,}t"
             f"  cache={m.cache_tokens:,}t",
@@ -218,7 +218,7 @@ class SystemStatus:
             f"  |  Page faults: {m.page_faults}"
             f"  |  Evictions: {m.evictions}",
             "",
-            "  ── Bus ─────────────────────────────────────────────────",
+            "  -- Bus -------------------------------------------------",
             f"  Events:   {b.event_count} published"
             f"  |  Observers: {b.observer_count}",
             f"  Storage:  SQLite={'on' if b.sqlite_active else 'off'}"
@@ -226,7 +226,7 @@ class SystemStatus:
             f"  Qdrant={'on' if b.qdrant_active else 'off'}"
             f" ({b.qdrant_events} persisted)",
             "",
-            "  ── Attention ───────────────────────────────────────────",
+            "  -- Attention -------------------------------------------",
         ]
 
         if a.has_budget:
@@ -241,7 +241,7 @@ class SystemStatus:
 
         lines += [
             "",
-            "  ── Integrity ───────────────────────────────────────────",
+            "  -- Integrity -------------------------------------------",
         ]
         if i.gaps_detected:
             sev = ", ".join(f"{k}:{v}" for k, v in i.severity_counts.items())
@@ -252,14 +252,14 @@ class SystemStatus:
             )
             if i.confabulation_risk > 0.2:
                 lines.append(
-                    f"  ⚠ Confabulation risk: {i.confabulation_risk:.2f}"
+                    f"  [WARN] Confabulation risk: {i.confabulation_risk:.2f}"
                 )
         else:
             lines.append("  Gaps:     none detected")
 
         lines += [
             "",
-            "  ── Gate ────────────────────────────────────────────────",
+            "  -- Gate ------------------------------------------------",
             f"  Phase:    {g.phase}"
             f"  |  Decision: {g.decision}"
             f"  |  Gate: {'PASSED' if g.gate_passed else 'BLOCKED'}",
@@ -485,7 +485,7 @@ class SystemDashboard(EpistemicObserver):
         return AttentionStatus()
 
     def _query_integrity(self) -> IntegrityStatus:
-        """Stub — MemoryGapDetector was removed (overlaps with Qdrant + compact hooks)."""
+        """Stub -- MemoryGapDetector was removed (overlaps with Qdrant + compact hooks)."""
         return IntegrityStatus()
 
     def _query_gate(self) -> GateStatus:

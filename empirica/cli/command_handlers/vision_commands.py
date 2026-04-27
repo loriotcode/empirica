@@ -52,7 +52,7 @@ class VisionAnalyzer:
     """Lightweight image analyzer used by the vision CLI commands.
 
     Provides metadata-only assessment of image files (no ML models, no
-    LLM calls — just PIL/Pillow inspection) suitable for the
+    LLM calls -- just PIL/Pillow inspection) suitable for the
     `empirica vision-assess` command and pitch-deck slide auditing.
 
     Capabilities:
@@ -61,7 +61,7 @@ class VisionAnalyzer:
         * Generate `BasicImageAssessment` records for downstream tools
         * Surface size warnings (oversized files, suspicious dimensions)
 
-    Requires PIL/Pillow at construction time — raises ImportError if
+    Requires PIL/Pillow at construction time -- raises ImportError if
     not installed (`pip install pillow`).
 
     Example:
@@ -82,7 +82,7 @@ class VisionAnalyzer:
 
     def analyze_image(self, image_path: Path, slide_number: int | None = None) -> BasicImageAssessment:
         """Analyze single image - basic metadata only"""
-        img = Image.open(image_path)
+        img = Image.open(image_path, encoding='utf-8')
         file_size = image_path.stat().st_size / 1024  # KB
 
         width, height = img.size
@@ -173,7 +173,7 @@ def handle_vision_analyze(args):
                 )
 
             if output != "json":
-                print(f"\n✓ Logged {len(assessments)} findings to session")
+                print(f"\n[OK] Logged {len(assessments)} findings to session")
         finally:
             db.close()
 
@@ -196,7 +196,7 @@ def handle_vision_log(args):
         if args.output == "json":
             print(json.dumps({"ok": True, "logged": True}))
         else:
-            print("✓ Visual observation logged to session")
+            print("[OK] Visual observation logged to session")
 
         return 0
     finally:

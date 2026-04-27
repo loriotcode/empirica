@@ -4,8 +4,8 @@ Why this matters: pip-audit scans the active Python environment, which
 mixes empirica's own dependencies with whatever else the user has installed
 in the same venv. The audit report should separate the two so users see:
 
-- "empirica-managed": empirica's responsibility — empirica should ship a fix
-- "user-installed":   user's responsibility — outside empirica's surface
+- "empirica-managed": empirica's responsibility -- empirica should ship a fix
+- "user-installed":   user's responsibility -- outside empirica's surface
 
 We compute the empirica-managed set by walking the installed metadata
 graph rooted at empirica itself: empirica's Requires, plus their Requires
@@ -48,7 +48,7 @@ def get_empirica_managed_packages(root: str = EMPIRICA_PACKAGE_NAME) -> set[str]
 
     Includes the root (empirica itself) and all transitive Requires
     that are actually installed. Optional dependencies are included
-    only when present in the environment — if a marker excluded them
+    only when present in the environment -- if a marker excluded them
     or they weren't installed, they don't appear here.
 
     Returns:

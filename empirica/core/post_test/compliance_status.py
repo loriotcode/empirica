@@ -9,7 +9,7 @@ from enum import Enum
 
 
 class ComplianceStatus(str, Enum):
-    # Phase 1 (SPEC 0) carry-overs — still used, mapped into new taxonomy
+    # Phase 1 (SPEC 0) carry-overs -- still used, mapped into new taxonomy
     GROUNDED = "grounded"
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
     UNGROUNDED_REMOTE_OPS = "ungrounded_remote_ops"

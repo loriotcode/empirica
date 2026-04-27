@@ -9,7 +9,7 @@ Centralized configuration management for:
 - Threshold profiles (MCO cascade styles)
 """
 
-# Lazy imports — submodules loaded on first access only.
+# Lazy imports -- submodules loaded on first access only.
 # path_resolver consumers (statusline, hooks) should not pay for
 # credentials_loader, profile_loader, threshold_loader, mco_loader.
 

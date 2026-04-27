@@ -180,14 +180,14 @@ class EpistemicRehydration:
         msg += f"   Confidence boost: +{confidence_boost:.3f}\n"
 
         if warnings:
-            msg += f"   ⚠️  Warnings ({len(warnings)}):\n"
+            msg += f"   [WARN]  Warnings ({len(warnings)}):\n"
             for w in warnings:
                 msg += f"      - {w}\n"
 
         if ready:
-            msg += "   ✅ Ready to proceed with updated context\n"
+            msg += "   [OK] Ready to proceed with updated context\n"
         else:
-            msg += "   ⚠️  Low understanding - recommend additional investigation\n"
+            msg += "   [WARN]  Low understanding - recommend additional investigation\n"
 
         return msg
 

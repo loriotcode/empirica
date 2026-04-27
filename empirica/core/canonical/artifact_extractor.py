@@ -1,5 +1,5 @@
 """
-Artifact Extractor — Extract epistemic artifacts from conversation transcripts.
+Artifact Extractor -- Extract epistemic artifacts from conversation transcripts.
 
 Takes ConversationTurn objects (from TranscriptParser or ClaudeAIParser) and
 extracts structured Empirica artifacts: findings, decisions, dead-ends, mistakes,
@@ -11,17 +11,17 @@ Two extraction modes:
 
 Extracted artifacts include a confidence score (0.0-1.0) indicating extraction quality:
 - 0.9+: Explicit artifact (user said "I found X", "decided to Y")
-- 0.6-0.8: Strong pattern match (tool chain fail→retry = dead-end)
+- 0.6-0.8: Strong pattern match (tool chain fail->retry = dead-end)
 - 0.3-0.5: Implicit/inferred (reasoning suggests a decision was made)
 
 Architecture:
-    ConversationTurn[] ──> ArtifactExtractor
-                               ├── extract_findings()
-                               ├── extract_decisions()
-                               ├── extract_dead_ends()
-                               ├── extract_mistakes()
-                               ├── extract_unknowns()
-                               └── extract_all() ──> ExtractionResult
+    ConversationTurn[] --> ArtifactExtractor
+                               +-- extract_findings()
+                               +-- extract_decisions()
+                               +-- extract_dead_ends()
+                               +-- extract_mistakes()
+                               +-- extract_unknowns()
+                               +-- extract_all() --> ExtractionResult
 """
 
 from __future__ import annotations
@@ -181,7 +181,7 @@ UNKNOWN_PATTERNS = [
     (re.compile(r"(?:I(?:'m| am))?\s*(?:not sure|uncertain|unclear)\s+(?:about|whether|if|how)\s+(.{10,200})", re.I), 0.80),
     (re.compile(r"(?:need to|should)\s+(?:investigate|figure out|understand|check|verify)\s+(.{10,200})", re.I), 0.75),
     (re.compile(r"(?:question|unknown|mystery):\s*(.{10,200})", re.I), 0.85),
-    (re.compile(r"\?\s*$", re.M), 0.40),  # Questions (low confidence — many false positives)
+    (re.compile(r"\?\s*$", re.M), 0.40),  # Questions (low confidence -- many false positives)
 ]
 
 
@@ -253,7 +253,7 @@ class ArtifactExtractor:
             for chain in turn.tool_chains:
                 if chain.tool_name in ("Grep", "Glob", "Read") and chain.success:
                     if chain.result_content and len(chain.result_content) > 50:
-                        # Don't extract raw tool results as findings — too noisy
+                        # Don't extract raw tool results as findings -- too noisy
                         pass
 
         return [f for f in findings if f.confidence >= self.min_confidence]

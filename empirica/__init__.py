@@ -7,7 +7,7 @@ Core Philosophy: "Measure and validate without interfering"
 
 Key Features:
 - 13D epistemic vectors (know, uncertainty, context, clarity, coherence, etc.)
-- CASCADE workflow: PREFLIGHT → CHECK → POSTFLIGHT
+- CASCADE workflow: PREFLIGHT -> CHECK -> POSTFLIGHT
 - Git-integrated reflex logging
 - Session database (SQLite) with breadcrumb tracking
 - Drift detection and signaling
@@ -18,7 +18,7 @@ Version: 1.8.12
 __version__ = "1.8.12"
 __author__ = "Empirica Project"
 
-# Lazy imports — heavy modules (git, cryptography, jsonschema) are only
+# Lazy imports -- heavy modules (git, cryptography, jsonschema) are only
 # loaded when actually accessed, not when any empirica.* submodule is imported.
 # This drops import time from ~113ms to ~2ms for lightweight consumers
 # like the statusline script that only need path_resolver or signaling.

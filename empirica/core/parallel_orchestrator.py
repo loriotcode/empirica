@@ -2,9 +2,9 @@
 Parallel Orchestrator - Plan, regulate, and aggregate parallel epistemic agents.
 
 Coordinates multiple epistemic agents working in parallel on a task:
-1. plan() — Analyze task, allocate attention budget, assign agent domains
-2. regulate() — After each round, decide: continue/spawn_more/stop_early
-3. aggregate() — Combine findings with confidence-weighted synthesis
+1. plan() -- Analyze task, allocate attention budget, assign agent domains
+2. regulate() -- After each round, decide: continue/spawn_more/stop_early
+3. aggregate() -- Combine findings with confidence-weighted synthesis
 
 Uses match_or_decompose for persona selection and AttentionBudgetCalculator
 for resource allocation.
@@ -475,7 +475,7 @@ class ParallelOrchestrator:
             )
             if persona:
                 return persona.persona_id
-        except Exception:  # noqa: S110 — persona lookup optional; static fallback below
+        except Exception:  # noqa: S110 -- persona lookup optional; static fallback below
             pass
         return f"{domain}_expert"
 

@@ -355,7 +355,7 @@ def handle_project_embed_command(args):
         if getattr(args, 'output', 'default') == 'json':
             print(json.dumps(result, indent=2))
         else:
-            msg = f"✅ Embedded docs: {len(docs_to_upsert)} | memory: {len(mem_items)}"
+            msg = f"[OK] Embedded docs: {len(docs_to_upsert)} | memory: {len(mem_items)}"
             msg += f" (findings: {len(findings)}, unknowns: {len(unknowns)}, dead_ends: {len(dead_ends)}, lessons: {len(lessons)}, snapshots: {len(snapshots)})"
             if sync_global:
                 msg += f" | global: {global_synced}"

@@ -74,7 +74,7 @@ class SlideProcessor:
         """Process a single slide and assess epistemic value"""
 
         # Load image
-        img = Image.open(slide_path)
+        img = Image.open(slide_path, encoding='utf-8')
         img_cv = cv2.imread(str(slide_path))
 
         # Extract text via OCR
@@ -307,10 +307,10 @@ class SlideProcessor:
             "slides": [a.to_dict() for a in assessments],
         }
 
-        with open(report_path, 'w') as f:
+        with open(report_path, 'w', encoding='utf-8') as f:
             json.dump(report, f, indent=2)
 
-        print(f"\n✓ Report saved to {report_path}")
+        print(f"\n[OK] Report saved to {report_path}")
 
         # Also save human-readable summary
         summary_path = self.output_dir / f"summary_{pattern.replace('*', 'all')}.md"
@@ -319,7 +319,7 @@ class SlideProcessor:
     def _save_summary(self, assessments: list[SlideEpistemicAssessment],
                      output_path: Path):
         """Save human-readable summary"""
-        with open(output_path, 'w') as f:
+        with open(output_path, 'w', encoding='utf-8') as f:
             f.write("# Slide Deck Epistemic Assessment\n\n")
 
             # Overall stats
@@ -344,9 +344,9 @@ class SlideProcessor:
                 f.write(f"**Slide {a.slide_number}** | ")
                 f.write(f"Context: {a.context_value:.2f} | ")
                 f.write(f"Words: {a.word_count} | ")
-                f.write(f"Diagram: {'✓' if a.has_diagram else '✗'}\n")
+                f.write(f"Diagram: {'[OK]' if a.has_diagram else '[FAIL]'}\n")
 
-        print(f"✓ Summary saved to {output_path}")
+        print(f"[OK] Summary saved to {output_path}")
 
 
 def main():
@@ -363,7 +363,7 @@ def main():
     processor = SlideProcessor(output_dir=Path(args.output_dir))
     assessments = processor.process_slide_deck(args.pattern)
 
-    print(f"\n✓ Processed {len(assessments)} slides")
+    print(f"\n[OK] Processed {len(assessments)} slides")
     print(f"Average context value: {sum(a.context_value for a in assessments) / len(assessments):.2f}")
 
 

@@ -364,13 +364,13 @@ def _query_blockers(scope: str, session_id: str, project_id: str,
 def _print_human(query_type: str, scope: str, results: list[dict]):
     """Print human-readable output"""
     type_emoji = {
-        'findings': '💡',
-        'unknowns': '❓',
+        'findings': '[HINT]',
+        'unknowns': '[?]',
         'deadends': '🚫',
-        'mistakes': '⚠️',
+        'mistakes': '[WARN]',
         'issues': '🐛',
         'handoffs': '📋',
-        'goals': '🎯',
+        'goals': '[TARGET]',
         'blockers': '🚧'
     }
 
@@ -391,13 +391,13 @@ def _print_human(query_type: str, scope: str, results: list[dict]):
         elif query_type == 'unknowns':
             status = r.get('status', 'open')
             content = r.get('content', '')[:80]
-            icon = '✓' if status == 'resolved' else '○'
+            icon = '[OK]' if status == 'resolved' else '○'
             print(f"{i}. {icon} {content}")
         elif query_type == 'deadends':
             approach = r.get('approach', '')[:60]
             why = r.get('why_failed', '')[:40]
             print(f"{i}. {approach}")
-            print(f"   → {why}")
+            print(f"   -> {why}")
         elif query_type == 'mistakes':
             desc = r.get('description', r.get('mistake', ''))[:80]
             print(f"{i}. {desc}")
@@ -422,5 +422,5 @@ def _print_human(query_type: str, scope: str, results: list[dict]):
             impact = r.get('impact', 0)
             goal = r.get('goal_objective', '')[:40]
             print(f"{i}. [{impact:.1f}] {content}")
-            print(f"   🎯 Blocks: {goal}")
+            print(f"   [TARGET] Blocks: {goal}")
         print()

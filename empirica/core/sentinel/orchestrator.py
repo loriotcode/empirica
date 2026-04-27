@@ -350,7 +350,7 @@ class OrchestrationResult:
 
 @dataclass
 class LoopRecord:
-    """Record of a single epistemic loop (PREFLIGHT → POSTFLIGHT)"""
+    """Record of a single epistemic loop (PREFLIGHT -> POSTFLIGHT)"""
     loop_number: int
     preflight_vectors: dict[str, float]
     postflight_vectors: dict[str, float]
@@ -377,7 +377,7 @@ class LoopRecord:
 @dataclass
 class EpistemicLoopTracker:
     """
-    Tracks epistemic loops (PREFLIGHT → POSTFLIGHT cycles) for a session.
+    Tracks epistemic loops (PREFLIGHT -> POSTFLIGHT cycles) for a session.
 
     Uses scope vectors to determine expected loops, tracks convergence,
     and provides termination recommendations.
@@ -417,8 +417,8 @@ class EpistemicLoopTracker:
         """Derive max_loops from scope if not specified"""
         if self.max_loops is None:
             # Higher scope = more loops expected
-            # breadth 0.8 + duration 0.7 → ~5 loops
-            # breadth 0.3 + duration 0.3 → ~2 loops
+            # breadth 0.8 + duration 0.7 -> ~5 loops
+            # breadth 0.3 + duration 0.3 -> ~2 loops
             scope_factor = (self.scope_breadth + self.scope_duration) / 2
             self.max_loops = max(2, min(10, int(scope_factor * 8) + 1))
 

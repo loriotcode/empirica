@@ -5,8 +5,8 @@ Empirica PostCompact Hook - Phase-Aware Recovery
 After memory compaction, the AI has only a summary - not real knowledge.
 This hook detects the transaction phase state and routes appropriately:
 
-1. If old session is COMPLETE (has POSTFLIGHT) → New session + PREFLIGHT
-2. If old session is INCOMPLETE (mid-work) → CHECK gate on old session
+1. If old session is COMPLETE (has POSTFLIGHT) -> New session + PREFLIGHT
+2. If old session is INCOMPLETE (mid-work) -> CHECK gate on old session
 
 Key insight: Compact can happen at ANY point in the transaction cycle.
 The recovery action depends on WHERE in the cycle compact occurred.
@@ -71,7 +71,7 @@ def _write_active_transaction_for_new_conversation(
             'updated_at': datetime.now().timestamp()
         }
 
-        with open(tx_file, 'w') as f:
+        with open(tx_file, 'w', encoding='utf-8') as f:
             json.dump(tx_data, f, indent=2)
 
         return True
@@ -115,7 +115,7 @@ def _write_active_work_for_new_conversation(
                 'timestamp': datetime.now().isoformat(),
                 'timestamp_epoch': datetime.now().timestamp()
             }
-            with open(active_work_file, 'w') as f:
+            with open(active_work_file, 'w', encoding='utf-8') as f:
                 json.dump(work_data, f, indent=2)
             os.chmod(active_work_file, 0o600)
 
@@ -130,7 +130,7 @@ def _write_active_work_for_new_conversation(
                 'empirica_session_id': empirica_session_id,
                 'timestamp': datetime.now().isoformat()
             }
-            with open(instance_file, 'w') as f:
+            with open(instance_file, 'w', encoding='utf-8') as f:
                 json.dump(instance_data, f, indent=2)
             os.chmod(instance_file, 0o600)
 
@@ -166,7 +166,7 @@ def _load_calibration_from_breadcrumbs_yaml() -> str:
 
     try:
         import yaml
-        with open(config_path) as f:
+        with open(config_path, encoding='utf-8') as f:
             config = yaml.safe_load(f) or {}
 
         calibration = config.get('calibration')
@@ -275,7 +275,7 @@ def _restore_hook_counters(hook_counters: dict, project_root: Path) -> None:
     try:
         suffix = _get_instance_suffix()
         counters_file = Path(str(project_root)) / '.empirica' / f'hook_counters{suffix}.json'
-        with open(counters_file, 'w') as f:
+        with open(counters_file, 'w', encoding='utf-8') as f:
             json.dump(hook_counters, f, indent=2)
     except Exception:
         pass
@@ -467,7 +467,7 @@ def _get_empirica_session(claude_session_id: str | None = None):
         try:
             active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
             if active_work_file.exists():
-                with open(active_work_file) as f:
+                with open(active_work_file, encoding='utf-8') as f:
                     work_data = json.load(f)
                 empirica_session_id = work_data.get('empirica_session_id')
                 if empirica_session_id:
@@ -552,7 +552,7 @@ def _load_pre_snapshot():
         ref_docs_dir = Path.cwd() / ".empirica" / "ref-docs"
         snapshots = sorted(ref_docs_dir.glob("pre_summary_*.json"), reverse=True)
         if snapshots:
-            with open(snapshots[0]) as f:
+            with open(snapshots[0], encoding='utf-8') as f:
                 return json.load(f)
     except Exception:
         pass
@@ -640,7 +640,7 @@ def _load_dynamic_context(session_id: str, ai_id: str, pre_snapshot: dict) -> di
                 context["pending_subtasks"].append(subtask)
             goal["subtasks"] = subtasks
 
-        # 2. Recent findings (broader retrieval — epistemic_summarizer handles ranking)
+        # 2. Recent findings (broader retrieval -- epistemic_summarizer handles ranking)
         cursor.execute("""
             SELECT finding, impact, created_timestamp
             FROM project_findings
@@ -707,7 +707,7 @@ def _run_cli_json(cmd: list, timeout: int = 15) -> dict | None:
     Returns parsed JSON dict on success, None on failure.
     """
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', timeout=timeout)
         if result.returncode == 0:
             return json.loads(result.stdout)
     except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
@@ -855,8 +855,8 @@ def _generate_new_session_prompt(pre_vectors: dict, dynamic_context: dict, old_s
 Your context was just compacted. The previous session ({old_session_id[:8]}...) was **COMPLETE**
 (had POSTFLIGHT).
 
-**✅ Session created:** `{new_session_id}`
-**✅ Project context loaded via bootstrap**
+**[OK] Session created:** `{new_session_id}`
+**[OK] Project context loaded via bootstrap**
 
 **Pre-compact vectors (NOW INVALID):** know={pre_know}, uncertainty={pre_unc}
 {last_task_section}
@@ -886,7 +886,7 @@ EOF
 ```
 
 **Key principle:** Your PREFLIGHT should reflect knowledge AFTER reading the bootstrap context above.
-This makes the PREFLIGHT→POSTFLIGHT delta meaningful.
+This makes the PREFLIGHT->POSTFLIGHT delta meaningful.
 """
 
     # Fallback: Hook couldn't create session, AI needs to do full sequence
@@ -976,11 +976,11 @@ def _format_goals(dynamic_context: dict) -> str:
 
     # Stale goals (marked during pre-compact) - show first as they need attention
     if dynamic_context.get("stale_goals"):
-        lines.append("  **⚠️ STALE (context lost during compaction - re-evaluate before continuing):**")
+        lines.append("  **[WARN] STALE (context lost during compaction - re-evaluate before continuing):**")
         for g in dynamic_context["stale_goals"]:
             obj = g.get('objective', 'Unknown')
             reason = g.get('stale_reason', 'memory_compact')
-            lines.append(f"  - ⚠️ {obj[:80]}... (stale: {reason})")
+            lines.append(f"  - [WARN] {obj[:80]}... (stale: {reason})")
             lines.append(f"       Refresh with: empirica goals-refresh --goal-id {g['goal_id']}")
         lines.append("  ")  # separator
 
@@ -1077,7 +1077,7 @@ def _generate_transaction_continue_prompt(pre_vectors: dict, dynamic_context: di
 Your context was compacted but your **transaction is still open**.
 No new PREFLIGHT or CHECK needed - just continue where you left off.
 
-**⚡ ACTIVE TRANSACTION:**
+**[FAST] ACTIVE TRANSACTION:**
    Transaction: {tx_id}... | Session: {tx_session}... | Project: {tx_project}
    Pre-compact vectors: know={pre_know}, uncertainty={pre_unc}
 {last_task_section}
@@ -1112,9 +1112,9 @@ def _generate_check_prompt(pre_vectors: dict, pre_reasoning: str, dynamic_contex
             project_folder = tx_project.split('/')[-1]  # Just folder name for commands
             tx_project = project_folder
         tx_context = f"""
-**⚡ ACTIVE TRANSACTION (preserved across compact):**
+**[FAST] ACTIVE TRANSACTION (preserved across compact):**
    Transaction: {tx_id}... | Status: {tx_status} | Project: {tx_project}
-   → This transaction is still open. Continue work within it or close with POSTFLIGHT.
+   -> This transaction is still open. Continue work within it or close with POSTFLIGHT.
 """
     else:
         # Try to get project folder from session_context
@@ -1203,8 +1203,8 @@ EOF
 ### Step 3: Follow CHECK Decision
 
 CHECK returns one of:
-- **"proceed"** → You have sufficient confidence. Continue with work.
-- **"investigate"** → Confidence too low. Load more context, read files, then CHECK again.
+- **"proceed"** -> You have sufficient confidence. Continue with work.
+- **"investigate"** -> Confidence too low. Load more context, read files, then CHECK again.
 
 **Key principle:** Be HONEST about reduced knowledge. Post-compact know should typically be
 LOWER than pre-compact. Do NOT proceed until CHECK returns "proceed".
@@ -1260,37 +1260,37 @@ def _print_user_message(pre_vectors: dict, dynamic_context: dict, potential_drif
         if session_bootstrap and session_bootstrap.get('session_id'):
             new_session_id = session_bootstrap['session_id']
             print(f"""
-🔄 Empirica: Post-Compact Recovery (Session Complete)
+[LOAD] Empirica: Post-Compact Recovery (Session Complete)
 
-📊 Previous Session State:
+[STATS] Previous Session State:
    Last Phase: {last_phase} (COMPLETE)
    Pre-compact vectors (NOW INVALID): know={pre_know}, uncertainty={pre_unc}
 
-✅ NEW SESSION CREATED: {new_session_id}
-✅ Project context bootstrapped automatically
+[OK] NEW SESSION CREATED: {new_session_id}
+[OK] Project context bootstrapped automatically
 
 📚 Dynamic Context Loaded:
    Active Goals: {goals_count}
    Recent Findings: {findings_count}
    Open Unknowns: {unknowns_count}
 
-🎯 ACTION REQUIRED:
+[TARGET] ACTION REQUIRED:
    Run PREFLIGHT with your ACTUAL knowledge state (after reading loaded context):
    empirica preflight-submit --session-id {new_session_id}
 
-💡 TIP: Your PREFLIGHT should reflect knowledge AFTER reading the bootstrap context.
-   This makes the PREFLIGHT→POSTFLIGHT delta meaningful.
+[HINT] TIP: Your PREFLIGHT should reflect knowledge AFTER reading the bootstrap context.
+   This makes the PREFLIGHT->POSTFLIGHT delta meaningful.
 """, file=sys.stderr)
         else:
             # Fallback: Hook couldn't create session
             print(f"""
-🔄 Empirica: Post-Compact Recovery (Session Complete)
+[LOAD] Empirica: Post-Compact Recovery (Session Complete)
 
-📊 Previous Session State:
+[STATS] Previous Session State:
    Last Phase: {last_phase} (COMPLETE)
    Pre-compact vectors (NOW INVALID): know={pre_know}, uncertainty={pre_unc}
 
-⚠️  Previous session had POSTFLIGHT - it's COMPLETE.
+[WARN]  Previous session had POSTFLIGHT - it's COMPLETE.
    You need a NEW session with fresh PREFLIGHT baseline.
 
 📚 Dynamic Context Available:
@@ -1298,7 +1298,7 @@ def _print_user_message(pre_vectors: dict, dynamic_context: dict, potential_drif
    Recent Findings: {findings_count}
    Open Unknowns: {unknowns_count}
 
-🎯 ACTION REQUIRED:
+[TARGET] ACTION REQUIRED:
    1. Create new session: empirica session-create --ai-id {ai_id}
    2. Load context: empirica project-bootstrap --session-id <NEW_ID>
    3. Run PREFLIGHT: empirica preflight-submit (AFTER loading context!)
@@ -1306,13 +1306,13 @@ def _print_user_message(pre_vectors: dict, dynamic_context: dict, potential_drif
     else:
         # Session incomplete - need CHECK to continue
         print(f"""
-🔄 Empirica: Post-Compact CHECK Gate (Session Incomplete)
+[LOAD] Empirica: Post-Compact CHECK Gate (Session Incomplete)
 
-📊 Pre-Compact State (NOW INVALID):
+[STATS] Pre-Compact State (NOW INVALID):
    Last Phase: {last_phase}
    know={pre_know}, uncertainty={pre_unc}
 
-⚠️  These vectors reflected FULL context knowledge.
+[WARN]  These vectors reflected FULL context knowledge.
    You now have only a summary. Session is INCOMPLETE.
 
 📚 Dynamic Context Loaded:
@@ -1320,7 +1320,7 @@ def _print_user_message(pre_vectors: dict, dynamic_context: dict, potential_drif
    Recent Findings: {findings_count}
    Open Unknowns: {unknowns_count}
 
-🎯 ACTION REQUIRED:
+[TARGET] ACTION REQUIRED:
    1. Load context: empirica project-bootstrap --session-id <ID>
    2. Run CHECK: empirica check-submit (with honest assessment)
    3. Follow decision: "proceed" or "investigate"

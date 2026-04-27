@@ -1,11 +1,11 @@
 """
-B2 Iterative Compliance Loop — SPEC 1 Wave 3 implementation.
+B2 Iterative Compliance Loop -- SPEC 1 Wave 3 implementation.
 
 At POSTFLIGHT, runs the domain checklist against registered service checks.
 Reports compliance status and advisories for failed checks. The AI
 uses the advisory to scope the next transaction.
 
-The loop does NOT auto-create transactions — it reports what needs doing.
+The loop does NOT auto-create transactions -- it reports what needs doing.
 The AI (or an autonomous orchestrator) decides whether to act on it.
 
 See: .empirica/visions/2026-04-08-sentinel-as-compliance-loop.md
@@ -91,7 +91,7 @@ def run_compliance_checks(
         checklist = reg.resolve(key)
 
         if not checklist.has_checks:
-            # Empty checklist — self-assessment stands (e.g., remote-ops)
+            # Empty checklist -- self-assessment stands (e.g., remote-ops)
             return ComplianceResult(
                 status="complete",
                 domain=key.domain,
@@ -148,7 +148,7 @@ def run_compliance_checks(
                         iteration_number,
                     )
             except KeyError:
-                # Check not registered — skip with warning
+                # Check not registered -- skip with warning
                 logger.warning("Check '%s' not registered, skipping", check_id)
                 check_results.append({
                     "check_id": check_id,
@@ -216,7 +216,7 @@ def _store_check_result(
             result.check_id,
             getattr(result, 'tool', 'unknown'),
             1 if result.passed else 0,
-            None,  # details JSON — populated by real runners
+            None,  # details JSON -- populated by real runners
             result.summary,
             result.duration_ms,
             result.ran_at,

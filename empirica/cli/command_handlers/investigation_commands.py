@@ -85,7 +85,7 @@ def _investigate_load_bootstrap(session_id):
     recalibration_attempt = _get_recalibration_attempts(session_id)
 
     if recalibration_attempt >= 3:
-        print(f"⚠️  Recalibration attempt limit reached ({recalibration_attempt})")
+        print(f"[WARN]  Recalibration attempt limit reached ({recalibration_attempt})")
         print("   Consider: pausing investigation, taking a snapshot, or starting fresh")
         print("   Further investigation may not resolve drift")
         return None, recalibration_attempt
@@ -99,7 +99,7 @@ def _investigate_load_bootstrap(session_id):
         if result.returncode == 0:
             bootstrap_data = json.loads(result.stdout)
             bootstrap_context = bootstrap_data.get('breadcrumbs', {})
-            print(f"📦 Loaded context anchor from bootstrap (attempt {recalibration_attempt + 1}/3)")
+            print(f"[PKG] Loaded context anchor from bootstrap (attempt {recalibration_attempt + 1}/3)")
             print(f"   Findings: {len(bootstrap_context.get('findings', []))}")
             print(f"   Unknowns: {len(bootstrap_context.get('unknowns', []))}")
             print(f"   Goals: {len(bootstrap_context.get('goals', []))}")
@@ -140,30 +140,30 @@ def _investigate_dispatch(investigation_type, target, args):
 
 def _investigate_display_results(target, result):
     """Display investigation results to stdout."""
-    print("✅ Investigation complete")
-    print(f"   🎯 Target: {target}")
-    print(f"   📊 Type: {result.get('type', 'unknown')}")
+    print("[OK] Investigation complete")
+    print(f"   [TARGET] Target: {target}")
+    print(f"   [STATS] Type: {result.get('type', 'unknown')}")
 
     if result.get('summary'):
-        print(f"   📝 Summary: {result['summary']}")
+        print(f"   [NOTE] Summary: {result['summary']}")
 
     if result.get('findings'):
-        print("🔍 Key findings:")
+        print("[SEARCH] Key findings:")
         for finding in result['findings'][:5]:
-            print(f"   • {finding}")
+            print(f"   * {finding}")
 
     if result.get('metrics'):
-        print("📊 Metrics:")
+        print("[STATS] Metrics:")
         for metric, value in result['metrics'].items():
-            print(f"   • {metric}: {value}")
+            print(f"   * {metric}: {value}")
 
     if result.get('recommendations'):
-        print("💡 Recommendations:")
+        print("[HINT] Recommendations:")
         for rec in result['recommendations']:
-            print(f"   • {rec}")
+            print(f"   * {rec}")
 
     if result.get('error'):
-        print(f"❌ Investigation error: {result['error']}")
+        print(f"[FAIL] Investigation error: {result['error']}")
 
 
 def handle_investigate_command(args):
@@ -186,7 +186,7 @@ def handle_investigate_command(args):
                 return None
 
         target = args.target
-        print(f"🔍 Investigating: {target}")
+        print(f"[SEARCH] Investigating: {target}")
 
         result = _investigate_dispatch(investigation_type, target, args)
 
@@ -209,7 +209,7 @@ def handle_analyze_command(args):
 
         # Support both 'subject' (old analyze) and 'target' (new investigate)
         subject = getattr(args, 'subject', None) or getattr(args, 'target', 'unknown')
-        print(f"📊 Analyzing: {subject}")
+        print(f"[STATS] Analyzing: {subject}")
 
         analyzer = EmpiricalPerformanceAnalyzer()
         context = parse_json_safely(getattr(args, 'context', None))
@@ -222,9 +222,9 @@ def handle_analyze_command(args):
             detailed=getattr(args, 'detailed', False)
         )
 
-        print("✅ Analysis complete")
-        print(f"   🎯 Subject: {args.subject}")
-        print(f"   📊 Analysis type: {result.get('analysis_type', 'general')}")
+        print("[OK] Analysis complete")
+        print(f"   [TARGET] Subject: {args.subject}")
+        print(f"   [STATS] Analysis type: {result.get('analysis_type', 'general')}")
         print(f"   🏆 Score: {result.get('score', 0):.2f}")
 
         # Show analysis dimensions
@@ -232,23 +232,23 @@ def handle_analyze_command(args):
             thresholds = _get_profile_thresholds()
             print("📏 Analysis dimensions:")
             for dimension, score in result['dimensions'].items():
-                status = "✅" if score > thresholds['confidence_high'] else "⚠️" if score > thresholds['confidence_low'] else "❌"
+                status = "[OK]" if score > thresholds['confidence_high'] else "[WARN]" if score > thresholds['confidence_low'] else "[FAIL]"
                 print(f"   {status} {dimension}: {score:.2f}")
 
         # Show insights
         if result.get('insights'):
             print("💭 Insights:")
             for insight in result['insights']:
-                print(f"   • {insight}")
+                print(f"   * {insight}")
 
         # Show detailed breakdown if requested
         if getattr(args, 'detailed', False) and result.get('detailed_breakdown'):
-            print("🔍 Detailed breakdown:")
+            print("[SEARCH] Detailed breakdown:")
             for category, details in result['detailed_breakdown'].items():
-                print(f"   📂 {category}:")
+                print(f"   [DIR] {category}:")
                 if isinstance(details, dict):
                     for key, value in details.items():
-                        print(f"     • {key}: {value}")
+                        print(f"     * {key}: {value}")
                 else:
                     print(f"     {details}")
 
@@ -379,7 +379,7 @@ def handle_investigate_create_branch_command(args):
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print("✅ Investigation branch created")
+            print("[OK] Investigation branch created")
             print(f"   Branch: {git_branch_name}")
             print(f"   Path: {investigation_path}")
             print(f"   ID: {branch_id[:8]}...")
@@ -438,7 +438,7 @@ def handle_investigate_checkpoint_branch_command(args):
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print("✅ Branch checkpointed successfully")
+            print("[OK] Branch checkpointed successfully")
             print(f"   Merge Score: {score_data.get('merge_score', 0):.4f}")
             print(f"   Quality: {score_data.get('quality', 0):.4f}")
             print(f"   Confidence: {score_data.get('confidence', 0):.4f}")
@@ -655,7 +655,7 @@ def handle_investigate_multi_command(args):
                 json_response['branches'][pid]['prompt'] = f"[{len(branches[pid]['prompt'])} chars - use --output human to see]"
             print(json.dumps(json_response, indent=2))
         else:
-            print("✅ Multi-Persona Investigation Started")
+            print("[OK] Multi-Persona Investigation Started")
             print(f"   Task: {task}")
             print(f"   Personas: {', '.join(persona_ids)}")
             print(f"   Strategy: {strategy}")
@@ -664,7 +664,7 @@ def handle_investigate_multi_command(args):
                 print(f"\n   [{pid}] Branch: {branch['branch_id'][:8]}...")
                 print(f"   Priors: know={branch['preflight_vectors'].get('know', 0.5):.2f}, uncertainty={branch['preflight_vectors'].get('uncertainty', 0.5):.2f}")
 
-            print("\n📝 Next Steps:")
+            print("\n[NOTE] Next Steps:")
             print("   1. Execute each agent prompt (shown below)")
             print("   2. Report: empirica agent-report --branch-id <ID> --postflight '<json>'")
             print(f"   3. Aggregate: empirica agent-aggregate --session-id {session_id}")

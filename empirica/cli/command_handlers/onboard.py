@@ -93,7 +93,7 @@ Step 5: Run PREFLIGHT (opens a transaction)
      "reasoning": "Honest assessment of current state"
    }}
    EOF
-   # domain/criticality are optional — set them for compliance checks
+   # domain/criticality are optional -- set them for compliance checks
 
 Step 6: Investigate (noetic phase)
    - Read code, search patterns, explore
@@ -182,10 +182,10 @@ window. POSTFLIGHT closes it, runs compliance checks, and captures learning.
      +-- Create goals (from task description)
      +-- Transaction 1: Goal A (domain=default, criticality=medium)
      |    PREFLIGHT -> [noetic: investigate] -> CHECK -> [praxic: implement]
-     |    -> POSTFLIGHT -> [compliance: lint ✓ complexity ✓ tests deferred]
+     |    -> POSTFLIGHT -> [compliance: lint [OK] complexity [OK] tests deferred]
      +-- Transaction 2: Goal B (informed by T1's findings)
      |    PREFLIGHT -> [noetic: investigate] -> CHECK -> [praxic: implement]
-     |    -> POSTFLIGHT -> [compliance: lint ✓ complexity ✓ tests ✓ (goal close)]
+     |    -> POSTFLIGHT -> [compliance: lint [OK] complexity [OK] tests [OK] (goal close)]
      +-- Release
           Tests run at goal_completion tier, dep_audit at release tier
 
@@ -217,7 +217,7 @@ KEY PRINCIPLES
    - KNOW increase = learned domain knowledge
    - UNCERTAINTY decrease = reduced ambiguity
    - Three-vector model: your assessment + service observations + grounded state
-   - Services inform your score — they don't replace it
+   - Services inform your score -- they don't replace it
 
 3. Log As You Discover
    Findings, unknowns, dead-ends - log them as they happen.
@@ -253,7 +253,7 @@ If you restart your machine, terminal, or tmux:
 - Open transactions are preserved in .empirica/active_transaction*.json
 - On next session start, orphaned transactions are auto-adopted
 - The session resumes with its transaction and project context intact
-- Project context maps via CWD → .empirica/project.yaml
+- Project context maps via CWD -> .empirica/project.yaml
 
 Multi-terminal (tmux panes):
 - Each pane gets isolated instance files (TMUX_PANE-keyed)

@@ -107,7 +107,7 @@ class ThresholdLoader:
                 self._load_hardcoded_defaults()
                 return
 
-            with open(self.config_path) as f:
+            with open(self.config_path, encoding='utf-8') as f:
                 data = yaml.safe_load(f)
 
                 if not data or 'profiles' not in data:
@@ -128,7 +128,7 @@ class ThresholdLoader:
                     self.current_profile_name = 'default'
                     self.current_profile = self.profiles.get('default', {})
 
-                logger.info(f"✅ Loaded {len(self.profiles)} threshold profiles from {self.config_path}")
+                logger.info(f"[OK] Loaded {len(self.profiles)} threshold profiles from {self.config_path}")
                 logger.info(f"   Active profile: {self.current_profile_name}")
 
         except Exception as e:
@@ -142,7 +142,7 @@ class ThresholdLoader:
         This ensures backwards compatibility - if cascade_styles.yaml is missing,
         we fall back to the original hardcoded values from thresholds.py.
         """
-        logger.warning("⚠️  Using hardcoded threshold defaults (YAML config unavailable)")
+        logger.warning("[WARN]  Using hardcoded threshold defaults (YAML config unavailable)")
 
         try:
             from empirica.core import thresholds
@@ -186,7 +186,7 @@ class ThresholdLoader:
             self.current_profile_name = 'default'
             self.current_profile = self.profiles['default']
 
-            logger.info("✅ Hardcoded defaults loaded successfully")
+            logger.info("[OK] Hardcoded defaults loaded successfully")
 
         except ImportError as e:
             logger.error(f"Cannot load hardcoded defaults: {e}")
@@ -211,14 +211,14 @@ class ThresholdLoader:
             True if profile loaded successfully, False otherwise
         """
         if profile_name not in self.profiles:
-            logger.error(f"❌ Profile '{profile_name}' not found. Available: {list(self.profiles.keys())}")
+            logger.error(f"[FAIL] Profile '{profile_name}' not found. Available: {list(self.profiles.keys())}")
             return False
 
         self.current_profile_name = profile_name
         self.current_profile = self.profiles[profile_name]
         self.overrides = {}  # Clear overrides when switching profiles
 
-        logger.info(f"✅ Loaded threshold profile: {profile_name}")
+        logger.info(f"[OK] Loaded threshold profile: {profile_name}")
         logger.info(f"   Description: {self.current_profile.get('description', 'N/A')}")
 
         return True
@@ -243,7 +243,7 @@ class ThresholdLoader:
         Returns:
             Profile name string.
         """
-        # work_context → profile (primary signal)
+        # work_context -> profile (primary signal)
         context_map = {
             'greenfield': 'exploratory',
             'investigation': 'exploratory',
@@ -266,7 +266,7 @@ class ThresholdLoader:
         if work_type in type_overrides:
             type_profile = type_overrides[work_type]
             # Only override if context didn't already set a stronger profile
-            # e.g., investigation + audit → keep exploratory (investigation wins)
+            # e.g., investigation + audit -> keep exploratory (investigation wins)
             if profile == 'default':
                 profile = type_profile
 
@@ -360,7 +360,7 @@ class ThresholdLoader:
             ... )
         """
         if base not in self.profiles:
-            logger.error(f"❌ Base profile '{base}' not found")
+            logger.error(f"[FAIL] Base profile '{base}' not found")
             return False
 
         # Deep copy base profile
@@ -375,7 +375,7 @@ class ThresholdLoader:
 
         # Save custom profile
         self.profiles[name] = custom
-        logger.info(f"✅ Created custom profile: {name} (base: {base}, {len(overrides or {})} overrides)")
+        logger.info(f"[OK] Created custom profile: {name} (base: {base}, {len(overrides or {})} overrides)")
 
         return True
 

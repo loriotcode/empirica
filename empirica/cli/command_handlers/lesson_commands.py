@@ -67,7 +67,7 @@ def handle_lesson_create_command(args: Namespace) -> dict[str, Any]:
             input_data = json.load(sys.stdin)
         # From file
         elif getattr(args, 'input', None):
-            with open(args.input) as f:
+            with open(args.input, encoding='utf-8') as f:
                 input_data = json.load(f)
         # From inline JSON
         elif getattr(args, 'json', None):

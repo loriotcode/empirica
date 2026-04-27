@@ -2,7 +2,7 @@
 Flow State Metrics - Track conditions that lead to high productivity
 
 Measures:
-- CASCADE completeness (PREFLIGHT→POSTFLIGHT)
+- CASCADE completeness (PREFLIGHT->POSTFLIGHT)
 - Bootstrap usage (early context loading)
 - Goal structure (active goals with subtasks)
 - Learning velocity (know increase per hour)

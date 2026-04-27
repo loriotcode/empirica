@@ -57,7 +57,7 @@ PHASE_DESCRIPTIONS = {
 def load_persona(path: Path) -> dict | None:
     """Load a persona JSON file."""
     try:
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         print(f"  Warning: Could not load {path.name}: {e}", file=sys.stderr)
@@ -298,7 +298,7 @@ def _resolve_personas_dir(args_personas_dir: str | None) -> Path:
         import subprocess
         git_root = subprocess.check_output(
             ["git", "rev-parse", "--show-toplevel"],
-            stderr=subprocess.DEVNULL, text=True
+            stderr=subprocess.DEVNULL, text=True, encoding='utf-8'
         ).strip()
         return Path(git_root) / ".empirica" / "personas"
     except (subprocess.CalledProcessError, FileNotFoundError):

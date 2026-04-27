@@ -1,13 +1,13 @@
 """
-Dynamic Thresholds — Brier Score Based Calibration Gating
+Dynamic Thresholds -- Brier Score Based Calibration Gating
 
 Computes phase-aware CHECK gate thresholds using Brier score (a strictly proper
-scoring rule) instead of MAE (improper — incentivizes extreme predictions).
+scoring rule) instead of MAE (improper -- incentivizes extreme predictions).
 
 Threshold model:
-- Good calibration (low Brier reliability) → threshold stays at domain baseline
-- Bad calibration (high Brier reliability) → threshold RAISED to compensate for bias
-- Thresholds never go BELOW domain baselines — good calibration is not rewarded
+- Good calibration (low Brier reliability) -> threshold stays at domain baseline
+- Bad calibration (high Brier reliability) -> threshold RAISED to compensate for bias
+- Thresholds never go BELOW domain baselines -- good calibration is not rewarded
   with a lower bar, it's rewarded with the system trusting the numbers as-is
 
 Brier decomposition (Murphy 1973):
@@ -19,9 +19,9 @@ Brier decomposition (Murphy 1973):
 Only Reliability drives threshold inflation. Resolution and Uncertainty are diagnostic.
 
 Self-correcting properties:
-- Overconfidence → high reliability component → tighter gates → forced investigation
-- Good calibration → reliability near 0 → gates stay at baseline → numbers trusted
-- Phase-specific → noetic and praxic competence are independent axes
+- Overconfidence -> high reliability component -> tighter gates -> forced investigation
+- Good calibration -> reliability near 0 -> gates stay at baseline -> numbers trusted
+- Phase-specific -> noetic and praxic competence are independent axes
 
 References:
 - Brier (1950): "Verification of forecasts expressed in terms of probability"
@@ -35,7 +35,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Hardcoded fallbacks — used only when MCO config unavailable
+# Hardcoded fallbacks -- used only when MCO config unavailable
 _FALLBACK_BASELINES = {
     "ready_know_threshold": 0.70,
     "ready_uncertainty_threshold": 0.35,
@@ -125,7 +125,7 @@ def compute_brier_score(predictions: list[tuple[float, float]]) -> float:
         Brier score (0.0 = perfect, 1.0 = worst).
     """
     if not predictions:
-        return 1.0  # Worst possible — no data
+        return 1.0  # Worst possible -- no data
     return sum((p - o) ** 2 for p, o in predictions) / len(predictions)
 
 
@@ -252,8 +252,8 @@ def compute_dynamic_thresholds(
     """Compute phase-aware dynamic thresholds using Brier score reliability.
 
     Threshold model:
-    - reliability near 0 → well calibrated → thresholds stay at domain baseline
-    - reliability > 0 → miscalibrated → thresholds inflated proportionally
+    - reliability near 0 -> well calibrated -> thresholds stay at domain baseline
+    - reliability > 0 -> miscalibrated -> thresholds inflated proportionally
     - inflation = min(reliability * scale_factor, max_inflation)
 
     All config values (baselines, ceilings, max_inflation, min_transactions, lookback)
@@ -338,11 +338,11 @@ def compute_dynamic_thresholds(
             decomp = compute_brier_decomposition(predictions)
 
             # Threshold inflation driven by RELIABILITY component only
-            # reliability = 0 → no inflation (well calibrated)
-            # reliability > 0 → inflate proportionally, capped at max_inflation
+            # reliability = 0 -> no inflation (well calibrated)
+            # reliability > 0 -> inflate proportionally, capped at max_inflation
             # Design: inflation is INFORMATIVE, not punitive. Small increments
             # (max 0.05) are enough for the AI to notice calibration cost.
-            # The AI makes the holistic judgment — this is a measurement system,
+            # The AI makes the holistic judgment -- this is a measurement system,
             # not a rules-based gate. Max threshold = base + 0.05 = 0.75.
             raw_inflation = min(decomp.reliability * (max_infl / 0.15), max_infl)
 
@@ -560,7 +560,7 @@ def export_brier_to_breadcrumbs(
     try:
         existing_lines = []
         if os.path.exists(breadcrumbs_path):
-            with open(breadcrumbs_path) as f:
+            with open(breadcrumbs_path, encoding='utf-8') as f:
                 existing_lines = f.readlines()
 
         section_start, section_end = _find_brier_section(existing_lines)
@@ -576,7 +576,7 @@ def export_brier_to_breadcrumbs(
         else:
             new_lines = [yaml_block]
 
-        with open(breadcrumbs_path, 'w') as f:
+        with open(breadcrumbs_path, 'w', encoding='utf-8') as f:
             f.writelines(new_lines)
 
         return True

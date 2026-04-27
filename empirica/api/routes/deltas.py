@@ -132,7 +132,7 @@ def get_session_deltas(session_id: str):
 def _git_cmd(repo_path: str, *args) -> str:
     """Run a git command against a bare repo and return stdout."""
     cmd = ["git", "-C", repo_path] + list(args)
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', timeout=10)
     return result.stdout.strip()
 
 
@@ -362,7 +362,7 @@ def _find_session_by_timestamp(commit_sha: str, repo_path: str) -> dict | None:
         if best_ref and best_diff < 7200:
             session_id = best_ref.split("/")[4]
             return _best_assessment_for_session(repo_path, session_id)
-    except Exception:  # noqa: S110 — best-effort assessment lookup; None fallback is correct
+    except Exception:  # noqa: S110 -- best-effort assessment lookup; None fallback is correct
         pass
     return None
 

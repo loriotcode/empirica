@@ -45,10 +45,10 @@ def handle_config_init_command(args):
 
         mco = get_mco_config()
 
-        print("\n📂 MCO Configuration Location:")
+        print("\n[DIR] MCO Configuration Location:")
         print(f"   {mco.config_dir}")
 
-        print("\n📝 Configuration files:")
+        print("\n[NOTE] Configuration files:")
         config_files = [
             ("model_profiles.yaml", "Model-specific bias corrections"),
             ("personas.yaml", "Investigation budgets and epistemic priors"),
@@ -58,12 +58,12 @@ def handle_config_init_command(args):
         ]
         for filename, description in config_files:
             filepath = mco.config_dir / filename
-            exists = "✅" if filepath.exists() else "❌"
+            exists = "[OK]" if filepath.exists() else "[FAIL]"
             print(f"   {exists} {filename} - {description}")
 
-        print("\n💡 To customize configuration:")
+        print("\n[HINT] To customize configuration:")
         print(f"   Edit YAML files in: {mco.config_dir}")
-        print("\n💡 Quick commands:")
+        print("\n[HINT] Quick commands:")
         print("   empirica config           - View current configuration")
         print("   empirica config --validate - Validate configuration")
 
@@ -103,7 +103,7 @@ def handle_config_show_command(args):
                 config = config[section]
                 print(f"\nSection: {section}")
             else:
-                print(f"❌ Section not found: {section}")
+                print(f"[FAIL] Section not found: {section}")
                 print(f"   Available sections: {', '.join(config.keys())}")
                 return
         else:
@@ -120,14 +120,14 @@ def handle_config_show_command(args):
         # Show config sources
         if not section:
             print("\n" + "=" * 70)
-            print("📂 Configuration Sources:")
+            print("[DIR] Configuration Sources:")
             print(f"   MCO directory: {mco.config_dir}")
             print("   Files loaded:")
-            print("     • model_profiles.yaml - Bias corrections per model")
-            print("     • personas.yaml - Investigation budgets")
-            print("     • epistemic_conduct.yaml - Bidirectional accountability")
-            print("     • ask_before_investigate.yaml - Query heuristics")
-            print("     • protocols.yaml - Tool schemas")
+            print("     * model_profiles.yaml - Bias corrections per model")
+            print("     * personas.yaml - Investigation budgets")
+            print("     * epistemic_conduct.yaml - Bidirectional accountability")
+            print("     * ask_before_investigate.yaml - Query heuristics")
+            print("     * protocols.yaml - Tool schemas")
 
     except Exception as e:
         handle_cli_error(e, "Config Show", getattr(args, 'verbose', False))
@@ -136,7 +136,7 @@ def handle_config_show_command(args):
 def _validate_model_profiles(mco):
     """Validate model profiles in MCO config. Returns (issues, warnings)."""
     warnings = []
-    print("\n📊 Checking Model Profiles...")
+    print("\n[STATS] Checking Model Profiles...")
     if not mco.model_profiles:
         warnings.append("No model profiles configured")
     else:
@@ -145,7 +145,7 @@ def _validate_model_profiles(mco):
             if not bias:
                 warnings.append(f"{name}: Missing bias_profile")
             else:
-                print(f"   ✅ {name}: Valid (uncertainty_awareness={bias.get('uncertainty_awareness', 'N/A')})")
+                print(f"   [OK] {name}: Valid (uncertainty_awareness={bias.get('uncertainty_awareness', 'N/A')})")
     return warnings
 
 
@@ -161,7 +161,7 @@ def _validate_personas(mco):
             if not investigation:
                 warnings.append(f"{name}: Missing investigation_style")
             else:
-                print(f"   ✅ {name}: Valid (max_rounds={investigation.get('max_rounds', 'N/A')})")
+                print(f"   [OK] {name}: Valid (max_rounds={investigation.get('max_rounds', 'N/A')})")
     return warnings
 
 
@@ -172,7 +172,7 @@ def handle_config_validate_command(args):
     Checks MCO files for errors and warns about potential issues.
     """
     try:
-        print("\n🔍 Validating Empirica Configuration")
+        print("\n[SEARCH] Validating Empirica Configuration")
         print("=" * 70)
 
         mco = get_mco_config()
@@ -186,29 +186,29 @@ def handle_config_validate_command(args):
         if not mco.epistemic_conduct:
             warnings.append("No epistemic conduct configuration")
         else:
-            print("   ✅ Epistemic conduct loaded")
+            print("   [OK] Epistemic conduct loaded")
 
-        print("\n📂 Checking MCO Files...")
+        print("\n[DIR] Checking MCO Files...")
         required_files = ['model_profiles.yaml', 'personas.yaml', 'epistemic_conduct.yaml']
         for filename in required_files:
             filepath = mco.config_dir / filename
             if filepath.exists():
-                print(f"   ✅ {filename}")
+                print(f"   [OK] {filename}")
             else:
                 issues.append(f"Missing MCO file: {filename}")
 
         print("\n" + "=" * 70)
         if not issues and not warnings:
-            print("✅ Configuration is valid with no issues")
+            print("[OK] Configuration is valid with no issues")
         else:
             if issues:
-                print(f"❌ Found {len(issues)} issue(s):")
+                print(f"[FAIL] Found {len(issues)} issue(s):")
                 for issue in issues:
-                    print(f"   • {issue}")
+                    print(f"   * {issue}")
             if warnings:
-                print(f"\n⚠️  Found {len(warnings)} warning(s):")
+                print(f"\n[WARN]  Found {len(warnings)} warning(s):")
                 for warning in warnings:
-                    print(f"   • {warning}")
+                    print(f"   * {warning}")
         print("=" * 70)
 
     except Exception as e:
@@ -241,10 +241,10 @@ def handle_config_get_command(args):
             if isinstance(value, dict) and k in value:
                 value = value[k]
             else:
-                print(f"❌ Configuration key not found: {key}")
+                print(f"[FAIL] Configuration key not found: {key}")
                 return
 
-        print(f"✅ {key}: {value}")
+        print(f"[OK] {key}: {value}")
 
     except Exception as e:
         handle_cli_error(e, "Config Get", getattr(args, 'verbose', False))
@@ -260,7 +260,7 @@ def handle_config_set_command(args):
         key = args.key
         value = args.value
 
-        print("\n⚠️  MCO Configuration is Read-Only via CLI")
+        print("\n[WARN]  MCO Configuration is Read-Only via CLI")
         print("=" * 70)
 
         mco = get_mco_config()

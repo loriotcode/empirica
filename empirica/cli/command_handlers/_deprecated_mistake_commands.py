@@ -25,7 +25,7 @@ def _store_mistake_to_git(mistake_id, project_id, session_id, ai_id,
             root_cause_vector=root_cause_vector, goal_id=goal_id
         )
         if stored:
-            logger.info(f"✓ Mistake {mistake_id[:8]} stored in git notes")
+            logger.info(f"[OK] Mistake {mistake_id[:8]} stored in git notes")
         return stored
     except Exception as git_err:
         logger.warning(f"Git notes storage failed: {git_err}")
@@ -156,15 +156,15 @@ def handle_mistake_log_command(args):
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print("✅ Mistake logged successfully")
+            print("[OK] Mistake logged successfully")
             print(f"   Mistake ID: {mistake_id[:8]}...")
             print(f"   Session: {session_id[:8]}...")
             if project_id:
                 print(f"   Project: {project_id[:8]}...")
             if git_stored:
-                print("   📝 Stored in git notes for sync")
+                print("   [NOTE] Stored in git notes for sync")
             if embedded:
-                print("   🔍 Auto-embedded for semantic search")
+                print("   [SEARCH] Auto-embedded for semantic search")
             if root_cause_vector:
                 print(f"   Root cause: {root_cause_vector} vector")
             if cost_estimate:

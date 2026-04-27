@@ -39,7 +39,7 @@ def _parse_config_input(args):
             if not os.path.exists(args.config):
                 print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
                 sys.exit(1)
-            with open(args.config) as f:
+            with open(args.config, encoding='utf-8') as f:
                 config_data = parse_json_safely(f.read())
     return config_data
 
@@ -250,7 +250,7 @@ def _resolve_db_for_artifact(project_id: str | None):
         if cross_db:
             # Resolve the name to UUID in the target DB
             resolved = cross_db.resolve_project_id(project_id)
-            logger.info(f"Cross-project write: targeting '{project_id}' → {resolved[:8] if resolved else '?'}...")
+            logger.info(f"Cross-project write: targeting '{project_id}' -> {resolved[:8] if resolved else '?'}...")
             return cross_db, resolved
         else:
             logger.warning(f"Could not resolve project '{project_id}' for cross-project write, using local DB")
@@ -261,7 +261,7 @@ def _resolve_db_for_artifact(project_id: str | None):
 def _get_db_for_project(project_name_or_id: str):
     """Get SessionDatabase for a specific project by name or UUID.
 
-    Resolves project → trajectory_path (from workspace.db) → sessions.db.
+    Resolves project -> trajectory_path (from workspace.db) -> sessions.db.
     Used for cross-project artifact writing without project-switch.
 
     Args:
@@ -378,7 +378,7 @@ def _create_entity_artifact_link(
         ))
         conn.commit()
         conn.close()
-        logger.info(f"🔗 Entity artifact linked: {artifact_type} → {entity_type}/{entity_id[:8]}...")
+        logger.info(f"[LINK] Entity artifact linked: {artifact_type} -> {entity_type}/{entity_id[:8]}...")
     except Exception as e:
         logger.debug(f"Entity artifact link failed (non-fatal): {e}")
 
@@ -413,7 +413,7 @@ def _extract_entity_params(config_data, args):
 
 
 def handle_engagement_focus_command(args):
-    """Handle engagement-focus command — set active engagement for auto-linking."""
+    """Handle engagement-focus command -- set active engagement for auto-linking."""
     try:
         from empirica.utils.session_resolver import set_active_engagement
 
@@ -438,7 +438,7 @@ def handle_engagement_focus_command(args):
 
                 tmp_fd, tmp_path = tempfile.mkstemp(dir=str(tx_path.parent))
                 try:
-                    with os.fdopen(tmp_fd, 'w') as tmp_f:
+                    with os.fdopen(tmp_fd, 'w', encoding='utf-8') as tmp_f:
                         json.dump(tx_data, tmp_f, indent=2)
                     os.replace(tmp_path, str(tx_path))
                 except BaseException:
@@ -482,7 +482,7 @@ def _store_finding_git_notes(finding_id, project_id, session_id, ai_id,
             ai_id=ai_id, finding=finding, impact=impact, goal_id=goal_id,
             subtask_id=subtask_id, subject=subject)
         if stored:
-            logger.info(f"✓ Finding {finding_id[:8]} stored in git notes")
+            logger.info(f"[OK] Finding {finding_id[:8]} stored in git notes")
         return stored
     except Exception as e:
         logger.warning(f"Git notes storage failed: {e}")
@@ -627,7 +627,7 @@ def handle_finding_log_command(args):
         db.close()
         db = None  # Prevent double-close in finally
 
-        # Multi-layer storage: git notes → Qdrant → eidetic → immune system
+        # Multi-layer storage: git notes -> Qdrant -> eidetic -> immune system
         git_stored = _store_finding_git_notes(finding_id, project_id, session_id, ai_id,
                                                finding, impact, goal_id, subtask_id, subject)
         embedded = _embed_finding_qdrant(project_id, finding_id, finding, session_id,
@@ -659,18 +659,18 @@ def handle_finding_log_command(args):
             print(json.dumps(result, indent=2))
         else:
             # Human-readable output (legacy)
-            print("✅ Finding logged successfully")
+            print("[OK] Finding logged successfully")
             print(f"   Finding ID: {finding_id}")
             if project_id:
                 print(f"   Project: {project_id[:8]}...")
             if git_stored:
-                print("   📝 Stored in git notes for sync")
+                print("   [NOTE] Stored in git notes for sync")
             if embedded:
-                print("   🔍 Auto-embedded for semantic search")
+                print("   [SEARCH] Auto-embedded for semantic search")
             if decayed_lessons:
                 print(f"   🛡️ IMMUNE: Decayed {len(decayed_lessons)} related lesson(s)")
                 for dl in decayed_lessons:
-                    print(f"      - {dl['name']}: {dl['previous_confidence']:.2f} → {dl['new_confidence']:.2f}")
+                    print(f"      - {dl['name']}: {dl['previous_confidence']:.2f} -> {dl['new_confidence']:.2f}")
 
         return 0  # Success
 
@@ -752,7 +752,7 @@ def handle_unknown_log_command(args):
                 subtask_id=subtask_id
             )
             if git_stored:
-                logger.info(f"✓ Unknown {unknown_id[:8]} stored in git notes")
+                logger.info(f"[OK] Unknown {unknown_id[:8]} stored in git notes")
         except Exception as git_err:
             # Non-fatal - log but continue
             logger.warning(f"Git notes storage failed: {git_err}")
@@ -797,14 +797,14 @@ def handle_unknown_log_command(args):
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print("✅ Unknown logged successfully")
+            print("[OK] Unknown logged successfully")
             print(f"   Unknown ID: {unknown_id}")
             if project_id:
                 print(f"   Project: {project_id[:8]}...")
             if git_stored:
-                print("   📝 Stored in git notes for sync")
+                print("   [NOTE] Stored in git notes for sync")
             if embedded:
-                print("   🔍 Auto-embedded for semantic search")
+                print("   [SEARCH] Auto-embedded for semantic search")
 
         return 0  # Success
 
@@ -855,7 +855,7 @@ def handle_unknown_resolve_command(args):
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print("✅ Unknown resolved successfully")
+            print("[OK] Unknown resolved successfully")
             print(f"   Unknown ID: {unknown_id[:8]}...")
             print(f"   Resolved by: {resolved_by}")
             if resolution_finding_id:
@@ -896,7 +896,7 @@ def _resolve_project_id_from_context(cursor, session_id, project_id):
 def _print_unknowns_pretty(unknowns, status_desc, filter_desc):
     """Print unknowns list in human-readable format."""
     print(f"{'=' * 70}")
-    print(f"❓ UNKNOWNS ({status_desc.upper()}) - {len(unknowns)} found [{filter_desc}]")
+    print(f"[?] UNKNOWNS ({status_desc.upper()}) - {len(unknowns)} found [{filter_desc}]")
     print(f"{'=' * 70}")
     print()
 
@@ -904,7 +904,7 @@ def _print_unknowns_pretty(unknowns, status_desc, filter_desc):
         print("   (No unknowns found)")
     else:
         for i, u in enumerate(unknowns, 1):
-            status_emoji = "✅" if u['is_resolved'] else "❓"
+            status_emoji = "[OK]" if u['is_resolved'] else "[?]"
             impact_str = f" [impact={u['impact']:.1f}]" if u['impact'] else ""
             print(f"{status_emoji} {i}. {u['unknown'][:75]}")
             resolved_info = f" | Resolved: {u['resolved_by'][:30]}" if u['resolved_by'] else ""
@@ -1061,7 +1061,7 @@ def handle_deadend_log_command(args):
                 subtask_id=subtask_id
             )
             if git_stored:
-                logger.info(f"✓ Dead end {dead_end_id[:8]} stored in git notes")
+                logger.info(f"[OK] Dead end {dead_end_id[:8]} stored in git notes")
         except Exception as git_err:
             # Non-fatal - log but continue
             logger.warning(f"Git notes storage failed: {git_err}")
@@ -1074,7 +1074,7 @@ def handle_deadend_log_command(args):
                 from datetime import datetime
 
                 from empirica.core.qdrant.vector_store import embed_single_memory_item
-                text = f"DEAD END: {approach} — Why failed: {why_failed}"
+                text = f"DEAD END: {approach} -- Why failed: {why_failed}"
                 embedded = embed_single_memory_item(
                     project_id=project_id,
                     item_id=dead_end_id,
@@ -1103,14 +1103,14 @@ def handle_deadend_log_command(args):
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print("✅ Dead end logged successfully")
+            print("[OK] Dead end logged successfully")
             print(f"   Dead End ID: {dead_end_id[:8]}...")
             if project_id:
                 print(f"   Project: {project_id[:8]}...")
             if git_stored:
-                print("   📝 Stored in git notes for sync")
+                print("   [NOTE] Stored in git notes for sync")
             if embedded:
-                print("   🔍 Auto-embedded for semantic search")
+                print("   [SEARCH] Auto-embedded for semantic search")
 
         return 0  # Success
 
@@ -1123,7 +1123,7 @@ def handle_deadend_log_command(args):
 
 
 def handle_assumption_log_command(args):
-    """Handle assumption-log command — log unverified assumptions."""
+    """Handle assumption-log command -- log unverified assumptions."""
     db = None
     try:
         import time
@@ -1230,7 +1230,7 @@ def handle_assumption_log_command(args):
 
 
 def handle_decision_log_command(args):
-    """Handle decision-log command — log decisions with alternatives."""
+    """Handle decision-log command -- log decisions with alternatives."""
     db = None
     try:
         import time
@@ -1364,9 +1364,9 @@ def handle_decision_log_command(args):
 
 
 def handle_refdoc_add_command(args):
-    """Handle refdoc-add command (DEPRECATED — use source-add instead)"""
+    """Handle refdoc-add command (DEPRECATED -- use source-add instead)"""
     import sys as _sys
-    print("⚠️  refdoc-add is deprecated. Use 'empirica source-add' instead.", file=_sys.stderr)
+    print("[WARN]  refdoc-add is deprecated. Use 'empirica source-add' instead.", file=_sys.stderr)
     print("   Example: empirica source-add --title 'My Doc' --path ./doc.md --noetic", file=_sys.stderr)
     try:
         from empirica.cli.utils.project_resolver import resolve_project_id
@@ -1400,7 +1400,7 @@ def handle_refdoc_add_command(args):
             }
             print(json.dumps(result, indent=2))
         else:
-            print("✅ Reference doc added successfully")
+            print("[OK] Reference doc added successfully")
             print(f"   Doc ID: {doc_id}")
             print(f"   Path: {doc_path}")
 
@@ -1435,7 +1435,7 @@ def _source_persist_git_and_qdrant(source_id, project_id, session_id, title,
             from empirica.core.qdrant.vector_store import embed_single_memory_item
             text = f"SOURCE ({direction}): {title}"
             if description:
-                text += f" — {description}"
+                text += f" -- {description}"
             if source_url or doc_path:
                 text += f" [{source_url or doc_path}]"
             embedded = embed_single_memory_item(
@@ -1450,11 +1450,11 @@ def _source_persist_git_and_qdrant(source_id, project_id, session_id, title,
 
 
 def handle_source_add_command(args):
-    """Handle source-add command — entity-agnostic epistemic source logging.
+    """Handle source-add command -- entity-agnostic epistemic source logging.
 
     Sources are bidirectional:
-      --noetic: evidence IN (source_used — informed knowledge)
-      --praxic: output OUT (source_created — produced by action)
+      --noetic: evidence IN (source_used -- informed knowledge)
+      --praxic: output OUT (source_created -- produced by action)
     """
     try:
         import time
@@ -1650,7 +1650,7 @@ def _print_sources_pretty(sources):
 
 
 def handle_source_list_command(args):
-    """Handle source-list command — list epistemic sources for a project."""
+    """Handle source-list command -- list epistemic sources for a project."""
     db = None
     try:
         from empirica.data.session_database import SessionDatabase
@@ -1811,15 +1811,15 @@ def handle_mistake_log_command(args):
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print("✅ Mistake logged successfully")
+            print("[OK] Mistake logged successfully")
             print(f"   Mistake ID: {mistake_id[:8]}...")
             print(f"   Session: {session_id[:8]}...")
             if project_id:
                 print(f"   Project: {project_id[:8]}...")
             if git_stored:
-                print("   📝 Stored in git notes for sync")
+                print("   [NOTE] Stored in git notes for sync")
             if embedded:
-                print("   🔍 Auto-embedded for semantic search")
+                print("   [SEARCH] Auto-embedded for semantic search")
 
         return None
     except Exception as e:

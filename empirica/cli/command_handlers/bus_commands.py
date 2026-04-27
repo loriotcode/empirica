@@ -42,7 +42,7 @@ def _output(result: dict, output_format: str = "json") -> int:
     else:
         # Human-readable
         if result.get("ok") is False:
-            print(f"❌ {result.get('error', 'failed')}")
+            print(f"[FAIL] {result.get('error', 'failed')}")
             return 1
         for k, v in result.items():
             if k == "ok":

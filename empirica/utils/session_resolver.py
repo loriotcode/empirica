@@ -31,13 +31,13 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# InstanceResolver — Unified API for project/session/transaction resolution
+# InstanceResolver -- Unified API for project/session/transaction resolution
 #
 # This class groups all resolution functions into a single importable API.
 # Hooks, CLI commands, sentinel, and statusline should all use this class.
 #
 # For backward compatibility, all methods are also available as module-level
-# functions (the originals). The class delegates to them — no logic is
+# functions (the originals). The class delegates to them -- no logic is
 # duplicated.
 #
 # Usage:
@@ -53,7 +53,7 @@ class InstanceResolver:
 
     Groups instance, project, session, and transaction resolution into a
     single class. Every method delegates to the canonical module-level
-    function — this class is organizational, not a reimplementation.
+    function -- this class is organizational, not a reimplementation.
 
     Designed to be the single import for hooks and CLI:
         from empirica.utils.session_resolver import InstanceResolver
@@ -338,7 +338,7 @@ def get_tty_session(warn_if_stale: bool = True) -> dict[str, Any] | None:
         return None
 
     try:
-        with open(session_file) as f:
+        with open(session_file, encoding='utf-8') as f:
             session = json.load(f)
 
         # Validate and warn if stale
@@ -410,7 +410,7 @@ def write_tty_session(
                 'empirica_session_id': empirica_session_id,
                 'timestamp': datetime.now().isoformat()
             }
-            with open(instance_file, 'w') as f:
+            with open(instance_file, 'w', encoding='utf-8') as f:
                 json.dump(instance_data, f, indent=2)
             logger.debug(f"Wrote instance mapping: {instance_file}")
             wrote_something = True
@@ -432,7 +432,7 @@ def write_tty_session(
                 'ppid': os.getppid()
             }
 
-            with open(session_file, 'w') as f:
+            with open(session_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2)
             wrote_something = True
 
@@ -505,7 +505,7 @@ def validate_tty_session(session: dict[str, Any] | None = None) -> dict[str, Any
             result['warnings'].append(f"TTY device {tty_device} no longer exists - terminal closed?")
 
     # Note: No timestamp staleness check. The timestamp in the TTY session file
-    # is the WRITE time (from session-init), not a last-active time — it's never
+    # is the WRITE time (from session-init), not a last-active time -- it's never
     # refreshed during a session's lifetime. A long-running active session
     # would falsely flag stale. TTY device presence (check 1 above) is the
     # authoritative signal: if /dev/pts/X exists, the terminal is alive.
@@ -776,7 +776,7 @@ def get_instance_id() -> str | None:
     2. TMUX_PANE (tmux terminal pane ID, e.g., "%0", "%1")
     3. TERM_SESSION_ID (macOS Terminal.app session ID)
     4. WINDOWID (X11 window ID)
-    5. TTY device (e.g., pts-6 → term_pts_6) - persists across CLI calls
+    5. TTY device (e.g., pts-6 -> term_pts_6) - persists across CLI calls
     6. None (fallback to legacy behavior - first match wins)
 
     Returns:
@@ -911,7 +911,7 @@ def get_active_project_path(claude_session_id: str | None = None) -> 'str | None
         active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if active_work_file.exists():
             try:
-                with open(active_work_file) as f:
+                with open(active_work_file, encoding='utf-8') as f:
                     data = json.load(f)
                     active_work_path = data.get('project_path')
             except Exception:
@@ -923,7 +923,7 @@ def get_active_project_path(claude_session_id: str | None = None) -> 'str | None
         instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
         if instance_file.exists():
             try:
-                with open(instance_file) as f:
+                with open(instance_file, encoding='utf-8') as f:
                     data = json.load(f)
                     instance_path = data.get('project_path')
             except Exception:
@@ -942,17 +942,17 @@ def get_active_project_path(claude_session_id: str | None = None) -> 'str | None
         logger.debug(f"get_active_project_path: from active_work_{claude_session_id}: {active_work_path}")
         return active_work_path
 
-    # Priority 2: Generic active_work.json — HEADLESS MODE ONLY
+    # Priority 2: Generic active_work.json -- HEADLESS MODE ONLY
     # In interactive mode (terminal exists), instance_projects + active_work_{uuid}
     # handle everything. The generic file would only cause pollution by returning
     # a stale project from a different terminal/session.
-    # In headless mode (containers, CI), there's no terminal identity — the generic
+    # In headless mode (containers, CI), there's no terminal identity -- the generic
     # file IS the primary source.
     if is_headless():
         generic_work_file = Path.home() / '.empirica' / 'active_work.json'
         if generic_work_file.exists():
             try:
-                with open(generic_work_file) as f:
+                with open(generic_work_file, encoding='utf-8') as f:
                     data = json.load(f)
                     generic_path = data.get('project_path')
                 if generic_path:
@@ -1023,7 +1023,7 @@ def write_active_transaction(
 
     tmp_fd, tmp_path = tempfile.mkstemp(dir=str(path.parent))
     try:
-        with os.fdopen(tmp_fd, 'w') as tmp_f:
+        with os.fdopen(tmp_fd, 'w', encoding='utf-8') as tmp_f:
             json.dump(tx_data, tmp_f, indent=2)
         os.replace(tmp_path, str(path))
     except BaseException:
@@ -1058,7 +1058,7 @@ def increment_transaction_tool_count(claude_session_id: str | None = None) -> di
         return None
 
     try:
-        with open(tx_path) as f:
+        with open(tx_path, encoding='utf-8') as f:
             tx_data = json.load(f)
 
         if tx_data.get('status') != 'open':
@@ -1071,7 +1071,7 @@ def increment_transaction_tool_count(claude_session_id: str | None = None) -> di
         # Atomic write
         tmp_fd, tmp_path = tempfile.mkstemp(dir=str(tx_path.parent))
         try:
-            with __import__('os').fdopen(tmp_fd, 'w') as tmp_f:
+            with __import__('os').fdopen(tmp_fd, 'w', encoding='utf-8') as tmp_f:
                 json.dump(tx_data, tmp_f, indent=2)
             __import__('os').replace(tmp_path, str(tx_path))
         except BaseException:
@@ -1099,7 +1099,7 @@ def _find_transaction_file(empirica_dir: 'Path', suffix: str,
     - CLI writes active_transaction_tmux_5.json (TMUX_PANE available)
     - Hook looks for active_transaction.json (no TMUX_PANE in hook context)
 
-    The fallback is safe because it's scoped by session_id — it won't
+    The fallback is safe because it's scoped by session_id -- it won't
     cross-talk between instances. If session_id is None, only exact
     suffix match is attempted (no scan).
 
@@ -1124,7 +1124,7 @@ def _find_transaction_file(empirica_dir: 'Path', suffix: str,
         try:
             for tx_file in sorted(empirica_dir.glob('active_transaction*.json')):
                 try:
-                    with open(tx_file) as f:
+                    with open(tx_file, encoding='utf-8') as f:
                         tx_data = json.load(f)
                     if tx_data.get('session_id') == session_id:
                         logger.debug(
@@ -1163,7 +1163,7 @@ def read_active_transaction_full(claude_session_id: str | None = None) -> dict |
         try:
             aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
             if aw_file.exists():
-                with open(aw_file) as f:
+                with open(aw_file, encoding='utf-8') as f:
                     session_id = json.load(f).get('empirica_session_id')
         except Exception:
             pass
@@ -1175,7 +1175,7 @@ def read_active_transaction_full(claude_session_id: str | None = None) -> dict |
         tx_file = _find_transaction_file(empirica_dir, suffix, session_id)
         if tx_file:
             try:
-                with open(tx_file) as f:
+                with open(tx_file, encoding='utf-8') as f:
                     return json.load(f)
             except Exception:
                 pass
@@ -1185,7 +1185,7 @@ def read_active_transaction_full(claude_session_id: str | None = None) -> dict |
     tx_file = _find_transaction_file(global_dir, suffix, session_id)
     if tx_file:
         try:
-            with open(tx_file) as f:
+            with open(tx_file, encoding='utf-8') as f:
                 return json.load(f)
         except Exception:
             pass
@@ -1227,7 +1227,7 @@ def set_active_engagement(engagement_id: str, claude_session_id: str | None = No
         return False
 
     try:
-        with open(tx_path) as f:
+        with open(tx_path, encoding='utf-8') as f:
             tx_data = json.load(f)
 
         if tx_data.get('status') != 'open':
@@ -1239,7 +1239,7 @@ def set_active_engagement(engagement_id: str, claude_session_id: str | None = No
         # Atomic write
         tmp_fd, tmp_path = tempfile.mkstemp(dir=str(tx_path.parent))
         try:
-            with os.fdopen(tmp_fd, 'w') as tmp_f:
+            with os.fdopen(tmp_fd, 'w', encoding='utf-8') as tmp_f:
                 json.dump(tx_data, tmp_f, indent=2)
             os.replace(tmp_path, str(tx_path))
         except BaseException:
@@ -1316,7 +1316,7 @@ def _validate_session_in_db(session_id: str, project_path: str | None = None) ->
                 return found
             else:
                 logger.warning(f"_validate_session_in_db: DB does not exist at {db_path}")
-            # DB doesn't exist at project path — fall through to default
+            # DB doesn't exist at project path -- fall through to default
 
         from empirica.data.session_database import SessionDatabase
         db = SessionDatabase()
@@ -1328,7 +1328,7 @@ def _validate_session_in_db(session_id: str, project_path: str | None = None) ->
         return row is not None
     except Exception as e:
         logger.debug(f"_validate_session_in_db: DB check failed ({e}), allowing session")
-        return True  # Fail open — don't block if DB is unavailable
+        return True  # Fail open -- don't block if DB is unavailable
 
 
 def _find_session_for_project(project_path: str) -> str | None:
@@ -1508,7 +1508,7 @@ def get_active_empirica_session_id(claude_session_id: str | None = None) -> str 
         if sid:
             return sid
 
-    # Fallback: all sources returned stale session_ids — try to find valid session for project
+    # Fallback: all sources returned stale session_ids -- try to find valid session for project
     if project_path_for_fallback:
         fallback_session = _find_session_for_project(project_path_for_fallback)
         if fallback_session:
@@ -1550,7 +1550,7 @@ def clear_active_transaction(claude_session_id: str | None = None) -> None:
 def _hook_counters_path(project_path: str | None = None, suffix: str | None = None) -> 'Path':
     """Compute the path to the hook counters file.
 
-    Co-located with the transaction file — same directory, same suffix.
+    Co-located with the transaction file -- same directory, same suffix.
     Hooks write counters here; POSTFLIGHT reads then deletes.
     """
     from pathlib import Path
@@ -1568,7 +1568,7 @@ def read_hook_counters(claude_session_id: str | None = None) -> dict | None:
     if not path.exists():
         return None
     try:
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             return json.load(f)
     except Exception:
         return None
@@ -1588,7 +1588,7 @@ def write_hook_counters(data: dict, claude_session_id: str | None = None) -> boo
 
     tmp_fd, tmp_path = tempfile.mkstemp(dir=str(path.parent))
     try:
-        with os.fdopen(tmp_fd, 'w') as tmp_f:
+        with os.fdopen(tmp_fd, 'w', encoding='utf-8') as tmp_f:
             json.dump(data, tmp_f, indent=2)
         os.rename(tmp_path, str(path))
         return True
@@ -1614,7 +1614,7 @@ def clear_hook_counters(claude_session_id: str | None = None) -> None:
 def cleanup_stale_instance_projects() -> int:
     """Remove instance_projects entries for tmux panes that no longer exist.
 
-    Tmux pane IDs are monotonic — once a pane is destroyed, its ID is never
+    Tmux pane IDs are monotonic -- once a pane is destroyed, its ID is never
     reused. This detects dead panes and removes their stale mapping files.
 
     Returns number of files removed.
@@ -1639,10 +1639,10 @@ def cleanup_stale_instance_projects() -> int:
                 if pane_id:
                     live_panes.add(f"tmux_{pane_id}")
     except Exception:
-        return 0  # Can't verify — don't remove anything
+        return 0  # Can't verify -- don't remove anything
 
     if not live_panes:
-        return 0  # No tmux running or no panes found — bail
+        return 0  # No tmux running or no panes found -- bail
 
     removed = 0
     for instance_file in instance_dir.glob('tmux_*.json'):
@@ -1681,7 +1681,7 @@ def _collect_open_transaction_sessions(marker_dir: 'Path') -> set:
 
     def _extract_open_sid(tx_file: Path) -> None:
         try:
-            with open(tx_file) as f:
+            with open(tx_file, encoding='utf-8') as f:
                 tx_data = json.load(f)
             if tx_data.get('status') == 'open':
                 sid = tx_data.get('session_id')
@@ -1697,7 +1697,7 @@ def _collect_open_transaction_sessions(marker_dir: 'Path') -> set:
     if instance_dir.exists():
         for ip_file in instance_dir.glob('*.json'):
             try:
-                with open(ip_file) as f:
+                with open(ip_file, encoding='utf-8') as f:
                     pp = json.load(f).get('project_path')
                 if pp:
                     for tx_file in Path(pp).glob('.empirica/active_transaction_*.json'):
@@ -1743,11 +1743,11 @@ def _is_session_ended_in_db(
             row = cursor.fetchone()
             conn.close()
             if row is None:
-                return True  # Session not in DB at all — orphan
+                return True  # Session not in DB at all -- orphan
             return row[0] is not None  # end_time IS NOT NULL means ended
         except Exception:
             continue
-    return False  # Can't check — keep it safe
+    return False  # Can't check -- keep it safe
 
 
 def _clean_active_work_files(
@@ -1763,7 +1763,7 @@ def _clean_active_work_files(
             continue  # Never delete current conversation
 
         try:
-            with open(aw_file) as f:
+            with open(aw_file, encoding='utf-8') as f:
                 data = json.load(f)
             session_id = data.get('empirica_session_id')
             project_path = data.get('project_path')
@@ -1792,7 +1792,7 @@ def _clean_non_tmux_instance_files(
             continue  # Tmux cleanup handled by cleanup_stale_instance_projects()
 
         try:
-            with open(ip_file) as f:
+            with open(ip_file, encoding='utf-8') as f:
                 data = json.load(f)
             session_id = data.get('empirica_session_id')
             project_path = data.get('project_path')
@@ -1818,7 +1818,7 @@ def _clean_active_session_files(
     removed = 0
     for as_file in marker_dir.glob('active_session_*'):
         try:
-            with open(as_file) as f:
+            with open(as_file, encoding='utf-8') as f:
                 data = json.load(f)
             session_id = data.get('session_id')
             project_path = data.get('project_path')
@@ -1840,8 +1840,8 @@ def cleanup_stale_active_work_files(current_claude_session_id: str | None = None
     """Remove active_work_{uuid}.json files for ended sessions.
 
     Runs at session-init startup. Checks the DB for each file's session:
-    - Session has end_time (ended) → candidate for removal
-    - BUT if an open transaction references that session → keep it (compaction carry-forward)
+    - Session has end_time (ended) -> candidate for removal
+    - BUT if an open transaction references that session -> keep it (compaction carry-forward)
     - Never delete the current conversation's file (current_claude_session_id)
 
     Also cleans up non-tmux instance_projects files (x11:*, term_*) using the
@@ -1871,7 +1871,7 @@ def cleanup_stale_active_work_files(current_claude_session_id: str | None = None
 def _read_json_file_safe(path) -> dict | None:
     """Read a JSON file, returning None on any error."""
     try:
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             return json.load(f)
     except Exception:
         return None
@@ -1901,7 +1901,7 @@ def get_active_context(claude_session_id: str | None = None) -> dict:
         - instance_id: Instance identifier (TMUX_PANE, etc.)
 
     Priority chain for resolution (matches ARCHITECTURE.md):
-    0. Active transaction file (survives compaction — authoritative during transaction)
+    0. Active transaction file (survives compaction -- authoritative during transaction)
     1. instance_projects/{instance_id}.json (updated by hooks AND project-switch)
     2. active_work_{claude_session_id}.json (updated by hooks only)
     3. TTY session file (fallback)
@@ -2005,7 +2005,7 @@ def update_active_context(
         data = {}
         if active_work_file.exists():
             try:
-                with open(active_work_file) as f:
+                with open(active_work_file, encoding='utf-8') as f:
                     data = json.load(f)
             except Exception:
                 pass
@@ -2025,7 +2025,7 @@ def update_active_context(
         data['updated_at'] = time.time()
 
         # Atomic write
-        with open(active_work_file, 'w') as f:
+        with open(active_work_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2)
         os.chmod(active_work_file, 0o600)
 
@@ -2141,7 +2141,7 @@ def _get_project_id_from_local_db(project_path: 'Path') -> str | None:
     if project_yaml.exists():
         try:
             import yaml
-            with open(project_yaml) as f:
+            with open(project_yaml, encoding='utf-8') as f:
                 config = yaml.safe_load(f)
                 if config and config.get('project_id'):
                     return config['project_id']
@@ -2276,7 +2276,7 @@ def _resolve_via_local_empirica(identifier: str) -> dict | None:
 
 
 # =============================================================================
-# Project Root Resolution (canonical — moved from plugin lib/project_resolver.py)
+# Project Root Resolution (canonical -- moved from plugin lib/project_resolver.py)
 # =============================================================================
 # These were previously duplicated in the hook-side mirror. Consolidated here
 # as the single source of truth (goal 7ca0877c, v1.8.12).
@@ -2316,7 +2316,7 @@ def _read_json_file(path: Path) -> dict | None:
     try:
         if path.exists():
             import json as _json
-            with open(path) as f:
+            with open(path, encoding='utf-8') as f:
                 return _json.load(f)
     except Exception:
         pass

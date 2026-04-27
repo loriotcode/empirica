@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-EWM Protocol Loader — SessionStart hook that reads workflow-protocol.yaml
+EWM Protocol Loader -- SessionStart hook that reads workflow-protocol.yaml
 and injects personalized behavioral configuration into session context.
 
 Chains after session-init.py. Loads the user's workflow protocol and
 configures AI behavior based on their preferences.
 
-User identification: EMPIRICA_USER env var → prompt for identification.
-Protocol search: project dir → home dir → skip gracefully.
+User identification: EMPIRICA_USER env var -> prompt for identification.
+Protocol search: project dir -> home dir -> skip gracefully.
 """
 
 import hashlib
@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 try:
-    import yaml as _yaml_check  # noqa: F401 — availability check for HAS_YAML  # pyright: ignore[reportUnusedImport]
+    import yaml as _yaml_check  # noqa: F401 -- availability check for HAS_YAML  # pyright: ignore[reportUnusedImport]
     HAS_YAML = True
 except ImportError:
     HAS_YAML = False
@@ -38,7 +38,7 @@ INJECTION_PATTERNS = [
 
 
 def find_protocol() -> Path | None:
-    """Find workflow-protocol.yaml — project dir first, then home."""
+    """Find workflow-protocol.yaml -- project dir first, then home."""
     search_paths = [
         Path.cwd() / 'workflow-protocol.yaml',
         Path.cwd() / '.empirica' / 'workflow-protocol.yaml',
@@ -77,7 +77,7 @@ def find_protocol() -> Path | None:
 
 
 def check_file_permissions(path: Path) -> list[str]:
-    """Check file permissions — warn if too open."""
+    """Check file permissions -- warn if too open."""
     warnings = []
     try:
         file_stat = path.stat()
@@ -108,7 +108,7 @@ def verify_integrity(path: Path) -> tuple[bool, str]:
         current_hash = hashlib.sha256(f.read()).hexdigest()
 
     if not hash_path.exists():
-        # No hash file — create one (first run)
+        # No hash file -- create one (first run)
         try:
             hash_path.write_text(current_hash)
             return True, "integrity_baseline_created"
@@ -151,7 +151,7 @@ def sanitize_protocol(data: dict) -> tuple[dict, list[str]]:
         return obj
 
     sanitized = _sanitize(data)
-    if not isinstance(sanitized, dict):  # Shouldn't happen — data is dict, so _sanitize returns dict
+    if not isinstance(sanitized, dict):  # Shouldn't happen -- data is dict, so _sanitize returns dict
         sanitized = {}
     return sanitized, warnings
 
@@ -160,12 +160,12 @@ def load_protocol(path: Path) -> dict | None:
     """Load workflow protocol YAML."""
     if HAS_YAML:
         import yaml as _yaml
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             return _yaml.safe_load(f)
     else:
         # Fallback: basic YAML parsing for simple structures
         # Won't handle nested structures well, but enough for detection
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             content = f.read()
         return {"_raw": content, "_parse_method": "raw"}
 
@@ -216,24 +216,24 @@ def format_user_preferences(protocol: dict, user_name: str) -> str:
         calibration = prefs.get('calibration_mode', 'single_pass')
 
         autonomy_desc = {
-            'collaborative_equal_partner': 'Equal partner — check in on approach before acting, multi-round calibration',
-            'full_autonomy': 'Full autonomy — act decisively, surface uncertainty explicitly, maximize efficiency',
-            'ai_first_efficiency_maximizing': 'AI-first — lead with action, check in only when material',
-            'collaborative_with_checkpoints': 'Collaborative — act between checkpoints, verify at gates',
-            'assistant_mode': 'Assistant — wait for direction, execute precisely',
+            'collaborative_equal_partner': 'Equal partner -- check in on approach before acting, multi-round calibration',
+            'full_autonomy': 'Full autonomy -- act decisively, surface uncertainty explicitly, maximize efficiency',
+            'ai_first_efficiency_maximizing': 'AI-first -- lead with action, check in only when material',
+            'collaborative_with_checkpoints': 'Collaborative -- act between checkpoints, verify at gates',
+            'assistant_mode': 'Assistant -- wait for direction, execute precisely',
         }.get(autonomy, autonomy)
 
         uncertainty_desc = {
-            'empirica_managed': 'Empirica-managed — use measured vectors, not vibes',
+            'empirica_managed': 'Empirica-managed -- use measured vectors, not vibes',
             'always_explicit': 'Always surface uncertainty explicitly in natural language',
             'when_material': 'Surface only when it materially affects the decision',
-            'minimal': 'Minimal — only flag critical gaps',
+            'minimal': 'Minimal -- only flag critical gaps',
         }.get(uncertainty, uncertainty)
 
         pushback_desc = {
-            'direct_and_factual': 'Direct and factual — no hedging, no beating around the bush',
-            'gentle_reframe': 'Gentle reframe — redirect without confrontation',
-            'socratic': 'Socratic — ask questions until they see it themselves',
+            'direct_and_factual': 'Direct and factual -- no hedging, no beating around the bush',
+            'gentle_reframe': 'Gentle reframe -- redirect without confrontation',
+            'socratic': 'Socratic -- ask questions until they see it themselves',
         }.get(pushback, pushback)
 
         parts.append(f"- **Autonomy:** {autonomy_desc}")
@@ -339,7 +339,7 @@ def main():
     protocol_path = find_protocol()
 
     if not protocol_path:
-        # No protocol found — silent exit, EWM not configured
+        # No protocol found -- silent exit, EWM not configured
         output = {
             "ok": True,
             "ewm_active": False,
@@ -406,11 +406,11 @@ def main():
     context_parts.append("")
 
     if current_user:
-        # Known user — load their preferences
+        # Known user -- load their preferences
         user_context = format_user_preferences(protocol, current_user)
         context_parts.append(user_context)
     else:
-        # Unknown user — ask for identification
+        # Unknown user -- ask for identification
         id_prompt = format_unknown_user_prompt(protocol)
         context_parts.append(id_prompt)
 

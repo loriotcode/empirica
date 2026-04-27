@@ -44,10 +44,10 @@ class CascadePhase(Enum):
     implicit workflow guidance (think/investigate/act).
 
     Migration:
-    - PREFLIGHT → AssessmentType.PRE
-    - CHECK → AssessmentType.CHECK
-    - POSTFLIGHT → AssessmentType.POST
-    - THINK, INVESTIGATE, ACT → No longer tracked as explicit states
+    - PREFLIGHT -> AssessmentType.PRE
+    - CHECK -> AssessmentType.CHECK
+    - POSTFLIGHT -> AssessmentType.POST
+    - THINK, INVESTIGATE, ACT -> No longer tracked as explicit states
 
     Note: Deprecation is documented here. Usage-site warnings will be added in Phase 2.
     """
@@ -122,7 +122,7 @@ class EpistemicAssessmentSchema:
     - Foundation (Tier 0): know, do, context
     - Comprehension (Tier 1): clarity, coherence, signal, density
     - Execution (Tier 2): state, change, completion, impact
-    - Meta: uncertainty (high uncertainty → investigate)
+    - Meta: uncertainty (high uncertainty -> investigate)
     """
 
     # Gate
@@ -389,57 +389,57 @@ class EpistemicAssessmentSchema:
 
     @property
     def know(self):
-        """Backwards compat: know → foundation_know"""
+        """Backwards compat: know -> foundation_know"""
         return self.foundation_know
 
     @property
     def do(self):
-        """Backwards compat: do → foundation_do"""
+        """Backwards compat: do -> foundation_do"""
         return self.foundation_do
 
     @property
     def context(self):
-        """Backwards compat: context → foundation_context"""
+        """Backwards compat: context -> foundation_context"""
         return self.foundation_context
 
     @property
     def clarity(self):
-        """Backwards compat: clarity → comprehension_clarity"""
+        """Backwards compat: clarity -> comprehension_clarity"""
         return self.comprehension_clarity
 
     @property
     def coherence(self):
-        """Backwards compat: coherence → comprehension_coherence"""
+        """Backwards compat: coherence -> comprehension_coherence"""
         return self.comprehension_coherence
 
     @property
     def signal(self):
-        """Backwards compat: signal → comprehension_signal"""
+        """Backwards compat: signal -> comprehension_signal"""
         return self.comprehension_signal
 
     @property
     def density(self):
-        """Backwards compat: density → comprehension_density"""
+        """Backwards compat: density -> comprehension_density"""
         return self.comprehension_density
 
     @property
     def state(self):
-        """Backwards compat: state → execution_state"""
+        """Backwards compat: state -> execution_state"""
         return self.execution_state
 
     @property
     def change(self):
-        """Backwards compat: change → execution_change"""
+        """Backwards compat: change -> execution_change"""
         return self.execution_change
 
     @property
     def completion(self):
-        """Backwards compat: completion → execution_completion"""
+        """Backwards compat: completion -> execution_completion"""
         return self.execution_completion
 
     @property
     def impact(self):
-        """Backwards compat: impact → execution_impact"""
+        """Backwards compat: impact -> execution_impact"""
         return self.execution_impact
 
     @property

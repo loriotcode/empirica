@@ -208,8 +208,8 @@ def auto_generate_handoff(session_id: str, db_path: str = "./.empirica/sessions/
             "artifacts_created": artifacts,
             "actions_completed": actions_taken[:10] if actions_taken else [],  # Top 10 actions
             "epistemic_deltas": {
-                "knowledge_trajectory": " → ".join(map(str, knowledge_trajectory)) if knowledge_trajectory else "N/A",
-                "uncertainty_trajectory": " → ".join(map(str, uncertainty_trajectory)) if uncertainty_trajectory else "N/A",
+                "knowledge_trajectory": " -> ".join(map(str, knowledge_trajectory)) if knowledge_trajectory else "N/A",
+                "uncertainty_trajectory": " -> ".join(map(str, uncertainty_trajectory)) if uncertainty_trajectory else "N/A",
                 "overall_delta": f"+{knowledge_trajectory[-1] - knowledge_trajectory[0]:.2f}" if len(knowledge_trajectory) >= 2 else "N/A",
                 "key_learning_moments": key_learning_moments[:3]  # Top 3 only
             },

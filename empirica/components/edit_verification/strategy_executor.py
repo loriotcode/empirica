@@ -287,7 +287,7 @@ def another_function():
             print(f"  Result: {result3}\n")
 
             # Show final content
-            with open(test_file) as f:
+            with open(test_file, encoding='utf-8') as f:
                 print("Final file content:")
                 print(f.read())
 

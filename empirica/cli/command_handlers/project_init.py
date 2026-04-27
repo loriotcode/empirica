@@ -34,13 +34,13 @@ def _resolve_or_create_project(db, args, project_name, project_description,
     explicit_id = getattr(args, 'project_id', None)
     if explicit_id:
         if output_format != 'json':
-            print(f"   🔗 Linking to existing project: {explicit_id[:8]}...")
+            print(f"   [LINK] Linking to existing project: {explicit_id[:8]}...")
         return explicit_id
 
     # Check project.yaml for existing ID
     if project_config_path.exists():
         try:
-            with open(project_config_path) as f:
+            with open(project_config_path, encoding='utf-8') as f:
                 existing_id = (yaml.safe_load(f) or {}).get('project_id')
             if existing_id and db.get_project(existing_id):
                 if output_format != 'json':
@@ -169,7 +169,7 @@ def _check_already_initialized(config_path, args, output_format):
             "hint": "Use --force to reinitialize"
         }, indent=2))
     else:
-        print("❌ Empirica already initialized in this repo")
+        print("[FAIL] Empirica already initialized in this repo")
         print(f"   Config found: {config_path}")
         print("\nTip: Use --force to reinitialize")
     return True
@@ -246,7 +246,7 @@ def _create_semantic_index_template(git_root, project_name):
         'total_docs_indexed': 1, 'last_updated': '2025-12-19',
         'coverage': {'core_concepts': 1, 'quickstart': 0, 'architecture': 0, 'api': 0}
     }
-    with open(semantic_index_path, 'w') as f:
+    with open(semantic_index_path, 'w', encoding='utf-8') as f:
         yaml.dump(template, f, default_flow_style=False, sort_keys=False)
     return semantic_index_path
 
@@ -269,17 +269,17 @@ def _format_init_output(output_format, project_id, project_name, git_root, confi
         }
         print(json.dumps(result, indent=2))
     else:
-        print("\n✅ Empirica initialized successfully!\n")
-        print("📁 Files created:")
-        print(f"   • {config_path.relative_to(git_root)}")
-        print(f"   • {project_config_path.relative_to(git_root)}")
+        print("\n[OK] Empirica initialized successfully!\n")
+        print("[DIR] Files created:")
+        print(f"   * {config_path.relative_to(git_root)}")
+        print(f"   * {project_config_path.relative_to(git_root)}")
         if semantic_index_path:
-            print(f"   • {semantic_index_path.relative_to(git_root)}")
+            print(f"   * {semantic_index_path.relative_to(git_root)}")
 
-        print(f"\n🆔 Project ID: {project_id}")
-        print(f"📦 Project Name: {project_name}")
+        print(f"\n[ID] Project ID: {project_id}")
+        print(f"[PKG] Project Name: {project_name}")
         if enable_beads:
-            print("🔗 BEADS: Enabled by default")
+            print("[LINK] BEADS: Enabled by default")
 
         print("\n📋 Next steps:")
         if enable_beads:
@@ -322,7 +322,7 @@ def handle_project_init_command(args):
             return None
 
         if output_format != 'json':
-            print("🚀 Initializing Empirica in this repository...")
+            print("[RUN] Initializing Empirica in this repository...")
             print(f"   Git root: {git_root}\n")
 
         ensure_empirica_structure()
@@ -337,7 +337,7 @@ def handle_project_init_command(args):
         project_config = _build_project_config(config_input, git_root, git_url)
         project_config_path = git_root / '.empirica' / 'project.yaml'
 
-        with open(project_config_path, 'w') as f:
+        with open(project_config_path, 'w', encoding='utf-8') as f:
             yaml.dump(project_config, f, default_flow_style=False, sort_keys=False)
 
         db_path = git_root / '.empirica' / 'sessions' / 'sessions.db'
@@ -351,7 +351,7 @@ def handle_project_init_command(args):
             git_url, config_input['project_type'], config_input['tags'], output_format)
 
         project_config['project_id'] = project_id
-        with open(project_config_path, 'w') as f:
+        with open(project_config_path, 'w', encoding='utf-8') as f:
             yaml.dump(project_config, f, default_flow_style=False, sort_keys=False)
         db.close()
 
@@ -400,7 +400,7 @@ def _seed_calibration_weights(project_type: str) -> dict:
     }
     domain = _TYPE_TO_DOMAIN.get(project_type, 'default')
 
-    # Base noetic weights: investigation phase — execution vectors low
+    # Base noetic weights: investigation phase -- execution vectors low
     noetic_base = {
         'know': 1.0, 'context': 0.8, 'signal': 0.9, 'uncertainty': 1.0,
         'do': 0.3, 'change': 0.2, 'state': 0.3, 'completion': 0.5,

@@ -157,7 +157,7 @@ class GitFindingStore:
                 check=True
             )
 
-            logger.info(f"✓ Stored finding {finding_id[:8]} in git notes (impact={impact})")
+            logger.info(f"[OK] Stored finding {finding_id[:8]} in git notes (impact={impact})")
             return True
 
         except Exception as e:

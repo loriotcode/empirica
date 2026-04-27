@@ -1,8 +1,8 @@
 """
-Git Abstraction Commands — non-coder-friendly git operations.
+Git Abstraction Commands -- non-coder-friendly git operations.
 
-`empirica save` — git add + commit with auto-generated message from transaction state
-`empirica history` — git log + notes parsed into human-readable epistemic timeline
+`empirica save` -- git add + commit with auto-generated message from transaction state
+`empirica history` -- git log + notes parsed into human-readable epistemic timeline
 
 These commands make git invisible to non-engineers while preserving
 version control, sync, and epistemic state persistence.
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def handle_save_command(args):
-    """Handle save command — git add + commit with auto-generated message."""
+    """Handle save command -- git add + commit with auto-generated message."""
     try:
         from empirica.config.path_resolver import get_git_root
         from empirica.utils.session_resolver import InstanceResolver as R
@@ -91,7 +91,7 @@ def handle_save_command(args):
 
 
 def handle_history_command(args):
-    """Handle history command — epistemic timeline from git log + notes."""
+    """Handle history command -- epistemic timeline from git log + notes."""
     try:
         from empirica.config.path_resolver import get_git_root
 

@@ -81,7 +81,7 @@ def ensure_workspace_schema(conn) -> None:
             FOREIGN KEY (project_id) REFERENCES global_projects(id)
         )
     """)
-    # Global session registry — enables cross-project session tracking
+    # Global session registry -- enables cross-project session tracking
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS global_sessions (
             session_id TEXT PRIMARY KEY,
@@ -105,7 +105,7 @@ def ensure_workspace_schema(conn) -> None:
         CREATE INDEX IF NOT EXISTS idx_global_sessions_project
         ON global_sessions(current_project_id)
     """)
-    # Entity-artifact cross-references — links artifacts to CRM entities
+    # Entity-artifact cross-references -- links artifacts to CRM entities
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS entity_artifacts (
             id TEXT PRIMARY KEY,
@@ -194,7 +194,7 @@ def _resolve_instance_id_from_claude_session(marker_dir, claude_session_id):
         return None
     for ip_file in instance_dir.glob('*.json'):
         try:
-            with open(ip_file) as f:
+            with open(ip_file, encoding='utf-8') as f:
                 ip_data = json.load(f)
             if ip_data.get('claude_session_id') == claude_session_id:
                 logger.debug(f"Resolved instance_id={ip_file.stem} from claude_session_id match in {ip_file.name}")
@@ -213,7 +213,7 @@ def _resolve_claude_session_from_instance(marker_dir, instance_id):
     if not existing_instance_file.exists():
         return None
     try:
-        with open(existing_instance_file) as f:
+        with open(existing_instance_file, encoding='utf-8') as f:
             existing_data = json.load(f)
             csid = existing_data.get('claude_session_id')
             if csid:
@@ -230,7 +230,7 @@ def _resolve_claude_session_from_active_work(marker_dir, empirica_session_id):
     """
     for aw_file in marker_dir.glob('active_work_*.json'):
         try:
-            with open(aw_file) as f:
+            with open(aw_file, encoding='utf-8') as f:
                 aw_data = json.load(f)
             if aw_data.get('empirica_session_id') == empirica_session_id:
                 csid = aw_file.stem.replace('active_work_', '')
@@ -293,7 +293,7 @@ def _write_marker_files(marker_dir, project_path, folder_name,
             'claude_session_id': claude_session_id,
             'empirica_session_id': empirica_session_id, 'timestamp': ts
         }
-        with open(instance_file, 'w') as f:
+        with open(instance_file, 'w', encoding='utf-8') as f:
             json.dump(instance_data, f, indent=2)
         logger.debug(f"Updated instance_projects: {instance_id} -> {folder_name}")
 
@@ -305,7 +305,7 @@ def _write_marker_files(marker_dir, project_path, folder_name,
         tty_data = {}
         if tty_session_file.exists():
             try:
-                with open(tty_session_file) as f:
+                with open(tty_session_file, encoding='utf-8') as f:
                     tty_data = json.load(f)
             except Exception:
                 pass
@@ -313,7 +313,7 @@ def _write_marker_files(marker_dir, project_path, folder_name,
             'project_path': project_path, 'tty_key': tty_key,
             'instance_id': instance_id, 'timestamp': ts
         })
-        with open(tty_session_file, 'w') as f:
+        with open(tty_session_file, 'w', encoding='utf-8') as f:
             json.dump(tty_data, f, indent=2)
         logger.debug(f"Updated TTY session project_path: {folder_name}")
 
@@ -326,7 +326,7 @@ def _write_marker_files(marker_dir, project_path, folder_name,
                 'session_id': empirica_session_id,
                 'project_path': project_path, 'ai_id': 'claude-code',
             }
-            with open(as_file, 'w') as f:
+            with open(as_file, 'w', encoding='utf-8') as f:
                 json.dump(as_data, f)
             import os as _os
             _os.chmod(as_file, 0o600)
@@ -382,7 +382,7 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
 
         if claude_session_id:
             session_marker_path = marker_dir / f'active_work_{claude_session_id}.json'
-            with open(session_marker_path, 'w') as f:
+            with open(session_marker_path, 'w', encoding='utf-8') as f:
                 json.dump(active_work, f, indent=2)
             logger.debug(f"Updated session-specific active_work: {folder_name}")
 
@@ -393,7 +393,7 @@ def _update_active_work(project_path: str, folder_name: str, empirica_session_id
 
         if _headless:
             marker_path = marker_dir / 'active_work.json'
-            with open(marker_path, 'w') as f:
+            with open(marker_path, 'w', encoding='utf-8') as f:
                 json.dump(active_work, f, indent=2)
             logger.debug(f"Updated active_work.json (headless): {folder_name} -> {project_path}")
         return True
@@ -519,7 +519,7 @@ def _init_filesystem_at_path(target_path, project_id, name, description, project
         'domain_config': {},
     })
 
-    with open(project_yaml_path, 'w') as f:
+    with open(project_yaml_path, 'w', encoding='utf-8') as f:
         yaml.dump(project_config, f, default_flow_style=False, sort_keys=False)
 
     logger.debug(f"Initialized filesystem at {empirica_dir}")
@@ -548,7 +548,7 @@ def _parse_project_create_args(args):
         tags = json.loads(tags_str) if tags_str.startswith('[') else [t.strip() for t in tags_str.split(',')]
 
     if project_type and project_type not in ProjectRepository.PROJECT_TYPES:
-        print(f"⚠️  Unknown type '{project_type}'. Valid types: {', '.join(ProjectRepository.PROJECT_TYPES)}")
+        print(f"[WARN]  Unknown type '{project_type}'. Valid types: {', '.join(ProjectRepository.PROJECT_TYPES)}")
         project_type = 'software'
 
     return {
@@ -629,7 +629,7 @@ def handle_project_create_command(args):
                 result["filesystem_init"] = init_result
             print(json.dumps(result, indent=2))
         else:
-            print("✅ Project created successfully")
+            print("[OK] Project created successfully")
             print(f"   Project ID: {project_id}")
             print(f"   Name: {name}")
             print(f"   Type: {project_type or 'product'}")
@@ -642,7 +642,7 @@ def handle_project_create_command(args):
             if parent:
                 print(f"   Parent: {parent}")
             if init_result:
-                print(f"   📁 Filesystem initialized at: {target_path}")
+                print(f"   [DIR] Filesystem initialized at: {target_path}")
 
         return None
 
@@ -694,10 +694,10 @@ def handle_project_handoff_command(args):
             }
             print(json.dumps(result, indent=2))
         else:
-            print("✅ Project handoff created successfully")
+            print("[OK] Project handoff created successfully")
             print(f"   Handoff ID: {handoff_id}")
             print(f"   Project: {project_id[:8]}...")
-            print("\n📊 Total Learning Deltas:")
+            print("\n[STATS] Total Learning Deltas:")
             for vector, delta in total_deltas.items():
                 if delta != 0:
                     sign = "+" if delta > 0 else ""
@@ -742,11 +742,11 @@ def handle_project_list_command(args):
             print(json.dumps(result, indent=2))
         else:
             if not projects:
-                print("📁 No projects found in workspace.")
+                print("[DIR] No projects found in workspace.")
                 print("\nTip: Run 'empirica workspace-init' to scan and register projects.")
                 return None
 
-            print(f"📁 Found {len(projects)} project(s) in workspace:\n")
+            print(f"[DIR] Found {len(projects)} project(s) in workspace:\n")
             for i, p in enumerate(projects, 1):
                 name = p.get('name', 'Unknown')
                 folder = p.get('folder_name', '')
@@ -761,10 +761,10 @@ def handle_project_list_command(args):
                 if p.get('description'):
                     desc = p['description'][:60] + '...' if len(p.get('description', '')) > 60 else p.get('description', '')
                     print(f"   {desc}")
-                print(f"   📝 {findings} findings  ❓ {unknowns} unknowns")
+                print(f"   [NOTE] {findings} findings  [?] {unknowns} unknowns")
                 print()
 
-            print("💡 Switch projects with: empirica project-switch <folder-name>")
+            print("[HINT] Switch projects with: empirica project-switch <folder-name>")
 
         return None
 
@@ -788,7 +788,7 @@ def _handle_transaction_on_switch(dest_project_path, output_format) -> dict:
             if instance_file.exists():
                 try:
                     import json as _json
-                    with open(instance_file) as f:
+                    with open(instance_file, encoding='utf-8') as f:
                         inst_project_path = _json.load(f).get('project_path')
                     if inst_project_path:
                         current_empirica_root = Path(inst_project_path) / '.empirica'
@@ -806,7 +806,7 @@ def _handle_transaction_on_switch(dest_project_path, output_format) -> dict:
             return {"ok": True, "reason": "no_transaction"}
 
         import json as _json
-        with open(tx_path) as f:
+        with open(tx_path, encoding='utf-8') as f:
             tx_data = _json.load(f)
 
         if tx_data.get('status') != 'open':
@@ -819,14 +819,14 @@ def _handle_transaction_on_switch(dest_project_path, output_format) -> dict:
         if tx_proj == dest_proj:
             return {"ok": True, "reason": "transaction_preserved", "note": "Transaction is for destination project"}
 
-        # Different project — abandon (no fake vectors)
+        # Different project -- abandon (no fake vectors)
         tx_id = tx_data.get('transaction_id', 'unknown')
         try:
             tx_path.unlink()
         except Exception:
             pass
         if output_format == 'human':
-            print("⚠️  Previous transaction abandoned (submit POSTFLIGHT before switching to preserve deltas)")
+            print("[WARN]  Previous transaction abandoned (submit POSTFLIGHT before switching to preserve deltas)")
         return {"ok": True, "reason": "transaction_abandoned", "transaction_id": tx_id}
     except Exception as e:
         logger.debug(f"Transaction handling on switch failed (non-fatal): {e}")
@@ -1002,7 +1002,7 @@ def _ensure_local_project_record(project_path, project_id, project, output_forma
         ))
         target_conn.commit()
         if output_format == 'human':
-            print("📦 Project record created in local database")
+            print("[PKG] Project record created in local database")
     target_conn.close()
 
 
@@ -1020,11 +1020,11 @@ def _handle_active_work_update(project_path, project_id, folder_name,
         try:
             aw_file = Path.home() / '.empirica' / f'active_work_{cli_claude_session_id}.json'
             if aw_file.exists():
-                with open(aw_file) as f:
+                with open(aw_file, encoding='utf-8') as f:
                     existing_aw = json.load(f)
                 attached_session_id = existing_aw.get('empirica_session_id')
                 if attached_session_id and output_format == 'human':
-                    print(f"🔄 Recovered session {attached_session_id[:8]} from active_work file")
+                    print(f"[LOAD] Recovered session {attached_session_id[:8]} from active_work file")
         except Exception as e:
             logger.debug(f"Active_work session_id recovery failed (non-fatal): {e}")
 
@@ -1098,7 +1098,7 @@ def _run_auto_bootstrap(project_path, attached_session, output_format):
                     import json as _json
                     bootstrap_result = _json.loads(result.stdout)
                     if output_format == 'human':
-                        print("✅ Project context loaded (auto-bootstrap)")
+                        print("[OK] Project context loaded (auto-bootstrap)")
                 except Exception:
                     bootstrap_result = {"ok": True, "note": "bootstrap ran but non-JSON output"}
             else:
@@ -1114,19 +1114,19 @@ def _print_switch_human_output(folder_name, project_name, project_id, project_pa
                                 preflight_result):
     """Print the human-readable project switch banner and context summary."""
     print()
-    print("━" * 70)
-    print("🎯 PROJECT CONTEXT SWITCH")
-    print("━" * 70)
+    print("=" * 70)
+    print("[TARGET] PROJECT CONTEXT SWITCH")
+    print("=" * 70)
     print()
-    print(f"📁 Project: {folder_name}")
+    print(f"[DIR] Project: {folder_name}")
     if project_name != folder_name:
         print(f"   Name: {project_name}")
-    print(f"🆔 Project ID: {project_id[:8]}...")
+    print(f"[ID] Project ID: {project_id[:8]}...")
     if project_path:
         print(f"📍 Location: {project_path}")
-    print(f"📊 Findings: {findings}  Unknowns: {unknowns}  Goals: {goals}")
+    print(f"[STATS] Findings: {findings}  Unknowns: {unknowns}  Goals: {goals}")
     if attached_session:
-        print(f"🔗 Attached to session: {attached_session['session_id'][:8]}... (AI: {attached_session['ai_id']})")
+        print(f"[LINK] Attached to session: {attached_session['session_id'][:8]}... (AI: {attached_session['ai_id']})")
     print()
 
     # Epistemic Brief
@@ -1149,41 +1149,41 @@ def _print_switch_next_steps(project_path, findings, unknowns, goals, preflight_
         print("📋 Project Context Summary:")
         print()
         if findings:
-            print(f"   📝 {findings} findings logged")
+            print(f"   [NOTE] {findings} findings logged")
         if unknowns:
-            print(f"   ❓ {unknowns} unknowns tracked")
+            print(f"   [?] {unknowns} unknowns tracked")
         if goals:
-            print(f"   🎯 {goals} goals defined")
+            print(f"   [TARGET] {goals} goals defined")
         print()
     else:
         print("📋 No epistemic artifacts yet in this project.")
         print()
 
     if project_path and project_path.exists():
-        print("💡 For full context, run in project directory:")
+        print("[HINT] For full context, run in project directory:")
         print(f"   cd {project_path} && empirica project-bootstrap")
         print()
 
     print()
-    print("━" * 70)
-    print("💡 Next Steps")
-    print("━" * 70)
+    print("=" * 70)
+    print("[HINT] Next Steps")
+    print("=" * 70)
     print()
     if preflight_result and preflight_result.get('ok'):
-        print("  Transaction is open — you're in noetic phase.")
+        print("  Transaction is open -- you're in noetic phase.")
         print()
-        print("  1. Investigate — log findings, unknowns, dead-ends")
+        print("  1. Investigate -- log findings, unknowns, dead-ends")
         print()
         print("  2. CHECK when ready to act, POSTFLIGHT when work is complete")
     else:
         print("  1. Start a transaction (PREFLIGHT) to begin measured work")
         print()
-        print("  2. Investigate before acting — log findings, unknowns, dead-ends")
+        print("  2. Investigate before acting -- log findings, unknowns, dead-ends")
         print()
         print("  3. CHECK when ready to proceed, POSTFLIGHT when work is complete")
     print()
-    print("⚠️  All commands now write to this project's database.")
-    print("    Findings, sessions, goals → stored in this project context.")
+    print("[WARN]  All commands now write to this project's database.")
+    print("    Findings, sessions, goals -> stored in this project context.")
     print()
 
 
@@ -1202,7 +1202,7 @@ def handle_project_switch_command(args):
             if output_format == 'json':
                 print(json.dumps({'ok': False, 'error': error_msg, 'hint': hint}))
             else:
-                print(f"❌ {error_msg}")
+                print(f"[FAIL] {error_msg}")
                 print(f"\nTip: {hint}")
             return None
 
@@ -1248,7 +1248,7 @@ def handle_project_switch_command(args):
                 claude_session_id=cli_claude_session_id,
             )
             if swap_result.get("action") == "swapped" and output_format == 'human':
-                print(f"💾 {swap_result.get('message', '')}")
+                print(f"[SAVE] {swap_result.get('message', '')}")
         except Exception as e:
             logger.debug(f"project-switch memory swap failed (non-fatal): {e}")
 
@@ -1289,7 +1289,7 @@ def handle_project_switch_command(args):
                 },
                 'next_steps': [
                     'Run PREFLIGHT to start a measured transaction',
-                    'Investigate before acting — log findings and unknowns',
+                    'Investigate before acting -- log findings and unknowns',
                     'CHECK when ready, POSTFLIGHT when complete'
                 ],
                 'postflight_result': postflight_result,
@@ -1306,5 +1306,5 @@ def handle_project_switch_command(args):
         if output_format == 'json':
             print(json.dumps({'ok': False, 'error': str(e)}))
         else:
-            print(f"❌ Error switching project: {e}")
+            print(f"[FAIL] Error switching project: {e}")
         return None

@@ -5,7 +5,7 @@ Extracts functions, classes, and module structure from Python code and embeds th
 so agents can search "how do I ingest a voice sample" and get the actual function
 signature, parameters, and module path.
 
-Uses AST parsing (no runtime imports needed) — works across projects safely.
+Uses AST parsing (no runtime imports needed) -- works across projects safely.
 """
 from __future__ import annotations
 

@@ -94,7 +94,7 @@ class GitDecisionStore:
                 capture_output=True, text=True, check=True
             )
 
-            logger.info(f"✓ Stored decision {decision_id[:8]} in git notes")
+            logger.info(f"[OK] Stored decision {decision_id[:8]} in git notes")
             return True
 
         except Exception as e:

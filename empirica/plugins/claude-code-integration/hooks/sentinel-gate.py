@@ -3,8 +3,8 @@
 Empirica Sentinel Gate - Noetic Firewall with Epistemic ACLs
 
 Implements least-privilege principle for AI tool access:
-- NOETIC tools (read/investigate) → always allowed
-- PRAXIC tools (write/execute) → require PREFLIGHT, auto-proceed if confident
+- NOETIC tools (read/investigate) -> always allowed
+- PRAXIC tools (write/execute) -> require PREFLIGHT, auto-proceed if confident
 
 This is essentially iptables for cognition - default deny, explicit allow.
 
@@ -25,7 +25,7 @@ Optional features (off by default):
 
 Related but NOT consumed here:
 - EMPIRICA_CALIBRATION_FEEDBACK=false - Suppress calibration feedback in workflow
-  output (PREFLIGHT/CHECK enrichment). Does NOT affect gating — the Sentinel always
+  output (PREFLIGHT/CHECK enrichment). Does NOT affect gating -- the Sentinel always
   uses raw vectors. See workflow_commands.py for where this flag is consumed.
 """
 import json
@@ -39,7 +39,7 @@ _lib_path = Path(__file__).parent.parent / 'lib'
 if str(_lib_path) not in sys.path:
     sys.path.insert(0, str(_lib_path))
 
-from project_resolver import detect_environment, get_active_project_path, get_instance_id  # noqa: E402, I001 — after sys.path setup
+from project_resolver import detect_environment, get_active_project_path, get_instance_id  # noqa: E402, I001 -- after sys.path setup
 
 # Noetic tools - read/investigate/search - always allowed (whitelist)
 NOETIC_TOOLS = {
@@ -90,8 +90,8 @@ NOETIC_MCP_CORTEX = {
     'mcp__cortex__cortex_bus_complete',        # Bus completion
 }
 
-# Empirica MCP tools — ALL are epistemic workflow, always allowed.
-# The empirica-mcp server wraps CLI commands — same trust as Tier 2.
+# Empirica MCP tools -- ALL are epistemic workflow, always allowed.
+# The empirica-mcp server wraps CLI commands -- same trust as Tier 2.
 EMPIRICA_MCP_PREFIX = 'mcp__empirica__'
 
 # Safe Bash command prefixes - read-only operations (ACL)
@@ -164,7 +164,7 @@ DANGEROUS_SHELL_OPERATORS = (
 )
 
 # Safe redirection patterns (stderr suppression, etc.)
-import re  # noqa: E402 — grouped with related patterns below
+import re  # noqa: E402 -- grouped with related patterns below
 
 SAFE_REDIRECT_PATTERN = re.compile(r'2>/dev/null|2>&1|>/dev/null|2>\s*/dev/null')
 
@@ -180,7 +180,7 @@ SAFE_PIPE_TARGETS = (
 
 # Work-type-aware command expansion.
 # When PREFLIGHT declares work_type, the Sentinel expands the safe command list.
-# The user explicitly chose the work type — this is a scope declaration.
+# The user explicitly chose the work type -- this is a scope declaration.
 _current_work_type: str | None = None
 
 # Remote-ops auto-detection nudge (fires once per transaction)
@@ -221,13 +221,13 @@ INFRA_SAFE_PREFIXES = (
 #
 # DESIGN: The Sentinel uses RAW (uncorrected) vectors for all gating decisions.
 # Calibration corrections (from grounded verification, Bayesian learning trajectory)
-# are FEEDBACK for the AI to internalize and self-correct — they are never applied
+# are FEEDBACK for the AI to internalize and self-correct -- they are never applied
 # silently by the system. What the AI reports is what the Sentinel evaluates.
 #
 # This is intentional and NOT controlled by EMPIRICA_CALIBRATION_FEEDBACK.
 # The flag gates calibration FEEDBACK in workflow output (PREFLIGHT/CHECK enrichment),
 # not gating logic. The Sentinel always uses raw vectors regardless of the flag.
-# Static fallbacks — used when dynamic thresholds unavailable
+# Static fallbacks -- used when dynamic thresholds unavailable
 KNOW_THRESHOLD = 0.70
 UNCERTAINTY_THRESHOLD = 0.35
 MAX_CHECK_AGE_MINUTES = 30
@@ -237,7 +237,7 @@ def _get_dynamic_thresholds(db) -> tuple:
     """Read Brier-based dynamic thresholds. Returns (know_threshold, unc_threshold).
 
     Falls back to static constants if dynamic computation fails or has insufficient data.
-    Only the noetic phase thresholds are used for the sentinel gate (investigation → action).
+    Only the noetic phase thresholds are used for the sentinel gate (investigation -> action).
     """
     try:
         from empirica.core.post_test.dynamic_thresholds import compute_dynamic_thresholds
@@ -282,14 +282,14 @@ def _get_domain_scaled_thresholds(
         checklist = reg.resolve(key)
 
         if not checklist.has_checks:
-            # Empty checklist (e.g., remote-ops) — no scaling
+            # Empty checklist (e.g., remote-ops) -- no scaling
             return base_unc
 
         # Scale: coverage_min maps to uncertainty threshold
         # Higher coverage_min = higher rigor = lower uncertainty threshold
-        # coverage_min 0.3 (low) → uncertainty 0.35 (lenient)
-        # coverage_min 0.7 (high) → uncertainty 0.20 (strict)
-        # coverage_min 0.85 (critical) → uncertainty 0.15 (very strict)
+        # coverage_min 0.3 (low) -> uncertainty 0.35 (lenient)
+        # coverage_min 0.7 (high) -> uncertainty 0.20 (strict)
+        # coverage_min 0.85 (critical) -> uncertainty 0.15 (very strict)
         coverage_min = checklist.thresholds.get("coverage_min", 0.3)
         scaled = max(0.10, base_unc * (1.0 - coverage_min * 0.6))
         return round(scaled, 2)
@@ -415,7 +415,7 @@ EMPIRICA_TIER2_PREFIXES = (
     'empirica artifacts-generate',  # Artifact generation
     'empirica goals-mark-stale', 'empirica goals-refresh',  # Goal staleness management
     'empirica profile-sync', 'empirica profile-prune',  # Profile management - state-changing
-    'empirica release',  # Release pipeline — mechanical, no PREFLIGHT needed
+    'empirica release',  # Release pipeline -- mechanical, no PREFLIGHT needed
 )
 
 
@@ -451,7 +451,7 @@ def is_toggle_command(command: str) -> str | None:
     cmd = command.lstrip()
 
     # Detect pause file write (python3 -c "..." writing sentinel_paused)
-    if 'sentinel_paused' in cmd and ('write_text' in cmd or 'open(' in cmd):
+    if 'sentinel_paused' in cmd and ('write_text' in cmd or 'open(' in cmd, encoding='utf-8'):
         return 'pause'
 
     # Detect pause file removal
@@ -508,7 +508,7 @@ def is_transition_command(command: str) -> bool:
 
 # --- AUTONOMY CALIBRATION LOOP ---
 # Tracks tool call count per transaction and nudges at adaptive thresholds.
-# The nudge is informational — Claude decides when to POSTFLIGHT based on
+# The nudge is informational -- Claude decides when to POSTFLIGHT based on
 # information completeness, not forced thresholds.
 
 _autonomy_nudge = ""  # Module-level: set during increment, read by respond
@@ -526,7 +526,7 @@ def _find_transaction_file(empirica_dir: Path, suffix: str,
     TMUX_PANE is not inherited), scan for any active_transaction_*.json
     matching the given session_id.
 
-    Safe because it's scoped by session_id — no cross-instance talk.
+    Safe because it's scoped by session_id -- no cross-instance talk.
     See: docs/architecture/instance_isolation/KNOWN_ISSUES.md (11.21)
     """
     # Primary: exact suffix match
@@ -539,7 +539,7 @@ def _find_transaction_file(empirica_dir: Path, suffix: str,
         try:
             for tx_file in sorted(empirica_dir.glob('active_transaction*.json')):
                 try:
-                    with open(tx_file) as f:
+                    with open(tx_file, encoding='utf-8') as f:
                         tx_data = json.load(f)
                     if tx_data.get('session_id') == session_id:
                         return tx_file
@@ -558,7 +558,7 @@ def _resolve_empirica_session_id(claude_session_id: str | None) -> str | None:
     try:
         aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if aw_file.exists():
-            with open(aw_file) as f:
+            with open(aw_file, encoding='utf-8') as f:
                 return json.load(f).get('empirica_session_id')
     except Exception:
         pass
@@ -579,7 +579,7 @@ def _locate_transaction_file(claude_session_id: str | None,
         aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if aw_file.exists():
             try:
-                with open(aw_file) as f:
+                with open(aw_file, encoding='utf-8') as f:
                     pp = json.load(f).get('project_path')
                 if pp:
                     tx = _find_transaction_file(
@@ -603,7 +603,7 @@ def _locate_transaction_file(claude_session_id: str | None,
 
 
 def _is_empirica_mcp_tool(tool_name: str) -> bool:
-    """Check if tool is an empirica MCP tool (always allowed — epistemic workflow)."""
+    """Check if tool is an empirica MCP tool (always allowed -- epistemic workflow)."""
     return tool_name.startswith(EMPIRICA_MCP_PREFIX)
 
 
@@ -686,7 +686,7 @@ def _atomic_write_counters(counters: dict, counters_path: Path) -> None:
     import tempfile
     fd, tmp = tempfile.mkstemp(dir=str(counters_path.parent))
     try:
-        with os.fdopen(fd, 'w') as tf:
+        with os.fdopen(fd, 'w', encoding='utf-8') as tf:
             json.dump(counters, tf, indent=2)
         os.replace(tmp, str(counters_path))
     except BaseException:
@@ -715,7 +715,7 @@ def _try_increment_tool_count(claude_session_id: str | None = None,
         return 0, 0
 
     try:
-        with open(tx_path) as f:
+        with open(tx_path, encoding='utf-8') as f:
             tx = json.load(f)
 
         if tx.get('status') != 'open':
@@ -728,7 +728,7 @@ def _try_increment_tool_count(claude_session_id: str | None = None,
         counters = {}
         if counters_path.exists():
             try:
-                with open(counters_path) as f:
+                with open(counters_path, encoding='utf-8') as f:
                     counters = json.load(f)
             except Exception:
                 counters = {}
@@ -761,7 +761,7 @@ def _try_increment_tool_count(claude_session_id: str | None = None,
 def _compute_nudge(count: int, avg: int) -> str:
     """Compute autonomy nudge message based on tool call count vs average.
 
-    Returns empty string if no nudge needed. Nudges are informational —
+    Returns empty string if no nudge needed. Nudges are informational --
     Claude decides when to POSTFLIGHT based on coherence, not thresholds.
     """
     if avg <= 0 or count <= 0:
@@ -921,7 +921,7 @@ def get_last_compact_timestamp(project_root: Path) -> datetime | None:
 def is_plan_file(tool_input: dict) -> bool:
     """Check if a Write/Edit targets a plan file (.claude/plans/).
 
-    Plan files are noetic artifacts — planning is investigation, not execution.
+    Plan files are noetic artifacts -- planning is investigation, not execution.
     Allow writes to plan files without requiring CHECK authorization.
     """
     file_path = tool_input.get('file_path', '')
@@ -987,7 +987,7 @@ def _maybe_nudge_remote_ops(cmd: str) -> None:
     _remote_ops_nudge = (
         "REMOTE-OPS: SSH/rsync/scp detected but work_type is "
         f"'{_current_work_type or 'not set'}'. Consider setting "
-        "work_type=remote-ops in PREFLIGHT if this is remote work — "
+        "work_type=remote-ops in PREFLIGHT if this is remote work -- "
         "local sensors can't observe it, so calibration will use "
         "ungrounded_remote_ops status and self-assessment stands."
     )
@@ -1089,7 +1089,7 @@ def is_safe_python_command(command: str) -> bool:
     - Imports from empirica for read-only operations
 
     Blocks:
-    - File writes (open(..., 'w'), Path.write_text, shutil)
+    - File writes (open(..., 'w', encoding='utf-8'), Path.write_text, shutil)
     - Subprocess calls (subprocess.run, os.system, os.popen)
     - File deletion (os.remove, os.unlink, shutil.rmtree)
     - Network writes (requests.post, requests.put, requests.delete)
@@ -1144,17 +1144,17 @@ def is_safe_remote_command(command: str) -> bool:
     Returns True if the remote command is noetic (safe/read-only).
 
     Classification:
-    - ssh user@host "ls /path"        → noetic (reading remotely)
-    - ssh user@host "docker ps"       → noetic (inspecting)
-    - ssh user@host "git push ..."    → praxic (writing remotely)
-    - ssh user@host (no command)      → noetic (interactive session / investigation)
-    - rsync --dry-run ...             → noetic
-    - rsync src/ server:/path         → praxic (uploading)
-    - rsync server:/path local/       → noetic (downloading)
-    - scp file server:/path           → praxic (uploading)
-    - scp server:/path file           → noetic (downloading)
-    - ssh-copy-id                     → praxic (modifying remote authorized_keys)
-    - ssh-add, ssh-keygen             → local operations, allowed
+    - ssh user@host "ls /path"        -> noetic (reading remotely)
+    - ssh user@host "docker ps"       -> noetic (inspecting)
+    - ssh user@host "git push ..."    -> praxic (writing remotely)
+    - ssh user@host (no command)      -> noetic (interactive session / investigation)
+    - rsync --dry-run ...             -> noetic
+    - rsync src/ server:/path         -> praxic (uploading)
+    - rsync server:/path local/       -> noetic (downloading)
+    - scp file server:/path           -> praxic (uploading)
+    - scp server:/path file           -> noetic (downloading)
+    - ssh-copy-id                     -> praxic (modifying remote authorized_keys)
+    - ssh-add, ssh-keygen             -> local operations, allowed
     """
     command_stripped = command.lstrip()
 
@@ -1189,7 +1189,7 @@ def _classify_ssh(command: str) -> bool:
     Options that take arguments: -B -b -c -D -E -e -F -I -i -J -L -l -m -O -o -p -R -S -W -w
     """
     # Handle heredoc-style SSH: ssh user@host << 'EOF' ... EOF
-    # These are complex multi-command blocks — treat as praxic
+    # These are complex multi-command blocks -- treat as praxic
     if '<<' in command:
         # Extract the heredoc content and classify each line
         return _classify_ssh_heredoc(command)
@@ -1361,16 +1361,16 @@ def _classify_rsync(command: str) -> bool:
     """
     Classify rsync as noetic or praxic based on direction and flags.
 
-    Noetic: --dry-run/-n, downloading (remote→local)
-    Praxic: uploading (local→remote), --delete
+    Noetic: --dry-run/-n, downloading (remote->local)
+    Praxic: uploading (local->remote), --delete
     """
     parts = command.split()
 
-    # --dry-run or -n → always noetic (just showing what would happen)
+    # --dry-run or -n -> always noetic (just showing what would happen)
     if '--dry-run' in parts or '-n' in parts:
         return True
 
-    # --delete is always destructive → praxic
+    # --delete is always destructive -> praxic
     if '--delete' in parts or '--delete-before' in parts or '--delete-after' in parts:
         return False
 
@@ -1414,12 +1414,12 @@ def _classify_rsync(command: str) -> bool:
     dest = non_option_args[-1]
     sources = non_option_args[:-1]
 
-    # If destination has ':' → uploading → praxic
+    # If destination has ':' -> uploading -> praxic
     if ':' in dest and not dest.startswith('/'):
         return False
 
-    # If any source has ':' and dest is local → downloading → noetic
-    # Both local (or can't tell) → praxic (conservative)
+    # If any source has ':' and dest is local -> downloading -> noetic
+    # Both local (or can't tell) -> praxic (conservative)
     return any(':' in src and not src.startswith('/') for src in sources)
 
 
@@ -1427,8 +1427,8 @@ def _classify_scp(command: str) -> bool:
     """
     Classify scp as noetic or praxic based on transfer direction.
 
-    Noetic: downloading (remote→local)
-    Praxic: uploading (local→remote)
+    Noetic: downloading (remote->local)
+    Praxic: uploading (local->remote)
     """
     parts = command.split()
 
@@ -1454,8 +1454,8 @@ def _classify_scp(command: str) -> bool:
     # Last arg is destination
     dest = non_option_args[-1]
 
-    # If destination contains ':' (and isn't an absolute path) → uploading → praxic
-    # Otherwise → downloading or local copy → noetic
+    # If destination contains ':' (and isn't an absolute path) -> uploading -> praxic
+    # Otherwise -> downloading or local copy -> noetic
     return not (':' in dest and not dest.startswith('/'))
 
 
@@ -1534,7 +1534,7 @@ def _is_praxic_remote_command(command: str) -> bool:
     if not cmd.startswith(('ssh ', 'scp ', 'rsync ')):
         return False
     # If is_safe_remote_command says it's noetic, it's not praxic
-    # It's a remote command that's NOT read-only → praxic remote
+    # It's a remote command that's NOT read-only -> praxic remote
     return not is_safe_remote_command(cmd)
 
 
@@ -1589,7 +1589,7 @@ def _confidence_gate_remote(claude_session_id: str | None = None) -> str:
         # Gate uses META UNCERTAINTY ONLY (2026-04-07).
         # Uncertainty is the unified confidence summary across all 12 other
         # vectors. The 'know' threshold is no longer evaluated as a gating
-        # condition — it remains in the thresholds dict for back-compat with
+        # condition -- it remains in the thresholds dict for back-compat with
         # consumers that read it for display.
         if uncertainty <= thresholds['uncertainty_max']:
             return f"unc={uncertainty:.2f}<={thresholds['uncertainty_max']}, from {phase}"
@@ -1638,7 +1638,7 @@ def _noetic_firewall_check(tool_name: str, tool_input: dict, hook_input: dict) -
 def _detect_subagent(claude_session_id: str) -> bool:
     """Detect if the current invocation is from a subagent.
 
-    Subagents don't need their own CASCADE — the parent's CHECK already
+    Subagents don't need their own CASCADE -- the parent's CHECK already
     authorized the spawn. Subagents have a different Claude session_id
     than the parent (who owns the active_work file).
 
@@ -1661,10 +1661,10 @@ def _detect_subagent(claude_session_id: str) -> bool:
     try:
         _aw_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if not _aw_file.exists():
-            # No active_work file for this claude_session_id — likely a subagent
+            # No active_work file for this claude_session_id -- likely a subagent
             # (or session-init failed / project initialized mid-session)
             #
-            # TIGHTENED CHECK (fixes #68): Don't just check if active_session exists —
+            # TIGHTENED CHECK (fixes #68): Don't just check if active_session exists --
             # verify its session matches the current transaction. Stale active_session
             # files from other projects/sessions cause false positive subagent detection.
             from empirica.utils.session_resolver import InstanceResolver as R
@@ -1673,7 +1673,7 @@ def _detect_subagent(claude_session_id: str) -> bool:
             if _as_file.exists():
                 # Read the active_session to get its empirica_session_id
                 try:
-                    with open(_as_file) as _asf:
+                    with open(_as_file, encoding='utf-8') as _asf:
                         _as_data = json.load(_asf)
                     _as_session_id = _as_data.get('empirica_session_id')
 
@@ -1683,7 +1683,7 @@ def _detect_subagent(claude_session_id: str) -> bool:
                         # Check if any active_work file has this session
                         for _aw_candidate in Path.home().glob('.empirica/active_work_*.json'):
                             try:
-                                with open(_aw_candidate) as _awf:
+                                with open(_aw_candidate, encoding='utf-8') as _awf:
                                     _aw_data = json.load(_awf)
                                 if _aw_data.get('empirica_session_id') == _as_session_id:
                                     _tx_session_match = True
@@ -1693,14 +1693,14 @@ def _detect_subagent(claude_session_id: str) -> bool:
 
                     if _tx_session_match:
                         # Parent session is active AND has a matching active_work file
-                        # This session doesn't → confirmed subagent
+                        # This session doesn't -> confirmed subagent
                         return True
                 except Exception:
-                    pass  # Can't read active_session → not confident it's a subagent
-            # Not a confirmed subagent → fall through to normal gating
+                    pass  # Can't read active_session -> not confident it's a subagent
+            # Not a confirmed subagent -> fall through to normal gating
             # (covers: broken session-init, mid-session project init, stale files)
     except Exception:
-        pass  # Detection failure → continue with normal sentinel logic
+        pass  # Detection failure -> continue with normal sentinel logic
     return False
 
 
@@ -1742,7 +1742,7 @@ def _check_postflight_loop_closed(cursor, session_id: str, current_transaction_i
             if tool_name == 'Bash':
                 command = tool_input.get('command', '')
 
-                # Safe Bash (read-only + empirica workflow) — always allowed
+                # Safe Bash (read-only + empirica workflow) -- always allowed
                 # This is a safety net: Rule 2 should catch most of these,
                 # but edge cases (|| chains, complex pipes) may reach here.
                 if is_safe_bash_command(tool_input):
@@ -1789,7 +1789,7 @@ def _validate_check_record(cursor, session_id: str, current_transaction_id, pref
     if not check_row:
         # PRE-CHECK PHASE: PREFLIGHT submitted, no CHECK yet.
         # This IS the noetic investigation phase. All noetic tools pass
-        # silently — no ask, no prompts, no friction. Only genuinely
+        # silently -- no ask, no prompts, no friction. Only genuinely
         # praxic tools (Edit, Write, destructive Bash) get denied.
 
         # Always allow check-submit (creates the CHECK record)
@@ -1805,7 +1805,7 @@ def _validate_check_record(cursor, session_id: str, current_transaction_id, pref
             return None
 
         # Praxic tools: deny (need CHECK first)
-        return ("deny", "No valid CHECK found. Run CHECK after investigation to gate the noetic→praxic transition.")
+        return ("deny", "No valid CHECK found. Run CHECK after investigation to gate the noetic->praxic transition.")
 
     know, uncertainty, reflex_data, check_timestamp = check_row
 
@@ -1866,7 +1866,7 @@ def _check_prior_investigate(cursor, session_id: str, current_transaction_id, pr
     if prev_decision != 'investigate' or prev_tx_id == current_transaction_id:
         return None
 
-    # If findings have been logged, INVESTIGATE is satisfied — allow everything
+    # If findings have been logged, INVESTIGATE is satisfied -- allow everything
     cursor.execute("""
         SELECT COUNT(*) FROM project_findings
         WHERE session_id = ? AND created_timestamp > ?
@@ -1874,10 +1874,10 @@ def _check_prior_investigate(cursor, session_id: str, current_transaction_id, pr
     if (cursor.fetchone()[0] or 0) > 0:
         return None
 
-    # All noetic tools always allowed — INVESTIGATE means "investigate more",
+    # All noetic tools always allowed -- INVESTIGATE means "investigate more",
     # not "stop using tools". Read, Grep, Glob, Bash grep/ls/cat, etc.
     if tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME or tool_name in NOETIC_MCP_CORTEX or _is_empirica_mcp_tool(tool_name):
-        return None  # Silent allow — don't even log it as a decision
+        return None  # Silent allow -- don't even log it as a decision
     if tool_name == 'Bash' and is_safe_bash_command(tool_input):
         return None  # Safe Bash is noetic
 
@@ -1894,7 +1894,7 @@ def _check_goalless_work(cursor, session_id: str, preflight_project_id, claude_s
                 empirica_root, suffix,
                 _resolve_empirica_session_id(claude_session_id))
             if _gl_tx_file:
-                with open(_gl_tx_file) as _gl_f:
+                with open(_gl_tx_file, encoding='utf-8') as _gl_f:
                     _gl_count = json.load(_gl_f).get('tool_call_count', 0)
 
         if _gl_count < 5:
@@ -1916,7 +1916,7 @@ def _check_goalless_work(cursor, session_id: str, preflight_project_id, claude_s
                     return (
                         f"DISCIPLINE: {_gl_count} tool calls with NO GOALS. "
                         f"Create goals now: empirica goals-create --objective '...'. "
-                        f"Tell the user: 'We should create goals before continuing — "
+                        f"Tell the user: 'We should create goals before continuing -- "
                         f"work without goals produces unmeasurable transactions.'"
                     )
                 return (
@@ -1958,13 +1958,13 @@ def _handle_no_preflight(tool_name: str, tool_input: dict, session_id: str, env_
         counter_file = Path.home() / '.empirica' / f'pre_tx_calls{suffix}.json'
         count = 0
         if counter_file.exists():
-            with open(counter_file) as f:
+            with open(counter_file, encoding='utf-8') as f:
                 count = json.load(f).get('count', 0)
         count += 1
-        with open(counter_file, 'w') as f:
+        with open(counter_file, 'w', encoding='utf-8') as f:
             json.dump({'count': count, 'session_id': session_id}, f)
         if count >= 10:
-            pre_tx_nudge = f" STRONGLY RECOMMENDED: {count} tool calls without a transaction. Submit PREFLIGHT now — this work is unmeasured."
+            pre_tx_nudge = f" STRONGLY RECOMMENDED: {count} tool calls without a transaction. Submit PREFLIGHT now -- this work is unmeasured."
         elif count >= 5:
             pre_tx_nudge = f" NOTE: {count} tool calls without a transaction. Consider submitting PREFLIGHT to begin measured work."
     except Exception:
@@ -1990,7 +1990,7 @@ def _handle_investigate_continuation(decision: str, tool_name: str, tool_input: 
                                      db) -> tuple | None:
     """Handle the case where CHECK returned 'investigate'.
 
-    Noetic tools and safe Bash (read-only) are still allowed —
+    Noetic tools and safe Bash (read-only) are still allowed --
     investigation work needs to investigate (read DBs, run queries, analyze).
 
     Tracks noetic tool calls since investigate. When AI resubmits CHECK after
@@ -2017,7 +2017,7 @@ def _handle_investigate_continuation(decision: str, tool_name: str, tool_input: 
         if not _inv_counters_path or not _inv_counters_path.exists():
             return {}
         try:
-            with open(_inv_counters_path) as _f:
+            with open(_inv_counters_path, encoding='utf-8') as _f:
                 return json.load(_f)
         except Exception:
             return {}
@@ -2028,7 +2028,7 @@ def _handle_investigate_continuation(decision: str, tool_name: str, tool_input: 
         try:
             import tempfile
             _fd, _tmp = tempfile.mkstemp(dir=str(_inv_counters_path.parent))
-            with os.fdopen(_fd, 'w') as _tf:
+            with os.fdopen(_fd, 'w', encoding='utf-8') as _tf:
                 json.dump(data, _tf, indent=2)
             os.rename(_tmp, str(_inv_counters_path))
         except Exception:
@@ -2057,7 +2057,7 @@ def _handle_investigate_continuation(decision: str, tool_name: str, tool_input: 
         return ("allow", "Safe Bash during investigation phase (read-only)")
     # ADVISORY MODE: Sentinel surfaces the investigate recommendation but lets the AI decide.
     # The AI sees the message and can choose to investigate more or proceed with awareness.
-    # This is a measurement system, not a rules-based gate — the holistic judgment is the AI's.
+    # This is a measurement system, not a rules-based gate -- the holistic judgment is the AI's.
     return ("allow", "ADVISORY: CHECK returned 'investigate'. Predictions in this domain may be ungrounded. Sentinel recommends noetic (read-only) work to gather grounding evidence before acting.")
 
 
@@ -2065,7 +2065,7 @@ def _track_tool_usage(hook_input: dict, tool_name: str, tool_input: dict) -> Non
     """Track tool call counts and re-read advisory nudges.
 
     Counts PARENT tool calls only (subagent work counted via SubagentStop delegation).
-    Nudge thresholds are informational — Claude decides when to POSTFLIGHT.
+    Nudge thresholds are informational -- Claude decides when to POSTFLIGHT.
     Also sets re-read advisory when Read tool targets already-read file.
     """
     global _autonomy_nudge, _reread_nudge
@@ -2073,7 +2073,7 @@ def _track_tool_usage(hook_input: dict, tool_name: str, tool_input: dict) -> Non
         _claude_sid = hook_input.get('session_id')
         # Only increment for sessions with active_work (parent sessions).
         # Subagent tool calls are counted from transcript by SubagentStop and
-        # added to parent's delegated_tool_calls — no double-counting.
+        # added to parent's delegated_tool_calls -- no double-counting.
         _aw_check = Path.home() / '.empirica' / f'active_work_{_claude_sid}.json'
         if _claude_sid and _aw_check.exists():
             _count, _avg = _try_increment_tool_count(_claude_sid, tool_name, tool_input)
@@ -2082,7 +2082,7 @@ def _track_tool_usage(hook_input: dict, tool_name: str, tool_input: dict) -> Non
         pass  # Counter failure is non-fatal
 
     # _try_increment_tool_count sets _last_read_count when tracking Read tool calls.
-    # Advisory only — never blocks. Helps AI conserve context window.
+    # Advisory only -- never blocks. Helps AI conserve context window.
     if tool_name == 'Read' and _last_read_count > 1:
         _rd_fp = (tool_input or {}).get('file_path', '')
         _short = Path(_rd_fp).name if _rd_fp else 'file'
@@ -2129,7 +2129,7 @@ def _build_env_annotation() -> str:
     if env_context['is_trusted']:
         return f" [REMOTE:{env_type}:trusted ({env_context['trust_source']})]"
     return (
-        f" [REMOTE:{env_type}:UNTRUSTED — {env_context['trust_source']}. "
+        f" [REMOTE:{env_type}:UNTRUSTED -- {env_context['trust_source']}. "
         f"Add '{env_context['hostname']}' to ~/.empirica/trusted_hosts to trust this host]"
     )
 
@@ -2145,10 +2145,10 @@ def _resolve_empirica_root(claude_session_id: str | None) -> Path | None:
     if package_path:
         sys.path.insert(0, str(package_path))
 
-    # Resolve project root using priority chain (claude_session → transaction → instance → TTY → CWD)
+    # Resolve project root using priority chain (claude_session -> transaction -> instance -> TTY -> CWD)
     # This is critical for multi-project scenarios where CWD may be reset
     #
-    # NOTE: Do NOT use CWD cross-check here. CWD is unreliable in hooks — Claude Code
+    # NOTE: Do NOT use CWD cross-check here. CWD is unreliable in hooks -- Claude Code
     # may reset it after compaction or context shifts (see instance_isolation/KNOWN_ISSUES.md
     # Issue 11.10). The path_resolver's get_session_db_path() has its own CWD cross-check
     # gated behind EMPIRICA_CWD_RELIABLE for CLI commands where CWD IS reliable.
@@ -2203,7 +2203,7 @@ def _read_transaction_state(empirica_root: Path | None, claude_session_id: str |
         return result
 
     try:
-        with open(tx_file) as f:
+        with open(tx_file, encoding='utf-8') as f:
             tx_data = json.load(f)
 
         # CLOSED TRANSACTION CHECK: Closed transactions persist as project anchors.
@@ -2231,7 +2231,7 @@ def _read_transaction_state(empirica_root: Path | None, claude_session_id: str |
                 _worktype_nudge = (
                     "WORK-TYPE: No work_type set in PREFLIGHT. Consider setting "
                     "work_type (code|infra|research|docs|debug|config|release|remote-ops) "
-                    "for better calibration — evidence weights scale by work type."
+                    "for better calibration -- evidence weights scale by work type."
                 )
         else:
             # CLOSED TRANSACTION SHORT-CIRCUIT: Don't fall through to
@@ -2249,7 +2249,7 @@ def _handle_closed_transaction(tool_name: str, tool_input: dict) -> None:
     """Handle tool calls against a closed transaction. Responds and exits.
 
     Allow noetic tools (Read, Grep, Glob, etc.) and safe Bash
-    to pass — only block praxic actions.
+    to pass -- only block praxic actions.
     """
     if tool_name == 'Bash':
         if is_safe_bash_command(tool_input):
@@ -2262,7 +2262,7 @@ def _handle_closed_transaction(tool_name: str, tool_input: dict) -> None:
     elif tool_name in NOETIC_TOOLS or tool_name in NOETIC_MCP_CHROME or tool_name in NOETIC_MCP_CORTEX or _is_empirica_mcp_tool(tool_name):
         respond("allow", "Noetic tool (transaction closed)")
         sys.exit(0)
-    # Praxic tool with closed transaction → correct error message
+    # Praxic tool with closed transaction -> correct error message
     respond("deny", "Epistemic loop closed (POSTFLIGHT completed). Run new PREFLIGHT to start next goal. Command: empirica preflight-submit - (JSON with vectors on stdin)")
     sys.exit(0)
 
@@ -2281,7 +2281,7 @@ def _resolve_session(tx_session_id: str | None, claude_session_id: str | None,
         try:
             active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
             if active_work_file.exists():
-                with open(active_work_file) as f:
+                with open(active_work_file, encoding='utf-8') as f:
                     work_data = json.load(f)
                 session_id = work_data.get('empirica_session_id')
         except Exception:
@@ -2379,7 +2379,7 @@ def _check_expiry_and_compact(check_timestamp, empirica_root: Path | None) -> tu
 def _evaluate_check_threshold(know, uncertainty, db, env_annotation: str) -> tuple:
     """Evaluate CHECK vectors against dynamic thresholds.
 
-    Returns (decision, reason) — always produces a final decision.
+    Returns (decision, reason) -- always produces a final decision.
     """
     raw_check_know = know or 0
     raw_check_unc = uncertainty or 1
@@ -2408,12 +2408,12 @@ def _run_authorization_pipeline(hook_input: dict, tool_name: str, tool_input: di
 
     session_id = _resolve_session(tx_state['tx_session_id'], claude_session_id, env_annotation)
     if not session_id:
-        return ("allow", "No session resolved — sentinel inactive")
+        return ("allow", "No session resolved -- sentinel inactive")
 
     from empirica.data.session_database import SessionDatabase  # type: ignore[import-not-found]
     db = SessionDatabase()
     if db.conn is None:
-        return ("allow", "No database connection — sentinel inactive")
+        return ("allow", "No database connection -- sentinel inactive")
     cursor = db.conn.cursor()
 
     try:

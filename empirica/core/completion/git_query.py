@@ -220,7 +220,7 @@ class GitProgressQuery:
         """
         Combine task metadata with epistemic state
 
-        Shows complete agent journey: goals → actions → learning
+        Shows complete agent journey: goals -> actions -> learning
 
         Args:
             session_id: Session UUID

@@ -2,7 +2,7 @@
 Profile Commands - Epistemic profile management
 
 Commands:
-- profile-sync: Full sync pipeline (fetch → import → optional Qdrant rebuild)
+- profile-sync: Full sync pipeline (fetch -> import -> optional Qdrant rebuild)
 - profile-prune: Transparent artifact pruning with git notes receipts
 - profile-status: Unified profile status view
 - profile-import: Import epistemic artifacts from AI conversation transcripts
@@ -43,7 +43,7 @@ def _get_workspace_root() -> str:
 
 
 def _load_sync_config() -> dict[str, Any]:
-    """Load sync config — reuses sync_commands logic."""
+    """Load sync config -- reuses sync_commands logic."""
     from .sync_commands import _load_sync_config as load_config
     return load_config()
 
@@ -166,7 +166,7 @@ def _print_sync_pretty(result, import_result, remote, import_only, do_push, do_q
     """Print human-readable sync result."""
     summary = result.get('summary', {})
     if result['ok']:
-        print("✅ Profile sync complete")
+        print("[OK] Profile sync complete")
         if not import_only:
             print(f"   Fetched from: {remote}")
         print(f"   Imported: {summary.get('imported', 0)} new artifacts")
@@ -183,11 +183,11 @@ def _print_sync_pretty(result, import_result, remote, import_only, do_push, do_q
             qdrant_ok = result.get('qdrant', {}).get('ok', False)
             print(f"   Qdrant: {'rebuilt' if qdrant_ok else 'failed'}")
     else:
-        print(f"❌ Profile sync failed: {result.get('error', 'Unknown error')}")
+        print(f"[FAIL] Profile sync failed: {result.get('error', 'Unknown error')}")
 
 
 def handle_profile_sync_command(args):
-    """Handle profile-sync command — full sync pipeline."""
+    """Handle profile-sync command -- full sync pipeline."""
     try:
         sync_config = _load_sync_config()
         remote = getattr(args, 'remote', None) or sync_config.get('notes_remote', sync_config.get('remote', 'forgejo'))
@@ -456,7 +456,7 @@ def _apply_prune_rule(db, rule: str, older_than_days: int | None = None,
 
 
 def handle_profile_prune_command(args):
-    """Handle profile-prune command — transparent artifact pruning."""
+    """Handle profile-prune command -- transparent artifact pruning."""
     try:
         rule = getattr(args, 'rule', None)
         artifact_id = getattr(args, 'artifact_id', None)
@@ -531,7 +531,7 @@ def handle_profile_prune_command(args):
                 else:
                     result = _prune_artifact(db, artifact_id, artifact_type, reason or "Manual prune")
             else:
-                assert rule is not None  # noqa: S101 — guaranteed by earlier check
+                assert rule is not None  # noqa: S101 -- guaranteed by earlier check
                 result = _apply_prune_rule(db, rule, older_than, dry_run)
         finally:
             db.close()
@@ -542,16 +542,16 @@ def handle_profile_prune_command(args):
             if dry_run:
                 count = result.get('count', 0)
                 candidates = result.get('candidates', [])
-                print(f"🔍 Dry run: {count} artifacts would be pruned")
+                print(f"[SEARCH] Dry run: {count} artifacts would be pruned")
                 for c in candidates[:20]:
-                    print(f"   [{c['type']}] {c['id'][:12]}... — {c['summary'][:60]}")
+                    print(f"   [{c['type']}] {c['id'][:12]}... -- {c['summary'][:60]}")
                 if count > 20:
                     print(f"   ... and {count - 20} more")
             elif result.get('ok'):
                 count = result.get('count', 1)
-                print(f"✅ Pruned {count} artifact(s) with receipts in git notes")
+                print(f"[OK] Pruned {count} artifact(s) with receipts in git notes")
             else:
-                print(f"❌ Prune failed: {result.get('error', 'Unknown error')}")
+                print(f"[FAIL] Prune failed: {result.get('error', 'Unknown error')}")
 
         return 0 if result.get('ok') else 1
 
@@ -625,7 +625,7 @@ def _get_calibration_summary(workspace) -> dict:
         import yaml
         bc_path = Path(workspace) / '.breadcrumbs.yaml'
         if bc_path.exists():
-            with open(bc_path) as f:
+            with open(bc_path, encoding='utf-8') as f:
                 bc = yaml.safe_load(f) or {}
             cal = bc.get('calibration', {})
             if cal:
@@ -693,7 +693,7 @@ def _detect_notes_sqlite_drift(artifact_counts, notes_counts):
 def _print_profile_status_pretty(artifact_counts, notes_counts, import_stats, drift,
                                   sync_config, remote, sync_available, calibration):
     """Print human-readable profile status output."""
-    print("📊 Epistemic Profile Status")
+    print("[STATS] Epistemic Profile Status")
     print("=" * 50)
 
     total_sqlite = sum(v for v in artifact_counts.values() if isinstance(v, int) and v > 0)
@@ -720,7 +720,7 @@ def _print_profile_status_pretty(artifact_counts, notes_counts, import_stats, dr
             print(f"    {atype}: {count}")
 
     if drift:
-        print("\n  ⚠️  Drift detected (notes - sqlite):")
+        print("\n  [WARN]  Drift detected (notes - sqlite):")
         for artifact_type, info in drift.items():
             print(f"    {artifact_type}: {info['delta']:+d} (notes={info['notes']}, sqlite={info['sqlite']})")
         print("    Run 'empirica profile-sync --import-only' to reconcile")
@@ -738,7 +738,7 @@ def _print_profile_status_pretty(artifact_counts, notes_counts, import_stats, dr
 
 
 def handle_profile_status_command(args):
-    """Handle profile-status command — unified profile view."""
+    """Handle profile-status command -- unified profile view."""
     try:
         output_format = getattr(args, 'output', 'json')
         sync_config = _load_sync_config()
@@ -818,11 +818,11 @@ def _import_from_claude_code(SessionIndex, TranscriptParser, ArtifactExtractor,
         if output_format == 'json':
             print(json.dumps({"ok": True, "message": msg, "sessions_scanned": 0, "artifacts": 0}))
         else:
-            print(f"ℹ️  {msg}")
+            print(f"[INFO]  {msg}")
         return 0
 
     if output_format == 'text' and not dry_run:
-        print(f"🔍 Scanning {len(sessions)} session(s)...")
+        print(f"[SEARCH] Scanning {len(sessions)} session(s)...")
 
     all_results = []
     sessions_scanned = 0
@@ -855,7 +855,7 @@ def _import_from_claude_ai(ClaudeAIParser, ArtifactExtractor,
         if output_format == 'json':
             print(json.dumps({"ok": False, "error": "--file required for --source claude-ai"}))
         else:
-            print("❌ --file required for --source claude-ai")
+            print("[FAIL] --file required for --source claude-ai")
         return 1
 
     ai_parser = ClaudeAIParser()
@@ -865,12 +865,12 @@ def _import_from_claude_ai(ClaudeAIParser, ArtifactExtractor,
         if output_format == 'json':
             print(json.dumps({"ok": True, "message": msg, "sessions_scanned": 0, "artifacts": 0}))
         else:
-            print(f"ℹ️  {msg}")
+            print(f"[INFO]  {msg}")
         return 0
 
     sessions_scanned = metadata.get('conversation_count', 1)
     if output_format == 'text' and not dry_run:
-        print(f"🔍 Processing {len(turns)} conversation turns from Claude.ai export...")
+        print(f"[SEARCH] Processing {len(turns)} conversation turns from Claude.ai export...")
 
     extractor = ArtifactExtractor(min_confidence=min_confidence)
     result = extractor.extract_all(turns, source="claude-ai")
@@ -977,7 +977,7 @@ def _store_extracted_artifacts(all_results):
 
 
 def handle_profile_import_command(args):
-    """Handle profile-import command — mine AI transcripts for epistemic artifacts."""
+    """Handle profile-import command -- mine AI transcripts for epistemic artifacts."""
     try:
         source = getattr(args, 'source', 'claude-code')
         project_name = getattr(args, 'project', None)
@@ -1031,7 +1031,7 @@ def handle_profile_import_command(args):
             if output_format == 'json':
                 print(json.dumps({"ok": True, "message": msg, "sessions_scanned": sessions_scanned, "artifacts": 0}))
             else:
-                print(f"ℹ️  {msg}")
+                print(f"[INFO]  {msg}")
             return 0
 
         stored = _store_extracted_artifacts(all_results)
@@ -1045,7 +1045,7 @@ def handle_profile_import_command(args):
         if output_format == 'json':
             print(json.dumps(report, indent=2))
         else:
-            print(f"\n✅ Imported {total_stored} artifacts from {sessions_scanned} session(s)")
+            print(f"\n[OK] Imported {total_stored} artifacts from {sessions_scanned} session(s)")
             for artifact_type, count in stored.items():
                 if count > 0:
                     print(f"   {artifact_type}: {count}")

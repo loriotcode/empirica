@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Empirica PostToolUse Hook — Entity Extraction from File Edits
+Empirica PostToolUse Hook -- Entity Extraction from File Edits
 
 Fires after successful Edit/Write tool calls. Extracts codebase entities
 (functions, classes, APIs, imports) from the modified file and stores them
@@ -44,7 +44,7 @@ def _load_last_extracted() -> dict:
     """Load persisted extraction timestamps. Survives compaction."""
     try:
         if _STATE_FILE.exists():
-            with open(_STATE_FILE) as f:
+            with open(_STATE_FILE, encoding='utf-8') as f:
                 return json.load(f)
     except Exception:
         pass
@@ -55,7 +55,7 @@ def _save_last_extracted(state: dict) -> None:
     """Persist extraction timestamps."""
     try:
         _STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(_STATE_FILE, "w") as f:
+        with open(_STATE_FILE, "w", encoding='utf-8') as f:
             # Only keep entries from last hour to prevent unbounded growth
             cutoff = time.time() - 3600
             trimmed = {k: v for k, v in state.items() if v > cutoff}

@@ -3,11 +3,11 @@
 MCO (Meta-Agent Configuration Object) Loader
 
 Loads all MCO configuration files:
-- model_profiles.yaml → Model-specific bias corrections
-- personas.yaml → Investigation budgets and epistemic priors
-- cascade_styles.yaml → Threshold profiles (via ThresholdLoader)
-- epistemic_conduct.yaml → Bidirectional accountability triggers
-- protocols.yaml → Tool schemas
+- model_profiles.yaml -> Model-specific bias corrections
+- personas.yaml -> Investigation budgets and epistemic priors
+- cascade_styles.yaml -> Threshold profiles (via ThresholdLoader)
+- epistemic_conduct.yaml -> Bidirectional accountability triggers
+- protocols.yaml -> Tool schemas
 
 Usage:
     from empirica.config.mco_loader import get_mco_config
@@ -110,7 +110,7 @@ class MCOLoader:
             return
 
         try:
-            with open(filepath) as f:
+            with open(filepath, encoding='utf-8') as f:
                 data = yaml.safe_load(f) or {}
 
             if top_key:
@@ -152,7 +152,7 @@ class MCOLoader:
             domain: Domain name (software, consulting, research, operations, default)
 
         Returns:
-            Dict of category → weight (foundation, comprehension, execution, meta)
+            Dict of category -> weight (foundation, comprehension, execution, meta)
         """
         defaults = {"foundation": 0.35, "comprehension": 0.25, "execution": 0.25, "meta": 0.15}
         domain_weights = self.confidence_weights.get("domain_category_weights", {})
@@ -372,9 +372,9 @@ class MCOLoader:
 
 ### Readiness Thresholds
 - **Engagement threshold:** {thresh['engagement']:.2f}
-- **Ready confidence:** ≥{thresh['ready_confidence']:.2f}
-- **Ready uncertainty:** ≤{thresh['ready_uncertainty']:.2f}
-- **Ready context:** ≥{thresh['ready_context']:.2f}
+- **Ready confidence:** >={thresh['ready_confidence']:.2f}
+- **Ready uncertainty:** <={thresh['ready_uncertainty']:.2f}
+- **Ready context:** >={thresh['ready_context']:.2f}
 
 ### Epistemic Conduct (CRITICAL - Bidirectional Accountability)
 

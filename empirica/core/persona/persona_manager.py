@@ -121,7 +121,7 @@ class PersonaManager:
             )
         )
 
-        logger.info(f"✓ Created persona: {persona_id}")
+        logger.info(f"[OK] Created persona: {persona_id}")
         return profile
 
     def save_persona(self, profile: PersonaProfile, overwrite: bool = False) -> Path:
@@ -153,10 +153,10 @@ class PersonaManager:
             )
 
         # Save to file
-        with open(filepath, 'w') as f:
+        with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(profile_dict, f, indent=2)
 
-        logger.info(f"✓ Saved persona to: {filepath}")
+        logger.info(f"[OK] Saved persona to: {filepath}")
         return filepath
 
     def load_persona(self, persona_id: str) -> PersonaProfile:
@@ -180,7 +180,7 @@ class PersonaManager:
                 f"Persona not found: {persona_id} (looked in {filepath})"
             )
 
-        with open(filepath) as f:
+        with open(filepath, encoding='utf-8') as f:
             profile_dict = json.load(f)
 
         # Normalize for backward compatibility / emergent persona records
@@ -197,7 +197,7 @@ class PersonaManager:
             if 'focus_domains' not in epi or not isinstance(epi.get('focus_domains'), list) or len(epi.get('focus_domains')) == 0:
                 epi['focus_domains'] = ['general']
             profile_dict['epistemic_config'] = epi
-        except Exception:  # noqa: S110 — best-effort profile normalization; validate below
+        except Exception:  # noqa: S110 -- best-effort profile normalization; validate below
             pass
 
         # Validate
@@ -206,7 +206,7 @@ class PersonaManager:
         # Load into PersonaProfile
         profile = PersonaProfile.from_dict(profile_dict)
 
-        logger.info(f"✓ Loaded persona: {persona_id}")
+        logger.info(f"[OK] Loaded persona: {persona_id}")
         return profile
 
     def list_personas(self) -> list[str]:
@@ -235,7 +235,7 @@ class PersonaManager:
             raise FileNotFoundError(f"Persona not found: {persona_id}")
 
         filepath.unlink()
-        logger.info(f"✓ Deleted persona: {persona_id}")
+        logger.info(f"[OK] Deleted persona: {persona_id}")
 
     def get_persona_type(self, persona_id: str) -> str:
         """
@@ -267,7 +267,7 @@ class PersonaManager:
         # Try to load existing identity
         try:
             identity.load_keypair()
-            logger.info(f"✓ Using existing identity: {identity_name}")
+            logger.info(f"[OK] Using existing identity: {identity_name}")
 
         except FileNotFoundError:
             # Create new identity
@@ -347,5 +347,5 @@ class PersonaManager:
             )
         )
 
-        logger.info(f"✓ Created persona from template '{template_name}': {persona_id}")
+        logger.info(f"[OK] Created persona from template '{template_name}': {persona_id}")
         return profile

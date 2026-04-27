@@ -3,7 +3,7 @@
 Empirica Snapshot Curation - Impact + Completion Weighted
 
 Curates pre-summary snapshots using importance-weighted algorithm:
-- Keep: Recent (last 5), high-impact (≥0.7), milestones, resume points, best-of-day
+- Keep: Recent (last 5), high-impact (>=0.7), milestones, resume points, best-of-day
 - Archive: Low-impact trivial snapshots
 - Result: ~40-50% retention, all valuable work preserved
 """
@@ -134,7 +134,7 @@ def curate_snapshots(ref_docs_dir: Path, dry_run: bool = False) -> dict[str, Any
     # Load all snapshots
     snapshots = []
     for f in snapshot_files:
-        with open(f) as fp:
+        with open(f, encoding='utf-8') as fp:
             snapshot = json.load(fp)
             snapshot['_file_path'] = f
             snapshots.append(snapshot)
@@ -210,7 +210,7 @@ def main():
         if args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"❌ {result['error']}", file=sys.stderr)
+            print(f"[FAIL] {result['error']}", file=sys.stderr)
         sys.exit(1)
 
     # Run curation
@@ -221,7 +221,7 @@ def main():
         print(json.dumps(result, indent=2))
     else:
         # Human-readable output
-        print(f"\n{'🔍 DRY RUN - ' if args.dry_run else ''}📦 Snapshot Curation")
+        print(f"\n{'[SEARCH] DRY RUN - ' if args.dry_run else ''}[PKG] Snapshot Curation")
         print("=" * 70)
         print(f"Total snapshots: {result['total']}")
         print(f"Kept: {result['kept']} ({result['retention_rate']:.1%})")
@@ -230,7 +230,7 @@ def main():
         if result.get('decisions'):
             print("\nDecisions:")
             for d in result['decisions'][:10]:  # Show first 10
-                action = "✓ KEEP" if d['decision'] == 'keep' else "📦 ARCHIVE"
+                action = "[OK] KEEP" if d['decision'] == 'keep' else "[PKG] ARCHIVE"
                 print(f"  {action}: {d['file'][:40]:<40} | impact={d['impact']:.2f} | {d['reason']}")
 
             if len(result['decisions']) > 10:

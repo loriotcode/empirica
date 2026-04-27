@@ -43,7 +43,7 @@ def handle_benchmark_command(args):
     try:
         from empirica.components.empirical_performance_analyzer import EmpiricalPerformanceAnalyzer
 
-        print("📊 Running comprehensive benchmark suite...")
+        print("[STATS] Running comprehensive benchmark suite...")
 
         analyzer = EmpiricalPerformanceAnalyzer()
         start_time = time.time()
@@ -63,50 +63,50 @@ def handle_benchmark_command(args):
 
         end_time = time.time()
 
-        print("✅ Benchmark complete")
+        print("[OK] Benchmark complete")
         print(f"   🏁 Type: {benchmark_type}")
-        print(f"   🔄 Iterations: {iterations}")
+        print(f"   [LOAD] Iterations: {iterations}")
         print(f"   ⏱️ Total time: {format_execution_time(start_time, end_time)}")
-        print(f"   📊 Overall score: {result.get('overall_score', 0):.2f}")
+        print(f"   [STATS] Overall score: {result.get('overall_score', 0):.2f}")
 
         # Show performance metrics
         if result.get('metrics'):
-            print("📈 Performance metrics:")
+            print("[UP] Performance metrics:")
             for metric, value in result['metrics'].items():
                 if isinstance(value, float):
-                    print(f"   • {metric}: {value:.3f}")
+                    print(f"   * {metric}: {value:.3f}")
                 else:
-                    print(f"   • {metric}: {value}")
+                    print(f"   * {metric}: {value}")
 
         # Show component performance
         if result.get('component_performance'):
             thresholds = _get_profile_performance_thresholds()
             print("🧩 Component performance:")
             for component, perf in result['component_performance'].items():
-                status = "✅" if perf > thresholds['performance_high'] else "⚠️" if perf > thresholds['performance_low'] else "❌"
+                status = "[OK]" if perf > thresholds['performance_high'] else "[WARN]" if perf > thresholds['performance_low'] else "[FAIL]"
                 print(f"   {status} {component}: {perf:.2f}")
 
         # Show memory usage if included
         if include_memory and result.get('memory_usage'):
             memory = result['memory_usage']
-            print("💾 Memory usage:")
-            print(f"   • Peak: {memory.get('peak_mb', 0):.1f} MB")
-            print(f"   • Average: {memory.get('average_mb', 0):.1f} MB")
-            print(f"   • Current: {memory.get('current_mb', 0):.1f} MB")
+            print("[SAVE] Memory usage:")
+            print(f"   * Peak: {memory.get('peak_mb', 0):.1f} MB")
+            print(f"   * Average: {memory.get('average_mb', 0):.1f} MB")
+            print(f"   * Current: {memory.get('current_mb', 0):.1f} MB")
 
         # Show recommendations
         if result.get('recommendations'):
-            print("💡 Performance recommendations:")
+            print("[HINT] Performance recommendations:")
             for rec in result['recommendations']:
-                print(f"   • {rec}")
+                print(f"   * {rec}")
 
         # Show detailed breakdown if verbose
         if getattr(args, 'verbose', False) and result.get('detailed_breakdown'):
-            print("🔍 Detailed performance breakdown:")
+            print("[SEARCH] Detailed performance breakdown:")
             for category, details in result['detailed_breakdown'].items():
-                print(f"   📂 {category}:")
+                print(f"   [DIR] {category}:")
                 for key, value in details.items():
-                    print(f"     • {key}: {value}")
+                    print(f"     * {key}: {value}")
 
     except Exception as e:
         handle_cli_error(e, "Benchmark", getattr(args, 'verbose', False))
@@ -122,7 +122,7 @@ def handle_performance_command(args):
 
         from empirica.components.empirical_performance_analyzer import EmpiricalPerformanceAnalyzer
 
-        print("⚡ Running performance analysis...")
+        print("[FAST] Running performance analysis...")
 
         analyzer = EmpiricalPerformanceAnalyzer()
 
@@ -138,9 +138,9 @@ def handle_performance_command(args):
             detailed=detailed
         )
 
-        print("✅ Performance analysis complete")
-        print(f"   🎯 Target: {target}")
-        print(f"   📊 Performance score: {result.get('performance_score', 0):.2f}")
+        print("[OK] Performance analysis complete")
+        print(f"   [TARGET] Target: {target}")
+        print(f"   [STATS] Performance score: {result.get('performance_score', 0):.2f}")
         print(f"   🏆 Grade: {result.get('performance_grade', 'unknown')}")
 
         # Show performance dimensions
@@ -161,27 +161,27 @@ def handle_performance_command(args):
 
         # Show optimization suggestions
         if result.get('optimizations'):
-            print("🚀 Optimization suggestions:")
+            print("[RUN] Optimization suggestions:")
             for opt in result['optimizations']:
                 impact = opt.get('impact', 'medium')
-                emoji = "⚡" if impact == 'high' else "📈" if impact == 'medium' else "📊"
+                emoji = "[FAST]" if impact == 'high' else "[UP]" if impact == 'medium' else "[STATS]"
                 print(f"   {emoji} {opt.get('suggestion', 'Unknown optimization')}")
                 if opt.get('effort'):
                     print(f"     Effort: {opt['effort']}")
 
         # Show detailed metrics if requested
         if detailed and result.get('detailed_metrics'):
-            print("🔍 Detailed performance metrics:")
+            print("[SEARCH] Detailed performance metrics:")
             for category, metrics in result['detailed_metrics'].items():
-                print(f"   📂 {category}:")
+                print(f"   [DIR] {category}:")
                 for metric, value in metrics.items():
-                    print(f"     • {metric}: {value}")
+                    print(f"     * {metric}: {value}")
 
         # Show historical comparison if available
         if result.get('historical_comparison'):
             hist = result['historical_comparison']
-            trend = "📈" if hist.get('trend') == 'improving' else "📉" if hist.get('trend') == 'declining' else "➡️"
-            print(f"📊 Historical trend: {trend} {hist.get('trend', 'stable')}")
+            trend = "[UP]" if hist.get('trend') == 'improving' else "[DOWN]" if hist.get('trend') == 'declining' else "->️"
+            print(f"[STATS] Historical trend: {trend} {hist.get('trend', 'stable')}")
             if hist.get('change_percentage'):
                 print(f"   Change: {hist['change_percentage']:+.1f}%")
 

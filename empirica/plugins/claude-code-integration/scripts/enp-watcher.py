@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ENP Watcher v0 — Git folder change detector.
+ENP Watcher v0 -- Git folder change detector.
 
 Polls configured repos, detects changes in watched paths,
 writes pending notifications for Claude to surface.
@@ -55,7 +55,7 @@ def push_notify(config: dict, notifications: list):
         if messages:
             body_parts.append(messages[0])
         body_parts.append(f'{len(files)} file(s) changed')
-        body = ' — '.join(body_parts)
+        body = ' -- '.join(body_parts)
 
         for topic in topics:
             try:
@@ -70,16 +70,16 @@ def push_notify(config: dict, notifications: list):
                     },
                     method='POST'
                 )
-                urllib.request.urlopen(req, timeout=10)
-                log(f'PUSH: sent to {topic} — {title}')
+                urllib.request.urlopen(req, timeout=10, encoding='utf-8')
+                log(f'PUSH: sent to {topic} -- {title}')
             except Exception as e:
-                log(f'PUSH: failed ({topic}) — {e}')
+                log(f'PUSH: failed ({topic}) -- {e}')
 
 
 def log(msg: str):
     """Append to log file."""
     ts = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-    with open(LOG_PATH, 'a') as f:
+    with open(LOG_PATH, 'a', encoding='utf-8') as f:
         f.write(f'{ts} {msg}\n')
 
 
@@ -268,7 +268,7 @@ def main():
         print(f'ENP: {len(unacked)} pending notification(s)')
     if new_notifications:
         for n in new_notifications:
-            print(f'  NEW: {n["label"]} — {len(n["files"])} files from {", ".join(n["authors"])}')
+            print(f'  NEW: {n["label"]} -- {len(n["files"])} files from {", ".join(n["authors"])}')
 
 
 if __name__ == '__main__':

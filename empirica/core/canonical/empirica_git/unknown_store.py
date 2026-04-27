@@ -150,7 +150,7 @@ class GitUnknownStore:
                 check=True
             )
 
-            logger.info(f"✓ Stored unknown {unknown_id[:8]} in git notes")
+            logger.info(f"[OK] Stored unknown {unknown_id[:8]} in git notes")
             return True
 
         except Exception as e:

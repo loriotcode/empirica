@@ -16,7 +16,7 @@ from empirica.core.qdrant.connection import (
 
 def upsert_epistemics(project_id: str, items: list[dict]) -> int:
     """
-    Store epistemic learning trajectories (PREFLIGHT → POSTFLIGHT deltas).
+    Store epistemic learning trajectories (PREFLIGHT -> POSTFLIGHT deltas).
     Returns number of items upserted, or 0 if Qdrant not available.
     """
     if not _check_qdrant_available():

@@ -158,7 +158,7 @@ class GitGoalStore:
                 check=True
             )
 
-            logger.info(f"✓ Stored goal {goal_id[:8]} in git notes (ai={ai_id})")
+            logger.info(f"[OK] Stored goal {goal_id[:8]} in git notes (ai={ai_id})")
             return True
 
         except Exception as e:

@@ -163,7 +163,7 @@ def _link_goal_to_beads(args, config_data, goal, objective,
         beads = BeadsAdapter()
         if not beads.is_available():
             msg = (
-                "⚠️  BEADS integration requested but 'bd' CLI not found.\n\n"
+                "[WARN]  BEADS integration requested but 'bd' CLI not found.\n\n"
                 "To use BEADS: pip install beads-project && bd init\n"
                 "Or omit --use-beads to create goal without issue tracking."
             )
@@ -209,7 +209,7 @@ def _parse_goal_config(args):
             if not os.path.exists(args.config):
                 print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
                 sys.exit(1)
-            with open(args.config) as f:
+            with open(args.config, encoding='utf-8') as f:
                 config_data = parse_json_safely(f.read())
 
     if config_data:
@@ -270,9 +270,9 @@ def _parse_legacy_success_criteria(args):
     success_criteria_list = []
     if hasattr(args, 'success_criteria_file') and args.success_criteria_file:
         if not os.path.exists(args.success_criteria_file):
-            print(f"❌ Error: File not found: {args.success_criteria_file}", file=sys.stderr)
+            print(f"[FAIL] Error: File not found: {args.success_criteria_file}", file=sys.stderr)
             sys.exit(1)
-        with open(args.success_criteria_file) as f:
+        with open(args.success_criteria_file, encoding='utf-8') as f:
             success_criteria_list = parse_json_safely(f.read())
     elif hasattr(args, 'success_criteria') and args.success_criteria:
         if args.success_criteria == '-':
@@ -326,7 +326,7 @@ def _check_goal_duplicates(objective, session_id, output_format, args, config_da
                     "objective": objective
                 }))
             else:
-                print("⚠️  Similar goal(s) found:")
+                print("[WARN]  Similar goal(s) found:")
                 for sg in similar_goals:
                     print(f"   - {sg['objective'][:60]}... (score: {sg.get('score', 'N/A')})")
                 print("\n   Use --force to create anyway")
@@ -496,10 +496,10 @@ def _format_goal_output(output_format, result, objective, scope, estimated_compl
     if output_format == 'json':
         print(json.dumps(result, indent=2))
         if result['ok'] and not beads_issue_id and not use_beads:
-            print("\n💡 Tip: Add --use-beads flag to track this goal in BEADS issue tracker", file=sys.stderr)
+            print("\n[HINT] Tip: Add --use-beads flag to track this goal in BEADS issue tracker", file=sys.stderr)
     else:
         if result['ok']:
-            print("✅ Goal created successfully")
+            print("[OK] Goal created successfully")
             print(f"   Goal ID: {result['goal_id']}")
             print(f"   Objective: {objective[:80]}..." if len(objective) > 80 else f"   Objective: {objective}")
             print(f"   Scope: breadth={scope.breadth}, duration={scope.duration}, coordination={scope.coordination}")
@@ -508,9 +508,9 @@ def _format_goal_output(output_format, result, objective, scope, estimated_compl
             if beads_issue_id:
                 print(f"   BEADS Issue: {beads_issue_id}")
             elif not use_beads:
-                print("\n💡 Tip: Add --use-beads flag to track goals in BEADS issue tracker")
+                print("\n[HINT] Tip: Add --use-beads flag to track goals in BEADS issue tracker")
         else:
-            print(f"❌ {result.get('message', 'Failed to create goal')}")
+            print(f"[FAIL] {result.get('message', 'Failed to create goal')}")
 
 
 def handle_goals_create_command(args):
@@ -617,7 +617,7 @@ def handle_goals_add_subtask_command(args):
             if hasattr(args, 'output') and args.output == 'json':
                 print(json.dumps(result))
             else:
-                print(f"❌ Goal not found: {goal_id}")
+                print(f"[FAIL] Goal not found: {goal_id}")
             return result
         resolved_goal_id = goal.id
         goal_repo.close()
@@ -760,7 +760,7 @@ def handle_goals_add_subtask_command(args):
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print("✅ Subtask added successfully")
+            print("[OK] Subtask added successfully")
             print(f"   Task ID: {result['task_id']}")
             print(f"   Goal: {goal_id[:8]}...")
             print(f"   Description: {description[:80]}...")
@@ -902,10 +902,10 @@ def handle_goals_complete_subtask_command(args):
         if hasattr(args, 'subtask_id') and args.subtask_id:
             task_id = args.subtask_id
             if hasattr(args, 'task_id') and args.task_id and args.task_id != args.subtask_id:
-                print("⚠️  Warning: Both --subtask-id and --task-id provided. Using --subtask-id.", file=sys.stderr)
+                print("[WARN]  Warning: Both --subtask-id and --task-id provided. Using --subtask-id.", file=sys.stderr)
         elif hasattr(args, 'task_id') and args.task_id:
             task_id = args.task_id
-            print("ℹ️  Note: --task-id is deprecated. Please use --subtask-id instead.", file=sys.stderr)
+            print("[INFO]  Note: --task-id is deprecated. Please use --subtask-id instead.", file=sys.stderr)
         else:
             print(json.dumps({
                 "ok": False,
@@ -942,7 +942,7 @@ def handle_goals_complete_subtask_command(args):
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print("✅ Subtask marked as complete")
+            print("[OK] Subtask marked as complete")
             print(f"   Task ID: {task_id}")
             if evidence:
                 print(f"   Evidence: {evidence[:80]}...")
@@ -1002,13 +1002,13 @@ def handle_goals_progress_command(args):
             print(json.dumps(result, indent=2))
         else:
             if result.get('ok'):
-                print("✅ Goal progress retrieved")
+                print("[OK] Goal progress retrieved")
                 print(f"   Goal: {goal_id[:8]}...")
                 print(f"   Completion: {result['completion_percentage']:.1f}%")
                 print(f"   Progress: {result['completed_subtasks']}/{result['total_subtasks']} subtasks")
                 print(f"   Remaining: {result['remaining_subtasks']} subtasks")
             else:
-                print(f"❌ {result.get('message', 'Error retrieving goal progress')}")
+                print(f"[FAIL] {result.get('message', 'Error retrieving goal progress')}")
                 print(f"   Goal ID: {goal_id}")
 
         goal_repo.close()
@@ -1031,7 +1031,7 @@ def _handle_goals_list_command_helper(cursor, project_id, session_id):
             if row and row[0]:
                 project_id = row[0]
 
-        # Priority 2: From unified context resolver (transaction → active_work)
+        # Priority 2: From unified context resolver (transaction -> active_work)
         if not project_id:
             try:
                 context = R.context()
@@ -1161,7 +1161,7 @@ def handle_goals_list_command(args):
         else:
             # Human format - print here and return None so CLI core doesn't double-print
             print(f"{'=' * 70}")
-            print(f"🎯 GOALS ({status_desc.upper()}) - {len(goals)} found [{filter_desc}]")
+            print(f"[TARGET] GOALS ({status_desc.upper()}) - {len(goals)} found [{filter_desc}]")
             print(f"{'=' * 70}")
             print()
 
@@ -1169,7 +1169,7 @@ def handle_goals_list_command(args):
                 print("   (No goals found)")
             else:
                 for i, g in enumerate(goals, 1):
-                    status_emoji = "✅" if g['is_completed'] else ("🔄" if g['progress'] != "0/0" else "⏳")
+                    status_emoji = "[OK]" if g['is_completed'] else ("[LOAD]" if g['progress'] != "0/0" else "⏳")
                     print(f"{status_emoji} {i}. {g['objective'][:65]}")
                     ai_info = f" | AI: {g['ai_id']}" if g['ai_id'] else ""
                     print(f"   ID: {g['goal_id'][:8]}... | Progress: {g['progress']} ({g['progress_pct']:.0f}%){ai_info}")
@@ -1247,11 +1247,11 @@ def handle_goals_get_subtasks_command(args):
             print(json.dumps(result, indent=2))
         else:
             if result.get('ok'):
-                print(f"✅ Found {result['subtasks_count']} subtask(s) for goal {goal_id[:8]}...")
+                print(f"[OK] Found {result['subtasks_count']} subtask(s) for goal {goal_id[:8]}...")
                 print(f"   Progress: {result['completed_count']}/{result['subtasks_count']} completed")
                 print()
                 for i, task in enumerate(result['subtasks'], 1):
-                    status_icon = "✅" if task['status'] == "completed" else "⏳"
+                    status_icon = "[OK]" if task['status'] == "completed" else "⏳"
                     print(f"{status_icon} {i}. {task['description']}")
                     print(f"   Status: {task['status']} | Importance: {task.get('importance', 'medium')}")
                     print(f"   Task ID: {task['task_id'][:8]}...")
@@ -1262,7 +1262,7 @@ def handle_goals_get_subtasks_command(args):
                     if task.get('dead_ends'):
                         print(f"   Dead ends: {len(task['dead_ends'])} avoided")
             else:
-                print(f"❌ {result.get('message', 'Error retrieving subtasks')}")
+                print(f"[FAIL] {result.get('message', 'Error retrieving subtasks')}")
 
         task_repo.close()
         # Return None to avoid exit code issues and duplicate output
@@ -1367,7 +1367,7 @@ def handle_sessions_resume_command(args):
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"✅ Found {len(sessions)} session(s):")
+            print(f"[OK] Found {len(sessions)} session(s):")
             for i, session in enumerate(sessions, 1):
                 print(f"\n{i}. {session['session_id']}")
                 print(f"   AI: {session['ai_id']}")
@@ -1431,7 +1431,7 @@ def handle_goals_search_command(args):
         if sync_first:
             synced = sync_goals_to_qdrant(project_id)
             if output != 'json':
-                print(f"📦 Synced {synced} goals/subtasks to Qdrant")
+                print(f"[PKG] Synced {synced} goals/subtasks to Qdrant")
 
         # Perform semantic search
         results = search_goals(
@@ -1454,15 +1454,15 @@ def handle_goals_search_command(args):
             }, indent=2))
         else:
             if not results:
-                print(f"\n🔍 No goals found for: \"{query}\"")
+                print(f"\n[SEARCH] No goals found for: \"{query}\"")
                 print(f"   Project: {project_id[:8]}...")
-                print("\n💡 Tips:")
+                print("\n[HINT] Tips:")
                 print("   - Run with --sync to sync SQLite goals to Qdrant first")
                 print("   - Try a different query")
                 print("   - Check Qdrant is running (EMPIRICA_QDRANT_URL)")
                 return 0
 
-            print(f"\n🔍 Found {len(results)} result(s) for: \"{query}\"")
+            print(f"\n[SEARCH] Found {len(results)} result(s) for: \"{query}\"")
             print(f"   Project: {project_id[:8]}...\n")
 
             for i, r in enumerate(results, 1):
@@ -1472,12 +1472,12 @@ def handle_goals_search_command(args):
 
                 # Status icon
                 if is_completed:
-                    status_icon = "✅"
+                    status_icon = "[OK]"
                 else:
                     status_icon = "⏳"
 
                 # Type badge
-                type_badge = "📋" if item_type == 'goal' else "📝"
+                type_badge = "📋" if item_type == 'goal' else "[NOTE]"
 
                 if item_type == 'goal':
                     objective = r.get('objective', 'No objective')
@@ -1539,11 +1539,11 @@ def handle_goals_mark_stale_command(args):
             }))
         else:
             if count > 0:
-                print(f"✅ Marked {count} in_progress goal(s) as stale")
+                print(f"[OK] Marked {count} in_progress goal(s) as stale")
                 print(f"   Reason: {reason}")
                 print(f"   Session: {session_id[:8]}...")
             else:
-                print(f"ℹ️  No in_progress goals to mark stale for session {session_id[:8]}...")
+                print(f"[INFO]  No in_progress goals to mark stale for session {session_id[:8]}...")
 
         return 0
 
@@ -1584,7 +1584,7 @@ def handle_goals_get_stale_command(args):
             }))
         else:
             if stale_goals:
-                print(f"⚠️  Found {len(stale_goals)} stale goal(s) needing re-evaluation:\n")
+                print(f"[WARN]  Found {len(stale_goals)} stale goal(s) needing re-evaluation:\n")
                 for g in stale_goals:
                     print(f"  📋 {g['objective'][:60]}...")
                     print(f"     ID: {g['goal_id'][:8]}...")
@@ -1592,7 +1592,7 @@ def handle_goals_get_stale_command(args):
                         print(f"     Reason: {g['stale_reason']}")
                     print()
             else:
-                print("✅ No stale goals found")
+                print("[OK] No stale goals found")
 
         return 0
 
@@ -1601,7 +1601,7 @@ def handle_goals_get_stale_command(args):
 
 
 def handle_goals_activate_command(args):
-    """Handle goals-activate command — transition a planned goal to in_progress.
+    """Handle goals-activate command -- transition a planned goal to in_progress.
 
     Links the goal to the current transaction so the Sentinel can track it.
     """
@@ -1630,12 +1630,12 @@ def handle_goals_activate_command(args):
                 "goal_id": goal_id,
                 "status": "in_progress",
                 "transaction_id": transaction_id,
-                "message": f"Goal {goal_id[:8]} activated — now in_progress and linked to current transaction"
+                "message": f"Goal {goal_id[:8]} activated -- now in_progress and linked to current transaction"
             }
             if output_format == 'json':
                 print(json.dumps(result))
             else:
-                print(f"✅ Activated goal: {goal_id[:8]}")
+                print(f"[OK] Activated goal: {goal_id[:8]}")
                 if transaction_id:
                     print(f"   Linked to transaction: {transaction_id[:8]}")
         else:
@@ -1684,9 +1684,9 @@ def handle_goals_refresh_command(args):
             }))
         else:
             if refreshed:
-                print(f"✅ Goal {goal_id[:8]}... refreshed to in_progress")
+                print(f"[OK] Goal {goal_id[:8]}... refreshed to in_progress")
             else:
-                print(f"❌ Goal {goal_id[:8]}... not found or not stale")
+                print(f"[FAIL] Goal {goal_id[:8]}... not found or not stale")
 
         return 0
 
@@ -1842,7 +1842,7 @@ def handle_goals_ready_command(args):
                 if output_format == 'json':
                     print(json.dumps(result, indent=2))
                 else:
-                    print("❌ No active session found")
+                    print("[FAIL] No active session found")
                     print("   Hint: Create a session: empirica session-create --ai-id <YOUR_AI_ID>")
                 db.close()
                 return 0
@@ -1861,7 +1861,7 @@ def handle_goals_ready_command(args):
             if output_format == 'json':
                 print(json.dumps(result, indent=2))
             else:
-                print("❌ BEADS not available")
+                print("[FAIL] BEADS not available")
                 print("   Hint: Install bd CLI: curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash")
 
             db.close()
@@ -1918,7 +1918,7 @@ def handle_goals_ready_command(args):
 
             if epistemically_ready_work:
                 for item in epistemically_ready_work:
-                    print(f"✅ {item['beads_issue_id']}: {item['objective']}")
+                    print(f"[OK] {item['beads_issue_id']}: {item['objective']}")
                     print(f"   Priority: {item['priority']}, Confidence: {item['last_check_confidence']:.2f}, Uncertainty: {item['preflight_uncertainty']:.2f}")
                     print(f"   Why ready: {item['why_ready']}")
                     print()
@@ -2024,7 +2024,7 @@ def handle_goals_claim_command(args):
                 "ok": False,
                 "error": f"Goal not found: {goal_id}"
             }
-            print(json.dumps(result) if output_format == 'json' else f"❌ {result['error']}")
+            print(json.dumps(result) if output_format == 'json' else f"[FAIL] {result['error']}")
             sys.exit(1)
 
         # Get session_id from the database (not stored in the Goal object itself)
@@ -2039,7 +2039,7 @@ def handle_goals_claim_command(args):
                 "ok": False,
                 "error": f"Goal session not found in database: {goal_id}"
             }
-            print(json.dumps(result) if output_format == 'json' else f"❌ {result['error']}")
+            print(json.dumps(result) if output_format == 'json' else f"[FAIL] {result['error']}")
             db.close()
             sys.exit(1)
         session_id = row[0]
@@ -2120,16 +2120,16 @@ def handle_goals_claim_command(args):
         if output_format == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"✅ Claimed goal: {goal_id[:8]}")
+            print(f"[OK] Claimed goal: {goal_id[:8]}")
             if beads_issue_id and result.get("beads_status_updated"):
-                print("✅ Updated BEADS status: in_progress")
+                print("[OK] Updated BEADS status: in_progress")
             if result.get("branch_created"):
-                print(f"✅ {'Created' if result['branch_action'] == 'created_new' else 'Checked out'} branch: {result['branch_name']}")
+                print(f"[OK] {'Created' if result['branch_action'] == 'created_new' else 'Checked out'} branch: {result['branch_name']}")
             if result.get("branch_mapping_saved"):
-                print("✅ Branch mapping saved")
+                print("[OK] Branch mapping saved")
             if result.get("preflight_started"):
-                print("🧠 Running PREFLIGHT...")
-            print("✅ Ready to start work!")
+                print("[THINK] Running PREFLIGHT...")
+            print("[OK] Ready to start work!")
 
     except Exception as e:
         handle_cli_error(e, "goals-claim", getattr(args, 'output', 'json'))
@@ -2157,7 +2157,7 @@ def _gc_resolve_goal(goal_id, output_format):
                 "ok": False,
                 "error": f"Goal not found: {goal_id}"
             }
-            print(json.dumps(result) if output_format == 'json' else f"❌ {result['error']}")
+            print(json.dumps(result) if output_format == 'json' else f"[FAIL] {result['error']}")
             sys.exit(1)
         elif len(matches) > 1:
             match_ids = [m['id'][:12] for m in matches]
@@ -2170,7 +2170,7 @@ def _gc_resolve_goal(goal_id, output_format):
             if output_format == 'json':
                 print(json.dumps(result))
             else:
-                print(f"❌ Ambiguous prefix '{goal_id}' matches {len(matches)} goals:")
+                print(f"[FAIL] Ambiguous prefix '{goal_id}' matches {len(matches)} goals:")
                 for mid in match_ids:
                     print(f"   - {mid}...")
             sys.exit(1)
@@ -2359,20 +2359,20 @@ def _gc_create_handoff(goal, result):
 
 def _gc_print_human_output(result, goal_id, beads_issue_id, branch_name):
     """Print human-readable output for goals-complete."""
-    print(f"✅ Completed goal: {goal_id[:8]}")
+    print(f"[OK] Completed goal: {goal_id[:8]}")
     if result.get("postflight_started"):
-        print("🧠 POSTFLIGHT completed")
+        print("[THINK] POSTFLIGHT completed")
     if result.get("beads_issue_closed"):
-        print(f"✅ Closed BEADS issue: {beads_issue_id}")
+        print(f"[OK] Closed BEADS issue: {beads_issue_id}")
     if result.get("branch_merged"):
-        print(f"✅ Merged branch: {branch_name}")
+        print(f"[OK] Merged branch: {branch_name}")
         if result.get("branch_deleted"):
-            print(f"✅ Deleted branch: {branch_name}")
+            print(f"[OK] Deleted branch: {branch_name}")
     if result.get("branch_mapping_removed"):
-        print("✅ Branch mapping archived")
+        print("[OK] Branch mapping archived")
     if result.get("handoff_created"):
-        print("✅ Handoff report created")
-    print("✅ Goal complete!")
+        print("[OK] Handoff report created")
+    print("[OK] Goal complete!")
 
 
 def handle_goals_complete_command(args):
@@ -2454,15 +2454,15 @@ def handle_goals_discover_command(args):
             print(json.dumps(result, indent=2))
         else:
             if not goals:
-                print("🔍 No goals found")
+                print("[SEARCH] No goals found")
                 if from_ai_id:
                     print(f"   Searched for goals from: {from_ai_id}")
                 if session_id:
                     print(f"   Searched in session: {session_id}")
-                print("\n💡 Tip: Goals are stored in git notes when created")
+                print("\n[HINT] Tip: Goals are stored in git notes when created")
                 print("   Make sure you've run 'git fetch' to get latest goals")
             else:
-                print(f"🔍 Discovered {len(goals)} goal(s):\n")
+                print(f"[SEARCH] Discovered {len(goals)} goal(s):\n")
                 for i, goal_data in enumerate(goals, 1):
                     print(f"{i}. Goal ID: {goal_data['goal_id'][:8]}...")
                     print(f"   Created by: {goal_data['ai_id']}")
@@ -2474,11 +2474,11 @@ def handle_goals_discover_command(args):
                     if 'lineage' in goal_data and len(goal_data['lineage']) > 1:
                         print(f"   Lineage: {len(goal_data['lineage'])} action(s)")
                         for entry in goal_data['lineage']:
-                            print(f"     • {entry['ai_id']} - {entry['action']} at {entry['timestamp'][:10]}")
+                            print(f"     * {entry['ai_id']} - {entry['action']} at {entry['timestamp'][:10]}")
 
                     print()
 
-                print("💡 To resume a goal, use:")
+                print("[HINT] To resume a goal, use:")
                 print("   empirica goals-resume <goal-id> --ai-id <your-ai-id>")
 
         return result
@@ -2511,8 +2511,8 @@ def handle_goals_resume_command(args):
             if hasattr(args, 'output') and args.output == 'json':
                 print(json.dumps(result, indent=2))
             else:
-                print(f"❌ Goal {goal_id[:8]}... not found")
-                print("\n💡 Try:")
+                print(f"[FAIL] Goal {goal_id[:8]}... not found")
+                print("\n[HINT] Try:")
                 print("   1. empirica goals-discover --from-ai-id <other-ai>")
                 print("   2. git fetch  # Pull latest goals from remote")
 
@@ -2535,7 +2535,7 @@ def handle_goals_resume_command(args):
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print("✅ Goal resumed successfully")
+            print("[OK] Goal resumed successfully")
             print(f"   Goal ID: {goal_id[:8]}...")
             print(f"   Original AI: {goal_data['ai_id']}")
             print(f"   Resuming as: {ai_id}")
@@ -2544,12 +2544,12 @@ def handle_goals_resume_command(args):
             # Show epistemic handoff
             epistemic_state = goal_data.get('epistemic_state', {})
             if epistemic_state:
-                print(f"\n📊 Epistemic State from {goal_data['ai_id']}:")
+                print(f"\n[STATS] Epistemic State from {goal_data['ai_id']}:")
                 for key, value in epistemic_state.items():
                     if isinstance(value, (int, float)):
-                        print(f"   • {key.upper()}: {value:.2f}")
+                        print(f"   * {key.upper()}: {value:.2f}")
 
-            print("\n💡 Next steps:")
+            print("\n[HINT] Next steps:")
             print("   1. Review original AI's epistemic state")
             print(f"   2. Run your own preflight: empirica preflight \"<task>\" --ai-id {ai_id}")
             print("   3. Compare your vectors with original AI's")

@@ -143,16 +143,16 @@ def handle_issue_list_command(args):
             print(f"{'='*80}\n")
 
             if not issues:
-                print("✅ No issues found")
+                print("[OK] No issues found")
                 return 0
 
             for issue in issues:
                 severity_emoji = {
                     "blocker": "🚫",
-                    "high": "⚠️",
-                    "medium": "⚠️",
-                    "low": "ℹ️"
-                }.get(issue['severity'], "❓")
+                    "high": "[WARN]",
+                    "medium": "[WARN]",
+                    "low": "[INFO]"
+                }.get(issue['severity'], "[?]")
 
                 print(f"{severity_emoji} {issue['severity'].upper()} - {issue['category']}")
                 print(f"   {issue['message'][:100]}")
@@ -222,7 +222,7 @@ def handle_issue_show_command(args):
         else:
             # Human-readable
             print(f"\n{'='*80}")
-            print(f"📌 ISSUE: {issue['id']}")
+            print(f"[PIN] ISSUE: {issue['id']}")
             print(f"{'='*80}\n")
 
             print(f"Severity: {issue['severity'].upper()}")
@@ -430,7 +430,7 @@ def handle_issue_stats_command(args):
             print(json.dumps(result))
         else:
             print(f"\n{'='*80}")
-            print("📊 ISSUE CAPTURE STATISTICS")
+            print("[STATS] ISSUE CAPTURE STATISTICS")
             print(f"{'='*80}\n")
 
             for key, value in stats.items():

@@ -332,7 +332,7 @@ class Lesson:
     tags: list[str] = field(default_factory=list)
     domain: str | None = None         # e.g., 'browser-automation', 'git', 'api'
 
-    # ── Composable epistemic patterns (migration 037) ──
+    # -- Composable epistemic patterns (migration 037) --
 
     # Abstraction and sharing
     abstraction_level: Literal['personal', 'project', 'domain', 'cross_org'] = 'personal'

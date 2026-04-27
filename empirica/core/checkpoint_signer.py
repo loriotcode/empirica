@@ -5,7 +5,7 @@ Integrates cryptographic signing with git checkpoint system.
 Signs git note SHAs to provide tamper-proof verification of epistemic state.
 
 Architecture:
-- Checkpoint created → Git note SHA generated
+- Checkpoint created -> Git note SHA generated
 - SHA signed with AI identity (Ed25519)
 - Signature stored in parallel git notes namespace
 - Verification uses public key
@@ -174,7 +174,7 @@ class CheckpointSigner:
                     "message": result.stderr
                 }
 
-            logger.info(f"✅ Signed checkpoint: {checkpoint_ref} ({checkpoint_sha[:8]})")
+            logger.info(f"[OK] Signed checkpoint: {checkpoint_ref} ({checkpoint_sha[:8]})")
 
             return {
                 "ok": True,
@@ -339,9 +339,9 @@ class CheckpointSigner:
             }
 
             if is_valid:
-                logger.info(f"✅ Valid signature for {checkpoint_ref} by {signed_by}")
+                logger.info(f"[OK] Valid signature for {checkpoint_ref} by {signed_by}")
             else:
-                logger.warning(f"❌ Invalid signature for {checkpoint_ref}")
+                logger.warning(f"[FAIL] Invalid signature for {checkpoint_ref}")
 
             return result
 

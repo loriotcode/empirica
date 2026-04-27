@@ -1,7 +1,7 @@
-"""CISA Known Exploited Vulnerabilities (KEV) feed — download, cache, lookup.
+"""CISA Known Exploited Vulnerabilities (KEV) feed -- download, cache, lookup.
 
 The KEV catalog is the actively-exploited subset of CVEs. A CVE in KEV means
-real-world exploitation has been observed — much higher signal than CVE alone.
+real-world exploitation has been observed -- much higher signal than CVE alone.
 
 Free public JSON feed at:
     https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json
@@ -63,7 +63,7 @@ class KEVFeed:
 
         try:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
-            with urllib.request.urlopen(self.url, timeout=30) as response:
+            with urllib.request.urlopen(self.url, timeout=30, encoding='utf-8') as response:
                 payload = response.read().decode("utf-8")
             data = json.loads(payload)
             tmp_path = self.cache_path.with_suffix(".json.tmp")
@@ -79,7 +79,7 @@ class KEVFeed:
         except (urllib.error.URLError, OSError, json.JSONDecodeError) as exc:
             if self.cache_path.exists():
                 logger.warning(
-                    "KEV refresh failed (%s) — using stale cache from %s",
+                    "KEV refresh failed (%s) -- using stale cache from %s",
                     exc,
                     time.strftime("%Y-%m-%d", time.localtime(self.cache_path.stat().st_mtime)),
                 )
@@ -90,7 +90,7 @@ class KEVFeed:
         return json.loads(self.cache_path.read_text())
 
     def _build_index(self) -> dict[str, dict[str, Any]]:
-        """Build CVE-ID → entry map from the catalog."""
+        """Build CVE-ID -> entry map from the catalog."""
         data = self._read_cache() if self.cache_path.exists() else self.refresh()
         return {entry["cveID"]: entry for entry in data.get("vulnerabilities", []) if "cveID" in entry}
 

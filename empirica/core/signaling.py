@@ -15,20 +15,20 @@ from enum import Enum
 class DriftLevel(Enum):
     """Traffic Light calibration levels for drift detection."""
     CRYSTALLINE = "crystalline"  # 🔵 Delta < 0.1 - Ground truth
-    SOLID = "solid"              # 🟢 0.1 ≤ Delta < 0.2 - Working knowledge
-    EMERGENT = "emergent"        # 🟡 0.2 ≤ Delta < 0.3 - Forming understanding
-    FLICKER = "flicker"          # 🔴 0.3 ≤ Delta < 0.4 - Active uncertainty
-    VOID = "void"                # ⚪ Delta ≥ 0.4 - Unknown territory
+    SOLID = "solid"              # 🟢 0.1 <= Delta < 0.2 - Working knowledge
+    EMERGENT = "emergent"        # 🟡 0.2 <= Delta < 0.3 - Forming understanding
+    FLICKER = "flicker"          # 🔴 0.3 <= Delta < 0.4 - Active uncertainty
+    VOID = "void"                # ⚪ Delta >= 0.4 - Unknown territory
     UNKNOWN = "unknown"          # No data
 
 
 class SentinelAction(Enum):
     """Sentinel gate actions for critical drift thresholds."""
     NONE = None
-    REVISE = "REVISE"    # 🔄 0.3+ drift - reassess
+    REVISE = "REVISE"    # [LOAD] 0.3+ drift - reassess
     BRANCH = "BRANCH"    # 🔱 0.4+ drift - consider branching
     HALT = "HALT"        # ⛔ 0.5+ drift - stop and review
-    LOCK = "LOCK"        # 🔒 Dangerous pattern (know↓ + uncertainty↑)
+    LOCK = "LOCK"        # [LOCK] Dangerous pattern (knowv + uncertainty^)
 
 
 class CognitivePhase(Enum):
@@ -39,9 +39,9 @@ class CognitivePhase(Enum):
     THRESHOLD: Ready but not yet acting - at the CHECK gate
     PRAXIC: Action/implementation mode - low uncertainty, executing with confidence
     """
-    NOETIC = "NOETIC"        # ⊙ Investigating - know↓ or uncertainty↑
+    NOETIC = "NOETIC"        # ⊙ Investigating - knowv or uncertainty^
     THRESHOLD = "THRESHOLD"  # ◐ At gate - ready but not acting
-    PRAXIC = "PRAXIC"        # ⚡ Executing - know↑ and uncertainty↓
+    PRAXIC = "PRAXIC"        # [FAST] Executing - know^ and uncertaintyv
 
 
 class VectorHealth(Enum):
@@ -51,7 +51,7 @@ class VectorHealth(Enum):
     MODERATE = "moderate"  # 🌓 Vector in middle range
     WEAK = "weak"        # 🌘 Vector low but not critical
     CRITICAL = "critical"  # 🔴 Vector in problematic range
-    VOID = "void"        # 🌑 No data
+    VOID = "void"        # - No data
 
 
 @dataclass
@@ -66,19 +66,19 @@ class VectorConfig:
 
 # Vector configuration - single source of truth
 VECTOR_CONFIGS: dict[str, VectorConfig] = {
-    'know': VectorConfig('🧠', 'Knowledge', 0.7, 0.4, inverted=False),
-    'uncertainty': VectorConfig('🎯', 'Certainty', 0.3, 0.6, inverted=True),
+    'know': VectorConfig('[THINK]', 'Knowledge', 0.7, 0.4, inverted=False),
+    'uncertainty': VectorConfig('[TARGET]', 'Certainty', 0.3, 0.6, inverted=True),
     'context': VectorConfig('📍', 'Context', 0.6, 0.4, inverted=False),
-    'clarity': VectorConfig('💡', 'Clarity', 0.7, 0.5, inverted=False),
-    'completion': VectorConfig('✅', 'Progress', 0.8, 0.5, inverted=False),
-    'engagement': VectorConfig('⚡', 'Engagement', 0.7, 0.4, inverted=False),
+    'clarity': VectorConfig('[HINT]', 'Clarity', 0.7, 0.5, inverted=False),
+    'completion': VectorConfig('[OK]', 'Progress', 0.8, 0.5, inverted=False),
+    'engagement': VectorConfig('[FAST]', 'Engagement', 0.7, 0.4, inverted=False),
     'impact': VectorConfig('💥', 'Impact', 0.6, 0.3, inverted=False),
-    'coherence': VectorConfig('🔗', 'Coherence', 0.7, 0.5, inverted=False),
+    'coherence': VectorConfig('[LINK]', 'Coherence', 0.7, 0.5, inverted=False),
     'signal': VectorConfig('📡', 'Signal', 0.6, 0.4, inverted=False),
-    'density': VectorConfig('📊', 'Density', 0.7, 0.5, inverted=False),
+    'density': VectorConfig('[STATS]', 'Density', 0.7, 0.5, inverted=False),
     'do': VectorConfig('🎬', 'Action', 0.6, 0.4, inverted=False),
-    'state': VectorConfig('🔄', 'State', 0.6, 0.4, inverted=False),
-    'change': VectorConfig('📈', 'Change', 0.5, 0.3, inverted=False),
+    'state': VectorConfig('[LOAD]', 'State', 0.6, 0.4, inverted=False),
+    'change': VectorConfig('[UP]', 'Change', 0.5, 0.3, inverted=False),
 }
 
 # Health state emojis - moon phases for transitional states
@@ -88,7 +88,7 @@ HEALTH_EMOJIS = {
     VectorHealth.MODERATE: '🌓',  # Middle range
     VectorHealth.WEAK: '🌘',      # Low but not critical
     VectorHealth.CRITICAL: '🔴',  # Problematic
-    VectorHealth.VOID: '🌑',      # No data
+    VectorHealth.VOID: '-',      # No data
 }
 
 
@@ -97,12 +97,12 @@ def get_vector_health(vector_name: str, value: float | None) -> VectorHealth:
     Get health state for a vector value using moon phase scale.
 
     Scale (for normal vectors where higher is better):
-        🟢 GOOD:     ≥ good_threshold (optimal)
-        🌕 STRONG:   ≥ good - 0.1 (solid)
-        🌓 MODERATE: ≥ warning_threshold (middle)
-        🌘 WEAK:     ≥ warning - 0.15 (low)
+        🟢 GOOD:     >= good_threshold (optimal)
+        🌕 STRONG:   >= good - 0.1 (solid)
+        🌓 MODERATE: >= warning_threshold (middle)
+        🌘 WEAK:     >= warning - 0.15 (low)
         🔴 CRITICAL: < weak threshold (problematic)
-        🌑 VOID:     None (no data)
+        - VOID:     None (no data)
 
     For inverted vectors (uncertainty), thresholds are reversed.
 
@@ -123,7 +123,7 @@ def get_vector_health(vector_name: str, value: float | None) -> VectorHealth:
     if config.inverted:
         # Lower is better (e.g., uncertainty)
         # Thresholds: good=0.3, warning=0.6 means:
-        # ≤0.3 = GOOD, ≤0.4 = STRONG, ≤0.5 = MODERATE, ≤0.6 = WEAK, >0.6 = CRITICAL
+        # <=0.3 = GOOD, <=0.4 = STRONG, <=0.5 = MODERATE, <=0.6 = WEAK, >0.6 = CRITICAL
         if value <= config.good_threshold:
             return VectorHealth.GOOD
         elif value <= config.good_threshold + 0.1:
@@ -137,7 +137,7 @@ def get_vector_health(vector_name: str, value: float | None) -> VectorHealth:
     else:
         # Higher is better (e.g., know)
         # Thresholds: good=0.7, warning=0.4 means:
-        # ≥0.7 = GOOD, ≥0.6 = STRONG, ≥0.5 = MODERATE, ≥0.4 = WEAK, <0.4 = CRITICAL
+        # >=0.7 = GOOD, >=0.6 = STRONG, >=0.5 = MODERATE, >=0.4 = WEAK, <0.4 = CRITICAL
         if value >= config.good_threshold:
             return VectorHealth.GOOD
         elif value >= config.good_threshold - 0.1:
@@ -153,7 +153,7 @@ def get_vector_health(vector_name: str, value: float | None) -> VectorHealth:
 def get_vector_emoji(vector_name: str) -> str:
     """Get the emoji representing a vector type."""
     config = VECTOR_CONFIGS.get(vector_name)
-    return config.emoji if config else '❓'
+    return config.emoji if config else '[?]'
 
 
 def get_health_emoji(health: VectorHealth) -> str:
@@ -172,14 +172,14 @@ def format_vector_state(vector_name: str, value: float | None, show_value: bool 
         use_percentage: If True, show percentage instead of health emoji
 
     Returns:
-        Formatted string like "K:85%" or "🧠🟢" (legacy)
+        Formatted string like "K:85%" or "[THINK]🟢" (legacy)
     """
     if use_percentage:
         # New percentage format: K:85%
         abbrev = {
             'know': 'K', 'uncertainty': 'U', 'context': 'C', 'clarity': 'L',
-            'completion': '✓', 'engagement': 'E', 'impact': 'I', 'coherence': 'H',
-            'signal': 'S', 'density': 'D', 'do': 'A', 'state': 'T', 'change': 'Δ'
+            'completion': '[OK]', 'engagement': 'E', 'impact': 'I', 'coherence': 'H',
+            'signal': 'S', 'density': 'D', 'do': 'A', 'state': 'T', 'change': 'D'
         }
         key = abbrev.get(vector_name, vector_name[:1].upper())
         if value is not None:
@@ -215,7 +215,7 @@ def format_vectors_compact(
         use_percentage: If True, show percentages (new format)
 
     Returns:
-        Formatted string like "K:85% U:15% C:80%" or "🧠🟢 🎯🟢 📍🟡 💡🟢" (legacy)
+        Formatted string like "K:85% U:15% C:80%" or "[THINK]🟢 [TARGET]🟢 📍🟡 [HINT]🟢" (legacy)
     """
     if keys is None:
         keys = ['know', 'uncertainty', 'context', 'clarity']

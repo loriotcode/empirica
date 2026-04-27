@@ -40,9 +40,9 @@ def handle_identity_create_command(args):
             if hasattr(args, 'output') and args.output == 'json':
                 print(json.dumps(result, indent=2))
             else:
-                print(f"❌ Identity '{ai_id}' already exists")
+                print(f"[FAIL] Identity '{ai_id}' already exists")
                 print(f"   Key file: {result['key_file']}")
-                print(f"\n💡 To replace: empirica identity-create --ai-id {ai_id} --overwrite")
+                print(f"\n[HINT] To replace: empirica identity-create --ai-id {ai_id} --overwrite")
 
             # Return None to avoid exit code issues and duplicate output
             return None
@@ -64,17 +64,17 @@ def handle_identity_create_command(args):
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"✅ Identity created: {ai_id}")
-            print("\n🔑 Public Key:")
+            print(f"[OK] Identity created: {ai_id}")
+            print("\n[KEY] Public Key:")
             print(f"   {identity.public_key_hex()}")
-            print("\n📁 Files:")
+            print("\n[DIR] Files:")
             print(f"   Private key: {identity.keypair_path}")
             print(f"   Public key:  {identity.public_key_path}")
-            print("\n🔒 Security:")
-            print("   • Private key permissions: 0600 (owner read/write only)")
-            print("   • Keep private key secure!")
-            print("   • Share public key freely")
-            print("\n💡 Next steps:")
+            print("\n[LOCK] Security:")
+            print("   * Private key permissions: 0600 (owner read/write only)")
+            print("   * Keep private key secure!")
+            print("   * Share public key freely")
+            print("\n[HINT] Next steps:")
             print(f"   1. Sign assessments: empirica preflight \"task\" --ai-id {ai_id} --sign")
             print("   2. Verify sessions: empirica identity-verify <session-id>")
             print(f"   3. Share public key: empirica identity-export --ai-id {ai_id}")
@@ -107,11 +107,11 @@ def handle_identity_list_command(args):
             print(json.dumps(result, indent=2))
         else:
             if not identities:
-                print("🔍 No identities found")
-                print("\n💡 Create one with:")
+                print("[SEARCH] No identities found")
+                print("\n[HINT] Create one with:")
                 print("   empirica identity-create --ai-id <name>")
             else:
-                print(f"🔑 Found {len(identities)} identit{'y' if len(identities) == 1 else 'ies'}:\n")
+                print(f"[KEY] Found {len(identities)} identit{'y' if len(identities) == 1 else 'ies'}:\n")
 
                 for i, identity in enumerate(identities, 1):
                     print(f"{i}. {identity['ai_id']}")
@@ -119,15 +119,15 @@ def handle_identity_list_command(args):
                     print(f"   Key file: {identity['key_file']}")
 
                     if identity['has_public_key']:
-                        print("   Public key: ✓")
+                        print("   Public key: [OK]")
                     else:
-                        print("   Public key: ✗ (missing)")
+                        print("   Public key: [FAIL] (missing)")
 
                     print()
 
-                print("💡 Commands:")
-                print("   • Export public key: empirica identity-export --ai-id <name>")
-                print("   • Use for signing: empirica preflight \"task\" --ai-id <name> --sign")
+                print("[HINT] Commands:")
+                print("   * Export public key: empirica identity-export --ai-id <name>")
+                print("   * Use for signing: empirica preflight \"task\" --ai-id <name> --sign")
 
         # Return None to avoid exit code issues and duplicate output
         return None
@@ -169,10 +169,10 @@ def handle_identity_export_command(args):
                 for key, value in public_key_data['metadata'].items():
                     print(f"  {key}: {value}")
 
-            print("\n💡 Share this public key:")
-            print("   • Others can verify your signed assessments")
-            print("   • Public key is safe to distribute")
-            print("   • Never share your private key!")
+            print("\n[HINT] Share this public key:")
+            print("   * Others can verify your signed assessments")
+            print("   * Public key is safe to distribute")
+            print("   * Never share your private key!")
 
         # Return None to avoid exit code issues and duplicate output
         return None
@@ -187,8 +187,8 @@ def handle_identity_export_command(args):
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"❌ Identity '{ai_id}' not found")
-            print("\n💡 Create it first:")
+            print(f"[FAIL] Identity '{ai_id}' not found")
+            print("\n[HINT] Create it first:")
             print(f"   empirica identity-create --ai-id {ai_id}")
 
         # Return None to avoid exit code issues and duplicate output
@@ -221,7 +221,7 @@ def handle_identity_verify_command(args):
             if hasattr(args, 'output') and args.output == 'json':
                 print(json.dumps(result, indent=2))
             else:
-                print(f"❌ Session '{session_id}' not found")
+                print(f"[FAIL] Session '{session_id}' not found")
 
             # Return None to avoid exit code issues and duplicate output
             db.close()
@@ -239,13 +239,13 @@ def handle_identity_verify_command(args):
         if hasattr(args, 'output') and args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print("⚠️  Signature verification not yet implemented")
+            print("[WARN]  Signature verification not yet implemented")
             print(f"\n   Session: {session_id}")
             print("   Status: Exists in database")
-            print("\n💡 Coming soon:")
-            print("   • Store signatures in database")
-            print("   • Verify cryptographic integrity")
-            print("   • Check cascade trace hash")
+            print("\n[HINT] Coming soon:")
+            print("   * Store signatures in database")
+            print("   * Verify cryptographic integrity")
+            print("   * Check cascade trace hash")
 
         db.close()
         # Return None to avoid exit code issues and duplicate output

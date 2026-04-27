@@ -101,7 +101,7 @@ Data Quality Filtering (default):
         description="""
 Analyze AI calibration by comparing POSTFLIGHT self-assessment against objective evidence.
 
-Default: Shows grounded calibration (POSTFLIGHT → POST-TEST evidence comparison).
+Default: Shows grounded calibration (POSTFLIGHT -> POST-TEST evidence comparison).
 This is real calibration - measuring accuracy of self-assessment against reality.
 
 Evidence sources:
@@ -110,7 +110,7 @@ Evidence sources:
 - Artifact counts (findings, unknowns, dead-ends)
 - Goal/subtask completion ratios
 
-Use --learning-trajectory to see PREFLIGHT→POSTFLIGHT deltas (learning, not calibration).
+Use --learning-trajectory to see PREFLIGHT->POSTFLIGHT deltas (learning, not calibration).
         """)
     calibration_parser.add_argument('--ai-id', help='Filter by AI identifier (default: claude-code)')
     calibration_parser.add_argument('--weeks', type=int, default=8,
@@ -126,7 +126,7 @@ Use --learning-trajectory to see PREFLIGHT→POSTFLIGHT deltas (learning, not ca
     calibration_parser.add_argument('--verbose', action='store_true',
         help='Show detailed per-vector analysis')
     calibration_parser.add_argument('--learning-trajectory', action='store_true',
-        help='Show learning trajectory (PREFLIGHT→POSTFLIGHT deltas) - NOT calibration')
+        help='Show learning trajectory (PREFLIGHT->POSTFLIGHT deltas) - NOT calibration')
     calibration_parser.add_argument('--trajectory', action='store_true',
         help='Show calibration trend over time (closing/widening/stable)')
     calibration_parser.add_argument('--list-disputes', action='store_true',
@@ -159,7 +159,7 @@ Disputes are stored in SQLite and flagged in subsequent calibration reports.
     dispute_parser.add_argument('--output', choices=['human', 'json'], default='json',
         help='Output format (default: json)')
 
-    # Compliance report — project-wide quality snapshot mapped to regulatory frameworks
+    # Compliance report -- project-wide quality snapshot mapped to regulatory frameworks
     compliance_parser = subparsers.add_parser('compliance-report',
         help='Generate compliance report mapped to regulatory frameworks',
         description="""
@@ -187,7 +187,7 @@ Mapped frameworks: EU AI Act, GDPR, ISO/IEC 42001
     compliance_parser.add_argument('--output', choices=['text', 'json'], default='text',
         help='Output format (default: text)')
 
-    # Security audit — pip-audit + CISA KEV cross-reference
+    # Security audit -- pip-audit + CISA KEV cross-reference
     security_audit_parser = subparsers.add_parser('security-audit',
         help='Supply-chain security audit (pip-audit + CISA KEV)',
         description="""

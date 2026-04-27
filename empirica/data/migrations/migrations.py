@@ -61,10 +61,10 @@ def migration_008_migrate_legacy_to_reflexes(cursor: sqlite3.Cursor):
     This runs automatically on database initialization. It's idempotent - safe to run multiple times.
 
     Migration mapping:
-    - preflight_assessments → reflexes (phase='PREFLIGHT')
-    - postflight_assessments → reflexes (phase='POSTFLIGHT')
-    - check_phase_assessments → reflexes (phase='CHECK')
-    - epistemic_assessments → (unused, just drop)
+    - preflight_assessments -> reflexes (phase='PREFLIGHT')
+    - postflight_assessments -> reflexes (phase='POSTFLIGHT')
+    - check_phase_assessments -> reflexes (phase='CHECK')
+    - epistemic_assessments -> (unused, just drop)
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -73,12 +73,12 @@ def migration_008_migrate_legacy_to_reflexes(cursor: sqlite3.Cursor):
         # Check if old tables exist
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='preflight_assessments'")
         if not cursor.fetchone():
-            logger.debug("✓ Legacy tables already migrated or don't exist")
+            logger.debug("[OK] Legacy tables already migrated or don't exist")
             return  # Already migrated
 
-        logger.info("🔄 Migrating legacy epistemic tables to reflexes...")
+        logger.info("[LOAD] Migrating legacy epistemic tables to reflexes...")
 
-        # Migrate preflight_assessments → reflexes
+        # Migrate preflight_assessments -> reflexes
         cursor.execute("""
             INSERT INTO reflexes (session_id, cascade_id, phase, round, timestamp,
                                 engagement, know, do, context, clarity, coherence, signal, density,
@@ -97,9 +97,9 @@ def migration_008_migrate_legacy_to_reflexes(cursor: sqlite3.Cursor):
             )
         """)
         preflight_count = cursor.rowcount
-        logger.info(f"  ✓ Migrated {preflight_count} preflight assessments")
+        logger.info(f"  [OK] Migrated {preflight_count} preflight assessments")
 
-        # Migrate postflight_assessments → reflexes
+        # Migrate postflight_assessments -> reflexes
         cursor.execute("""
             INSERT INTO reflexes (session_id, cascade_id, phase, round, timestamp,
                                 engagement, know, do, context, clarity, coherence, signal, density,
@@ -120,9 +120,9 @@ def migration_008_migrate_legacy_to_reflexes(cursor: sqlite3.Cursor):
             )
         """)
         postflight_count = cursor.rowcount
-        logger.info(f"  ✓ Migrated {postflight_count} postflight assessments")
+        logger.info(f"  [OK] Migrated {postflight_count} postflight assessments")
 
-        # Migrate check_phase_assessments → reflexes (confidence → uncertainty conversion)
+        # Migrate check_phase_assessments -> reflexes (confidence -> uncertainty conversion)
         cursor.execute("""
             INSERT INTO reflexes (session_id, cascade_id, phase, round, timestamp,
                                 uncertainty, reflex_data, reasoning)
@@ -144,22 +144,22 @@ def migration_008_migrate_legacy_to_reflexes(cursor: sqlite3.Cursor):
             )
         """)
         check_count = cursor.rowcount
-        logger.info(f"  ✓ Migrated {check_count} check phase assessments")
+        logger.info(f"  [OK] Migrated {check_count} check phase assessments")
 
         # Drop old tables (no longer needed)
-        logger.info("  🗑️  Dropping deprecated tables...")
+        logger.info("  [DEL]  Dropping deprecated tables...")
         cursor.execute("DROP TABLE IF EXISTS epistemic_assessments")
         cursor.execute("DROP TABLE IF EXISTS preflight_assessments")
         cursor.execute("DROP TABLE IF EXISTS postflight_assessments")
         cursor.execute("DROP TABLE IF EXISTS check_phase_assessments")
 
-        logger.info("✅ Migration complete: All data moved to reflexes table")
+        logger.info("[OK] Migration complete: All data moved to reflexes table")
 
     except sqlite3.OperationalError as e:
         # Table doesn't exist or already migrated - this is fine
         logger.debug(f"Migration check: {e} (this is expected if tables don't exist)")
     except Exception as e:
-        logger.error(f"⚠️  Migration failed: {e}")
+        logger.error(f"[WARN]  Migration failed: {e}")
         # Don't raise - allow database to continue working
         # Old tables will remain if migration fails
 
@@ -183,7 +183,7 @@ def migration_009_goals_project_id(cursor: sqlite3.Cursor):
         WHERE project_id IS NULL
     """)
     rows_updated = cursor.rowcount
-    logger.info(f"✓ Updated {rows_updated} goals with project_id from sessions")
+    logger.info(f"[OK] Updated {rows_updated} goals with project_id from sessions")
 
 
 # Migration 10: Add bootstrap_level to sessions
@@ -347,7 +347,7 @@ def migration_014_lessons_and_knowledge_graph(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_domain ON lessons(domain)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_tier ON lessons(suggested_tier)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_created ON lessons(created_timestamp)")
-    logger.info("✓ Created lessons table")
+    logger.info("[OK] Created lessons table")
 
     # lesson_steps - Procedural steps (for fast lookup without full YAML)
     cursor.execute("""
@@ -369,7 +369,7 @@ def migration_014_lessons_and_knowledge_graph(cursor: sqlite3.Cursor):
         )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lesson_steps_lesson ON lesson_steps(lesson_id)")
-    logger.info("✓ Created lesson_steps table")
+    logger.info("[OK] Created lesson_steps table")
 
     # lesson_epistemic_deltas - What vectors each lesson improves
     cursor.execute("""
@@ -385,7 +385,7 @@ def migration_014_lessons_and_knowledge_graph(cursor: sqlite3.Cursor):
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lesson_deltas_lesson ON lesson_epistemic_deltas(lesson_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lesson_deltas_vector ON lesson_epistemic_deltas(vector_name)")
-    logger.info("✓ Created lesson_epistemic_deltas table")
+    logger.info("[OK] Created lesson_epistemic_deltas table")
 
     # lesson_prerequisites - What's required before executing a lesson
     cursor.execute("""
@@ -401,7 +401,7 @@ def migration_014_lessons_and_knowledge_graph(cursor: sqlite3.Cursor):
         )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lesson_prereqs_lesson ON lesson_prerequisites(lesson_id)")
-    logger.info("✓ Created lesson_prerequisites table")
+    logger.info("[OK] Created lesson_prerequisites table")
 
     # lesson_corrections - Human/AI corrections received during creation or replay
     cursor.execute("""
@@ -420,7 +420,7 @@ def migration_014_lessons_and_knowledge_graph(cursor: sqlite3.Cursor):
         )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lesson_corrections_lesson ON lesson_corrections(lesson_id)")
-    logger.info("✓ Created lesson_corrections table")
+    logger.info("[OK] Created lesson_corrections table")
 
     # knowledge_graph - Relationships between all entities
     cursor.execute("""
@@ -441,7 +441,7 @@ def migration_014_lessons_and_knowledge_graph(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_kg_source ON knowledge_graph(source_type, source_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_kg_target ON knowledge_graph(target_type, target_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_kg_relation ON knowledge_graph(relation_type)")
-    logger.info("✓ Created knowledge_graph table")
+    logger.info("[OK] Created knowledge_graph table")
 
     # lesson_replays - Track lesson execution history
     cursor.execute("""
@@ -466,9 +466,9 @@ def migration_014_lessons_and_knowledge_graph(cursor: sqlite3.Cursor):
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lesson_replays_lesson ON lesson_replays(lesson_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lesson_replays_session ON lesson_replays(session_id)")
-    logger.info("✓ Created lesson_replays table")
+    logger.info("[OK] Created lesson_replays table")
 
-    logger.info("✅ Migration 014 complete: Lessons and knowledge graph tables created")
+    logger.info("[OK] Migration 014 complete: Lessons and knowledge graph tables created")
 
 
 # Migration 15: Add instance_id to sessions for multi-instance isolation
@@ -491,7 +491,7 @@ def migration_015_sessions_instance_id(cursor: sqlite3.Cursor):
 
     # Add index for efficient instance-scoped queries
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_instance ON sessions(ai_id, instance_id)")
-    logger.info("✓ Added instance_id column and index to sessions table")
+    logger.info("[OK] Added instance_id column and index to sessions table")
 
 
 # Migration 16: Add auto_captured_issues table
@@ -533,7 +533,7 @@ def migration_016_auto_captured_issues(cursor: sqlite3.Cursor):
         ON auto_captured_issues(session_id, status)
     """)
 
-    logger.info("✓ Created auto_captured_issues table and index")
+    logger.info("[OK] Created auto_captured_issues table and index")
 
 
 # Migration 17: Add project_type and project_tags for multi-project workspace management
@@ -543,7 +543,7 @@ def migration_017_project_type_and_tags(cursor: sqlite3.Cursor):
 
     project_type: Categorizes project (product, application, research, documentation, infrastructure, operations)
     project_tags: JSON array of free-form tags for flexible categorization
-    parent_project_id: Optional hierarchy (e.g., empirica-autonomy → empirica)
+    parent_project_id: Optional hierarchy (e.g., empirica-autonomy -> empirica)
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -556,7 +556,7 @@ def migration_017_project_type_and_tags(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_type ON projects(project_type)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_parent ON projects(parent_project_id)")
 
-    logger.info("✓ Added project_type, project_tags, and parent_project_id to projects table")
+    logger.info("[OK] Added project_type, project_tags, and parent_project_id to projects table")
 
 
 # Migration 18: Add project_relationships table for cross-project links
@@ -591,7 +591,7 @@ def migration_018_project_relationships(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_proj_rel_target ON project_relationships(target_project_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_proj_rel_type ON project_relationships(relationship_type)")
 
-    logger.info("✓ Created project_relationships table")
+    logger.info("[OK] Created project_relationships table")
 
 
 # Migration 19: Add cross_project_finding_links for shared learnings
@@ -627,7 +627,7 @@ def migration_019_cross_project_finding_links(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_xproj_finding_tgt ON cross_project_finding_links(target_project_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_xproj_finding_id ON cross_project_finding_links(finding_id)")
 
-    logger.info("✓ Created cross_project_finding_links table")
+    logger.info("[OK] Created cross_project_finding_links table")
 
 
 # Migration 20: Add client_projects junction table for client-project relationships
@@ -670,7 +670,7 @@ def migration_020_client_projects(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_client_projects_project ON client_projects(project_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_client_projects_status ON client_projects(status)")
 
-    logger.info("✓ Created client_projects junction table")
+    logger.info("[OK] Created client_projects junction table")
 
 
 # Migration 21: Add project_id to engagements table
@@ -679,8 +679,8 @@ def migration_021_engagements_project_id(cursor: sqlite3.Cursor):
     Add project_id to engagements table for direct project scoping.
 
     This changes the relationship model:
-    - Before: client → engagement → goal → project (inverted)
-    - After: client → project (via client_projects), engagement has project_id
+    - Before: client -> engagement -> goal -> project (inverted)
+    - After: client -> project (via client_projects), engagement has project_id
 
     The goal_id remains for optional fine-grained linking to specific goals.
 
@@ -701,7 +701,7 @@ def migration_021_engagements_project_id(cursor: sqlite3.Cursor):
     # Add index for project-based queries
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_engagements_project ON engagements(project_id)")
 
-    logger.info("✓ Added project_id to engagements table")
+    logger.info("[OK] Added project_id to engagements table")
 
 
 # Migration 22: Add project_id to reflexes for project-aware PREFLIGHT tracking
@@ -743,7 +743,7 @@ def migration_023_sessions_parent_session_id(cursor: sqlite3.Cursor):
     # Index for parent-child queries (find all children of a session)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_session_id)")
 
-    logger.info("✓ Added parent_session_id to sessions table")
+    logger.info("[OK] Added parent_session_id to sessions table")
 
 
 # Migration 24: Add attention_budgets and rollup_logs tables for epistemic attention budget
@@ -773,7 +773,7 @@ def migration_024_attention_budgets(cursor: sqlite3.Cursor):
         )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_attention_budgets_session ON attention_budgets(session_id)")
-    logger.info("✓ Created attention_budgets table")
+    logger.info("[OK] Created attention_budgets table")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS rollup_logs (
@@ -797,9 +797,9 @@ def migration_024_attention_budgets(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_rollup_logs_session ON rollup_logs(session_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_rollup_logs_budget ON rollup_logs(budget_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_rollup_logs_hash ON rollup_logs(finding_hash)")
-    logger.info("✓ Created rollup_logs table")
+    logger.info("[OK] Created rollup_logs table")
 
-    logger.info("✅ Migration 024 complete: Attention budget tables created")
+    logger.info("[OK] Migration 024 complete: Attention budget tables created")
 
 
 def migration_025_transaction_id(cursor: sqlite3.Cursor):
@@ -836,7 +836,7 @@ def migration_025_transaction_id(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_mistakes_transaction ON mistakes_made(transaction_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_goals_transaction ON goals(transaction_id)")
 
-    logger.info("✓ Migration 025: Added transaction_id columns and indexes")
+    logger.info("[OK] Migration 025: Added transaction_id columns and indexes")
 
 
 # Migration 26: Add post-test verification tables for grounded calibration
@@ -942,7 +942,7 @@ def migration_026_grounded_verification(cursor: sqlite3.Cursor):
             ON calibration_trajectory(ai_id, vector_name, timestamp)
     """)
 
-    logger.info("✅ Migration 026 complete: Post-test verification tables created")
+    logger.info("[OK] Migration 026 complete: Post-test verification tables created")
 
 
 # Migration 27: Drop deprecated session-scoped noetic tables
@@ -956,14 +956,14 @@ def migration_027_drop_session_noetic_tables(cursor: sqlite3.Cursor):
 
     1. All noetic artifacts now go to project_* tables (with session_id + transaction_id)
     2. The session_* methods in BreadcrumbRepository are deprecated stubs
-    3. Sessions delineate compact windows only — not epistemic boundaries
+    3. Sessions delineate compact windows only -- not epistemic boundaries
     4. Transactions are the atomic unit for epistemic measurement
 
     Tables dropped:
-    - session_findings → use project_findings
-    - session_unknowns → use project_unknowns
-    - session_dead_ends → use project_dead_ends
-    - session_mistakes → use mistakes_made
+    - session_findings -> use project_findings
+    - session_unknowns -> use project_unknowns
+    - session_dead_ends -> use project_dead_ends
+    - session_mistakes -> use mistakes_made
 
     This enables cleaner cross-trajectory pattern matching since all artifacts
     live in project-scoped tables with transaction_id linkage.
@@ -987,15 +987,15 @@ def migration_027_drop_session_noetic_tables(cursor: sqlite3.Cursor):
                 cursor.execute(f"SELECT COUNT(*) FROM {table}")
                 count = cursor.fetchone()[0]
                 if count > 0:
-                    logger.warning(f"⚠️  Dropping {table} with {count} rows (data migrated to project_* tables)")
+                    logger.warning(f"[WARN]  Dropping {table} with {count} rows (data migrated to project_* tables)")
                 cursor.execute(f"DROP TABLE {table}")
-                logger.info(f"✓ Dropped deprecated table: {table}")
+                logger.info(f"[OK] Dropped deprecated table: {table}")
             else:
-                logger.debug(f"✓ Table {table} already dropped or never existed")
+                logger.debug(f"[OK] Table {table} already dropped or never existed")
         except Exception as e:
-            logger.warning(f"⚠️  Could not drop {table}: {e}")
+            logger.warning(f"[WARN]  Could not drop {table}: {e}")
 
-    logger.info("✅ Migration 027 complete: Deprecated session noetic tables dropped")
+    logger.info("[OK] Migration 027 complete: Deprecated session noetic tables dropped")
 
 
 def migration_028_investigation_branches_transaction_id(cursor: sqlite3.Cursor):
@@ -1010,7 +1010,7 @@ def migration_028_investigation_branches_transaction_id(cursor: sqlite3.Cursor):
     logger = logging.getLogger(__name__)
 
     add_column_if_missing(cursor, "investigation_branches", "transaction_id", "TEXT")
-    logger.info("✅ Migration 028 complete: Added transaction_id to investigation_branches")
+    logger.info("[OK] Migration 028 complete: Added transaction_id to investigation_branches")
 
 
 def migration_029_goals_transaction_index(cursor: sqlite3.Cursor):
@@ -1018,7 +1018,7 @@ def migration_029_goals_transaction_index(cursor: sqlite3.Cursor):
     Add index on goals.transaction_id for efficient transaction-scoped queries.
 
     Goals are structurally project-scoped but temporally transaction-scoped.
-    Transactions (PREFLIGHT→POSTFLIGHT measurement windows) span compaction
+    Transactions (PREFLIGHT->POSTFLIGHT measurement windows) span compaction
     boundaries, making them the natural scope for epistemic measurement.
 
     This index enables:
@@ -1033,7 +1033,7 @@ def migration_029_goals_transaction_index(cursor: sqlite3.Cursor):
         CREATE INDEX IF NOT EXISTS idx_goals_transaction_id
         ON goals(transaction_id)
     """)
-    logger.info("✅ Migration 029 complete: Added index on goals.transaction_id")
+    logger.info("[OK] Migration 029 complete: Added index on goals.transaction_id")
 
 
 # Migration 30: Entity-agnostic columns + assumptions/decisions tables (v0.6.0)
@@ -1051,7 +1051,7 @@ def migration_030_entity_agnostic_intent_layer(cursor: sqlite3.Cursor):
         cursor.execute(f"UPDATE {table} SET entity_id = project_id WHERE entity_id IS NULL")
 
     # assumptions and decisions tables created via SCHEMAS (CREATE IF NOT EXISTS)
-    logger.info("✅ Migration 030 complete: Entity-agnostic intent layer columns added")
+    logger.info("[OK] Migration 030 complete: Entity-agnostic intent layer columns added")
 
 
 def migration_031_phase_aware_calibration(cursor: sqlite3.Cursor):
@@ -1065,7 +1065,7 @@ def migration_031_phase_aware_calibration(cursor: sqlite3.Cursor):
         CREATE INDEX IF NOT EXISTS idx_calibration_trajectory_phase
             ON calibration_trajectory(ai_id, phase, vector_name, timestamp)
     """)
-    logger.info("✅ Migration 031 complete: Phase-aware calibration columns added")
+    logger.info("[OK] Migration 031 complete: Phase-aware calibration columns added")
 
 
 def migration_032_calibration_disputes(cursor: sqlite3.Cursor):
@@ -1094,7 +1094,7 @@ def migration_032_calibration_disputes(cursor: sqlite3.Cursor):
         CREATE INDEX IF NOT EXISTS idx_calibration_disputes_vector_status
             ON calibration_disputes(vector, status)
     """)
-    logger.info("✅ Migration 032 complete: calibration_disputes table created")
+    logger.info("[OK] Migration 032 complete: calibration_disputes table created")
 
 
 def migration_034_subagent_sessions(cursor: sqlite3.Cursor):
@@ -1106,7 +1106,7 @@ def migration_034_subagent_sessions(cursor: sqlite3.Cursor):
     for every Task spawn (Explore, general-purpose, superpowers:* etc.),
     polluting the main sessions table. Subagent rows are newer than parents,
     so post-compact and other "recent sessions" diagnostics surfaced only
-    subagent children — masking missing parents and adding visual clutter
+    subagent children -- masking missing parents and adding visual clutter
     to dashboards and queries that don't filter on parent_session_id.
 
     This migration:
@@ -1122,7 +1122,7 @@ def migration_034_subagent_sessions(cursor: sqlite3.Cursor):
     import logging
     logger = logging.getLogger(__name__)
 
-    # Step 1: ensure subagent_sessions table exists (idempotent — fresh
+    # Step 1: ensure subagent_sessions table exists (idempotent -- fresh
     # installs already created it via SCHEMAS).
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS subagent_sessions (
@@ -1146,7 +1146,7 @@ def migration_034_subagent_sessions(cursor: sqlite3.Cursor):
     to_migrate = cursor.fetchone()[0]
 
     if to_migrate == 0:
-        logger.info("✅ Migration 034 complete: no subagent rows to move")
+        logger.info("[OK] Migration 034 complete: no subagent rows to move")
         return
 
     # Step 3: copy subagent children into the new table.
@@ -1176,7 +1176,7 @@ def migration_034_subagent_sessions(cursor: sqlite3.Cursor):
     deleted = cursor.rowcount
 
     logger.info(
-        f"✅ Migration 034 complete: moved {migrated}/{to_migrate} subagent "
+        f"[OK] Migration 034 complete: moved {migrated}/{to_migrate} subagent "
         f"sessions to subagent_sessions table, deleted {deleted} from sessions"
     )
 
@@ -1221,7 +1221,7 @@ def migration_033_codebase_model(cursor: sqlite3.Cursor):
         END
     """)
 
-    logger.info("✅ Migration 033 complete: Codebase model tables and FTS5 index created")
+    logger.info("[OK] Migration 033 complete: Codebase model tables and FTS5 index created")
 
 
 ALL_MIGRATIONS: list[tuple[str, str, Callable]] = [
@@ -1269,7 +1269,7 @@ ALL_MIGRATIONS: list[tuple[str, str, Callable]] = [
 def migration_035_three_vector_storage(cursor: sqlite3.Cursor):
     """Add three-vector storage columns + compliance_checks table (A3 Wave 1).
 
-    Additive only — no column renames, no type changes, no constraint changes.
+    Additive only -- no column renames, no type changes, no constraint changes.
     Legacy rows readable: NULL new columns map to legacy defaults at read time.
 
     New columns on grounded_verifications:
@@ -1285,17 +1285,17 @@ def migration_035_three_vector_storage(cursor: sqlite3.Cursor):
     New table:
       - compliance_checks: per-check results with Brier prediction fields
     """
-    # grounded_verifications — additive columns
+    # grounded_verifications -- additive columns
     add_column_if_missing(cursor, "grounded_verifications", "observed_vectors", "TEXT")
     add_column_if_missing(cursor, "grounded_verifications", "grounded_rationale", "TEXT")
     add_column_if_missing(cursor, "grounded_verifications", "criticality", "TEXT")
     add_column_if_missing(cursor, "grounded_verifications", "compliance_status", "TEXT")
     add_column_if_missing(cursor, "grounded_verifications", "parent_transaction_id", "TEXT")
 
-    # calibration_trajectory — state_type for three-vector filtering
+    # calibration_trajectory -- state_type for three-vector filtering
     add_column_if_missing(cursor, "calibration_trajectory", "state_type", "TEXT", "'grounded'")
 
-    # compliance_checks table — per-check results
+    # compliance_checks table -- per-check results
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS compliance_checks (
             check_record_id TEXT PRIMARY KEY,
@@ -1316,13 +1316,13 @@ def migration_035_three_vector_storage(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_compliance_checks_tx ON compliance_checks(transaction_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_compliance_checks_check_id ON compliance_checks(check_id)")
 
-    logger.info("✅ Migration 035 complete: Three-vector storage schema added (A3 Wave 1)")
+    logger.info("[OK] Migration 035 complete: Three-vector storage schema added (A3 Wave 1)")
 
 
 def migration_036_provenance_graph(cursor: sqlite3.Cursor):
-    """Add provenance graph columns for source→finding→decision traceability.
+    """Add provenance graph columns for source->finding->decision traceability.
 
-    Additive only — all columns NULL-defaulted. Existing artifacts unaffected.
+    Additive only -- all columns NULL-defaulted. Existing artifacts unaffected.
 
     New columns:
       - project_findings.source_refs: JSON array of source IDs (from source-add)
@@ -1333,15 +1333,15 @@ def migration_036_provenance_graph(cursor: sqlite3.Cursor):
     add_column_if_missing(cursor, "decisions", "evidence_refs", "TEXT")
     add_column_if_missing(cursor, "project_unknowns", "resolution_finding_id", "TEXT")
 
-    logger.info("✅ Migration 036 complete: Provenance graph columns added")
+    logger.info("[OK] Migration 036 complete: Provenance graph columns added")
 
 
 def migration_037_composable_lessons(cursor: sqlite3.Cursor):
     """Evolve lessons into composable epistemic patterns.
 
     Adds fields for:
-    - Abstraction levels (personal → project → domain → cross-org)
-    - Sharing policy (private → licensed)
+    - Abstraction levels (personal -> project -> domain -> cross-org)
+    - Sharing policy (private -> licensed)
     - EKG entity connections
     - Trigger model (schedule, state_change, event)
     - Output rendering (template, llm, notebooklm, google_workspace)
@@ -1353,39 +1353,39 @@ def migration_037_composable_lessons(cursor: sqlite3.Cursor):
 
     All columns NULL-defaulted. Existing lessons (if any) unaffected.
     """
-    # ── lessons table: abstraction and sharing ──
+    # -- lessons table: abstraction and sharing --
     add_column_if_missing(cursor, "lessons", "abstraction_level", "TEXT", "'personal'")
     add_column_if_missing(cursor, "lessons", "sharing_policy", "TEXT", "'private'")
     add_column_if_missing(cursor, "lessons", "abstract_pattern", "TEXT")
     add_column_if_missing(cursor, "lessons", "parent_lesson_id", "TEXT")
 
-    # ── lessons table: EKG connections ──
+    # -- lessons table: EKG connections --
     add_column_if_missing(cursor, "lessons", "entity_ids", "TEXT")  # JSON array
     add_column_if_missing(cursor, "lessons", "project_id", "TEXT")
     add_column_if_missing(cursor, "lessons", "org_id", "TEXT")
     add_column_if_missing(cursor, "lessons", "user_id", "TEXT")
 
-    # ── lessons table: trigger model ──
+    # -- lessons table: trigger model --
     add_column_if_missing(cursor, "lessons", "trigger_type", "TEXT")  # schedule|state_change|event|manual|suggestion
     add_column_if_missing(cursor, "lessons", "trigger_config", "TEXT")  # JSON
 
-    # ── lessons table: output rendering ──
+    # -- lessons table: output rendering --
     add_column_if_missing(cursor, "lessons", "output_format", "TEXT", "'markdown'")
     add_column_if_missing(cursor, "lessons", "output_renderer", "TEXT", "'template'")
     add_column_if_missing(cursor, "lessons", "output_config", "TEXT")  # JSON
 
-    # ── lessons table: feedback loop ──
+    # -- lessons table: feedback loop --
     add_column_if_missing(cursor, "lessons", "execution_count", "INTEGER", "0")
     add_column_if_missing(cursor, "lessons", "feedback_score", "REAL", "0.0")
     add_column_if_missing(cursor, "lessons", "last_executed", "REAL")
     add_column_if_missing(cursor, "lessons", "last_feedback", "REAL")
 
-    # ── lesson_steps table: Cortex integration ──
+    # -- lesson_steps table: Cortex integration --
     add_column_if_missing(cursor, "lesson_steps", "query_pattern", "TEXT")  # JSON: Qdrant query spec
     add_column_if_missing(cursor, "lesson_steps", "cache_tier", "TEXT")  # frozen|cold|search|warm|hot
     add_column_if_missing(cursor, "lesson_steps", "requires_auth", "TEXT")  # what API keys needed
 
-    # ── indexes for efficient queries ──
+    # -- indexes for efficient queries --
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_abstraction ON lessons(abstraction_level)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_sharing ON lessons(sharing_policy)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_pattern ON lessons(abstract_pattern)")
@@ -1393,14 +1393,14 @@ def migration_037_composable_lessons(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_org ON lessons(org_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_domain ON lessons(domain)")
 
-    logger.info("✅ Migration 037 complete: Composable epistemic patterns schema added")
+    logger.info("[OK] Migration 037 complete: Composable epistemic patterns schema added")
 
 
 def migration_038_goal_lifecycle_simplify(cursor: sqlite3.Cursor):
     """Simplify goal lifecycle: planned/in_progress/completed.
 
     Converts stale and blocked goals to in_progress (they stay active
-    across compaction). The stale status was noise — goals should be
+    across compaction). The stale status was noise -- goals should be
     either planned, in_progress, or completed.
     """
     cursor.execute("""
@@ -1410,4 +1410,4 @@ def migration_038_goal_lifecycle_simplify(cursor: sqlite3.Cursor):
     rows = cursor.rowcount
     if rows:
         logger.info(f"  Converted {rows} stale/blocked goals to in_progress")
-    logger.info("✅ Migration 038 complete: Goal lifecycle simplified")
+    logger.info("[OK] Migration 038 complete: Goal lifecycle simplified")

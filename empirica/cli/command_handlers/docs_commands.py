@@ -36,7 +36,7 @@ class ProjectConfig:
     """Project structure config, auto-detected from pyproject.toml."""
     project_name: str               # e.g., "empirica", "empirica-outreach"
     project_root: Path              # absolute path
-    package_dirs: list[str]         # e.g., ["empirica/"] — top-level package dirs
+    package_dirs: list[str]         # e.g., ["empirica/"] -- top-level package dirs
     cli_module: str | None = None   # e.g., "empirica.cli.cli_core"
     cli_entry: str | None = None    # e.g., "main" or "cli"
     docs_dir: Path | None = None     # project_root / "docs"
@@ -201,7 +201,7 @@ class FeatureCoverage:
 
     Properties:
         coverage: documented / total ratio in [0.0, 1.0].
-        moon: One of 🌑 🌒 🌓 🌔 🌕 reflecting the coverage band.
+        moon: One of - 🌒 🌓 🌔 🌕 reflecting the coverage band.
 
     Example:
         >>> fc = FeatureCoverage(name="Cli", total=20, documented=9)
@@ -232,7 +232,7 @@ class FeatureCoverage:
         elif self.coverage >= 0.30:
             return "🌒"
         else:
-            return "🌑"
+            return "-"
 
     def to_dict(self) -> dict[str, Any]:
         """Convert coverage data to dictionary representation."""
@@ -261,10 +261,10 @@ class StalenessItem:
         section: Heading or anchor of the specific section flagged.
         severity: One of "high", "medium", "low". Reflects how badly
             the doc is misleading vs the memory artifact.
-        audience: Who reads this doc — "ai", "developer", or "user".
+        audience: Who reads this doc -- "ai", "developer", or "user".
             Higher-stakes audiences (developer, ai) get higher
             triage priority.
-        memory_type: Which artifact type triggered the flag — one of
+        memory_type: Which artifact type triggered the flag -- one of
             "finding", "dead_end", "mistake", "unknown".
         memory_text: The text of the memory artifact, for direct
             comparison against the doc section.
@@ -727,7 +727,7 @@ class EpistemicDocsAgent:
         Epistemic recursive assessment - turtles all the way down.
 
         Iterates between code and docs to surface gaps:
-        1. Run standard assessment (code → docs comparison)
+        1. Run standard assessment (code -> docs comparison)
         2. Check docstrings (code self-documentation)
         3. Compare docstrings to external docs (consistency)
         4. Generate epistemic vectors for convergence tracking
@@ -822,7 +822,7 @@ class EpistemicDocsAgent:
         elif score >= 0.30:
             return "🌒"
         else:
-            return "🌑"
+            return "-"
 
     def _generate_recommendations(self) -> list[str]:
         """Generate prioritized recommendations."""
@@ -1147,7 +1147,7 @@ class EpistemicDocsAgent:
             import yaml
             project_yaml = self.root / ".empirica" / "project.yaml"
             if project_yaml.exists():
-                with open(project_yaml) as f:
+                with open(project_yaml, encoding='utf-8') as f:
                     data = yaml.safe_load(f)
                     if data and data.get("project_id"):
                         return data["project_id"]
@@ -1487,11 +1487,11 @@ def _generate_summary(result: dict, categories: list, project_root: Path | None 
 def _print_staleness_output(result: dict, verbose: bool):
     """Print staleness detection output (deterministic heuristics mode)."""
     print("\n" + "=" * 60)
-    print("🔍 DOC STALENESS DETECTION (Heuristic Mode)")
+    print("[SEARCH] DOC STALENESS DETECTION (Heuristic Mode)")
     print("=" * 60)
 
     if not result.get("ok"):
-        print(f"\n❌ Error: {result.get('error', 'Unknown error')}")
+        print(f"\n[FAIL] Error: {result.get('error', 'Unknown error')}")
         return
 
     summary = result["summary"]
@@ -1513,7 +1513,7 @@ def _print_staleness_output(result: dict, verbose: bool):
     print(f"   Docs checked: {summary.get('docs_checked', 0)}")
 
     # Severity breakdown
-    print("\n📊 Issues Found:")
+    print("\n[STATS] Issues Found:")
     print(f"   🔴 High:   {summary['high_severity']}")
     print(f"   🟡 Medium: {summary['medium_severity']}")
     print(f"   🟢 Low:    {summary['low_severity']}")
@@ -1526,10 +1526,10 @@ def _print_staleness_output(result: dict, verbose: bool):
     explicit = by_type.get("explicit_reference", [])
 
     print("\n📋 By Type:")
-    print(f"   📝 Undocumented code:    {len(undoc)}")
-    print(f"   🔗 Orphaned references:  {len(orphan)}")
+    print(f"   [NOTE] Undocumented code:    {len(undoc)}")
+    print(f"   [LINK] Orphaned references:  {len(orphan)}")
     print(f"   ⏰ Activity gaps:        {len(gaps)}")
-    print(f"   📌 Explicit mentions:    {len(explicit)}")
+    print(f"   [PIN] Explicit mentions:    {len(explicit)}")
 
     # High severity items
     by_severity = result.get("by_severity", {})
@@ -1555,7 +1555,7 @@ def _print_staleness_output(result: dict, verbose: bool):
 
     # Note about deep analysis
     if result.get("note"):
-        print(f"\n💡 {result['note']}")
+        print(f"\n[HINT] {result['note']}")
 
     print("\n" + "=" * 60)
 
@@ -1571,12 +1571,12 @@ def _print_staleness_item_v2(item: dict):
 
     # Type icons
     type_icons = {
-        "undocumented_code": "📝",
-        "orphaned_reference": "🔗",
+        "undocumented_code": "[NOTE]",
+        "orphaned_reference": "[LINK]",
         "activity_gap": "⏰",
-        "explicit_reference": "📌"
+        "explicit_reference": "[PIN]"
     }
-    type_icon = type_icons.get(issue_type, "❓")
+    type_icon = type_icons.get(issue_type, "[?]")
 
     if doc_path:
         print(f"\n   {type_icon} {doc_path}")
@@ -1584,7 +1584,7 @@ def _print_staleness_item_v2(item: dict):
     else:
         print(f"\n   {type_icon} {category}: {item_name[:60]}")
 
-    print(f"      → {suggestion[:70]}...")
+    print(f"      -> {suggestion[:70]}...")
 
 
 def _print_turtle_output(result: dict, verbose: bool):
@@ -1600,38 +1600,38 @@ def _print_turtle_output(result: dict, verbose: bool):
     print(f"   External docs: {final['docs_coverage']}%")
     print(f"   Code docstrings: {final['docstring_coverage']}%")
 
-    print("\n📊 Epistemic Vectors:")
+    print("\n[STATS] Epistemic Vectors:")
     print(f"   know: {vectors['know']:.2f}")
     print(f"   uncertainty: {vectors['uncertainty']:.2f}")
     print(f"   delta: {vectors['delta']:+.3f}")
 
-    print(f"\n🔄 Convergence: {'✅ Converged' if result['converged'] else '⚠️ Not converged'}")
+    print(f"\n[LOAD] Convergence: {'[OK] Converged' if result['converged'] else '[WARN] Not converged'}")
     print(f"   Rounds: {result['total_rounds']}")
 
     if result.get("cross_gaps"):
-        print("\n⚠️ Cross-Reference Gaps (in docs but missing docstring):")
+        print("\n[WARN] Cross-Reference Gaps (in docs but missing docstring):")
         for gap in result["cross_gaps"][:5]:
-            print(f"   • {gap}")
+            print(f"   * {gap}")
 
     if verbose and result.get("docstring_gaps"):
         gaps = result["docstring_gaps"]
         if gaps.get("modules"):
             print("\n📄 Modules missing docstrings:")
             for m in gaps["modules"][:5]:
-                print(f"   • {m}")
+                print(f"   * {m}")
         if gaps.get("classes"):
             print("\n🏛️ Classes missing docstrings:")
             for c in gaps["classes"][:5]:
-                print(f"   • {c}")
+                print(f"   * {c}")
         if gaps.get("functions"):
             print("\n⚙️ Functions missing docstrings:")
             for f in gaps["functions"][:5]:
-                print(f"   • {f}")
+                print(f"   * {f}")
 
     if result.get("recommendations"):
-        print("\n💡 Recommendations:")
+        print("\n[HINT] Recommendations:")
         for rec in result["recommendations"][:3]:
-            print(f"   • {rec}")
+            print(f"   * {rec}")
 
     print("\n" + "=" * 60)
 
@@ -1639,7 +1639,7 @@ def _print_turtle_output(result: dict, verbose: bool):
 def _print_docstring_output(result: dict, verbose: bool):
     """Print docstring check output."""
     print("\n" + "=" * 60)
-    print("📝 DOCSTRING COVERAGE CHECK")
+    print("[NOTE] DOCSTRING COVERAGE CHECK")
     print("=" * 60)
 
     coverage = result["coverage"]
@@ -1656,7 +1656,7 @@ def _print_docstring_output(result: dict, verbose: bool):
     elif coverage >= 30:
         moon = "🌒"
     else:
-        moon = "🌑"
+        moon = "-"
 
     print(f"\n{moon} Docstring Coverage: {coverage}%")
     print(f"   Items: {documented}/{total} documented")
@@ -1665,7 +1665,7 @@ def _print_docstring_output(result: dict, verbose: bool):
         print(f"\n📄 Modules missing docstrings ({len(result['modules_missing'])}):")
         limit = 10 if verbose else 5
         for m in result["modules_missing"][:limit]:
-            print(f"   • {m}")
+            print(f"   * {m}")
         if len(result["modules_missing"]) > limit:
             print(f"   ... and {len(result['modules_missing']) - limit} more")
 
@@ -1673,7 +1673,7 @@ def _print_docstring_output(result: dict, verbose: bool):
         print(f"\n🏛️ Classes missing docstrings ({len(result['classes_missing'])}):")
         limit = 10 if verbose else 5
         for c in result["classes_missing"][:limit]:
-            print(f"   • {c}")
+            print(f"   * {c}")
         if len(result["classes_missing"]) > limit:
             print(f"   ... and {len(result['classes_missing']) - limit} more")
 
@@ -1681,7 +1681,7 @@ def _print_docstring_output(result: dict, verbose: bool):
         print(f"\n⚙️ Functions missing docstrings ({len(result['functions_missing'])}):")
         limit = 10 if verbose else 5
         for f in result["functions_missing"][:limit]:
-            print(f"   • {f}")
+            print(f"   * {f}")
         if len(result["functions_missing"]) > limit:
             print(f"   ... and {len(result['functions_missing']) - limit} more")
 
@@ -1702,10 +1702,10 @@ def _print_human_output(result: dict, categories: list[FeatureCoverage], verbose
     print(f"   Features: {overall['documented']}/{overall['total_features']} documented")
 
     # Epistemic assessment
-    print("\n📊 Epistemic Assessment:")
+    print("\n[STATS] Epistemic Assessment:")
     print(f"   know: {epistemic['know']:.2f}")
     print(f"   uncertainty: {epistemic['uncertainty']:.2f}")
-    print(f"   → {epistemic['assessment']}")
+    print(f"   -> {epistemic['assessment']}")
 
     # Category breakdown
     print("\n📋 Category Coverage:")
@@ -1716,13 +1716,13 @@ def _print_human_output(result: dict, categories: list[FeatureCoverage], verbose
 
         if verbose and cat.undocumented:
             for item in cat.undocumented[:5]:
-                print(f"      └─ Missing: {item}")
+                print(f"      +- Missing: {item}")
 
     # Recommendations
     if result["recommendations"]:
-        print("\n💡 Recommendations:")
+        print("\n[HINT] Recommendations:")
         for rec in result["recommendations"]:
-            print(f"   • {rec}")
+            print(f"   * {rec}")
 
     # NotebookLM suggestions
     _print_notebooklm_suggestions(result, verbose)
@@ -1744,27 +1744,27 @@ def _print_notebooklm_suggestions(result: dict, verbose: bool):
         for deck in nlm["slide_decks"]:
             aud = f"[{deck.get('audience', 'all')}]"
             fmt = deck.get('format', '')
-            print(f"      • {deck['topic']} {aud} ({fmt})")
+            print(f"      * {deck['topic']} {aud} ({fmt})")
             if verbose:
                 for src in deck.get("sources", [])[:3]:
-                    print(f"         └─ {src}")
+                    print(f"         +- {src}")
 
     if nlm.get("infographics"):
-        print("\n   📊 Infographics:")
+        print("\n   [STATS] Infographics:")
         for info in nlm["infographics"]:
             rec = "⭐" if info.get("recommended") else ""
-            print(f"      • {info['topic']} [{info.get('audience', 'all')}] {rec}")
+            print(f"      * {info['topic']} [{info.get('audience', 'all')}] {rec}")
 
     if nlm.get("audio_overviews"):
         print("\n   🎧 Audio Overviews:")
         for audio in nlm["audio_overviews"]:
             fmt = audio.get('format', 'deep_dive')
-            print(f"      • {audio['topic']} [{audio.get('audience', 'all')}] ({fmt})")
+            print(f"      * {audio['topic']} [{audio.get('audience', 'all')}] ({fmt})")
 
     if nlm.get("study_guides"):
         print("\n   📖 Study Guides:")
         for guide in nlm["study_guides"]:
-            print(f"      • {guide['topic']} [{guide.get('audience', 'all')}]")
+            print(f"      * {guide['topic']} [{guide.get('audience', 'all')}]")
 
 
 # =============================================================================
@@ -2133,14 +2133,14 @@ def _print_explain_human_output(result: dict):
     print("=" * 60)
 
     if not result.get("ok"):
-        print(f"\n❌ {result.get('error', 'Unknown error')}")
+        print(f"\n[FAIL] {result.get('error', 'Unknown error')}")
         return
 
-    print(f"\n🔍 Query: {result.get('query', 'N/A')}")
+    print(f"\n[SEARCH] Query: {result.get('query', 'N/A')}")
 
     # Show search mode (semantic vs keyword)
     search_mode = result.get("search_mode", "keyword")
-    mode_icon = "🧠" if search_mode == "semantic" else "🔤"
+    mode_icon = "[THINK]" if search_mode == "semantic" else "🔤"
     print(f"{mode_icon} Search: {search_mode}")
 
     if result.get("audience") != "all":
@@ -2162,12 +2162,12 @@ def _print_explain_human_output(result: dict):
     if sources:
         print("\n📚 Sources:")
         for src in sources[:5]:
-            print(f"   • {src['path']} (relevance: {src['relevance']})")
+            print(f"   * {src['path']} (relevance: {src['relevance']})")
 
     # Related topics
     related = result.get("related_topics", [])
     if related:
-        print(f"\n🔗 Related: {', '.join(related)}")
+        print(f"\n[LINK] Related: {', '.join(related)}")
 
     # NotebookLM suggestion
     nlm = result.get("notebooklm_suggestion")

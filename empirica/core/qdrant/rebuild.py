@@ -1,8 +1,8 @@
 """
-Qdrant rebuild from SQLite — rebuild all collections from persistent DB state.
+Qdrant rebuild from SQLite -- rebuild all collections from persistent DB state.
 
 Used by `empirica rebuild --qdrant` to restore Qdrant after:
-- Model/dimension change (e.g., nomic-embed-text → qwen3-embedding)
+- Model/dimension change (e.g., nomic-embed-text -> qwen3-embedding)
 - Qdrant data loss or fresh deployment
 - Collection corruption
 
@@ -211,7 +211,7 @@ def _embed_project_from_db(project_id: str, db_path: str, project_root: str) -> 
         db.close()
 
         # Build memory items using ACTUAL artifact IDs from SQLite.
-        # Must match embed_single_memory_item() ID scheme (string UUIDs →
+        # Must match embed_single_memory_item() ID scheme (string UUIDs ->
         # md5 hash in upsert_memory). See project_embed.py for full rationale.
         mem_items: list[dict] = []
         mem_items.extend(_build_finding_items(findings))
@@ -315,7 +315,7 @@ def rebuild_qdrant_from_db() -> dict:
             results['failed'] += 1
             continue
 
-        # Find sessions.db — trajectory_path may point to .empirica/ or project root
+        # Find sessions.db -- trajectory_path may point to .empirica/ or project root
         if trajectory_path.endswith('.empirica'):
             db_path = os.path.join(trajectory_path, 'sessions', 'sessions.db')
             project_root = os.path.dirname(trajectory_path)

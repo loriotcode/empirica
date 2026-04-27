@@ -38,7 +38,7 @@ import subprocess
 from pathlib import Path
 
 # =============================================================================
-# InstanceResolver — Hook-side facade that delegates to canonical
+# InstanceResolver -- Hook-side facade that delegates to canonical
 # =============================================================================
 
 class InstanceResolver:
@@ -84,7 +84,7 @@ class InstanceResolver:
     def transaction_read(self, claude_session_id: str | None = None) -> dict | None:
         if self._canonical:
             return self._canonical.transaction_read(claude_session_id)
-        # No local fallback for transaction read — hooks should use canonical
+        # No local fallback for transaction read -- hooks should use canonical
         return None
 
     def transaction_write(self, **kwargs) -> None:
@@ -258,7 +258,7 @@ def get_active_project_path(claude_session_id: str | None = None) -> str | None:
         active_work_file = Path.home() / '.empirica' / f'active_work_{claude_session_id}.json'
         if active_work_file.exists():
             try:
-                with open(active_work_file) as f:
+                with open(active_work_file, encoding='utf-8') as f:
                     data = json.load(f)
                     active_work_path = data.get('project_path')
             except Exception:
@@ -270,7 +270,7 @@ def get_active_project_path(claude_session_id: str | None = None) -> str | None:
         instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
         if instance_file.exists():
             try:
-                with open(instance_file) as f:
+                with open(instance_file, encoding='utf-8') as f:
                     data = json.load(f)
                     instance_path = data.get('project_path')
             except Exception:
@@ -296,7 +296,7 @@ def _session_from_transaction(project_path):
     if not tx_file.exists():
         return None
     try:
-        with open(tx_file) as f:
+        with open(tx_file, encoding='utf-8') as f:
             tx_data = json.load(f)
         if tx_data.get('status') == 'open':
             return tx_data.get('session_id')
@@ -310,7 +310,7 @@ def _session_from_json_file(file_path, key='empirica_session_id'):
     if not file_path.exists():
         return None
     try:
-        with open(file_path) as f:
+        with open(file_path, encoding='utf-8') as f:
             return json.load(f).get(key) or None
     except Exception:
         return None
@@ -380,7 +380,7 @@ def get_active_session_id(claude_session_id: str | None = None) -> str | None:
 
 # ---------------------------------------------------------------------------
 # Delegated to canonical session_resolver.py (v1.8.12 resolver dedup)
-# Inline fallbacks removed — these are now single-source-of-truth in
+# Inline fallbacks removed -- these are now single-source-of-truth in
 # empirica.utils.session_resolver. If empirica is not importable (bare
 # plugin without pip install), the InstanceResolver fallback at the top
 # of this file already handles it.
@@ -422,14 +422,14 @@ except ImportError:
     def _read_json_file(path: Path) -> dict | None:
         try:
             if path.exists():
-                with open(path) as f:
+                with open(path, encoding='utf-8') as f:
                     return json.load(f)
         except Exception:
             pass
         return None
 
     def _scan_workspace_for_project(instance_id: str | None) -> Path | None:
-        return None  # Minimal fallback — workspace scan needs full empirica
+        return None  # Minimal fallback -- workspace scan needs full empirica
 
 
 def _validated_project_path(path_str):

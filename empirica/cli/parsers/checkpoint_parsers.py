@@ -272,7 +272,7 @@ def add_checkpoint_parsers(subparsers):
     )
     project_create_parser.add_argument('--name', required=True, help='Project name')
     project_create_parser.add_argument('--description', help='Project description')
-    project_create_parser.add_argument('--path', help='Path to git repo — also initializes .empirica/ filesystem config (bridges project-create + project-init)')
+    project_create_parser.add_argument('--path', help='Path to git repo -- also initializes .empirica/ filesystem config (bridges project-create + project-init)')
     project_create_parser.add_argument('--repos', help='JSON array of repository names (e.g., \'["empirica", "empirica-dev"]\')')
     project_create_parser.add_argument('--type', choices=['product', 'application', 'feature', 'research', 'documentation', 'infrastructure', 'operations'], default='product', help='Project type for workspace categorization')
     project_create_parser.add_argument('--tags', help='Tags for categorization (comma-separated or JSON array)')
@@ -386,7 +386,7 @@ def add_checkpoint_parsers(subparsers):
     ecosystem_check_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     ecosystem_check_parser.add_argument('--verbose', action='store_true', help='Show detailed operation info')
 
-    # Engagement focus command — set active engagement for auto-linking
+    # Engagement focus command -- set active engagement for auto-linking
     engagement_focus_parser = subparsers.add_parser(
         'engagement-focus',
         help='Set active engagement for current transaction (auto-links all artifacts)'
@@ -395,7 +395,7 @@ def add_checkpoint_parsers(subparsers):
     engagement_focus_parser.add_argument('--clear', action='store_true', help='Clear active engagement')
     engagement_focus_parser.add_argument('--output', choices=['json', 'default'], default='json', help='Output format')
 
-    # Workspace search command — cross-project entity-navigable semantic search
+    # Workspace search command -- cross-project entity-navigable semantic search
     workspace_search_parser = subparsers.add_parser(
         'workspace-search',
         help='Search across all projects by entity or semantic query'
@@ -406,7 +406,7 @@ def add_checkpoint_parsers(subparsers):
     workspace_search_parser.add_argument('--limit', type=int, default=20, help='Maximum results')
     workspace_search_parser.add_argument('--output', choices=['json', 'human'], default='json', help='Output format')
 
-    # Git abstraction: save command — git add + commit with auto-message
+    # Git abstraction: save command -- git add + commit with auto-message
     save_parser = subparsers.add_parser(
         'save',
         help='Save current work (git add + commit with auto-generated message)'
@@ -414,7 +414,7 @@ def add_checkpoint_parsers(subparsers):
     save_parser.add_argument('--message', '-m', help='Custom commit message')
     save_parser.add_argument('--output', choices=['json', 'default'], default='json', help='Output format')
 
-    # Git abstraction: history command — epistemic timeline from git log + notes
+    # Git abstraction: history command -- epistemic timeline from git log + notes
     history_parser = subparsers.add_parser(
         'history',
         help='Show epistemic timeline from git log + notes'
@@ -592,7 +592,7 @@ def add_checkpoint_parsers(subparsers):
     # Reference doc add command
     refdoc_add_parser = subparsers.add_parser(
         'refdoc-add',
-        help='Add a reference document to project (legacy — use source-add instead)'
+        help='Add a reference document to project (legacy -- use source-add instead)'
     )
     refdoc_add_parser.add_argument('--project-id', required=True, help='Project UUID')
     refdoc_add_parser.add_argument('--doc-path', required=True, help='Document path')
@@ -600,7 +600,7 @@ def add_checkpoint_parsers(subparsers):
     refdoc_add_parser.add_argument('--description', help='Document description')
     refdoc_add_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
 
-    # Source add command — entity-agnostic source logging with direction
+    # Source add command -- entity-agnostic source logging with direction
     source_add_parser = subparsers.add_parser(
         'source-add',
         help='Add an epistemic source (noetic: evidence IN, praxic: output OUT)'
@@ -613,9 +613,9 @@ def add_checkpoint_parsers(subparsers):
     source_add_parser.add_argument('--url', help='URL (for web sources)')
     direction_group = source_add_parser.add_mutually_exclusive_group(required=True)
     direction_group.add_argument('--noetic', action='store_true',
-        help='Source used — evidence that informed knowledge (source IN)')
+        help='Source used -- evidence that informed knowledge (source IN)')
     direction_group.add_argument('--praxic', action='store_true',
-        help='Source created — output produced by action (source OUT)')
+        help='Source created -- output produced by action (source OUT)')
     source_add_parser.add_argument('--confidence', type=float, default=0.7,
         help='Confidence in source quality (0.0-1.0, default: 0.7)')
     source_add_parser.add_argument('--session-id', help='Session ID (auto-derived from transaction)')
@@ -636,7 +636,7 @@ def add_checkpoint_parsers(subparsers):
     source_list_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
     source_list_parser.add_argument('--verbose', action='store_true', help='Show detailed info')
 
-    # Graph artifact commands — batch logging and resolution
+    # Graph artifact commands -- batch logging and resolution
     log_artifacts_parser = subparsers.add_parser(
         'log-artifacts',
         help='Batch log connected artifacts with graph format (nodes + edges)',
@@ -699,7 +699,7 @@ Example:
     # See: docs/superpowers/specs/2026-04-07-epp-strengthening-design.md
     epp_activate_parser = subparsers.add_parser(
         'epp-activate',
-        help='Log EPP (Epistemic Persistence Protocol) activation — self-reported telemetry'
+        help='Log EPP (Epistemic Persistence Protocol) activation -- self-reported telemetry'
     )
     epp_activate_parser.add_argument(
         '--category',
@@ -745,7 +745,7 @@ Example:
     training_export_parser.add_argument('--verbose', action='store_true', help='Show detailed info')
 
     # NEW: Goal Management Commands (MCP v2 Integration)
-    # Aliases: goals-X → goal-X (singular), short aliases (gc, gl, etc.)
+    # Aliases: goals-X -> goal-X (singular), short aliases (gc, gl, etc.)
 
     # Goals create command (AI-first with config file support)
     goals_create_parser = subparsers.add_parser(
@@ -931,10 +931,10 @@ Example:
     goals_get_stale_parser.add_argument('--project-id', help='Filter by project ID')
     goals_get_stale_parser.add_argument('--output', choices=['human', 'json'], default='human', help='Output format')
 
-    # Goals activate command (transition planned → in_progress, link to transaction)
+    # Goals activate command (transition planned -> in_progress, link to transaction)
     goals_activate_parser = subparsers.add_parser('goals-activate',
         aliases=['goal-activate'],
-        help='Activate a planned goal — set to in_progress and link to current transaction')
+        help='Activate a planned goal -- set to in_progress and link to current transaction')
     goals_activate_parser.add_argument('--goal-id', required=True, help='Goal UUID to activate (prefix match)')
     goals_activate_parser.add_argument('--output', choices=['human', 'json'], default='json', help='Output format')
 

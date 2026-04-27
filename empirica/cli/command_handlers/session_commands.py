@@ -65,17 +65,17 @@ def _sessions_list_pretty_output(sessions, args):
     if not sessions:
         logger.info("No sessions found in database")
         print("\n📭 No sessions found")
-        print("💡 Create a session with: empirica preflight <task>")
+        print("[HINT] Create a session with: empirica preflight <task>")
         return
 
-    print(f"\n📊 Found {len(sessions)} sessions:\n")
+    print(f"\n[STATS] Found {len(sessions)} sessions:\n")
 
     for row in sessions:
         session_id, ai_id, user_id, start_time, end_time, cascades, conf, drift = row
         start = _format_timestamp(start_time) or "N/A"
         end = _format_timestamp(end_time) or "Active"
-        status = "✅" if end_time else "⏳"
-        drift_icon = "⚠️" if drift else ""
+        status = "[OK]" if end_time else "⏳"
+        drift_icon = "[WARN]" if drift else ""
 
         print(f"{status} {session_id[:8]}")
         print(f"   🤖 AI: {ai_id}")
@@ -83,17 +83,17 @@ def _sessions_list_pretty_output(sessions, args):
             print(f"   👤 User: {user_id}")
         print(f"   📅 Started: {start}")
         print(f"   🏁 Ended: {end}")
-        print(f"   🔄 Cascades: {cascades}")
+        print(f"   [LOAD] Cascades: {cascades}")
         if conf:
-            print(f"   📊 Avg Confidence: {conf:.2f}")
+            print(f"   [STATS] Avg Confidence: {conf:.2f}")
         if drift:
             print(f"   {drift_icon} Drift Detected")
         print()
 
     if len(sessions) >= 50 and not hasattr(args, 'limit'):
-        print("💡 Showing 50 most recent sessions. Use --limit to see more.")
+        print("[HINT] Showing 50 most recent sessions. Use --limit to see more.")
 
-    print("💡 View details: empirica sessions show <session_id>")
+    print("[HINT] View details: empirica sessions show <session_id>")
 
 
 def handle_sessions_list_command(args):
@@ -138,34 +138,34 @@ def handle_sessions_list_command(args):
 def _print_vectors_block(label, vectors, verbose):
     """Print epistemic vectors block (preflight or postflight)."""
     print(f"\n{label}")
-    print(f"   • KNOW:    {vectors.get('know', 0.5):.2f}")
-    print(f"   • DO:      {vectors.get('do', 0.5):.2f}")
-    print(f"   • CONTEXT: {vectors.get('context', 0.5):.2f}")
+    print(f"   * KNOW:    {vectors.get('know', 0.5):.2f}")
+    print(f"   * DO:      {vectors.get('do', 0.5):.2f}")
+    print(f"   * CONTEXT: {vectors.get('context', 0.5):.2f}")
 
     if verbose:
         print("\n   Comprehension:")
-        print(f"   • CLARITY:   {vectors.get('clarity', 0.5):.2f}")
-        print(f"   • COHERENCE: {vectors.get('coherence', 0.5):.2f}")
-        print(f"   • SIGNAL:    {vectors.get('signal', 0.5):.2f}")
-        print(f"   • DENSITY:   {vectors.get('density', 0.5):.2f}")
+        print(f"   * CLARITY:   {vectors.get('clarity', 0.5):.2f}")
+        print(f"   * COHERENCE: {vectors.get('coherence', 0.5):.2f}")
+        print(f"   * SIGNAL:    {vectors.get('signal', 0.5):.2f}")
+        print(f"   * DENSITY:   {vectors.get('density', 0.5):.2f}")
 
         print("\n   Execution:")
-        print(f"   • STATE:      {vectors.get('state', 0.5):.2f}")
-        print(f"   • CHANGE:     {vectors.get('change', 0.5):.2f}")
-        print(f"   • COMPLETION: {vectors.get('completion', 0.5):.2f}")
-        print(f"   • IMPACT:     {vectors.get('impact', 0.5):.2f}")
+        print(f"   * STATE:      {vectors.get('state', 0.5):.2f}")
+        print(f"   * CHANGE:     {vectors.get('change', 0.5):.2f}")
+        print(f"   * COMPLETION: {vectors.get('completion', 0.5):.2f}")
+        print(f"   * IMPACT:     {vectors.get('impact', 0.5):.2f}")
 
         print("\n   Meta-Cognitive:")
-        print(f"   • ENGAGEMENT:  {vectors.get('engagement', 0.5):.2f}")
-        print(f"   • UNCERTAINTY: {vectors.get('uncertainty', 0.5):.2f}")
+        print(f"   * ENGAGEMENT:  {vectors.get('engagement', 0.5):.2f}")
+        print(f"   * UNCERTAINTY: {vectors.get('uncertainty', 0.5):.2f}")
 
 
 def _print_session_detail(summary, session_id_arg, verbose):
     """Print pretty session detail output (cascades, vectors, delta, tools)."""
     session_id = summary['session_id']
-    print_header(f"📊 Session Details: {session_id[:8]}")
+    print_header(f"[STATS] Session Details: {session_id[:8]}")
 
-    print(f"\n🆔 Session ID: {session_id}")
+    print(f"\n[ID] Session ID: {session_id}")
     print(f"🤖 AI: {summary['ai_id']}")
     print(f"📅 Started: {summary['start_time']}")
     if summary.get('end_time'):
@@ -173,9 +173,9 @@ def _print_session_detail(summary, session_id_arg, verbose):
     else:
         print("⏳ Status: Active")
 
-    print(f"\n🔄 Total Cascades: {summary['total_cascades']}")
+    print(f"\n[LOAD] Total Cascades: {summary['total_cascades']}")
     if summary.get('avg_confidence'):
-        print(f"📊 Average Confidence: {summary['avg_confidence']:.2f}")
+        print(f"[STATS] Average Confidence: {summary['avg_confidence']:.2f}")
 
     if verbose and isinstance(summary.get('cascades'), list):
         print("\n📋 Cascade Tasks:")
@@ -192,12 +192,12 @@ def _print_session_detail(summary, session_id_arg, verbose):
             print(f"   ... and {summary['total_cascades'] - 10} more")
 
     if summary.get('preflight'):
-        _print_vectors_block("🚀 Preflight Epistemic State:", summary['preflight'], verbose)
+        _print_vectors_block("[RUN] Preflight Epistemic State:", summary['preflight'], verbose)
     if summary.get('postflight'):
         _print_vectors_block("🏁 Postflight Epistemic State:", summary['postflight'], verbose)
 
     if summary.get('epistemic_delta'):
-        print("\n📈 Learning Delta (Preflight → Postflight):")
+        print("\n[UP] Learning Delta (Preflight -> Postflight):")
         delta = summary['epistemic_delta']
         significant = {k: v for k, v in delta.items() if abs(v) >= 0.05}
         if significant:
@@ -210,9 +210,9 @@ def _print_session_detail(summary, session_id_arg, verbose):
     if summary.get('tools_used'):
         print("\n🔧 Investigation Tools Used:")
         for tool in summary['tools_used']:
-            print(f"   • {tool['tool']}: {tool['count']} times")
+            print(f"   * {tool['tool']}: {tool['count']} times")
 
-    print(f"\n💡 Export to JSON: empirica sessions export {session_id_arg}")
+    print(f"\n[HINT] Export to JSON: empirica sessions export {session_id_arg}")
 
 
 def handle_sessions_show_command(args):
@@ -227,9 +227,9 @@ def handle_sessions_show_command(args):
             if getattr(args, 'output', None) == 'json':
                 print(json.dumps({"ok": False, "error": "Session ID required"}))
             else:
-                print("\n❌ Session ID required")
-                print("💡 Usage: empirica sessions-show <session-id>")
-                print("💡 Or: empirica sessions-show --session-id <session-id>")
+                print("\n[FAIL] Session ID required")
+                print("[HINT] Usage: empirica sessions-show <session-id>")
+                print("[HINT] Or: empirica sessions-show --session-id <session-id>")
             return
 
         try:
@@ -238,9 +238,9 @@ def handle_sessions_show_command(args):
             if getattr(args, 'output', None) == 'json':
                 print(json.dumps({"ok": False, "error": str(e)}))
             else:
-                print(f"\n❌ {e!s}")
-                print(f"💡 Provided: {session_id_arg}")
-                print("💡 List sessions with: empirica sessions-list")
+                print(f"\n[FAIL] {e!s}")
+                print(f"[HINT] Provided: {session_id_arg}")
+                print("[HINT] List sessions with: empirica sessions-list")
             return
 
         db = SessionDatabase()
@@ -251,8 +251,8 @@ def handle_sessions_show_command(args):
             if getattr(args, 'output', None) == 'json':
                 print(json.dumps({"ok": False, "error": f"Session not found: {session_id_arg}"}))
             else:
-                print(f"\n❌ Session not found: {session_id_arg}")
-                print("💡 List sessions with: empirica sessions list")
+                print(f"\n[FAIL] Session not found: {session_id_arg}")
+                print("[HINT] List sessions with: empirica sessions list")
             db.close()
             return
 
@@ -287,7 +287,7 @@ def _print_snapshot_pretty(session_id, snapshot):
 
     trajectory = snapshot['epistemic_trajectory']
     if trajectory:
-        print("\n🧠 Epistemic Trajectory:")
+        print("\n[THINK] Epistemic Trajectory:")
         if 'preflight' in trajectory:
             pre = trajectory['preflight']
             print(f"   PREFLIGHT: know={pre.get('know', 0):.2f}, uncertainty={pre.get('uncertainty', 0):.2f}")
@@ -299,7 +299,7 @@ def _print_snapshot_pretty(session_id, snapshot):
 
     delta = snapshot.get('learning_delta', {})
     if delta:
-        print("\n📈 Learning Delta:")
+        print("\n[UP] Learning Delta:")
         significant = {k: v for k, v in delta.items() if abs(v) >= 0.1}
         for key, value in sorted(significant.items(), key=lambda x: abs(x[1]), reverse=True)[:5]:
             sign = '+' if value > 0 else ''
@@ -307,7 +307,7 @@ def _print_snapshot_pretty(session_id, snapshot):
 
     goals = snapshot.get('active_goals', [])
     if goals:
-        print(f"\n🎯 Active Goals ({len(goals)}):")
+        print(f"\n[TARGET] Active Goals ({len(goals)}):")
         for goal in goals[:3]:
             print(f"   - {goal['objective']} ({goal['progress']})")
 
@@ -331,7 +331,7 @@ def handle_session_snapshot_command(args):
     db.close()
 
     if not snapshot:
-        print(f"❌ Session not found: {args.session_id}")
+        print(f"[FAIL] Session not found: {args.session_id}")
         return 1
 
     if args.output == 'json':
@@ -349,20 +349,20 @@ def handle_sessions_export_command(args):
         # Support both positional and named argument for session ID
         session_id_arg = args.session_id or getattr(args, 'session_id_named', None)
         if not session_id_arg:
-            print("\n❌ Session ID required")
-            print("💡 Usage: empirica sessions-export <session-id>")
-            print("💡 Or: empirica sessions-export --session-id <session-id>")
+            print("\n[FAIL] Session ID required")
+            print("[HINT] Usage: empirica sessions-export <session-id>")
+            print("[HINT] Or: empirica sessions-export --session-id <session-id>")
             return
 
         # Resolve session alias to UUID
         try:
             session_id = R.resolve_session(session_id_arg)
         except ValueError as e:
-            print(f"\n❌ {e!s}")
-            print(f"💡 Provided: {session_id_arg}")
+            print(f"\n[FAIL] {e!s}")
+            print(f"[HINT] Provided: {session_id_arg}")
             return
 
-        print_header(f"📦 Exporting Session: {session_id[:8]}")
+        print_header(f"[PKG] Exporting Session: {session_id[:8]}")
 
         db = SessionDatabase()  # Use path resolver
 
@@ -371,7 +371,7 @@ def handle_sessions_export_command(args):
 
         if not summary:
             logger.warning(f"Session not found for export: {session_id_arg}")
-            print(f"\n❌ Session not found: {session_id_arg}")
+            print(f"\n[FAIL] Session not found: {session_id_arg}")
             db.close()
             return
 
@@ -387,26 +387,26 @@ def handle_sessions_export_command(args):
         output_file = args.output if hasattr(args, 'output') and args.output else f"session_{session_id_arg[:8]}.json"
 
         # Write to file
-        with open(output_file, 'w') as f:
+        with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=2, default=str)
 
         logger.info(f"Session data exported to {output_file}")
 
-        print("\n✅ Session exported successfully")
+        print("\n[OK] Session exported successfully")
         print(f"📄 File: {output_file}")
-        print(f"📊 Size: {len(json.dumps(summary, default=str))} bytes")
+        print(f"[STATS] Size: {len(json.dumps(summary, default=str))} bytes")
 
         # Summary stats
         print("\n📋 Exported Data:")
-        print(f"   • Session ID: {summary['session_id']}")
-        print(f"   • AI: {summary['ai_id']}")
-        print(f"   • Cascades: {summary['total_cascades']}")
+        print(f"   * Session ID: {summary['session_id']}")
+        print(f"   * AI: {summary['ai_id']}")
+        print(f"   * Cascades: {summary['total_cascades']}")
         if summary.get('preflight'):
-            print("   • Preflight vectors: ✅")
+            print("   * Preflight vectors: [OK]")
         if summary.get('postflight'):
-            print("   • Postflight vectors: ✅")
+            print("   * Postflight vectors: [OK]")
         if summary.get('epistemic_delta'):
-            print("   • Learning delta: ✅")
+            print("   * Learning delta: [OK]")
 
         db.close()
 
@@ -519,7 +519,7 @@ def handle_memory_compact_command(args):
             if args.config == '-':
                 config = json.load(sys.stdin)
             else:
-                with open(args.config) as f:
+                with open(args.config, encoding='utf-8') as f:
                     config = json.load(f)
         else:
             config = json.load(sys.stdin)
@@ -640,7 +640,7 @@ def _adopt_autodetect_project(from_instance, result):
     from_instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{from_instance}.json'
     if from_instance_file.exists():
         try:
-            with open(from_instance_file) as f:
+            with open(from_instance_file, encoding='utf-8') as f:
                 data = json.load(f)
             project_path = data.get('project_path')
             if project_path:
@@ -680,14 +680,14 @@ def _adopt_execute_rename(from_instance, to_instance, from_tx_file, to_tx_file,
 
     # Step 1: Rename transaction file (skip if same instance)
     if from_instance == to_instance:
-        result["actions"].append(f"Same instance ({from_instance}) — transaction file already in place")
+        result["actions"].append(f"Same instance ({from_instance}) -- transaction file already in place")
     else:
         if to_tx_file.exists():
             backup_file = to_tx_file.with_suffix('.json.backup')
             shutil.move(str(to_tx_file), str(backup_file))
             result["actions"].append(f"Backed up existing: {backup_file}")
         shutil.move(str(from_tx_file), str(to_tx_file))
-        result["actions"].append(f"Renamed: {from_tx_file.name} → {to_tx_file.name}")
+        result["actions"].append(f"Renamed: {from_tx_file.name} -> {to_tx_file.name}")
 
     # Step 2: Update instance_projects mapping
     instance_projects_dir = Path.home() / '.empirica' / 'instance_projects'
@@ -700,7 +700,7 @@ def _adopt_execute_rename(from_instance, to_instance, from_tx_file, to_tx_file,
             "adopted_from": from_instance,
             "adopted_at": datetime.now().isoformat()
         }
-        with open(to_instance_file, 'w') as f:
+        with open(to_instance_file, 'w', encoding='utf-8') as f:
             json.dump(instance_data, f, indent=2)
         os.chmod(to_instance_file, 0o600)
         result["actions"].append(f"Updated: {to_instance_file}")
@@ -723,7 +723,7 @@ def _adopt_print_error(result, output_json, extra_hints=None):
     if output_json:
         print(json.dumps(result))
     else:
-        print(f"❌ {result['error']}")
+        print(f"[FAIL] {result['error']}")
         for hint in (extra_hints or []):
             print(hint)
 
@@ -733,15 +733,15 @@ def _adopt_output_result(result, output_json, from_instance, to_instance, projec
     if output_json:
         print(json.dumps(result))
     else:
-        print("✅ Transaction adopted successfully")
+        print("[OK] Transaction adopted successfully")
         print("\n📋 Transaction:")
         print(f"   ID: {result['transaction']['transaction_id']}...")
         print(f"   Session: {result['transaction']['session_id']}...")
         print(f"   Status: {result['transaction']['status']}")
-        print("\n📁 Instance mapping:")
-        print(f"   {from_instance} → {to_instance}")
-        print(f"\n📂 Project: {project_path}")
-        print("\n💡 Your transaction is now active. Continue working!")
+        print("\n[DIR] Instance mapping:")
+        print(f"   {from_instance} -> {to_instance}")
+        print(f"\n[DIR] Project: {project_path}")
+        print("\n[HINT] Your transaction is now active. Continue working!")
 
 
 def handle_transaction_adopt_command(args):
@@ -791,8 +791,8 @@ def handle_transaction_adopt_command(args):
     if not from_tx_file.exists():
         result["error"] = f"Transaction file not found: {from_tx_file}"
         _adopt_print_error(result, output_json, [
-            f"💡 Check if {from_instance} is the correct source instance ID",
-            f"💡 List transaction files: ls {empirica_dir}/active_transaction_*.json"
+            f"[HINT] Check if {from_instance} is the correct source instance ID",
+            f"[HINT] List transaction files: ls {empirica_dir}/active_transaction_*.json"
         ])
         return 1
 
@@ -801,7 +801,7 @@ def handle_transaction_adopt_command(args):
         result["actions"].append("Target file exists - will be overwritten")
 
     try:
-        with open(from_tx_file) as f:
+        with open(from_tx_file, encoding='utf-8') as f:
             tx_data = json.load(f)
         result["transaction"] = {
             "transaction_id": tx_data.get('transaction_id', 'unknown')[:8],
@@ -814,21 +814,21 @@ def handle_transaction_adopt_command(args):
         return 1
 
     if dry_run:
-        result["actions"].append(f"[DRY RUN] Would rename: {from_tx_file} → {to_tx_file}")
+        result["actions"].append(f"[DRY RUN] Would rename: {from_tx_file} -> {to_tx_file}")
         result["actions"].append(f"[DRY RUN] Would update: ~/.empirica/instance_projects/{to_instance}.json")
         result["ok"] = True
         if output_json:
             print(json.dumps(result))
         else:
-            print("🔍 DRY RUN - No changes made")
+            print("[SEARCH] DRY RUN - No changes made")
             print("\n📋 Transaction to adopt:")
             print(f"   ID: {result['transaction']['transaction_id']}...")
             print(f"   Session: {result['transaction']['session_id']}...")
             print(f"   Status: {result['transaction']['status']}")
-            print("\n📁 Files:")
+            print("\n[DIR] Files:")
             print(f"   From: {from_tx_file}")
             print(f"   To:   {to_tx_file}")
-            print("\n✅ Run without --dry-run to adopt")
+            print("\n[OK] Run without --dry-run to adopt")
         return 0
 
     try:

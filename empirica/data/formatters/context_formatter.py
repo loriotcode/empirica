@@ -63,7 +63,7 @@ def _format_mistakes_section(breadcrumbs: dict) -> list:
         return []
     lines = ["## Mistakes to Avoid"]
     for m in mistakes:
-        lines.append(f"- **{m['mistake']}** → {m['prevention']} (cost: {m.get('cost', 'unknown')})")
+        lines.append(f"- **{m['mistake']}** -> {m['prevention']} (cost: {m.get('cost', 'unknown')})")
     lines.append("")
     return lines
 
@@ -95,7 +95,7 @@ def _format_skill_entry(skill: dict) -> list:
     if skill.get('gotchas'):
         lines.append("**Gotchas:**")
         for gotcha in skill['gotchas']:
-            lines.append(f"- ⚠️ {gotcha}")
+            lines.append(f"- [WARN] {gotcha}")
     if skill.get('references'):
         lines.append("**References:**")
         for ref in skill['references']:

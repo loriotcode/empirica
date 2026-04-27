@@ -21,9 +21,9 @@ def handle_doc_check_command(args):
         else:
             print(f"📄 Documentation completeness: {plan['doc_completeness_score']}")
             if plan['suggested_updates']:
-                print("\n🛠️  Suggested updates:")
+                print("\n[TOOLS]  Suggested updates:")
                 for i, s in enumerate(plan['suggested_updates'], 1):
-                    print(f"  {i}. {s['doc_path']} → {s['reason']}")
+                    print(f"  {i}. {s['doc_path']} -> {s['reason']}")
         return plan
     except Exception as e:
         handle_cli_error(e, "Doc check", getattr(args, 'verbose', False))

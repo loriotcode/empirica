@@ -1,10 +1,10 @@
 """Session management command parsers.
 
 Aliases:
-- sessions-list → session-list, sl
-- sessions-show → session-show
-- sessions-export → session-export
-- session-create → sc (added in cascade_parsers.py)
+- sessions-list -> session-list, sl
+- sessions-show -> session-show
+- sessions-export -> session-export
+- session-create -> sc (added in cascade_parsers.py)
 """
 
 

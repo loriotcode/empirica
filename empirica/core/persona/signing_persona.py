@@ -95,7 +95,7 @@ class SigningPersona:
             raise ValueError("AIIdentity must have public key loaded")
 
         logger.info(
-            f"✓ Created SigningPersona: {persona_profile.persona_id} "
+            f"[OK] Created SigningPersona: {persona_profile.persona_id} "
             f"with identity {ai_identity.ai_id}"
         )
 
@@ -198,7 +198,7 @@ class SigningPersona:
             result["metadata"] = additional_data
 
         logger.info(
-            f"✓ Signed epistemic state: {self.persona.persona_id} "
+            f"[OK] Signed epistemic state: {self.persona.persona_id} "
             f"phase={phase} signature={signature_bytes.hex()[:16]}..."
         )
 
@@ -249,12 +249,12 @@ class SigningPersona:
 
             if is_valid:
                 logger.info(
-                    f"✓ Verified signature: {state['persona_id']} "
+                    f"[OK] Verified signature: {state['persona_id']} "
                     f"phase={state['phase']}"
                 )
             else:
                 logger.warning(
-                    f"✗ Signature verification failed: {state['persona_id']} "
+                    f"[FAIL] Signature verification failed: {state['persona_id']} "
                     f"phase={state['phase']}"
                 )
 

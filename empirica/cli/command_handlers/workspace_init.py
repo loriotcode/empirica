@@ -31,9 +31,9 @@ class EpistemicDecisionEngine:
     Makes epistemic decisions during workspace initialization.
 
     Decision rules:
-    - uncertainty > 0.7 + context < 0.3 → INVESTIGATE (blindly exploring)
-    - uncertainty > 0.4 + context > 0.5 → ASK_USER (have enough context to ask)
-    - uncertainty < 0.3 + know > 0.7 → PROCEED (confident enough)
+    - uncertainty > 0.7 + context < 0.3 -> INVESTIGATE (blindly exploring)
+    - uncertainty > 0.4 + context > 0.5 -> ASK_USER (have enough context to ask)
+    - uncertainty < 0.3 + know > 0.7 -> PROCEED (confident enough)
     """
 
     @staticmethod
@@ -255,7 +255,7 @@ def _wsinit_run_preflight(db, session_id, scanner, output_format):
     Returns initial_state dict from scanner.
     """
     if output_format != 'json':
-        print("🧠 PREFLIGHT Assessment...\n")
+        print("[THINK] PREFLIGHT Assessment...\n")
         print(f"Scanning workspace: {scanner.workspace_path}\n")
 
     initial_state = scanner.initial_scan()
@@ -280,11 +280,11 @@ def _wsinit_run_preflight(db, session_id, scanner, output_format):
         print(f"  uncertainty: {initial_state['uncertainty']:.2f} (High - many unknowns)\n")
         print("Findings:")
         for finding in initial_state['findings']:
-            print(f"  • {finding}")
+            print(f"  * {finding}")
         print("\nUnknowns:")
         for unknown in initial_state['unknowns']:
-            print(f"  • {unknown}")
-        print("\n" + "━" * 64 + "\n")
+            print(f"  * {unknown}")
+        print("\n" + "=" * 64 + "\n")
 
     return initial_state
 
@@ -304,13 +304,13 @@ def _wsinit_run_investigation(db, session_id, scanner, initial_state, output_for
         return investigation_state
 
     if output_format != 'json':
-        print("🔍 CHECK #1 - Should I investigate deeper?\n")
+        print("[SEARCH] CHECK #1 - Should I investigate deeper?\n")
         print(f"Current confidence: {1 - initial_state['uncertainty']:.2f} (LOW)")
         print("Decision: INVESTIGATE MORE\n")
         print("Investigation triggered because:")
-        print(f"  • High uncertainty ({initial_state['uncertainty']:.2f})")
-        print(f"  • Low context ({initial_state['context']:.2f})")
-        print("  • Need more data to make informed decisions\n")
+        print(f"  * High uncertainty ({initial_state['uncertainty']:.2f})")
+        print(f"  * Low context ({initial_state['context']:.2f})")
+        print("  * Need more data to make informed decisions\n")
         print("Investigating...\n")
 
     investigation_state = scanner.deep_investigation()
@@ -324,12 +324,12 @@ def _wsinit_run_investigation(db, session_id, scanner, initial_state, output_for
 
     if output_format != 'json':
         print("Updated epistemic state:")
-        print(f"  know: {investigation_state['know']:.2f} ↑    (Medium - now understand projects)")
-        print(f"  context: {investigation_state['context']:.2f} ↑ (Medium - have activity data)")
-        print(f"  uncertainty: {investigation_state['uncertainty']:.2f} ↓ (Medium-Low)\n")
+        print(f"  know: {investigation_state['know']:.2f} ^    (Medium - now understand projects)")
+        print(f"  context: {investigation_state['context']:.2f} ^ (Medium - have activity data)")
+        print(f"  uncertainty: {investigation_state['uncertainty']:.2f} v (Medium-Low)\n")
         print("New findings:")
         for finding in investigation_state['findings'][:5]:
-            print(f"  • {finding}")
+            print(f"  * {finding}")
         if len(investigation_state['findings']) > 5:
             print(f"  ... and {len(investigation_state['findings']) - 5} more")
         print()
@@ -356,8 +356,8 @@ def _wsinit_ask_user(db, session_id, investigation_state, output_format):
         }, current_know, current_context, current_uncertainty
 
     if output_format != 'json':
-        print("━" * 64 + "\n")
-        print("🔍 CHECK #2 - Can I proceed or ask user?\n")
+        print("=" * 64 + "\n")
+        print("[SEARCH] CHECK #2 - Can I proceed or ask user?\n")
         print(f"Current confidence: {1 - current_uncertainty:.2f} (MEDIUM)")
         print("Decision: ASK USER (uncertainty still present, have context to ask)\n")
         print("Questions to resolve unknowns:\n")
@@ -372,7 +372,7 @@ def _wsinit_ask_user(db, session_id, investigation_state, output_format):
     questions = _generate_context_aware_questions(investigation_state)
     for q in questions:
         if output_format != 'json':
-            print(f"❓ {q['question']}")
+            print(f"[?] {q['question']}")
             answer = input(f"   {q['prompt']}: ").strip().lower()
             user_preferences[q['key']] = answer
             print()
@@ -385,9 +385,9 @@ def _wsinit_ask_user(db, session_id, investigation_state, output_format):
 
     if output_format != 'json':
         print("Updating with user input...")
-        print(f"  know: {current_know:.2f} ↑    (High - user clarified preferences)")
-        print(f"  context: {current_context:.2f} ↑ (High - complete picture)")
-        print(f"  uncertainty: {current_uncertainty:.2f} ↓ (Low - ready to proceed!)\n")
+        print(f"  know: {current_know:.2f} ^    (High - user clarified preferences)")
+        print(f"  context: {current_context:.2f} ^ (High - complete picture)")
+        print(f"  uncertainty: {current_uncertainty:.2f} v (Low - ready to proceed!)\n")
 
     return user_preferences, current_know, current_context, current_uncertainty
 
@@ -436,7 +436,7 @@ def _wsinit_create_projects(db, investigation_state, user_preferences, output_fo
 
         if output_format != 'json':
             desc = repo_info.get('description', 'No description')[:60]
-            print(f"  ✓ {project_name} ({desc}...) [{action}]")
+            print(f"  [OK] {project_name} ({desc}...) [{action}]")
 
     return created_projects
 
@@ -463,24 +463,24 @@ def _wsinit_run_postflight(db, session_id, initial_state, created_projects, outp
     )
 
     if output_format != 'json':
-        print("━" * 64 + "\n")
-        print("✅ POSTFLIGHT Assessment\n")
+        print("=" * 64 + "\n")
+        print("[OK] POSTFLIGHT Assessment\n")
         print("Final epistemic state:")
-        print(f"  know: {final_know:.2f} ↑       (Excellent - comprehensive understanding)")
-        print(f"  context: {final_context:.2f} ↑    (Excellent - full workspace mapped)")
-        print("  completion: 1.0 ↑  (Complete - all projects registered)")
-        print(f"  uncertainty: {final_uncertainty:.2f} ↓ (Very low - high confidence)\n")
-        print("Learning delta (PREFLIGHT → POSTFLIGHT):")
+        print(f"  know: {final_know:.2f} ^       (Excellent - comprehensive understanding)")
+        print(f"  context: {final_context:.2f} ^    (Excellent - full workspace mapped)")
+        print("  completion: 1.0 ^  (Complete - all projects registered)")
+        print(f"  uncertainty: {final_uncertainty:.2f} v (Very low - high confidence)\n")
+        print("Learning delta (PREFLIGHT -> POSTFLIGHT):")
         print(f"  know: +{final_know - initial_state['know']:.2f}")
         print(f"  context: +{final_context - initial_state['context']:.2f}")
         print(f"  uncertainty: {final_uncertainty - initial_state['uncertainty']:.2f}\n")
         print(f"Session recorded: {session_id}\n")
-        print("━" * 64 + "\n")
-        print("📊 Your Epistemic Workspace\n")
+        print("=" * 64 + "\n")
+        print("[STATS] Your Epistemic Workspace\n")
         print("Run 'empirica workspace-overview' to see:")
-        print("  • Epistemic health of all projects")
-        print("  • Cross-project knowledge patterns")
-        print("  • Recommended next actions\n")
+        print("  * Epistemic health of all projects")
+        print("  * Cross-project knowledge patterns")
+        print("  * Recommended next actions\n")
 
     return {
         "know": f"+{final_know - initial_state['know']:.2f}",
@@ -534,8 +534,8 @@ def handle_workspace_init_command(args):
 
         # Stage 4: CHECK #3
         if output_format != 'json':
-            print("━" * 64 + "\n")
-            print("🔍 CHECK #3 - Final review before execution\n")
+            print("=" * 64 + "\n")
+            print("[SEARCH] CHECK #3 - Final review before execution\n")
             print(f"Current confidence: {1 - current_uncertainty:.2f} (HIGH)")
             print("Decision: PROCEED\n")
 
@@ -548,13 +548,13 @@ def handle_workspace_init_command(args):
 
         # Stage 5: Execution
         if output_format != 'json':
-            print("🚀 Executing with high confidence...\n")
+            print("[RUN] Executing with high confidence...\n")
             print("Creating projects:\n")
 
         created_projects = _wsinit_create_projects(db, investigation_state, user_preferences, output_format)
 
         if output_format != 'json':
-            print(f"\n  ✓ {len(created_projects)} projects created\n")
+            print(f"\n  [OK] {len(created_projects)} projects created\n")
 
         # Stage 6: POSTFLIGHT
         learning_delta = _wsinit_run_postflight(db, session_id, initial_state, created_projects, output_format)
@@ -795,7 +795,7 @@ def _generate_project_config(repo_path: Path, project_id: str, repo_info: dict):
         }
     }
 
-    with open(config_path, 'w') as f:
+    with open(config_path, 'w', encoding='utf-8') as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
 

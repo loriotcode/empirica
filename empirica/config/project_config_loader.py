@@ -55,10 +55,10 @@ class ProjectConfig:
         self.created_by = config_data.get('created_by')
         self.repository = config_data.get('repository')
 
-        # Participant references (IDs + roles — full profiles in Workspace CRM)
+        # Participant references (IDs + roles -- full profiles in Workspace CRM)
         self.contacts = config_data.get('contacts', [])
 
-        # Engagement references (IDs — lifecycle in Workspace CRM)
+        # Engagement references (IDs -- lifecycle in Workspace CRM)
         self.engagements = config_data.get('engagements', [])
 
         # Relationship edges (typed links to other entities)
@@ -187,7 +187,7 @@ def load_project_config(project_root: Path | None = None) -> ProjectConfig | Non
         return None
 
     try:
-        with open(config_path) as f:
+        with open(config_path, encoding='utf-8') as f:
             config_data = yaml.safe_load(f)
 
         # Override project_id with authoritative value from sessions.db
@@ -197,7 +197,7 @@ def load_project_config(project_root: Path | None = None) -> ProjectConfig | Non
             db_project_id = R.project_id_from_db(project_root)
             if db_project_id:
                 config_data['project_id'] = db_project_id
-        except Exception:  # noqa: S110 — keep yaml project_id as fallback if DB unavailable
+        except Exception:  # noqa: S110 -- keep yaml project_id as fallback if DB unavailable
             pass
 
         logger.info(f"Loaded project config: {config_data.get('name', 'Unknown')}")

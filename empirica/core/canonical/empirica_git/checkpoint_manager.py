@@ -141,7 +141,7 @@ class CheckpointManager:
                 metadata=metadata or {}
             )
 
-            logger.info(f"✓ Created git checkpoint: {checkpoint_hash[:8]} (phase={phase}, ai={ai_id})")
+            logger.info(f"[OK] Created git checkpoint: {checkpoint_hash[:8]} (phase={phase}, ai={ai_id})")
             return checkpoint_hash
 
         except Exception as e:

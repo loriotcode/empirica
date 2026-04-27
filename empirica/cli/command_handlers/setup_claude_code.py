@@ -97,7 +97,7 @@ def _ensure_json_file(path: Path, default: dict) -> dict:
     """Ensure JSON file exists and return its contents"""
     if path.exists():
         try:
-            with open(path) as f:
+            with open(path, encoding='utf-8') as f:
                 return json.load(f)
         except (OSError, json.JSONDecodeError):
             pass
@@ -107,7 +107,7 @@ def _ensure_json_file(path: Path, default: dict) -> dict:
 def _write_json_file(path: Path, data: dict):
     """Write JSON file atomically"""
     temp_path = path.with_suffix('.tmp')
-    with open(temp_path, 'w') as f:
+    with open(temp_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2)
     temp_path.rename(path)
 
@@ -144,7 +144,7 @@ def _register_hook(settings, event, detect_pattern, entries, label, output_forma
             for entry in entries:
                 settings['hooks'][event].append(entry)
         if output_format != 'json':
-            print(f"   ✓ {label} configured")
+            print(f"   [OK] {label} configured")
     else:
         if output_format != 'json':
             print(f"   {label} already configured")
@@ -193,7 +193,7 @@ def _force_clean_hooks(settings, output_format):
 def _configure_statusline(settings, plugin_dir, python_cmd, output_format):
     """Configure StatusLine command in settings.
 
-    Claude Code pipes session JSON to statusline stdin — do NOT redirect stdin.
+    Claude Code pipes session JSON to statusline stdin -- do NOT redirect stdin.
     """
     if 'statusLine' not in settings:
         statusline_script = plugin_dir / "scripts" / "statusline_empirica.py"
@@ -202,7 +202,7 @@ def _configure_statusline(settings, plugin_dir, python_cmd, output_format):
             "command": f"{python_cmd} {statusline_script}"
         }
         if output_format != 'json':
-            print("   ✓ StatusLine configured")
+            print("   [OK] StatusLine configured")
     else:
         if output_format != 'json':
             print("   StatusLine already configured")
@@ -279,7 +279,7 @@ def _register_all_hooks(settings, plugin_dir, python_cmd, output_format):
             "hooks": [{"type": "command", "command": cs_script, "timeout": 5, "allowFailure": True}]
         })
         if output_format != 'json':
-            print("   ✓ Context-shift tracker configured")
+            print("   [OK] Context-shift tracker configured")
 
     entity_script = f"{python_cmd} {plugin_dir}/hooks/entity-extractor.py"
     _register_hook(settings, 'PostToolUse', 'entity-extractor.py', [
@@ -318,7 +318,7 @@ def _configure_settings(settings, settings_file, plugin_dir, python_cmd, force, 
     plugin_key = f"{PLUGIN_NAME}@local"
     settings['enabledPlugins'][plugin_key] = True
     if output_format != 'json':
-        print("   ✓ Plugin enabled")
+        print("   [OK] Plugin enabled")
 
     if force:
         _force_clean_hooks(settings, output_format)
@@ -363,7 +363,7 @@ def _setup_directories(output_format):
         }
         _write_json_file(active_work_file, active_work)
         if output_format != 'json':
-            print("   ✓ Created ~/.empirica/active_work.json")
+            print("   [OK] Created ~/.empirica/active_work.json")
 
     return home, claude_dir, plugins_dir, plugin_dir, marketplace_dir, empirica_dir
 
@@ -371,21 +371,21 @@ def _setup_directories(output_format):
 def _install_plugin_files(source_dir, plugin_dir, output_format):
     """Install plugin files: migrate old dirs, copy source, set permissions."""
     if output_format != 'json':
-        print("\n📦 Installing plugin files...")
+        print("\n[PKG] Installing plugin files...")
 
     # Migration: remove old empirica-integration directory if it exists (renamed to empirica in 1.7.0)
     old_plugin_dir = plugin_dir.parent / "empirica-integration"
     if old_plugin_dir.exists() and old_plugin_dir != plugin_dir:
         shutil.rmtree(old_plugin_dir)
         if output_format != 'json':
-            print("   🔄 Migrated: removed old empirica-integration plugin directory")
+            print("   [LOAD] Migrated: removed old empirica-integration plugin directory")
 
     # Also clean orphaned cache (prevents duplicate hook execution)
     old_cache_dir = Path.home() / '.claude' / 'plugins' / 'cache' / 'local' / 'empirica-integration'
     if old_cache_dir.exists():
         shutil.rmtree(old_cache_dir)
 
-    # Always sync plugin files — hooks and scripts must track the installed version.
+    # Always sync plugin files -- hooks and scripts must track the installed version.
     # Previous behavior skipped this if directory existed, causing stale scripts.
     if plugin_dir.exists():
         shutil.rmtree(plugin_dir)
@@ -410,13 +410,13 @@ def _install_plugin_files(source_dir, plugin_dir, output_format):
             script_file.chmod(0o755)
 
     if output_format != 'json':
-        print(f"   ✓ Plugin installed to {plugin_dir}")
+        print(f"   [OK] Plugin installed to {plugin_dir}")
 
 
 def _install_claude_md(plugin_dir, claude_dir, use_full, output_format):
     """Install Empirica system prompt and CLAUDE.md include reference."""
     if output_format != 'json':
-        print("\n📝 Installing Empirica system prompt...")
+        print("\n[NOTE] Installing Empirica system prompt...")
 
     # Select prompt template: lean (default) or full (traditional, opt-in)
     if use_full:
@@ -434,7 +434,7 @@ def _install_claude_md(plugin_dir, claude_dir, use_full, output_format):
         # Always write Empirica prompt to separate file (safe to overwrite)
         shutil.copy2(claude_md_src, empirica_prompt_dst)
         if output_format != 'json':
-            print(f"   ✓ Empirica prompt ({prompt_label}) written to ~/.claude/empirica-system-prompt.md")
+            print(f"   [OK] Empirica prompt ({prompt_label}) written to ~/.claude/empirica-system-prompt.md")
 
         if claude_md_dst.exists():
             existing_content = claude_md_dst.read_text()
@@ -442,17 +442,17 @@ def _install_claude_md(plugin_dir, claude_dir, use_full, output_format):
                 new_content = f"{include_line}\n\n{existing_content}"
                 claude_md_dst.write_text(new_content)
                 if output_format != 'json':
-                    print("   ✓ Added include reference to existing ~/.claude/CLAUDE.md")
+                    print("   [OK] Added include reference to existing ~/.claude/CLAUDE.md")
             else:
                 if output_format != 'json':
-                    print("   ✓ Include reference already present in ~/.claude/CLAUDE.md")
+                    print("   [OK] Include reference already present in ~/.claude/CLAUDE.md")
         else:
             claude_md_dst.write_text(f"{include_line}\n")
             if output_format != 'json':
-                print("   ✓ Created ~/.claude/CLAUDE.md with Empirica include")
+                print("   [OK] Created ~/.claude/CLAUDE.md with Empirica include")
     else:
         if output_format != 'json':
-            print("   ⚠️  CLAUDE.md template not found in plugin")
+            print("   [WARN]  CLAUDE.md template not found in plugin")
 
 
 def _register_marketplace(marketplace_dir, plugins_dir, claude_dir, plugin_dir, plugin_key, output_format):
@@ -481,7 +481,7 @@ def _register_marketplace(marketplace_dir, plugins_dir, claude_dir, plugin_dir, 
         })
         _write_json_file(marketplace_file, marketplace)
         if output_format != 'json':
-            print("   ✓ Added to marketplace.json")
+            print("   [OK] Added to marketplace.json")
 
     # Installed plugins registration
     installed_plugins_file = claude_dir / "plugins" / "installed_plugins.json"
@@ -498,7 +498,7 @@ def _register_marketplace(marketplace_dir, plugins_dir, claude_dir, plugin_dir, 
     }]
     _write_json_file(installed_plugins_file, installed_plugins)
     if output_format != 'json':
-        print("   ✓ Added to installed_plugins.json")
+        print("   [OK] Added to installed_plugins.json")
 
     # Known marketplaces
     known_marketplaces_file = claude_dir / "plugins" / "known_marketplaces.json"
@@ -512,7 +512,7 @@ def _register_marketplace(marketplace_dir, plugins_dir, claude_dir, plugin_dir, 
         }
         _write_json_file(known_marketplaces_file, known_marketplaces)
         if output_format != 'json':
-            print("   ✓ Local marketplace registered")
+            print("   [OK] Local marketplace registered")
 
 
 def _configure_mcp_server(claude_dir, home, force, output_format):
@@ -520,7 +520,7 @@ def _configure_mcp_server(claude_dir, home, force, output_format):
     if output_format != 'json':
         print("\n🔌 Configuring MCP server...")
 
-    # Find empirica-mcp — prefer the binary matching the current Python environment
+    # Find empirica-mcp -- prefer the binary matching the current Python environment
     # This prevents stale pipx binaries from shadowing dev installs
     mcp_cmd = None
     # Priority 1: Same virtualenv as the running empirica CLI
@@ -563,10 +563,10 @@ def _configure_mcp_server(claude_dir, home, force, output_format):
         _write_json_file(mcp_file, mcp_config)
         if output_format != 'json':
             if existing and existing.get('command') != mcp_cmd:
-                print(f"   ✓ MCP server updated: {mcp_cmd}")
+                print(f"   [OK] MCP server updated: {mcp_cmd}")
                 print(f"     (was: {existing.get('command', 'unknown')})")
             else:
-                print(f"   ✓ MCP server configured: {mcp_cmd}")
+                print(f"   [OK] MCP server configured: {mcp_cmd}")
     else:
         if output_format != 'json':
             print(f"   MCP server already configured: {mcp_cmd}")
@@ -589,17 +589,17 @@ def _try_install_mcp_via_pipx(home, output_format):
                 if not mcp_cmd:
                     mcp_cmd = str(home / ".local" / "bin" / "empirica-mcp")
                 if output_format != 'json':
-                    print("   ✓ empirica-mcp installed via pipx")
+                    print("   [OK] empirica-mcp installed via pipx")
                 return mcp_cmd
             else:
                 if output_format != 'json':
-                    print(f"   ⚠️  pipx install failed: {result.stderr[:100]}")
+                    print(f"   [WARN]  pipx install failed: {result.stderr[:100]}")
         except Exception as e:
             if output_format != 'json':
-                print(f"   ⚠️  pipx install failed: {e}")
+                print(f"   [WARN]  pipx install failed: {e}")
     else:
         if output_format != 'json':
-            print("   ⚠️  pipx not available - install empirica-mcp manually:")
+            print("   [WARN]  pipx not available - install empirica-mcp manually:")
             print("      pipx install empirica-mcp")
     return None
 
@@ -616,39 +616,39 @@ def _check_semantic_layer():
             ollama_ok = True
             if "qwen3-embedding:8b" in result.stdout:
                 embedding_ok = True
-                print("⚠ Ollama: qwen3-embedding:8b detected (4096d) — this may cause dimension mismatches")
+                print("[WARN] Ollama: qwen3-embedding:8b detected (4096d) -- this may cause dimension mismatches")
                 print("    Empirica expects 1024d. Pull the default tag instead:")
                 print("    ollama pull qwen3-embedding")
             elif "qwen3-embedding" in result.stdout:
                 embedding_ok = True
-                print("✓ Ollama: installed, qwen3-embedding available (1024d)")
+                print("[OK] Ollama: installed, qwen3-embedding available (1024d)")
             elif "nomic-embed-text" in result.stdout:
                 embedding_ok = True
-                print("✓ Ollama: installed, nomic-embed-text available (768d)")
+                print("[OK] Ollama: installed, nomic-embed-text available (768d)")
                 print("    If Qdrant collections were created at 1024d, switch models and run:")
                 print("    empirica rebuild --qdrant")
             else:
-                print("⚠ Ollama: installed, but no embedding model pulled")
+                print("[WARN] Ollama: installed, but no embedding model pulled")
                 print("    Fix: ollama pull qwen3-embedding")
         else:
-            print("⚠ Ollama: installed but not running")
+            print("[WARN] Ollama: installed but not running")
             print("    Fix: ollama serve")
     except FileNotFoundError:
-        print("✗ Ollama: not installed")
+        print("[FAIL] Ollama: not installed")
         print("    Install: curl -fsSL https://ollama.com/install.sh | sh")
         print("    Then: ollama pull qwen3-embedding")
     except Exception:
-        print("⚠ Ollama: could not check status")
+        print("[WARN] Ollama: could not check status")
 
     qdrant_ok = False
     qdrant_url = os.environ.get("EMPIRICA_QDRANT_URL", "http://localhost:6333")
     try:
         import urllib.request
-        urllib.request.urlopen(qdrant_url, timeout=2)
+        urllib.request.urlopen(qdrant_url, timeout=2, encoding='utf-8')
         qdrant_ok = True
-        print(f"✓ Qdrant: running at {qdrant_url}")
+        print(f"[OK] Qdrant: running at {qdrant_url}")
     except Exception:
-        print(f"✗ Qdrant: not running at {qdrant_url}")
+        print(f"[FAIL] Qdrant: not running at {qdrant_url}")
         print("    Docker: docker run -d -p 6333:6333 -v ~/.qdrant:/qdrant/storage qdrant/qdrant")
         print("    Binary: https://github.com/qdrant/qdrant/releases")
 
@@ -657,17 +657,17 @@ def _check_semantic_layer():
 
 def _print_human_summary(plugin_dir, settings_file, mcp_installed, skip_claude_md, claude_dir):
     """Print the human-readable setup summary including semantic layer check."""
-    print("\n" + "━" * 60)
-    print(f"✅ {PLUGIN_NAME} v{PLUGIN_VERSION} configured successfully!")
-    print("━" * 60)
+    print("\n" + "=" * 60)
+    print(f"[OK] {PLUGIN_NAME} v{PLUGIN_VERSION} configured successfully!")
+    print("=" * 60)
     print()
     print(f"📍 Plugin:     {plugin_dir}")
-    print("📝 CLAUDE.md:  ~/.claude/CLAUDE.md")
+    print("[NOTE] CLAUDE.md:  ~/.claude/CLAUDE.md")
     print("⚙️  Settings:   ~/.claude/settings.json")
     print()
-    print("━" * 60)
+    print("=" * 60)
     print("WHAT'S CONFIGURED:")
-    print("━" * 60)
+    print("=" * 60)
     print()
     print("🛡️  Sentinel Gate (Noetic Firewall)")
     print("    - Noetic tools (Read, Grep, etc.) always allowed")
@@ -677,40 +677,40 @@ def _print_human_summary(plugin_dir, settings_file, mcp_installed, skip_claude_m
     print("    - Auto-saves epistemic state before compact")
     print("    - Auto-loads context after compact")
     print()
-    print("📊 StatusLine")
+    print("[STATS] StatusLine")
     print("    - Shows session ID, phase, know/uncertainty vectors")
     print()
     if mcp_installed:
         print("🔌 MCP Server")
         print("    - Full Empirica API available to Claude")
         print()
-    print("🎯 Skills")
+    print("[TARGET] Skills")
     print("    - /empirica - Full command reference")
     print()
 
     # Semantic layer check
-    print("━" * 60)
+    print("=" * 60)
     print("SEMANTIC LAYER (for pattern injection & memory):")
-    print("━" * 60)
+    print("=" * 60)
     print()
 
     ollama_ok, embedding_ok, qdrant_ok = _check_semantic_layer()
 
     print()
     if ollama_ok and embedding_ok and qdrant_ok:
-        print("✓ Semantic layer ready — PREFLIGHT will inject patterns,")
+        print("[OK] Semantic layer ready -- PREFLIGHT will inject patterns,")
         print("  findings, dead-ends, and calibration from prior sessions")
     else:
-        print("⚠ Without the semantic layer, Empirica works but:")
+        print("[WARN] Without the semantic layer, Empirica works but:")
         print("  - No pattern/anti-pattern injection in PREFLIGHT")
         print("  - No cross-session memory (findings, dead-ends)")
         print("  - No project-search or project-embed")
         print("  - No eidetic/episodic memory across compactions")
     print()
 
-    print("━" * 60)
+    print("=" * 60)
     print("NEXT STEPS:")
-    print("━" * 60)
+    print("=" * 60)
     print()
     print("1. Restart Claude Code to load the plugin")
     print()
@@ -732,7 +732,7 @@ def _print_human_summary(plugin_dir, settings_file, mcp_installed, skip_claude_m
     print("To disable sentinel gating temporarily:")
     print("  export EMPIRICA_SENTINEL_LOOPING=false")
     print()
-    print("🧠 Happy epistemic coding!")
+    print("[THINK] Happy epistemic coding!")
 
 
 def handle_setup_claude_code_command(args):
@@ -754,12 +754,12 @@ def handle_setup_claude_code_command(args):
                     "hint": "Run from a valid Empirica installation or dev environment"
                 }, indent=2))
             else:
-                print("❌ Error: Could not find bundled plugin files")
+                print("[FAIL] Error: Could not find bundled plugin files")
                 print("   Run from a valid Empirica installation or dev environment")
             return None
 
         if output_format != 'json':
-            print("🧠 Setting up Claude Code integration...")
+            print("[THINK] Setting up Claude Code integration...")
             print(f"   Source: {source_dir}\n")
 
         python_cmd = _find_python()

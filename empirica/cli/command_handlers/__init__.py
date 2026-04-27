@@ -264,7 +264,7 @@ __all__ = [
     'handle_epistemics_stats_command',
     'handle_epp_activate_command',
     'handle_finding_log_command',
-    'handle_goals_activate_command',    # Activate planned goal → in_progress
+    'handle_goals_activate_command',    # Activate planned goal -> in_progress
     'handle_goals_add_dependency_command',
     'handle_goals_add_subtask_command',
     'handle_goals_claim_command',  # Phase 3a - Git bridge

@@ -220,11 +220,11 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
     Returns empty results if Qdrant not available.
 
     kind values:
-        "focused" — docs + eidetic + episodic (default, for local context)
-        "all" — docs + memory + eidetic + episodic (backward compat)
-        "intelligence" — memory + eidetic + episodic + assumptions + decisions + goals
+        "focused" -- docs + eidetic + episodic (default, for local context)
+        "all" -- docs + memory + eidetic + episodic (backward compat)
+        "intelligence" -- memory + eidetic + episodic + assumptions + decisions + goals
                          (skips docs, designed for Cortex cross-project queries)
-        single name — "docs", "memory", "eidetic", "episodic", "assumptions", "decisions", "goals"
+        single name -- "docs", "memory", "eidetic", "episodic", "assumptions", "decisions", "goals"
     """
     if kind == "focused":
         search_kinds = ["docs", "eidetic", "episodic"]
@@ -250,7 +250,7 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
         "goals": (_goals_collection, ["objective", "status", "scope"]),
     }
 
-    # Boost weights per collection type — findings/decisions score higher than code docs
+    # Boost weights per collection type -- findings/decisions score higher than code docs
     _COLLECTION_BOOST = {
         "decisions": 1.3,
         "memory": 1.2,
@@ -262,7 +262,7 @@ def search(project_id: str, query_text: str, kind: str = "focused", limit: int =
     }
 
     # For intelligence searches, filter out code_api entries from eidetic
-    # (module doc signatures are 52% of eidetic — noise for cross-project queries)
+    # (module doc signatures are 52% of eidetic -- noise for cross-project queries)
     _intelligence_filter = None
     if kind == "intelligence":
         try:

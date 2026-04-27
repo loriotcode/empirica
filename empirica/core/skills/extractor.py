@@ -135,7 +135,7 @@ class SkillExtractor:
         section = match.group(2)
 
         # Extract bullet points
-        bullets = re.findall(r"^[-*✅❌]\s+(.+)$", section, re.MULTILINE)
+        bullets = re.findall(r"^[-*[OK][FAIL]]\s+(.+)$", section, re.MULTILINE)
         return [b.strip() for b in bullets if b.strip()]
 
     def _extract_anti_patterns(self, content: str) -> list[dict]:
@@ -152,11 +152,11 @@ class SkillExtractor:
 
             for line in section.split('\n'):
                 line = line.strip()
-                if not line or not line.startswith(('-', '*', '•')):
+                if not line or not line.startswith(('-', '*', '*')):
                     continue
 
                 # Remove bullet
-                line = re.sub(r"^[-*•]\s+", "", line)
+                line = re.sub(r"^[-**]\s+", "", line)
 
                 # Strip markdown formatting (bold, italic)
                 line = re.sub(r'\*\*|\*|__|_', '', line)
@@ -349,7 +349,7 @@ def extract_all_skills(skills_dir: Path, output_file: Path,
                 print(f"  Error: {e}")
 
     # Write output
-    with open(output_file, 'w') as f:
+    with open(output_file, 'w', encoding='utf-8') as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False,
                   allow_unicode=True, width=120)
 

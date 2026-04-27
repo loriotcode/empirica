@@ -547,7 +547,7 @@ class GitMessageStore:
 
         Args:
             ai_id: Recipient agent identifier
-            since_timestamp: Unix timestamp — only return messages newer than this
+            since_timestamp: Unix timestamp -- only return messages newer than this
             channel: Restrict to a single channel (None = all channels)
             machine: Match only messages targeting this machine (None = any)
             include_expired: Whether to return TTL-expired messages
@@ -593,7 +593,7 @@ class GitMessageStore:
         """
         Poll for new messages on a channel and invoke callback.
 
-        Blocks the caller — intended to run in a dedicated thread or subprocess.
+        Blocks the caller -- intended to run in a dedicated thread or subprocess.
         Uses `get_inbox_since` to fetch deltas since the last poll timestamp.
 
         Args:
@@ -612,7 +612,7 @@ class GitMessageStore:
             clean shutdown.
         """
         if callback is None:
-            logger.warning("subscribe() called without callback — no-op")
+            logger.warning("subscribe() called without callback -- no-op")
             return
 
         last_poll = time.time()

@@ -41,15 +41,15 @@ def _suggest_by_tag(index, suggest_fn, num_mistakes, num_unknowns, num_findings)
     if num_mistakes:
         rel = _find_doc_by_tags(index, ['troubleshooting'])
         if rel:
-            suggest_fn(rel, f"{num_mistakes} mistakes logged → add prevention guidance")
+            suggest_fn(rel, f"{num_mistakes} mistakes logged -> add prevention guidance")
     if num_unknowns:
         rel = _find_doc_by_tags(index, ['investigation', 'unknowns'])
         if rel:
-            suggest_fn(rel, f"{num_unknowns} unresolved unknowns → add resolution patterns or notes")
+            suggest_fn(rel, f"{num_unknowns} unresolved unknowns -> add resolution patterns or notes")
     if num_findings:
         rel = _find_doc_by_tags(index, ['project', 'bootstrap', 'breadcrumbs'])
         if rel:
-            suggest_fn(rel, f"{num_findings} findings → update knowledge sections")
+            suggest_fn(rel, f"{num_findings} findings -> update knowledge sections")
 
 
 def compute_doc_plan(project_id: str, session_id: str | None = None, goal_id: str | None = None) -> dict:
@@ -115,7 +115,7 @@ def compute_doc_plan(project_id: str, session_id: str | None = None, goal_id: st
     # Suggest CLI reference if we detect new CLI (project-search/embed exist in codebase)
     cli_ref = _find_cli_reference(root)
     if cli_ref and not any(s['doc_path'] == cli_ref for s in suggestions):
-        suggestions.append({'doc_path': cli_ref, 'reason': "New CLI (project-embed, project-search) → add usage examples", 'tags': ['cli', 'reference']})
+        suggestions.append({'doc_path': cli_ref, 'reason': "New CLI (project-embed, project-search) -> add usage examples", 'tags': ['cli', 'reference']})
 
     # Also include any reference docs explicitly added to project
     cur.execute(

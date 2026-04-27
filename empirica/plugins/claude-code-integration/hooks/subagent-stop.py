@@ -99,7 +99,7 @@ def add_delegated_work_to_parent(tool_call_count: int) -> bool:
     """Add subagent's tool call count to the parent's hook counters file.
 
     This ensures the autonomy calibration loop accounts for delegated work.
-    Without this, spawning subagents would be a blind spot — the parent's
+    Without this, spawning subagents would be a blind spot -- the parent's
     transaction would appear shorter than the actual work done.
 
     Writes to hook_counters file (hook-owned), not the transaction file
@@ -128,7 +128,7 @@ def add_delegated_work_to_parent(tool_call_count: int) -> bool:
         if not tx_path.exists():
             return False
 
-        with open(tx_path) as f:
+        with open(tx_path, encoding='utf-8') as f:
             tx_data = json.load(f)
 
         if tx_data.get('status') != 'open':
@@ -139,7 +139,7 @@ def add_delegated_work_to_parent(tool_call_count: int) -> bool:
         counters = {}
         if counters_path.exists():
             try:
-                with open(counters_path) as f:
+                with open(counters_path, encoding='utf-8') as f:
                     counters = json.load(f)
             except Exception:
                 counters = {}
@@ -150,7 +150,7 @@ def add_delegated_work_to_parent(tool_call_count: int) -> bool:
         # Atomic write to counters file
         fd, tmp = tempfile.mkstemp(dir=str(counters_path.parent))
         try:
-            with os.fdopen(fd, 'w') as tf:
+            with os.fdopen(fd, 'w', encoding='utf-8') as tf:
                 json.dump(counters, tf, indent=2)
             os.replace(tmp, str(counters_path))
         except BaseException:
@@ -270,7 +270,7 @@ def rollup_to_parent(parent_session_id: str, agent_name: str, extracted: dict,
         )
 
         if gated is not None:
-            # Gated rollup succeeded — log only accepted findings
+            # Gated rollup succeeded -- log only accepted findings
             for scored in gated.get("accepted", []):
                 try:
                     db.log_finding(
@@ -463,9 +463,9 @@ def _check_regulation(parent_session_id: str, logged: dict) -> dict:
                 else:
                     regulation["reason"] = "Low information gain"
             elif logged.get("findings", 0) > 2:
-                regulation["reason"] = "High novelty — consider spawning more"
+                regulation["reason"] = "High novelty -- consider spawning more"
             else:
-                regulation["reason"] = "Moderate gain — continue"
+                regulation["reason"] = "Moderate gain -- continue"
 
         db.close()
     except (ImportError, Exception):
@@ -570,7 +570,7 @@ def main():
     regulation_directive = ""
     if regulation and not regulation.get("should_spawn_more", True):
         regulation_directive = (
-            " REGULATION: DO NOT spawn more agents — "
+            " REGULATION: DO NOT spawn more agents -- "
             f"{regulation.get('reason', 'budget/gain threshold reached')}."
         )
 

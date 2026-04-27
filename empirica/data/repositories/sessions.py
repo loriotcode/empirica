@@ -240,7 +240,7 @@ class SessionRepository(BaseRepository):
         ))
 
     # ------------------------------------------------------------------
-    # Subagent session operations (migration 034 — isolated from main
+    # Subagent session operations (migration 034 -- isolated from main
     # `sessions` table to prevent pollution of recent-sessions diagnostics
     # and lookups). Subagent rows live in `subagent_sessions` and link
     # back to their parent via parent_session_id.
@@ -330,7 +330,7 @@ class SessionRepository(BaseRepository):
 
         Args:
             parent_session_id: Parent session UUID
-            status: Optional filter — 'active', 'completed', 'orphaned'
+            status: Optional filter -- 'active', 'completed', 'orphaned'
 
         Returns:
             List of subagent session dicts, newest first

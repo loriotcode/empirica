@@ -12,8 +12,8 @@ NOTE: Goal orchestration moved to empirica/core/goals/ (explicit goals system wi
 Key Principles:
 1. Genuine reasoning: LLM self-assessment, not keyword matching
 2. Temporal separation: Log to JSON, act on logs in next pass
-3. Clear terminology: epistemic weights ≠ internal weights
-4. ENGAGEMENT gate: ≥0.60 required before proceeding
+3. Clear terminology: epistemic weights != internal weights
+4. ENGAGEMENT gate: >=0.60 required before proceeding
 5. Canonical weights: 35/25/25/15 (foundation/comprehension/execution/engagement)
 """
 

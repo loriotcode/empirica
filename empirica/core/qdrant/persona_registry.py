@@ -122,7 +122,7 @@ class PersonaRegistry:
             self.client.get_collections()
 
             logger.info(
-                f"✓ Connected to Qdrant at {qdrant_host}:{qdrant_port}"
+                f"[OK] Connected to Qdrant at {qdrant_host}:{qdrant_port}"
             )
 
         except Exception as e:
@@ -137,7 +137,7 @@ class PersonaRegistry:
         try:
             # Check if collection exists
             self.client.get_collection(self.COLLECTION_NAME)
-            logger.info(f"✓ Using existing Qdrant collection: {self.COLLECTION_NAME}")
+            logger.info(f"[OK] Using existing Qdrant collection: {self.COLLECTION_NAME}")
 
         except Exception:
             # Collection doesn't exist, create it
@@ -151,7 +151,7 @@ class PersonaRegistry:
                 )
             )
 
-            logger.info(f"✓ Created collection: {self.COLLECTION_NAME}")
+            logger.info(f"[OK] Created collection: {self.COLLECTION_NAME}")
 
     def register_persona(self, signing_persona: SigningPersona) -> int:
         """
@@ -203,7 +203,7 @@ class PersonaRegistry:
             )
 
             logger.info(
-                f"✓ Registered persona: {signing_persona.persona.persona_id} "
+                f"[OK] Registered persona: {signing_persona.persona.persona_id} "
                 f"ID={point_id} domains={metadata['focus_domains']}"
             )
 
@@ -312,7 +312,7 @@ class PersonaRegistry:
             query_vector = [priors[key] for key in self.VECTOR_KEYS]
 
             # Search similar
-            results = self.client.search(  # pyright: ignore[reportAttributeAccessIssue] — search() deprecated in newer stubs but still works
+            results = self.client.search(  # pyright: ignore[reportAttributeAccessIssue] -- search() deprecated in newer stubs but still works
                 collection_name=self.COLLECTION_NAME,
                 query_vector=query_vector,
                 limit=limit + 1,  # +1 to exclude self
@@ -381,7 +381,7 @@ class PersonaRegistry:
                 for point in results[0]
             ]
 
-            logger.info(f"✓ Listed {len(personas)} personas")
+            logger.info(f"[OK] Listed {len(personas)} personas")
             return personas
 
         except Exception as e:
@@ -468,7 +468,7 @@ class PersonaRegistry:
                 points_selector=point_id
             )
 
-            logger.info(f"✓ Deleted persona: {persona_id}")
+            logger.info(f"[OK] Deleted persona: {persona_id}")
             return True
 
         except Exception as e:
@@ -510,7 +510,7 @@ class PersonaRegistry:
             str: Point ID in Qdrant
 
         Example:
-            with open('agent.json') as f:
+            with open('agent.json', encoding='utf-8') as f:
                 package = json.load(f)
             registry.register_agent(package)
         """
@@ -559,7 +559,7 @@ class PersonaRegistry:
                 points=[point]
             )
 
-            logger.info(f"✓ Registered agent: {agent_id} (point_id={point_id})")
+            logger.info(f"[OK] Registered agent: {agent_id} (point_id={point_id})")
             return str(point_id)
 
         except Exception as e:

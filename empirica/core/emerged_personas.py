@@ -222,7 +222,7 @@ class EmergedPersonaStore:
         filename = f"emerged_{persona.persona_id}.yaml"
         filepath = self.base_path / filename
 
-        with open(filepath, 'w') as f:
+        with open(filepath, 'w', encoding='utf-8') as f:
             f.write(persona.to_yaml())
 
         logger.info(f"Saved emerged persona: {filepath}")
@@ -241,7 +241,7 @@ class EmergedPersonaStore:
         """Load persona from file."""
         try:
             import yaml
-            with open(filepath) as f:
+            with open(filepath, encoding='utf-8') as f:
                 data = yaml.safe_load(f)
             return EmergedPersona.from_dict(data)
         except Exception as e:
@@ -405,9 +405,9 @@ def match_or_decompose(
 
     This is the adaptive growth path (immune system analog):
     1. Try to match existing persona via sentinel_match_persona
-    2. If match found → return persona config for agent routing
-    3. If no match → return decomposition directive for the caller
-       (parallel branch investigation → extract emerged persona → embed → regenerate)
+    2. If match found -> return persona config for agent routing
+    3. If no match -> return decomposition directive for the caller
+       (parallel branch investigation -> extract emerged persona -> embed -> regenerate)
 
     Args:
         task: Task description to match
@@ -444,10 +444,10 @@ def match_or_decompose(
             "domains": persona.task_domains
         }
 
-    # No match — signal decomposition needed
+    # No match -- signal decomposition needed
     logger.info(
         f"No persona match for task: {task[:50]}. "
-        f"Decomposition recommended (parallel branch → emerged persona)."
+        f"Decomposition recommended (parallel branch -> emerged persona)."
     )
     return {
         "matched": False,

@@ -6,10 +6,10 @@ This keeps a single source of truth for schemas (the SQLite versions)
 while allowing PostgreSQL deployment without maintaining parallel schemas.
 
 Transformations applied:
-- INTEGER PRIMARY KEY AUTOINCREMENT → SERIAL PRIMARY KEY
-- BOOLEAN DEFAULT 0 → BOOLEAN DEFAULT FALSE
-- BOOLEAN DEFAULT 1 → BOOLEAN DEFAULT TRUE
-- Column name 'do' → '"do"' (reserved word quoting)
+- INTEGER PRIMARY KEY AUTOINCREMENT -> SERIAL PRIMARY KEY
+- BOOLEAN DEFAULT 0 -> BOOLEAN DEFAULT FALSE
+- BOOLEAN DEFAULT 1 -> BOOLEAN DEFAULT TRUE
+- Column name 'do' -> '"do"' (reserved word quoting)
 """
 
 import logging
@@ -37,7 +37,7 @@ def adapt_schema_sql(sql: str, dialect: str) -> str:
 
     adapted = sql
 
-    # 1. AUTOINCREMENT → SERIAL
+    # 1. AUTOINCREMENT -> SERIAL
     # Match: INTEGER PRIMARY KEY AUTOINCREMENT
     # Replace: SERIAL PRIMARY KEY
     adapted = re.sub(
@@ -47,7 +47,7 @@ def adapt_schema_sql(sql: str, dialect: str) -> str:
         flags=re.IGNORECASE
     )
 
-    # 2. BOOLEAN DEFAULT 0 → BOOLEAN DEFAULT FALSE
+    # 2. BOOLEAN DEFAULT 0 -> BOOLEAN DEFAULT FALSE
     adapted = re.sub(
         r'BOOLEAN\s+DEFAULT\s+0',
         'BOOLEAN DEFAULT FALSE',
@@ -55,7 +55,7 @@ def adapt_schema_sql(sql: str, dialect: str) -> str:
         flags=re.IGNORECASE
     )
 
-    # 3. BOOLEAN DEFAULT 1 → BOOLEAN DEFAULT TRUE
+    # 3. BOOLEAN DEFAULT 1 -> BOOLEAN DEFAULT TRUE
     adapted = re.sub(
         r'BOOLEAN\s+DEFAULT\s+1',
         'BOOLEAN DEFAULT TRUE',

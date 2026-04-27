@@ -124,14 +124,14 @@ def handle_skill_fetch_command(args):
                     md_text = ''
                     for m in members:
                         if m.lower().endswith(('.md', '.txt')):
-                            with zf.open(m) as fh:
+                            with zf.open(m, encoding='utf-8') as fh:
                                 md_text += fh.read().decode('utf-8', errors='ignore') + "\n\n"
                     skill_obj = parse_markdown_to_skill(md_text, name=name, tags=tags)
                     result = _save_skill(skill_obj)
                     print(json.dumps(result, indent=2))
                     return None  # Success - output already printed
                 # Parse candidate
-                with zf.open(candidate) as fh:
+                with zf.open(candidate, encoding='utf-8') as fh:
                     data = fh.read()
                     if candidate.lower().endswith(('.yaml', '.yml')):
                         meta = yaml.safe_load(data) or {}

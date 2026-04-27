@@ -64,7 +64,7 @@ def handle_memory_prime_command(args):
         if args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"🎯 Attention Budget Allocated (total: {budget.total_budget})")
+            print(f"[TARGET] Attention Budget Allocated (total: {budget.total_budget})")
             print("=" * 60)
             for alloc in budget.allocations:
                 bar_len = int(alloc.budget / budget.total_budget * 30)
@@ -73,7 +73,7 @@ def handle_memory_prime_command(args):
             print("=" * 60)
             print(f"Budget ID: {budget.id}")
             if getattr(args, 'persist', False):
-                print("✓ Persisted to database")
+                print("[OK] Persisted to database")
 
         return None  # Avoid cli_core.py double-printing
 
@@ -150,13 +150,13 @@ def handle_memory_scope_command(args):
         if args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print(f"📦 Memory Scope Query (scope: breadth={args.scope_breadth}, duration={args.scope_duration})")
+            print(f"[PKG] Memory Scope Query (scope: breadth={args.scope_breadth}, duration={args.scope_duration})")
             print("=" * 70)
             if not items:
                 print("  No items found matching criteria")
             else:
                 for item in items[:10]:  # Show top 10
-                    zone_icon = {"anchor": "⚓", "working": "⚙️", "cache": "💾"}.get(item.zone.value, "?")
+                    zone_icon = {"anchor": "⚓", "working": "⚙️", "cache": "[SAVE]"}.get(item.zone.value, "?")
                     print(f"  {zone_icon} {item.label[:50]:50s} {item.estimated_tokens:5d}t  p={item.compute_priority():.2f}")
                 if len(items) > 10:
                     print(f"  ... and {len(items) - 10} more")
@@ -281,7 +281,7 @@ def handle_memory_value_command(args):
             print(f"Selected {len(selected)} items using {total_tokens} tokens")
             print("-" * 70)
             for item in selected[:10]:
-                icon = "📝" if item['type'] == 'finding' else "❓"
+                icon = "[NOTE]" if item['type'] == 'finding' else "[?]"
                 print(f"  {icon} [{item['tokens']:4d}t] v={item['value']:.2f} | {item['text'][:50]}...")
             if len(selected) > 10:
                 print(f"  ... and {len(selected) - 10} more")
@@ -355,7 +355,7 @@ def handle_pattern_check_command(args):
         if args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            risk_icons = {"low": "✅", "medium": "⚠️", "high": "🛑"}
+            risk_icons = {"low": "[OK]", "medium": "[WARN]", "high": "🛑"}
             print(f"{risk_icons[risk_level]} Pattern Check: {risk_level.upper()}")
             print("=" * 60)
             print(f"Approach: {args.approach[:60]}...")
@@ -364,15 +364,15 @@ def handle_pattern_check_command(args):
             if warnings.get('dead_end_matches'):
                 print("☠️ Dead-end matches:")
                 for de in warnings['dead_end_matches'][:3]:
-                    print(f"   • {de.get('approach', '')[:50]}...")
+                    print(f"   * {de.get('approach', '')[:50]}...")
                     print(f"     Why failed: {de.get('why_failed', '')[:50]}...")
 
             if mistake_risk > 0.3:
-                print(f"⚠️ Mistake risk: {mistake_risk:.0%}")
+                print(f"[WARN] Mistake risk: {mistake_risk:.0%}")
                 print("   High uncertainty + low know is a historical mistake pattern")
 
             if calibration_bias and isinstance(calibration_bias, dict):
-                print("📊 Calibration warnings:")
+                print("[STATS] Calibration warnings:")
                 for vector, bias in calibration_bias.items():
                     if isinstance(bias, (int, float)):
                         print(f"   {vector}: {'+' if bias > 0 else ''}{bias:.2f}")
@@ -380,7 +380,7 @@ def handle_pattern_check_command(args):
                         print(f"   {vector}: {bias}")
 
             if risk_level == "low":
-                print("✅ No concerning patterns detected. Proceed with confidence.")
+                print("[OK] No concerning patterns detected. Proceed with confidence.")
 
             print("=" * 60)
 
@@ -506,20 +506,20 @@ def handle_session_rollup_command(args):
         if args.output == 'json':
             print(json.dumps(output, indent=2))
         else:
-            print(f"🔄 Session Rollup: {args.parent_session_id[:8]}...")
+            print(f"[LOAD] Session Rollup: {args.parent_session_id[:8]}...")
             print("=" * 70)
             print(f"Child sessions: {len(children)}")
-            print(f"Total findings: {len(all_findings)} → Deduped: {len(deduped)} → Accepted: {len(result.accepted)}")
+            print(f"Total findings: {len(all_findings)} -> Deduped: {len(deduped)} -> Accepted: {len(result.accepted)}")
             print(f"Acceptance rate: {result.acceptance_rate:.0%}")
             print("-" * 70)
             if result.accepted:
-                print("✅ Accepted findings:")
+                print("[OK] Accepted findings:")
                 for f in result.accepted[:5]:
                     print(f"   [{f.agent_name}] {f.finding[:50]}... (score: {f.score:.2f})")
                 if len(result.accepted) > 5:
                     print(f"   ... and {len(result.accepted) - 5} more")
             if result.rejected:
-                print(f"❌ Rejected: {len(result.rejected)} findings")
+                print(f"[FAIL] Rejected: {len(result.rejected)} findings")
             print("=" * 70)
 
         return None
@@ -550,7 +550,7 @@ def handle_memory_report_command(args):
         if args.output == 'json':
             print(json.dumps(result, indent=2))
         else:
-            print("📊 Context Budget Report")
+            print("[STATS] Context Budget Report")
             print("=" * 60)
 
             # Utilization bar
@@ -564,7 +564,7 @@ def handle_memory_report_command(args):
             zones = [
                 ("⚓ ANCHOR", report.anchor_used, report.anchor_limit, report.anchor_items),
                 ("⚙️ WORKING", report.working_used, report.working_target, report.working_items),
-                ("💾 CACHE", report.cache_used, report.cache_limit, report.cache_items),
+                ("[SAVE] CACHE", report.cache_used, report.cache_limit, report.cache_items),
             ]
             for name, used, limit, items in zones:
                 pct = used / limit * 100 if limit > 0 else 0
@@ -574,9 +574,9 @@ def handle_memory_report_command(args):
 
             print("-" * 60)
             if report.under_pressure:
-                print("⚠️ MEMORY PRESSURE DETECTED")
+                print("[WARN] MEMORY PRESSURE DETECTED")
             if report.eviction_candidates > 0:
-                print(f"🗑️ Eviction candidates: {report.eviction_candidates}")
+                print(f"[DEL] Eviction candidates: {report.eviction_candidates}")
 
             print("=" * 60)
 
@@ -588,7 +588,7 @@ def handle_memory_report_command(args):
                 if args.output == 'json':
                     result['cc_memory'] = mem_stats
                 else:
-                    print("\n📁 Claude Code Memory Layer")
+                    print("\n[DIR] Claude Code Memory Layer")
                     print("-" * 60)
                     print(f"  Memory dir:  {mem_stats.get('memory_dir', 'N/A')}")
                     print(f"  Files:       {mem_stats.get('file_count', 0)} ({mem_stats.get('total_size_bytes', 0) // 1024}KB)")

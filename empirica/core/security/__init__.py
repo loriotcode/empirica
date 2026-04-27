@@ -1,4 +1,4 @@
-"""Security audit module — supply-chain + credential rotation tracking.
+"""Security audit module -- supply-chain + credential rotation tracking.
 
 Phase 1 (current):
     - CISA KEV feed download + cache

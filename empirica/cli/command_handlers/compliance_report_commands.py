@@ -1,5 +1,5 @@
 """
-Compliance report command — project-wide quality and regulatory snapshot.
+Compliance report command -- project-wide quality and regulatory snapshot.
 
 Runs all deterministic checks (ruff, radon, pyright, pytest, pip-audit)
 and maps results to regulatory frameworks (EU AI Act, GDPR, ISO 42001).
@@ -21,94 +21,94 @@ REGULATORY_MAP: dict[str, dict[str, Any]] = {
     "lint": {
         "check": "Static analysis (ruff)",
         "frameworks": {
-            "eu_ai_act": {"article": "Art. 9", "requirement": "Risk management — code quality assurance"},
-            "iso_42001": {"clause": "6.1.2", "requirement": "AI risk assessment — source code quality"},
+            "eu_ai_act": {"article": "Art. 9", "requirement": "Risk management -- code quality assurance"},
+            "iso_42001": {"clause": "6.1.2", "requirement": "AI risk assessment -- source code quality"},
         },
     },
     "complexity": {
         "check": "Cyclomatic complexity (radon)",
         "frameworks": {
-            "eu_ai_act": {"article": "Art. 15(1)", "requirement": "Accuracy — maintainable, auditable code"},
-            "iso_42001": {"clause": "8.4", "requirement": "AI system development — complexity management"},
+            "eu_ai_act": {"article": "Art. 15(1)", "requirement": "Accuracy -- maintainable, auditable code"},
+            "iso_42001": {"clause": "8.4", "requirement": "AI system development -- complexity management"},
         },
     },
     "type_safety": {
         "check": "Type checking (pyright)",
         "frameworks": {
-            "eu_ai_act": {"article": "Art. 15(1)", "requirement": "Accuracy — type-safe operations"},
-            "iso_42001": {"clause": "8.4", "requirement": "AI system development — correctness guarantees"},
+            "eu_ai_act": {"article": "Art. 15(1)", "requirement": "Accuracy -- type-safe operations"},
+            "iso_42001": {"clause": "8.4", "requirement": "AI system development -- correctness guarantees"},
         },
     },
     "tests": {
         "check": "Test suite (pytest)",
         "frameworks": {
-            "eu_ai_act": {"article": "Art. 15(3)", "requirement": "Robustness — functional verification"},
+            "eu_ai_act": {"article": "Art. 15(3)", "requirement": "Robustness -- functional verification"},
             "iso_42001": {"clause": "8.5", "requirement": "AI system testing and validation"},
         },
     },
     "dep_audit": {
         "check": "Dependency audit (pip-audit)",
         "frameworks": {
-            "eu_ai_act": {"article": "Art. 15(4)", "requirement": "Cybersecurity — supply chain security"},
+            "eu_ai_act": {"article": "Art. 15(4)", "requirement": "Cybersecurity -- supply chain security"},
             "iso_42001": {"clause": "A.7.5", "requirement": "Third-party components management"},
-            "gdpr": {"article": "Art. 32", "requirement": "Security of processing — dependency integrity"},
+            "gdpr": {"article": "Art. 32", "requirement": "Security of processing -- dependency integrity"},
         },
     },
     "security_scan": {
         "check": "SAST security scan (semgrep OWASP)",
         "frameworks": {
-            "eu_ai_act": {"article": "Art. 15(4)", "requirement": "Cybersecurity — OWASP vulnerability scanning"},
-            "iso_42001": {"clause": "8.4", "requirement": "AI system development — secure coding practices"},
+            "eu_ai_act": {"article": "Art. 15(4)", "requirement": "Cybersecurity -- OWASP vulnerability scanning"},
+            "iso_42001": {"clause": "8.4", "requirement": "AI system development -- secure coding practices"},
             "gdpr": {"article": "Art. 25", "requirement": "Data protection by design and by default"},
         },
     },
     "tech_docs": {
         "check": "Technical documentation (docs-assess)",
         "frameworks": {
-            "eu_ai_act": {"article": "Art. 11 + Annex IV", "requirement": "Technical documentation — coverage and accuracy"},
-            "iso_42001": {"clause": "7.5.1", "requirement": "Documented information — creation and updating"},
+            "eu_ai_act": {"article": "Art. 11 + Annex IV", "requirement": "Technical documentation -- coverage and accuracy"},
+            "iso_42001": {"clause": "7.5.1", "requirement": "Documented information -- creation and updating"},
         },
     },
     "release_chain": {
         "check": "Release chain integrity (publish verification)",
         "frameworks": {
-            "eu_ai_act": {"article": "Art. 10", "requirement": "Data governance — release traceability"},
-            "iso_42001": {"clause": "8.6", "requirement": "Release management — deployment verification"},
+            "eu_ai_act": {"article": "Art. 10", "requirement": "Data governance -- release traceability"},
+            "iso_42001": {"clause": "8.6", "requirement": "Release management -- deployment verification"},
         },
     },
     "repo_hygiene": {
         "check": "Repository hygiene (git compliance)",
         "frameworks": {
-            "eu_ai_act": {"article": "Art. 10", "requirement": "Data governance — version control and traceability"},
-            "iso_42001": {"clause": "7.5", "requirement": "Documented information — configuration management"},
+            "eu_ai_act": {"article": "Art. 10", "requirement": "Data governance -- version control and traceability"},
+            "iso_42001": {"clause": "7.5", "requirement": "Documented information -- configuration management"},
         },
     },
     "ai_transparency": {
         "check": "AI contribution transparency (git attribution)",
         "frameworks": {
-            "eu_ai_act": {"article": "Art. 50", "requirement": "Transparency — AI-generated content disclosure"},
-            "iso_42001": {"clause": "A.8.4", "requirement": "AI system operation — provenance tracking"},
+            "eu_ai_act": {"article": "Art. 50", "requirement": "Transparency -- AI-generated content disclosure"},
+            "iso_42001": {"clause": "A.8.4", "requirement": "AI system operation -- provenance tracking"},
         },
     },
     "decision_transparency": {
         "check": "Decision audit trail (rationale coverage)",
         "frameworks": {
-            "eu_ai_act": {"article": "Art. 13", "requirement": "Transparency — interpretable AI output"},
-            "iso_42001": {"clause": "9.1.2", "requirement": "Analysis and evaluation — decision traceability"},
-            "gdpr": {"article": "Art. 22(3)", "requirement": "Automated decision-making — right to explanation"},
+            "eu_ai_act": {"article": "Art. 13", "requirement": "Transparency -- interpretable AI output"},
+            "iso_42001": {"clause": "9.1.2", "requirement": "Analysis and evaluation -- decision traceability"},
+            "gdpr": {"article": "Art. 22(3)", "requirement": "Automated decision-making -- right to explanation"},
         },
     },
     "discipline": {
         "check": "Epistemic discipline trajectory (behavioral)",
         "frameworks": {
-            "eu_ai_act": {"article": "Art. 17", "requirement": "Quality management system — process discipline"},
-            "iso_42001": {"clause": "9.1.3", "requirement": "Monitoring and measurement — process effectiveness"},
+            "eu_ai_act": {"article": "Art. 17", "requirement": "Quality management system -- process discipline"},
+            "iso_42001": {"clause": "9.1.3", "requirement": "Monitoring and measurement -- process effectiveness"},
         },
     },
     "epistemic_audit": {
         "check": "Epistemic transaction trail (empirica)",
         "frameworks": {
-            "eu_ai_act": {"article": "Art. 12", "requirement": "Record-keeping — AI decision audit trail"},
+            "eu_ai_act": {"article": "Art. 12", "requirement": "Record-keeping -- AI decision audit trail"},
             "iso_42001": {"clause": "9.1", "requirement": "Monitoring and measurement"},
             "gdpr": {"article": "Art. 30", "requirement": "Records of processing activities"},
         },
@@ -116,8 +116,8 @@ REGULATORY_MAP: dict[str, dict[str, Any]] = {
     "calibration": {
         "check": "Grounded calibration (empirica)",
         "frameworks": {
-            "eu_ai_act": {"article": "Art. 14", "requirement": "Human oversight — AI self-assessment accuracy"},
-            "iso_42001": {"clause": "9.2", "requirement": "Internal audit — calibration verification"},
+            "eu_ai_act": {"article": "Art. 14", "requirement": "Human oversight -- AI self-assessment accuracy"},
+            "iso_42001": {"clause": "9.2", "requirement": "Internal audit -- calibration verification"},
         },
     },
 }
@@ -366,7 +366,7 @@ def _build_release_chain_check(project_root: Path) -> dict[str, Any]:
 
     version = None
     try:
-        with open(pyproject) as f:
+        with open(pyproject, encoding='utf-8') as f:
             for line in f:
                 if line.strip().startswith("version"):
                     version = line.split("=")[1].strip().strip('"').strip("'")
@@ -382,7 +382,7 @@ def _build_release_chain_check(project_root: Path) -> dict[str, Any]:
     if proj_yaml.exists():
         try:
             import yaml
-            with open(proj_yaml) as f:
+            with open(proj_yaml, encoding='utf-8') as f:
                 proj = yaml.safe_load(f) or {}
             channels = proj.get("publish_channels", channels)
         except Exception:
@@ -473,7 +473,7 @@ def _build_discipline_check(project_root: Path) -> dict[str, Any]:
     - Commit discipline: git log
     - Investigation ratio: sentinel tool counts
 
-    Cannot be gamed — you either did the work or you didn't.
+    Cannot be gamed -- you either did the work or you didn't.
     """
     from empirica.config.path_resolver import get_session_db_path
     try:
@@ -492,7 +492,7 @@ def _build_discipline_check(project_root: Path) -> dict[str, Any]:
         cursor.execute("SELECT COUNT(*) FROM reflexes WHERE phase = 'POSTFLIGHT'")
         transactions = cursor.fetchone()[0]
 
-        # Artifact breadth — count each type
+        # Artifact breadth -- count each type
         artifact_counts: dict[str, int] = {}
         for table, label in [
             ("project_findings", "findings"),
@@ -532,14 +532,14 @@ def _build_discipline_check(project_root: Path) -> dict[str, Any]:
         return {"check": "discipline", "passed": None, "status": "unavailable"}
     conn.close()
 
-    # Discipline assessment — narrative gaps
+    # Discipline assessment -- narrative gaps
     gaps: list[str] = []
     if types_used <= 2:
         gaps.append(f"Narrow artifact breadth: only {types_used}/6 types used")
     if artifact_counts.get("assumptions", 0) == 0:
-        gaps.append("No assumptions logged — are beliefs being made explicit?")
+        gaps.append("No assumptions logged -- are beliefs being made explicit?")
     if artifact_counts.get("dead_ends", 0) == 0:
-        gaps.append("No dead-ends logged — are failed approaches being captured?")
+        gaps.append("No dead-ends logged -- are failed approaches being captured?")
     if transactions > 0 and total_artifacts / transactions < 1:
         gaps.append(f"Low artifact density: {total_artifacts/transactions:.1f} per transaction")
 
@@ -652,7 +652,7 @@ def _parse_docs_result(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def _build_repo_hygiene_check(project_root: Path) -> dict[str, Any]:
-    """Check repository hygiene — files, structure, version consistency."""
+    """Check repository hygiene -- files, structure, version consistency."""
     checks_passed = 0
     checks_total = 0
     details: dict[str, str] = {}
@@ -937,7 +937,7 @@ def _print_human_report(report: dict[str, Any]) -> None:
         for framework, mapping in regulatory.items():
             ref = mapping.get("article") or mapping.get("clause", "")
             req = mapping.get("requirement", "")
-            print(f"       -> {framework}: {ref} — {req}")
+            print(f"       -> {framework}: {ref} -- {req}")
 
     print(f"\n{'=' * 60}")
     print(f"  Frameworks: {', '.join(report['regulatory_frameworks'])}")

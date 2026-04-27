@@ -327,9 +327,9 @@ class HandoffValidator:
     ) -> str:
         """Format human-readable validation message"""
         if valid and trustworthy:
-            return "✅ Handoff checkpoint validated. Previous work appears sound."
+            return "[OK] Handoff checkpoint validated. Previous work appears sound."
 
-        msg = "⚠️ Handoff checkpoint has issues:\n"
+        msg = "[WARN] Handoff checkpoint has issues:\n"
         for issue in issues:
             msg += f"   - {issue}\n"
 

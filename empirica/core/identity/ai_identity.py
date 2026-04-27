@@ -110,7 +110,7 @@ class AIIdentity:
         self.public_key = self.private_key.public_key()
         self.created_at = datetime.now(UTC).isoformat()
 
-        logger.info(f"✓ Generated Ed25519 keypair for {self.ai_id}")
+        logger.info(f"[OK] Generated Ed25519 keypair for {self.ai_id}")
 
     def save_keypair(self, overwrite: bool = False, password: bytes | None = None) -> None:
         """
@@ -182,7 +182,7 @@ class AIIdentity:
         }
 
         # Write keypair file
-        with open(self.keypair_path, 'w') as f:
+        with open(self.keypair_path, 'w', encoding='utf-8') as f:
             json.dump(keypair_data, f, indent=2)
 
         # Set restrictive permissions (0600)
@@ -196,12 +196,12 @@ class AIIdentity:
             'metadata': self.metadata
         }
 
-        with open(self.public_key_path, 'w') as f:
+        with open(self.public_key_path, 'w', encoding='utf-8') as f:
             json.dump(public_data, f, indent=2)
 
         encryption_status = "encrypted" if encrypted else "unencrypted"
-        logger.info(f"✓ Saved keypair ({encryption_status}) to {self.keypair_path}")
-        logger.info(f"✓ Saved public key to {self.public_key_path}")
+        logger.info(f"[OK] Saved keypair ({encryption_status}) to {self.keypair_path}")
+        logger.info(f"[OK] Saved public key to {self.public_key_path}")
 
     def load_keypair(self, password: bytes | None = None) -> None:
         """
@@ -221,7 +221,7 @@ class AIIdentity:
             )
 
         # Load keypair JSON
-        with open(self.keypair_path) as f:
+        with open(self.keypair_path, encoding='utf-8') as f:
             keypair_data = json.load(f)
 
         # Verify ai_id matches
@@ -260,7 +260,7 @@ class AIIdentity:
 
             self.private_key = loaded_key
             self.public_key = loaded_key.public_key()
-            logger.info(f"✓ Loaded encrypted keypair for {self.ai_id}")
+            logger.info(f"[OK] Loaded encrypted keypair for {self.ai_id}")
         else:
             # Unencrypted (legacy format)
             private_bytes = bytes.fromhex(keypair_data['private_key'])
@@ -268,7 +268,7 @@ class AIIdentity:
 
             self.private_key = Ed25519PrivateKey.from_private_bytes(private_bytes)
             self.public_key = Ed25519PublicKey.from_public_bytes(public_bytes)
-            logger.info(f"✓ Loaded unencrypted keypair for {self.ai_id}")
+            logger.info(f"[OK] Loaded unencrypted keypair for {self.ai_id}")
             logger.warning(
                 "Keypair is not encrypted. Run 'empirica identity-rotate' "
                 "with EMPIRICA_IDENTITY_PASSWORD set to encrypt."
@@ -378,7 +378,7 @@ class IdentityManager:
 
         for key_file in self.identity_dir.glob("*.key"):
             try:
-                with open(key_file) as f:
+                with open(key_file, encoding='utf-8') as f:
                     data = json.load(f)
 
                 identities.append({

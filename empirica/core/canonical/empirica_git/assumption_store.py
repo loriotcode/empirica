@@ -91,7 +91,7 @@ class GitAssumptionStore:
                 capture_output=True, text=True, check=True
             )
 
-            logger.info(f"✓ Stored assumption {assumption_id[:8]} in git notes")
+            logger.info(f"[OK] Stored assumption {assumption_id[:8]} in git notes")
             return True
 
         except Exception as e:

@@ -699,7 +699,7 @@ def install_auto_capture_hooks(service: AutoIssueCaptureService) -> None:
                     category=IssueCategory.ERROR,
                     exc_info=exc_value
                 )
-            except Exception:  # noqa: S110 — capture errors must not break exception handling
+            except Exception:  # noqa: S110 -- capture errors must not break exception handling
                 pass
 
         # Always call original hook
@@ -708,7 +708,7 @@ def install_auto_capture_hooks(service: AutoIssueCaptureService) -> None:
     sys.excepthook = auto_capture_excepthook
     logger.debug("Auto-capture exception hook installed")
 
-    logger.info("✓ Auto-capture hooks installed (logging.Handler + sys.excepthook)")
+    logger.info("[OK] Auto-capture hooks installed (logging.Handler + sys.excepthook)")
 
 
 def initialize_auto_capture(session_id: str, enable: bool = True) -> AutoIssueCaptureService:

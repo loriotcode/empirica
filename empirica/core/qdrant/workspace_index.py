@@ -158,7 +158,7 @@ def search_workspace_index(
 
     Args:
         query_text: Semantic search query (required if no entity filter)
-        entity_type: Shorthand filter — "contact", "org", "engagement"
+        entity_type: Shorthand filter -- "contact", "org", "engagement"
         entity_id: Used with entity_type for simple filtering
         entity_filter: Dict of {"contact_ids": [...], "org_ids": [...], ...}
         project_id: Optional project scope filter
@@ -183,7 +183,7 @@ def search_workspace_index(
         from qdrant_client.models import FieldCondition, Filter, MatchAny, MatchValue
         conditions = []
 
-        # Entity type/id shorthand → filter
+        # Entity type/id shorthand -> filter
         if entity_type and entity_id:
             field_map = {
                 "contact": "contact_ids",
@@ -231,7 +231,7 @@ def search_workspace_index(
             return [_format_point(r, r.score) for r in results.points]
 
         if query_filter:
-            # Entity-only query (no semantic component) — scroll with filter
+            # Entity-only query (no semantic component) -- scroll with filter
             results = client.scroll(
                 collection_name=coll,
                 scroll_filter=query_filter,
@@ -326,15 +326,15 @@ def sync_transaction_to_index(
     return count
 
 
-# Table mapping artifact type → (SQL query, text formatter)
+# Table mapping artifact type -> (SQL query, text formatter)
 # Formatter takes a row tuple and returns the text string.
 _ARTIFACT_QUERIES: dict[str, tuple[str, Any]] = {
     "finding": ("SELECT finding FROM findings WHERE id = ?", lambda r: r[0]),
     "unknown": ("SELECT unknown FROM unknowns WHERE id = ?", lambda r: r[0]),
-    "dead_end": ("SELECT approach, why_failed FROM dead_ends WHERE id = ?", lambda r: f"{r[0]} — {r[1]}"),
+    "dead_end": ("SELECT approach, why_failed FROM dead_ends WHERE id = ?", lambda r: f"{r[0]} -- {r[1]}"),
     "decision": ("SELECT choice, rationale FROM decisions WHERE id = ?", lambda r: f"{r[0]}: {r[1]}"),
     "assumption": ("SELECT assumption FROM assumptions WHERE id = ?", lambda r: r[0]),
-    "mistake": ("SELECT mistake, why_wrong FROM mistakes WHERE id = ?", lambda r: f"{r[0]} — {r[1]}"),
+    "mistake": ("SELECT mistake, why_wrong FROM mistakes WHERE id = ?", lambda r: f"{r[0]} -- {r[1]}"),
     "goal": ("SELECT objective FROM goals WHERE id = ?", lambda r: r[0]),
 }
 
@@ -350,7 +350,7 @@ def _resolve_artifact_texts(
         artifacts: List of (artifact_type, artifact_id) tuples
 
     Returns:
-        Dict keyed by "type:id" → text content
+        Dict keyed by "type:id" -> text content
     """
     result = {}
     try:

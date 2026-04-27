@@ -1,5 +1,5 @@
 """
-Workflow Pattern Mining — detect repeated tool sequences across transactions.
+Workflow Pattern Mining -- detect repeated tool sequences across transactions.
 
 Architecture:
 - Traces recorded by sentinel-gate.py in hook_counters['tool_trace']
@@ -16,7 +16,7 @@ Algorithm (inspired by Zoku, adapted for Empirica):
 5. Remove strict subsets of longer patterns
 6. Rank by frequency then length
 
-Suggestion Engine (Layer 3 — epistemic-correlated):
+Suggestion Engine (Layer 3 -- epistemic-correlated):
 - Joins tool_trace with PREFLIGHT/POSTFLIGHT vectors per transaction
 - Correlates patterns with outcomes (completion, calibration score)
 - Identifies patterns that appear in successful vs unsuccessful transactions
@@ -49,8 +49,8 @@ class WorkflowPattern:
 
     @property
     def signature(self) -> str:
-        """Human-readable signature like 'Read→Grep→Edit→Bash(test)'."""
-        return " → ".join(self.sequence)
+        """Human-readable signature like 'Read->Grep->Edit->Bash(test)'."""
+        return " -> ".join(self.sequence)
 
     def to_dict(self) -> dict:
         return {
@@ -419,7 +419,7 @@ def _analyse_noetic_depth(successful: list, unsuccessful: list,
         return None
     effect = avg_s - avg_f
     return WorkflowSuggestion(
-        suggestion=f"Investigate more before acting — successful transactions average "
+        suggestion=f"Investigate more before acting -- successful transactions average "
                    f"{avg_s:.1f} noetic tools before first edit, unsuccessful average {avg_f:.1f}",
         evidence=f"Based on {len(successful)} successful and {len(unsuccessful)} unsuccessful transactions",
         confidence=min(0.9, 0.4 + (total / 50) * 0.3 + (effect / 10) * 0.2),
@@ -440,7 +440,7 @@ def _analyse_grep_before_edit(successful: list, unsuccessful: list,
     grep_s = sum(1 for o in successful if _has_grep_before_edit(o.trace))
     grep_f = sum(1 for o in unsuccessful if _has_grep_before_edit(o.trace))
     return WorkflowSuggestion(
-        suggestion=f"Search before editing — {rate_s:.0%} of successful transactions "
+        suggestion=f"Search before editing -- {rate_s:.0%} of successful transactions "
                    f"include Grep before first Edit vs {rate_f:.0%} of unsuccessful",
         evidence=f"Grep-before-Edit rate: {grep_s}/{len(successful)} successful, "
                  f"{grep_f}/{len(unsuccessful)} unsuccessful",
@@ -464,7 +464,7 @@ def _analyse_uncertainty_depth(outcomes: list, min_sample: int) -> WorkflowSugge
     if avg_s <= avg_f + 3:
         return None
     return WorkflowSuggestion(
-        suggestion=f"When uncertain, take more steps — successful uncertain transactions "
+        suggestion=f"When uncertain, take more steps -- successful uncertain transactions "
                    f"average {avg_s:.0f} tool calls vs {avg_f:.0f} for unsuccessful",
         evidence=f"Based on {len(uncertain)} transactions starting with uncertainty > 0.4",
         confidence=min(0.8, 0.3 + len(uncertain) / 30),
@@ -483,7 +483,7 @@ def _analyse_artifact_breadth(successful: list, unsuccessful: list,
     if avg_s <= avg_f + 0.5:
         return None
     return WorkflowSuggestion(
-        suggestion=f"Log more artifacts — successful transactions average "
+        suggestion=f"Log more artifacts -- successful transactions average "
                    f"{avg_s:.1f} epistemic logs vs {avg_f:.1f} in unsuccessful",
         evidence="Artifact types: findings, unknowns, dead-ends, assumptions, decisions",
         confidence=min(0.75, 0.3 + total / 40),
@@ -503,7 +503,7 @@ def _analyse_calibration_correlation(outcomes: list) -> WorkflowSuggestion | Non
     if avg_good <= avg_bad + 1:
         return None
     return WorkflowSuggestion(
-        suggestion=f"More investigation improves calibration — well-calibrated transactions "
+        suggestion=f"More investigation improves calibration -- well-calibrated transactions "
                    f"average {avg_good:.1f} noetic tools vs {avg_bad:.1f} for poorly calibrated",
         evidence=f"Based on {len(well)} well-calibrated (score < 0.3) and "
                  f"{len(poor)} poorly calibrated (score >= 0.5) transactions",
@@ -544,7 +544,7 @@ def format_suggestions_human(suggestions: list[WorkflowSuggestion], limit: int =
 
     lines = [f"Workflow Suggestions ({len(suggestions)} found):\n"]
     for _i, s in enumerate(suggestions[:limit]):
-        icon = {"investigation": "🔍", "verification": "✓", "artifact": "📝", "timing": "⏱"}.get(s.category, "💡")
+        icon = {"investigation": "[SEARCH]", "verification": "[OK]", "artifact": "[NOTE]", "timing": "⏱"}.get(s.category, "[HINT]")
         lines.append(f"  {icon} {s.suggestion}")
         lines.append(f"     Confidence: {s.confidence:.0%} | Evidence: {s.evidence}")
         lines.append("")

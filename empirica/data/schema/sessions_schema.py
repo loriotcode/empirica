@@ -29,7 +29,7 @@ SCHEMAS = [
                 )
     """,
 
-    # Schema for subagent_sessions — child sessions spawned by Task tool
+    # Schema for subagent_sessions -- child sessions spawned by Task tool
     # invocations. Kept separate from the main `sessions` table so subagent
     # rows don't pollute "recent sessions" diagnostics, dashboards, and
     # parent-session lookups. Lineage to the parent is preserved via

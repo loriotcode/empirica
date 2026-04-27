@@ -1,5 +1,5 @@
 """
-Domain registry CLI command handlers (A1 — SPEC 1 Part 1).
+Domain registry CLI command handlers (A1 -- SPEC 1 Part 1).
 
 Commands:
   domain-list       List all loaded domains
@@ -74,7 +74,7 @@ def handle_domain_show_command(args):
         if output == "json":
             print(json.dumps({"ok": False, "error": msg}))
         else:
-            print(f"❌ {msg}")
+            print(f"[FAIL] {msg}")
         return {"ok": False, "error": msg}
 
     if output == "json":
@@ -115,7 +115,7 @@ def handle_domain_show_command(args):
             if cl.required:
                 print(f"    Required: {', '.join(cl.required)}")
             else:
-                print("    Required: (none — self-assessment stands)")
+                print("    Required: (none -- self-assessment stands)")
             if cl.optional:
                 print(f"    Optional: {', '.join(cl.optional)}")
             if cl.thresholds:
@@ -166,7 +166,7 @@ def handle_domain_resolve_command(args):
                 print(f"  Thresholds: {thresh}")
             print(f"  Max iterations: {cl.max_iterations}")
         else:
-            print("  No checks required — self-assessment stands.")
+            print("  No checks required -- self-assessment stands.")
 
     return {"ok": True}
 
@@ -194,10 +194,10 @@ def handle_domain_validate_command(args):
         }, indent=2))
     else:
         if errors:
-            print(f"❌ Validation found {len(errors)} error(s):")
+            print(f"[FAIL] Validation found {len(errors)} error(s):")
             for err in errors:
                 print(f"  - {err}")
         else:
-            print(f"✓ All {len(domains)} domain(s) valid.")
+            print(f"[OK] All {len(domains)} domain(s) valid.")
 
     return {"ok": len(errors) == 0}

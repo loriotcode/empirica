@@ -38,13 +38,13 @@ logger = logging.getLogger(__name__)
 
 # Import canonical structures
 try:
-    from canonical.reflex_frame import Action, EpistemicAssessment, VectorState  # noqa: F401, I001 — availability check for CANONICAL_AVAILABLE  # pyright: ignore[reportUnusedImport,reportMissingImports]
+    from canonical.reflex_frame import Action, EpistemicAssessment, VectorState  # noqa: F401, I001 -- availability check for CANONICAL_AVAILABLE  # pyright: ignore[reportUnusedImport,reportMissingImports]
     CANONICAL_AVAILABLE = True
 except ImportError:
     CANONICAL_AVAILABLE = False
 
 # Import formatters
-from .formatters import generate_context_markdown  # noqa: E402 — after conditional canonical import
+from .formatters import generate_context_markdown  # noqa: E402 -- after conditional canonical import
 
 
 class SessionDatabase:
@@ -78,13 +78,13 @@ class SessionDatabase:
 
             self.db_path = Path(db_path)
             self.adapter = DatabaseAdapter.create(db_type="sqlite", db_path=str(self.db_path))
-            logger.info(f"📊 Session Database initialized (SQLite): {self.db_path}")
+            logger.info(f"[STATS] Session Database initialized (SQLite): {self.db_path}")
 
         elif db_type == "postgresql":
             pg_config = db_config.get("postgresql", {})
             self.adapter = DatabaseAdapter.create(db_type="postgresql", **pg_config)
             self.db_path = None  # N/A for PostgreSQL
-            logger.info("📊 Session Database initialized (PostgreSQL)")
+            logger.info("[STATS] Session Database initialized (PostgreSQL)")
 
         else:
             raise ValueError(f"Unsupported database type: {db_type}")
@@ -99,7 +99,7 @@ class SessionDatabase:
             base_delay=0.1,
             max_delay=10.0
         )
-        logger.debug("✓ Retry policy initialized (exponential backoff, max 5 retries)")
+        logger.debug("[OK] Retry policy initialized (exponential backoff, max 5 retries)")
 
         self._create_tables()
 
@@ -191,7 +191,7 @@ class SessionDatabase:
         for schema_sql in adapted_schemas:
             cursor.execute(schema_sql)
 
-        # Run tracked migrations (SQLite only — PostgreSQL gets fresh schema)
+        # Run tracked migrations (SQLite only -- PostgreSQL gets fresh schema)
         if dialect == "sqlite":
             from empirica.data.migrations import ALL_MIGRATIONS, MigrationRunner
             migration_runner = MigrationRunner(self.conn)
@@ -250,7 +250,7 @@ class SessionDatabase:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_token_savings_session ON token_savings(session_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_token_savings_type ON token_savings(saving_type)")
 
-        # transaction_id indexes — must run AFTER migrations that add the column (#44)
+        # transaction_id indexes -- must run AFTER migrations that add the column (#44)
         for table, idx_name in [
             ("assumptions", "idx_assumptions_transaction"),
             ("decisions", "idx_decisions_transaction"),
@@ -296,7 +296,7 @@ class SessionDatabase:
         return self.sessions.end_session(session_id, avg_confidence, drift_detected, notes)
 
     # ------------------------------------------------------------------
-    # Subagent session facade (migration 034 — kept separate from main
+    # Subagent session facade (migration 034 -- kept separate from main
     # `sessions` table). See SessionRepository for full docs.
     # ------------------------------------------------------------------
 
@@ -653,7 +653,7 @@ class SessionDatabase:
         except subprocess.CalledProcessError as e:
             git_state['error'] = f"Git error: {e}"
 
-        # Get epistemic trajectory (PREFLIGHT → CHECK → POSTFLIGHT)
+        # Get epistemic trajectory (PREFLIGHT -> CHECK -> POSTFLIGHT)
         trajectory = {}
 
         # PREFLIGHT
@@ -800,8 +800,8 @@ class SessionDatabase:
         try:
             content = feature_file.read_text()
 
-            # Count completed features (lines with ✅ COMPLETE)
-            completed = len(re.findall(r'✅ COMPLETE', content))
+            # Count completed features (lines with [OK] COMPLETE)
+            completed = len(re.findall(r'[OK] COMPLETE', content))
 
             # Count in-progress goals (lines starting with - ` in IN-PROGRESS section)
             in_progress_match = re.search(r'In-Progress Goals \((\d+)\)', content)
@@ -849,7 +849,7 @@ class SessionDatabase:
             if git_logger.git_available:
                 checkpoint = git_logger.get_last_checkpoint(phase=phase)
                 if checkpoint:
-                    logger.debug(f"✅ Loaded git checkpoint for session {session_id}")
+                    logger.debug(f"[OK] Loaded git checkpoint for session {session_id}")
                     return checkpoint
         except Exception as e:
             logger.debug(f"Git checkpoint retrieval failed, using SQLite fallback: {e}")
@@ -876,7 +876,7 @@ class SessionDatabase:
 
             if git_logger.git_available:
                 checkpoints = git_logger.list_checkpoints(limit=limit, phase=phase)
-                logger.debug(f"✅ Listed {len(checkpoints)} git checkpoints for session {session_id}")
+                logger.debug(f"[OK] Listed {len(checkpoints)} git checkpoints for session {session_id}")
                 return checkpoints
         except Exception as e:
             logger.warning(f"Git checkpoint listing failed: {e}")
@@ -1238,7 +1238,7 @@ class SessionDatabase:
     def calculate_branch_merge_score(self, branch_id: str) -> dict:
         """Calculate epistemic merge score for a branch (delegates to BranchRepository)
 
-        Score = (learning_delta × quality × confidence) / cost_penalty
+        Score = (learning_delta x quality x confidence) / cost_penalty
         Where: confidence = 1 - uncertainty (uncertainty is a DAMPENER)
 
         Returns:
@@ -1622,7 +1622,7 @@ class SessionDatabase:
 
         reference_docs = self.breadcrumbs.get_project_reference_docs(project_id)
 
-        # Decisions are permanent audit trail — load from Qdrant (static, no decay)
+        # Decisions are permanent audit trail -- load from Qdrant (static, no decay)
         decisions = []
         DECISIONS_LIMIT = 10
         try:
@@ -1645,7 +1645,7 @@ class SessionDatabase:
                             'confidence': p.get('confidence_at_decision'),
                         })
         except Exception:
-            pass  # Qdrant unavailable — decisions won't load (non-fatal)
+            pass  # Qdrant unavailable -- decisions won't load (non-fatal)
 
         result = {
             'findings': findings,
@@ -1745,7 +1745,7 @@ class SessionDatabase:
     def _enrich_project_from_yaml(project_meta: dict) -> dict:
         """Enrich project metadata from project.yaml (v2.0 identity fields).
 
-        Returns the enriched dict. Non-fatal — returns original on any error.
+        Returns the enriched dict. Non-fatal -- returns original on any error.
         """
         try:
             from empirica.config.project_config_loader import load_project_config
@@ -1944,7 +1944,7 @@ class SessionDatabase:
                 ref_docs_dir = Path.cwd() / ".empirica" / "ref-docs"
                 snapshots = sorted(ref_docs_dir.glob("pre_summary_*.json"), reverse=True)
                 if snapshots:
-                    with open(snapshots[0]) as f:
+                    with open(snapshots[0], encoding='utf-8') as f:
                         snapshot = json.load(f)
                         return snapshot.get('session_id')
             except Exception:
@@ -2105,7 +2105,7 @@ class SessionDatabase:
             ref_docs_dir = Path.cwd() / ".empirica" / "ref-docs"
             snapshots = sorted(ref_docs_dir.glob("pre_summary_*.json"), reverse=True)
             if snapshots and breadcrumbs.get('live_state'):
-                with open(snapshots[0]) as f:
+                with open(snapshots[0], encoding='utf-8') as f:
                     pre_snapshot = json.load(f)
                 pre_vectors = pre_snapshot.get('checkpoint', {}).get('vectors', {})
                 post_vectors = breadcrumbs['live_state'].get('vectors', {})
@@ -2687,7 +2687,7 @@ class SessionDatabase:
 
 if __name__ == "__main__":
     # Test the database
-    logger.info("🧪 Testing Session Database...")
+    logger.info("[TEST] Testing Session Database...")
     db = SessionDatabase()
     db.close()
-    logger.info("✅ Session Database ready")
+    logger.info("[OK] Session Database ready")

@@ -17,7 +17,7 @@ def _print_search_results_human(task, results, use_global):
         for i, d in enumerate(results['docs'], 1):
             print(f"  {i}. {d.get('doc_path')}  (score: {d.get('score'):.3f})")
     if 'memory' in results:
-        print("\n🧠 Memory:")
+        print("\n[THINK] Memory:")
         for i, m in enumerate(results['memory'], 1):
             text = (m.get('text') or '')[:60]
             print(f"  {i}. [{m.get('type')}] {text}... (score: {m.get('score'):.3f})")
@@ -34,12 +34,12 @@ def _print_search_results_human(task, results, use_global):
             outcome = ep.get('outcome', 'unknown')
             print(f"  {i}. [{outcome}] {narr}... (score: {ep.get('score'):.3f})")
     if use_global and results.get('global'):
-        print("\n🌐 Global (cross-project learnings):")
+        print("\n[NET] Global (cross-project learnings):")
         for i, g in enumerate(results['global'], 1):
             proj = g.get('project_id', 'unknown')[:8]
             print(f"  {i}. [{g.get('type')}] {g.get('text', '')[:50]}... (proj: {proj}, score: {g.get('score'):.3f})")
     if use_global and results.get('cross_project'):
-        print("\n🔗 Cross-project (other projects' knowledge):")
+        print("\n[LINK] Cross-project (other projects' knowledge):")
         for i, cp in enumerate(results['cross_project'], 1):
             proj = cp.get('project_id', 'unknown')[:8]
             coll = cp.get('collection_type', '?')

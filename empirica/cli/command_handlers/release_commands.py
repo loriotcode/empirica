@@ -84,14 +84,14 @@ class EpistemicReleaseAgent:
         elif score >= 0.30:
             return "🌒"  # Waxing crescent - forming
         else:
-            return "🌑"  # New moon - dark
+            return "-"  # New moon - dark
 
     def _status_to_moon(self, status: AssessmentStatus) -> str:
         """Convert status to moon phase."""
         return {
             AssessmentStatus.PASS: "🌕",
             AssessmentStatus.WARN: "🌓",
-            AssessmentStatus.FAIL: "🌑",
+            AssessmentStatus.FAIL: "-",
             AssessmentStatus.SKIP: "🌒"
         }.get(status, "🌒")
 
@@ -597,14 +597,14 @@ class EpistemicReleaseAgent:
                     name=check.__name__.replace("check_", "").replace("_", " ").title(),
                     status=AssessmentStatus.FAIL,
                     message=f"Check failed: {str(e)[:50]}",
-                    moon="🌑"
+                    moon="-"
                 ))
 
         # Calculate overall status
         statuses = [r.status for r in self.results]
         if AssessmentStatus.FAIL in statuses:
             overall_status = "NOT READY"
-            overall_moon = "🌑"
+            overall_moon = "-"
         elif AssessmentStatus.WARN in statuses:
             overall_status = "READY WITH WARNINGS"
             overall_moon = "🌓"
@@ -653,9 +653,9 @@ def handle_release_ready_command(args):
 
             for check in result['checks']:
                 status_icon = {
-                    "pass": "✅",
-                    "warn": "⚠️",
-                    "fail": "❌",
+                    "pass": "[OK]",
+                    "warn": "[WARN]",
+                    "fail": "[FAIL]",
                     "skip": "⏭️"
                 }.get(check['status'], "?")
 
@@ -663,7 +663,7 @@ def handle_release_ready_command(args):
                 print(f"   {status_icon} {check['message']}")
 
                 for detail in check['details'][:5]:
-                    print(f"      • {detail}")
+                    print(f"      * {detail}")
                 print()
 
             print("=" * 60)
@@ -677,7 +677,7 @@ def handle_release_ready_command(args):
             elif result['status'] == "READY WITH WARNINGS":
                 print("  🌓 RELEASE READY (with warnings)")
             else:
-                print("  🌑 NOT READY FOR RELEASE")
+                print("  - NOT READY FOR RELEASE")
             print("=" * 60)
             print()
 
@@ -689,7 +689,7 @@ def handle_release_ready_command(args):
 
 
 def handle_release_command(args):
-    """Handle release command — thin wrapper around scripts/release.py.
+    """Handle release command -- thin wrapper around scripts/release.py.
 
     Runs the release pipeline as a subprocess, passing through all flags.
     This is a mechanical pipeline command (work_type=release) and does NOT

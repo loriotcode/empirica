@@ -199,7 +199,7 @@ SCHEMAS = [
     # Entity-agnostic columns + new artifact tables
     # =========================================================================
 
-    # Assumptions: unverified beliefs (noetic) — per-project mirror of workspace table
+    # Assumptions: unverified beliefs (noetic) -- per-project mirror of workspace table
     """
     CREATE TABLE IF NOT EXISTS assumptions (
         id TEXT PRIMARY KEY,
@@ -224,7 +224,7 @@ SCHEMAS = [
     )
     """,
 
-    # Decisions: recorded choice points (praxic) — per-project
+    # Decisions: recorded choice points (praxic) -- per-project
     """
     CREATE TABLE IF NOT EXISTS decisions (
         id TEXT PRIMARY KEY,

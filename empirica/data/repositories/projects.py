@@ -80,7 +80,7 @@ class ProjectRepository(BaseRepository):
         ))
 
         self.commit()
-        logger.info(f"📁 Project created: {name} [{project_type}] ({project_id[:8]}...)")
+        logger.info(f"[DIR] Project created: {name} [{project_type}] ({project_id[:8]}...)")
 
         return project_id
 
@@ -138,7 +138,7 @@ class ProjectRepository(BaseRepository):
         """, (time.time(), project_id))
 
         self.commit()
-        logger.info(f"🔗 Session {session_id[:8]}... linked to project {project_id[:8]}...")
+        logger.info(f"[LINK] Session {session_id[:8]}... linked to project {project_id[:8]}...")
 
     def get_project_sessions(self, project_id: str) -> list[dict]:
         """Get all sessions for a project"""
@@ -310,7 +310,7 @@ class ProjectRepository(BaseRepository):
         This loads the most recent session's POSTFLIGHT checkpoint for the given AI ID,
         enabling epistemic continuity across session boundaries.
 
-        Includes delta calculation: Shows what changed from PREFLIGHT → POSTFLIGHT.
+        Includes delta calculation: Shows what changed from PREFLIGHT -> POSTFLIGHT.
 
         Args:
             project_id: Project UUID

@@ -2,18 +2,18 @@
 Git Notes Profile Import - Rebuild SQLite from Git Notes
 
 Reads all epistemic artifacts from git notes and imports them into SQLite.
-This is the reverse of the dual-write pattern — given git notes as the
+This is the reverse of the dual-write pattern -- given git notes as the
 canonical portable format, reconstruct the working database.
 
 Used by:
-- `empirica profile-sync` — after fetching notes from remote
-- `empirica profile-sync --import-only` — import from local notes without fetch
-- Database recovery — rebuild after corruption or fresh machine setup
+- `empirica profile-sync` -- after fetching notes from remote
+- `empirica profile-sync --import-only` -- import from local notes without fetch
+- Database recovery -- rebuild after corruption or fresh machine setup
 
 Design:
-- INSERT OR IGNORE — deduplicates by primary key (artifact UUID)
+- INSERT OR IGNORE -- deduplicates by primary key (artifact UUID)
 - Preserves all metadata available in notes
-- Handles schema gaps gracefully (transaction_id not in notes → NULL)
+- Handles schema gaps gracefully (transaction_id not in notes -> NULL)
 - Returns import statistics for verification
 """
 
@@ -144,7 +144,7 @@ class ProfileImporter:
                     finding_data_json,
                     data.get('subject'),
                     data.get('impact', 0.5),
-                    data.get('transaction_id'),  # May be None — notes don't always have this
+                    data.get('transaction_id'),  # May be None -- notes don't always have this
                 ))
                 if cursor.rowcount > 0:
                     imported += 1

@@ -16,13 +16,13 @@ Tables:
 """
 
 SCHEMAS = [
-    # ── Session-scoped breadcrumbs REMOVED (migration 027) ──
+    # -- Session-scoped breadcrumbs REMOVED (migration 027) --
     # session_findings, session_unknowns, session_dead_ends, session_mistakes
     # were deprecated in favor of project_* tables with transaction_id.
     # Sessions delineate compact windows only; transactions are the atomic unit.
     # See: migration_027_drop_session_noetic_tables
 
-    # ── Lessons and knowledge graph (migration 014) ──
+    # -- Lessons and knowledge graph (migration 014) --
 
     """
     CREATE TABLE IF NOT EXISTS lessons (
@@ -180,7 +180,7 @@ SCHEMAS = [
                 )
     """,
 
-    # ── Auto-captured issues (migration 016) ──
+    # -- Auto-captured issues (migration 016) --
 
     """
     CREATE TABLE IF NOT EXISTS auto_captured_issues (
@@ -203,7 +203,7 @@ SCHEMAS = [
                 )
     """,
 
-    # ── Project relationships (migration 018) ──
+    # -- Project relationships (migration 018) --
 
     """
     CREATE TABLE IF NOT EXISTS project_relationships (
@@ -222,7 +222,7 @@ SCHEMAS = [
                 )
     """,
 
-    # ── Cross-project finding links (migration 019) ──
+    # -- Cross-project finding links (migration 019) --
 
     """
     CREATE TABLE IF NOT EXISTS cross_project_finding_links (
@@ -242,7 +242,7 @@ SCHEMAS = [
                 )
     """,
 
-    # ── Client projects (migration 020) ──
+    # -- Client projects (migration 020) --
 
     """
     CREATE TABLE IF NOT EXISTS client_projects (
@@ -262,7 +262,7 @@ SCHEMAS = [
                 )
     """,
 
-    # ── Attention budgets and rollup logs (migration 024) ──
+    # -- Attention budgets and rollup logs (migration 024) --
 
     """
     CREATE TABLE IF NOT EXISTS attention_budgets (

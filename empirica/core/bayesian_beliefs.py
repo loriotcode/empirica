@@ -2,11 +2,11 @@
 Bayesian Belief Manager
 
 Updates AI priors based on historical performance.
-Implements calibration loop: POSTFLIGHT deltas → update beliefs → inform next PREFLIGHT.
+Implements calibration loop: POSTFLIGHT deltas -> update beliefs -> inform next PREFLIGHT.
 
 NOTE (2026-01-21): Primary calibration source is now `vector_trajectories` table which has
 clean start/end vectors for 253+ sessions. This module is kept for:
-1. POSTFLIGHT belief updates (proper PREFLIGHT→POSTFLIGHT comparison)
+1. POSTFLIGHT belief updates (proper PREFLIGHT->POSTFLIGHT comparison)
 2. .breadcrumbs.yaml calibration export
 3. Backward compatibility
 
@@ -161,7 +161,7 @@ class BayesianBeliefManager:
         Update belief for a single vector during CHECK phase.
 
         This is the incremental update interface, used during mid-loop assessments.
-        For full PREFLIGHT→POSTFLIGHT comparison, use update_beliefs() instead.
+        For full PREFLIGHT->POSTFLIGHT comparison, use update_beliefs() instead.
 
         Args:
             session_id: The session ID
@@ -250,7 +250,7 @@ class BayesianBeliefManager:
                        preflight_vectors: dict[str, float],
                        postflight_vectors: dict[str, float]) -> dict[str, dict]:
         """
-        Update beliefs based on PREFLIGHT → POSTFLIGHT comparison.
+        Update beliefs based on PREFLIGHT -> POSTFLIGHT comparison.
 
         The delta between self-assessment (preflight) and measured outcome (postflight)
         becomes evidence for updating our beliefs about this AI's calibration.
@@ -484,7 +484,7 @@ def export_calibration_to_breadcrumbs(ai_id: str, db, git_root: str | None = Non
     calibration_end = -1
 
     if os.path.exists(breadcrumbs_path):
-        with open(breadcrumbs_path) as f:
+        with open(breadcrumbs_path, encoding='utf-8') as f:
             existing_lines = f.readlines()
 
         calibration_start, calibration_end = _find_yaml_section(
@@ -502,7 +502,7 @@ def export_calibration_to_breadcrumbs(ai_id: str, db, git_root: str | None = Non
     sorted_adjustments = sorted(adjustments.items(), key=lambda x: abs(x[1]), reverse=True)
 
     calibration_yaml = f"""
-# Learning trajectory (PREFLIGHT→POSTFLIGHT deltas — measures learning, NOT calibration bias)
+# Learning trajectory (PREFLIGHT->POSTFLIGHT deltas -- measures learning, NOT calibration bias)
 # For actual bias corrections see grounded_calibration.grounded_bias_corrections
 learning_trajectory:
   last_updated: "{timestamp}"
@@ -559,7 +559,7 @@ learning_trajectory:
                 calibration_yaml
             ]
 
-        with open(breadcrumbs_path, 'w') as f:
+        with open(breadcrumbs_path, 'w', encoding='utf-8') as f:
             f.writelines(new_lines)
 
         return True
@@ -571,7 +571,7 @@ def load_bias_corrections(git_root: str | None = None) -> dict[str, float]:
     """
     Load bias corrections from .breadcrumbs.yaml calibration cache.
 
-    Returns a dict of vector_name → correction (positive = AI underestimates,
+    Returns a dict of vector_name -> correction (positive = AI underestimates,
     negative = AI overestimates). Apply corrections as: corrected = raw + correction.
 
     Falls back to empty dict if .breadcrumbs.yaml unavailable.
@@ -597,7 +597,7 @@ def load_bias_corrections(git_root: str | None = None) -> dict[str, float]:
         return {}
 
     try:
-        with open(breadcrumbs_path) as f:
+        with open(breadcrumbs_path, encoding='utf-8') as f:
             content = f.read()
 
         # Simple YAML parsing for bias_corrections block (avoid yaml dependency)
@@ -623,7 +623,7 @@ def load_bias_corrections(git_root: str | None = None) -> dict[str, float]:
                         except ValueError:
                             continue
                     elif stripped.endswith(':'):
-                        # New section started — stop parsing
+                        # New section started -- stop parsing
                         break
 
         return corrections
@@ -636,11 +636,11 @@ def load_grounded_corrections(git_root: str | None = None) -> dict[str, float]:
     Load GROUNDED bias corrections from .breadcrumbs.yaml.
 
     These corrections are derived from objective evidence (test results, git metrics,
-    artifact counts) compared to self-assessment — measuring actual calibration accuracy.
+    artifact counts) compared to self-assessment -- measuring actual calibration accuracy.
 
     This is the correct source for Sentinel/CHECK gate corrections.
     Contrast with load_bias_corrections() which loads learning trajectory data
-    (PREFLIGHT→POSTFLIGHT deltas) — useful for tracking but NOT for bias correction.
+    (PREFLIGHT->POSTFLIGHT deltas) -- useful for tracking but NOT for bias correction.
 
     Falls back to empty dict if grounded calibration unavailable (Sentinel uses raw vectors).
     """
@@ -665,7 +665,7 @@ def load_grounded_corrections(git_root: str | None = None) -> dict[str, float]:
         return {}
 
     try:
-        with open(breadcrumbs_path) as f:
+        with open(breadcrumbs_path, encoding='utf-8') as f:
             content = f.read()
 
         corrections = {}

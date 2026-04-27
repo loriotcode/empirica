@@ -4,11 +4,11 @@ Canonical Reflex Frame Data Structures
 Core types for Empirica epistemic framework.
 Main assessment schema moved to empirica.core.schemas.epistemic_assessment
 
-Key Principle: epistemic weights ≠ internal weights
+Key Principle: epistemic weights != internal weights
 We measure knowledge state, we don't modify model parameters.
 
 Design:
-- ENGAGEMENT as structural gate (≥0.60 required)
+- ENGAGEMENT as structural gate (>=0.60 required)
 - Canonical weights: 35/25/25/15 (foundation/comprehension/execution/engagement)
 - No heuristics, no confabulation - genuine LLM reasoning only
 """

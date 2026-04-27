@@ -33,7 +33,7 @@ def embed_episodic(
 
     Episodic memory stores contextual narratives:
     - Session arcs, decisions, investigations, discoveries
-    - Includes learning delta (PREFLIGHT → POSTFLIGHT)
+    - Includes learning delta (PREFLIGHT -> POSTFLIGHT)
     - Recency weight decays over time
 
     Returns True if successful, False if Qdrant not available.

@@ -275,11 +275,11 @@ def format_workflow_suggestions(suggestions_data: dict[str, Any]) -> str:
     output = []
 
     if suggestions_data.get('completeness_score') is not None:
-        output.append(f"\n📊 Epistemic Completeness: {suggestions_data['grade']} ({suggestions_data['completeness_score']:.0%})")
+        output.append(f"\n[STATS] Epistemic Completeness: {suggestions_data['grade']} ({suggestions_data['completeness_score']:.0%})")
         output.append("")
 
     if suggestions_data.get('suggestions'):
-        output.append("💡 Workflow Suggestions:")
+        output.append("[HINT] Workflow Suggestions:")
         output.append("")
 
         for suggestion in suggestions_data['suggestions']:
@@ -294,7 +294,7 @@ def format_workflow_suggestions(suggestions_data: dict[str, Any]) -> str:
             elif priority == 'MEDIUM':
                 emoji = '🟡'
             else:
-                emoji = 'ℹ️'
+                emoji = '[INFO]'
 
             output.append(f"{emoji} {action}")
             output.append(f"   Reason: {reason}")

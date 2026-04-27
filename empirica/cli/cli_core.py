@@ -18,7 +18,7 @@ import sys
 import time
 
 from .cli_utils import handle_cli_error
-from .command_handlers import *  # noqa: F403 — re-exports all command handlers by design
+from .command_handlers import *  # noqa: F403 -- re-exports all command handlers by design
 from .command_handlers.domain_commands import (
     handle_domain_list_command,
     handle_domain_resolve_command,
@@ -64,7 +64,7 @@ class GroupedHelpFormatter(argparse.RawDescriptionHelpFormatter):
         """Format action with grouped subcommands by category."""
         try:
             if isinstance(action, argparse._SubParsersAction):
-                # Compact default help — show core commands only
+                # Compact default help -- show core commands only
                 # Full list available via 'empirica help <category>'
                 parts = [
                     '\nCore Commands:\n',
@@ -352,7 +352,7 @@ def _handle_command_result(result, parsed_args) -> int:
                     if key != 'ok':
                         print(f"{key}: {value}")
             else:
-                print(f"❌ {result.get('error', 'Unknown error')}")
+                print(f"[FAIL] {result.get('error', 'Unknown error')}")
         return 0 if result.get('ok', True) else 1
     elif result is not None and result != 0:
         return result
@@ -368,7 +368,7 @@ def main(args=None):
     # Intercept 'help <category>' before argparse rejects the category as unknown
     raw_args = args if args is not None else sys.argv[1:]
     if raw_args and raw_args[0] == 'help':
-        # Handled below after parse — but argparse needs to accept it
+        # Handled below after parse -- but argparse needs to accept it
         # Strip category arg so argparse only sees 'help'
         help_category = raw_args[1] if len(raw_args) > 1 else None
         parsed_args = parser.parse_args(['help'])
@@ -381,7 +381,7 @@ def main(args=None):
         parser.print_help()
         sys.exit(1)
 
-    # Built-in 'help' command — show full categorised command list
+    # Built-in 'help' command -- show full categorised command list
     if parsed_args.command == 'help':
         _handle_help_command(parsed_args)
         sys.exit(0)
@@ -456,7 +456,7 @@ def main(args=None):
             # Config commands
             'config': handle_config_command,
 
-            # Domain registry commands (A1 — Sentinel reframe)
+            # Domain registry commands (A1 -- Sentinel reframe)
             'domain-list': handle_domain_list_command,
             'domain-show': handle_domain_show_command,
             'domain-resolve': handle_domain_resolve_command,
@@ -748,7 +748,7 @@ def main(args=None):
 
             sys.exit(exit_code)
         else:
-            print(f"❌ Unknown command: {parsed_args.command}")
+            print(f"[FAIL] Unknown command: {parsed_args.command}")
             sys.exit(1)
 
     except Exception as e:

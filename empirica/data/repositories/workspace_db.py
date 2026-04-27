@@ -1,9 +1,9 @@
 """
-Workspace Database Repository — centralized access to ~/.empirica/workspace/workspace.db
+Workspace Database Repository -- centralized access to ~/.empirica/workspace/workspace.db
 
 Tables managed:
 - global_projects: Cross-project registry (trajectory_path is the stable key)
-- instance_bindings: TMUX pane → project mapping for multi-instance support
+- instance_bindings: TMUX pane -> project mapping for multi-instance support
 - global_sessions: Cross-project session tracking
 - entity_artifacts: CRM entity-artifact cross-references
 
@@ -134,13 +134,13 @@ def _ensure_workspace_schema(conn: sqlite3.Connection) -> None:
 
 
 class WorkspaceDBRepository(BaseRepository):
-    """Repository for workspace.db — the global project registry."""
+    """Repository for workspace.db -- the global project registry."""
 
     def __init__(self, conn: sqlite3.Connection):
         super().__init__(conn)
 
     @classmethod
-    def open(cls, ensure_schema: bool = True) -> 'WorkspaceDBRepository':
+    def open(cls, ensure_schema: bool = True, encoding='utf-8') -> 'WorkspaceDBRepository':
         """Open workspace.db and return a repository instance.
 
         Creates the database directory and schema if needed.

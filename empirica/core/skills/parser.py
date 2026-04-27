@@ -27,7 +27,7 @@ def parse_markdown_to_skill(md_text: str, name: str, tags: list[str] | None = No
         items: list[str] = []
         for ln in lines:
             s = ln.strip()
-            if s.startswith(('- ', '* ', '• ')):
+            if s.startswith(('- ', '* ', '* ')):
                 items.append(s[2:].strip())
         return items
 

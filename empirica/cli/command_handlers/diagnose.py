@@ -8,14 +8,14 @@ showing" class of question without requiring back-and-forth diagnostic
 ladders on GitHub issues.
 
 Output modes:
-  --output human    (default) — colored, emoji, fix hints
-  --output json     — machine-readable JSON, suitable for `empirica
+  --output human    (default) -- colored, emoji, fix hints
+  --output json     -- machine-readable JSON, suitable for `empirica
                      diagnose --output json | jq` or for issue reports
 
 Exit codes:
-  0  — all checks passed
-  1  — one or more FAIL checks
-  2  — one or more WARN checks (no FAIL)
+  0  -- all checks passed
+  1  -- one or more FAIL checks
+  2  -- one or more WARN checks (no FAIL)
 
 Author: David S. L. van Assche, Claude
 Date: 2026-04-08
@@ -193,7 +193,7 @@ def check_settings_json(claude_dir: Path) -> CheckResult:
             data={"path": str(settings_file)},
         )
     try:
-        with open(settings_file) as f:
+        with open(settings_file, encoding='utf-8') as f:
             json.load(f)
     except json.JSONDecodeError as e:
         return CheckResult(
@@ -221,7 +221,7 @@ def check_statusline_configured(claude_dir: Path) -> CheckResult:
             detail="settings.json missing (see previous check)",
         )
     try:
-        with open(settings_file) as f:
+        with open(settings_file, encoding='utf-8') as f:
             settings = json.load(f)
     except (json.JSONDecodeError, OSError):
         return CheckResult(
@@ -267,7 +267,7 @@ def check_hooks_registered(claude_dir: Path) -> CheckResult:
     Claude Code hook architecture: post-compact.py is wired to SessionStart
     with matcher='compact', NOT a separate PostCompact event. session-init.py
     is wired to SessionStart with matcher='startup|resume'. Both share the
-    SessionStart event with different matchers — we check for both scripts
+    SessionStart event with different matchers -- we check for both scripts
     by name rather than by event.
     """
     settings_file = claude_dir / "settings.json"
@@ -278,7 +278,7 @@ def check_hooks_registered(claude_dir: Path) -> CheckResult:
             detail="settings.json missing",
         )
     try:
-        with open(settings_file) as f:
+        with open(settings_file, encoding='utf-8') as f:
             settings = json.load(f)
     except (json.JSONDecodeError, OSError):
         return CheckResult(
@@ -334,7 +334,7 @@ def check_hooks_registered(claude_dir: Path) -> CheckResult:
 def check_statusline_runnable(claude_dir: Path) -> CheckResult:
     """Run the statusline script directly with a stub session and verify it
     produces output. This is the strongest signal that the script itself
-    works — if it does, the issue is upstream (Claude Code wiring)."""
+    works -- if it does, the issue is upstream (Claude Code wiring)."""
     plugin_dir = claude_dir / "plugins" / "local" / "empirica"
     script = plugin_dir / "scripts" / "statusline_empirica.py"
     if not script.exists():
@@ -414,7 +414,7 @@ def check_project_initialized() -> CheckResult:
 
     This is the most common failure mode for new users: they install
     Empirica, launch Claude Code, and see no statusline because their
-    working directory has no `.empirica/` — which means no project DB,
+    working directory has no `.empirica/` -- which means no project DB,
     no session, no statusline content.
     """
     cwd = Path.cwd()
@@ -460,7 +460,7 @@ def check_active_session() -> CheckResult:
         return CheckResult(
             name="Active session in current project",
             status=SKIP,
-            detail="Skipped — project not initialized (see previous check)",
+            detail="Skipped -- project not initialized (see previous check)",
             data={"db_path": str(db_path), "exists": False},
         )
 
@@ -481,7 +481,7 @@ def check_active_session() -> CheckResult:
             name="Active session in current project",
             status=FAIL,
             detail=f"Cannot read project DB: {e}",
-            hint="DB may be corrupt or schema is out of date — run `empirica project-bootstrap`",
+            hint="DB may be corrupt or schema is out of date -- run `empirica project-bootstrap`",
             data={"db_path": str(db_path), "error": str(e)},
         )
 
@@ -518,11 +518,11 @@ def check_marketplace_registered(claude_dir: Path) -> CheckResult:
             name="Local marketplace registered",
             status=WARN,
             detail=f"{known} does not exist",
-            hint="Optional but recommended — run `empirica setup-claude-code` to register",
+            hint="Optional but recommended -- run `empirica setup-claude-code` to register",
             data={"path": str(known)},
         )
     try:
-        with open(known) as f:
+        with open(known, encoding='utf-8') as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
         return CheckResult(
@@ -590,9 +590,9 @@ def run_all_checks() -> list[CheckResult]:
 
 
 _STATUS_EMOJI = {
-    PASS: f"{_C.GREEN}✅{_C.RESET}",
-    FAIL: f"{_C.RED}❌{_C.RESET}",
-    WARN: f"{_C.YELLOW}⚠ {_C.RESET}",
+    PASS: f"{_C.GREEN}[OK]{_C.RESET}",
+    FAIL: f"{_C.RED}[FAIL]{_C.RESET}",
+    WARN: f"{_C.YELLOW}[WARN] {_C.RESET}",
     SKIP: f"{_C.GRAY}⊘ {_C.RESET}",
 }
 
@@ -602,7 +602,7 @@ def format_human(results: list[CheckResult]) -> str:
     lines = [
         "",
         f"{_C.BOLD}Empirica + Claude Code Integration Diagnostic{_C.RESET}",
-        f"{_C.GRAY}{'─' * 60}{_C.RESET}",
+        f"{_C.GRAY}{'-' * 60}{_C.RESET}",
         "",
     ]
 
@@ -614,10 +614,10 @@ def format_human(results: list[CheckResult]) -> str:
         if r.detail:
             lines.append(f"   {_C.GRAY}{r.detail}{_C.RESET}")
         if r.hint:
-            lines.append(f"   {_C.CYAN}→ {r.hint}{_C.RESET}")
+            lines.append(f"   {_C.CYAN}-> {r.hint}{_C.RESET}")
         lines.append("")
 
-    lines.append(f"{_C.GRAY}{'─' * 60}{_C.RESET}")
+    lines.append(f"{_C.GRAY}{'-' * 60}{_C.RESET}")
     summary = (
         f"  {_C.GREEN}{counts.get(PASS, 0)} passed{_C.RESET}  "
         f"{_C.RED}{counts.get(FAIL, 0)} failed{_C.RESET}  "
@@ -628,11 +628,11 @@ def format_human(results: list[CheckResult]) -> str:
     lines.append("")
 
     if counts.get(FAIL, 0) > 0:
-        lines.append(f"{_C.RED}❌ Integration is not healthy. Fix the failed checks above.{_C.RESET}")
+        lines.append(f"{_C.RED}[FAIL] Integration is not healthy. Fix the failed checks above.{_C.RESET}")
     elif counts.get(WARN, 0) > 0:
-        lines.append(f"{_C.YELLOW}⚠ Integration mostly working — see warnings for optional improvements.{_C.RESET}")
+        lines.append(f"{_C.YELLOW}[WARN] Integration mostly working -- see warnings for optional improvements.{_C.RESET}")
     else:
-        lines.append(f"{_C.GREEN}✅ Integration looks healthy.{_C.RESET}")
+        lines.append(f"{_C.GREEN}[OK] Integration looks healthy.{_C.RESET}")
     lines.append("")
 
     return "\n".join(lines)
@@ -666,7 +666,7 @@ def format_json(results: list[CheckResult]) -> str:
 
 
 def handle_diagnose_command(args) -> int:
-    """Handle `empirica diagnose` — run all integration checks and report."""
+    """Handle `empirica diagnose` -- run all integration checks and report."""
     output_format = getattr(args, "output", "human")
 
     results = run_all_checks()

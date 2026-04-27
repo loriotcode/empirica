@@ -28,7 +28,7 @@ def _handoff_read_config(args):
     if not os.path.exists(args.config):
         print(json.dumps({"ok": False, "error": f"Config file not found: {args.config}"}))
         sys.exit(1)
-    with open(args.config) as f:
+    with open(args.config, encoding='utf-8') as f:
         return parse_json_safely(f.read())
 
 
@@ -128,24 +128,24 @@ def _handoff_determine_type(session_id, planning_only):
 
 def _handoff_print_no_assessments():
     """Print help message when no CASCADE assessments are found."""
-    print("⚠️  No CASCADE workflow assessments found for this session")
+    print("[WARN]  No CASCADE workflow assessments found for this session")
     print()
     print("Three handoff options:")
     print()
     print("Option 1: INVESTIGATION HANDOFF (PREFLIGHT + CHECK)")
-    print("  → For specialist handoff after investigation phase")
-    print("  $ empirica preflight → investigate → check → handoff-create")
-    print("  → Epistemic deltas: PREFLIGHT → CHECK (learning from investigation)")
+    print("  -> For specialist handoff after investigation phase")
+    print("  $ empirica preflight -> investigate -> check -> handoff-create")
+    print("  -> Epistemic deltas: PREFLIGHT -> CHECK (learning from investigation)")
     print()
     print("Option 2: COMPLETE HANDOFF (PREFLIGHT + POSTFLIGHT)")
-    print("  → For full workflow completion")
-    print("  $ empirica preflight → work → postflight → handoff-create")
-    print("  → Epistemic deltas: PREFLIGHT → POSTFLIGHT (full cycle learning)")
+    print("  -> For full workflow completion")
+    print("  $ empirica preflight -> work -> postflight -> handoff-create")
+    print("  -> Epistemic deltas: PREFLIGHT -> POSTFLIGHT (full cycle learning)")
     print()
     print("Option 3: PLANNING HANDOFF (no assessments required)")
-    print("  → For documentation-only handoff")
+    print("  -> For documentation-only handoff")
     print("  $ empirica handoff-create --session-id ... --planning-only [other args]")
-    print("  → No epistemic deltas (documentation only)")
+    print("  -> No epistemic deltas (documentation only)")
     print()
 
 
@@ -175,8 +175,8 @@ def _handoff_generate_report(handoff_type, start_assessment, end_assessment, par
             handoff_subtype="investigation"
         )
         handoff['handoff_subtype'] = 'investigation'
-        handoff['epistemic_note'] = 'PREFLIGHT → CHECK deltas (investigation phase)'
-        return handoff, "🔬 Investigation Handoff (PREFLIGHT→CHECK)"
+        handoff['epistemic_note'] = 'PREFLIGHT -> CHECK deltas (investigation phase)'
+        return handoff, "🔬 Investigation Handoff (PREFLIGHT->CHECK)"
 
     if handoff_type == "complete":
         handoff = generator.generate_handoff_report(
@@ -186,14 +186,14 @@ def _handoff_generate_report(handoff_type, start_assessment, end_assessment, par
             handoff_subtype="complete"
         )
         handoff['handoff_subtype'] = 'complete'
-        handoff['epistemic_note'] = 'PREFLIGHT → POSTFLIGHT deltas (full cycle)'
-        return handoff, "📊 Complete Handoff (PREFLIGHT→POSTFLIGHT)"
+        handoff['epistemic_note'] = 'PREFLIGHT -> POSTFLIGHT deltas (full cycle)'
+        return handoff, "[STATS] Complete Handoff (PREFLIGHT->POSTFLIGHT)"
 
     # preflight_only
     handoff = generator.generate_planning_handoff(**common_kwargs)
     handoff['handoff_subtype'] = 'preflight_only'
     handoff['epistemic_note'] = 'Only PREFLIGHT available (aborted session)'
-    return handoff, "⚠️  Preflight-Only Handoff (incomplete)"
+    return handoff, "[WARN]  Preflight-Only Handoff (incomplete)"
 
 
 def _handoff_format_output(args, session_id, handoff_type, handoff, sync_result, handoff_display_name):
@@ -215,7 +215,7 @@ def _handoff_format_output(args, session_id, handoff_type, handoff, sync_result,
         }
         print(json.dumps(result, indent=2))
     else:
-        print(f"✅ {handoff_display_name} created successfully")
+        print(f"[OK] {handoff_display_name} created successfully")
         print(f"   Session: {session_id[:8]}...")
         print(f"   Type: {handoff_type}")
         if handoff.get('epistemic_note'):
@@ -271,7 +271,7 @@ def handle_handoff_create_command(args):
 
         if not sync_result['fully_synced']:
             logger.warning(
-                f"⚠️ Partial storage: git={sync_result['git_stored']}, "
+                f"[WARN] Partial storage: git={sync_result['git_stored']}, "
                 f"db={sync_result['db_stored']}"
             )
 

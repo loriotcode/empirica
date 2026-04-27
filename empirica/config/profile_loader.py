@@ -178,7 +178,7 @@ class ProfileLoader:
 
     def load_config(self) -> None:
         """Load configuration from YAML file"""
-        with open(self.config_path) as f:
+        with open(self.config_path, encoding='utf-8') as f:
             self.config = yaml.safe_load(f)
 
         # Load universal constraints
@@ -349,12 +349,12 @@ class ProfileLoader:
         if not profile:
             raise ValueError(f"Profile not found: {profile_name}")
 
-        with open(output_path, 'w') as f:
+        with open(output_path, 'w', encoding='utf-8') as f:
             yaml.dump(profile.to_dict(), f, default_flow_style=False)
 
     def import_profile(self, input_path: Path, profile_name: str | None = None) -> None:
         """Import profile from YAML file"""
-        with open(input_path) as f:
+        with open(input_path, encoding='utf-8') as f:
             data = yaml.safe_load(f)
 
         name = profile_name or data.get('name', 'imported')

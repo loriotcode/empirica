@@ -3,7 +3,7 @@ Qdrant collection naming, initialization, and migration utilities.
 """
 from __future__ import annotations
 
-# Public API — collection name functions are imported by vector_store, memory, etc.
+# Public API -- collection name functions are imported by vector_store, memory, etc.
 __all__ = [
     "_assumptions_collection",
     "_calibration_collection",
@@ -39,7 +39,7 @@ def _memory_collection(project_id: str) -> str:
 
 
 def _epistemics_collection(project_id: str) -> str:
-    """Collection for epistemic learning trajectories (PREFLIGHT → POSTFLIGHT deltas)"""
+    """Collection for epistemic learning trajectories (PREFLIGHT -> POSTFLIGHT deltas)"""
     return f"project_{project_id}_epistemics"
 
 

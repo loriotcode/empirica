@@ -102,7 +102,7 @@ class SessionSync:
                 )
 
             if result.returncode == 0:
-                logger.info("✓ Pulled latest epistemic state from remote")
+                logger.info("[OK] Pulled latest epistemic state from remote")
                 return True
             else:
                 logger.warning(f"Git pull failed: {result.stderr}")
@@ -150,7 +150,7 @@ class SessionSync:
                 )
 
             if result.returncode == 0:
-                logger.info("✓ Pushed epistemic state to remote")
+                logger.info("[OK] Pushed epistemic state to remote")
                 return True
             else:
                 logger.warning(f"Git push failed: {result.stderr}")

@@ -1,5 +1,5 @@
 """
-Workspace Search Command — cross-project entity-navigable semantic search.
+Workspace Search Command -- cross-project entity-navigable semantic search.
 
 Searches the workspace_index Qdrant collection, which contains pointers
 to artifacts across all projects, filterable by entity references

@@ -122,7 +122,7 @@ def handle_project_update_command(args):
             if output_format == 'json':
                 print(json.dumps({"ok": False, "error": "Not in a git repository"}))
             else:
-                print("❌ Not in a git repository")
+                print("[FAIL] Not in a git repository")
             return None
 
         config_path = git_root / '.empirica' / 'project.yaml'
@@ -130,10 +130,10 @@ def handle_project_update_command(args):
             if output_format == 'json':
                 print(json.dumps({"ok": False, "error": "No project.yaml found. Run 'empirica project-init' first."}))
             else:
-                print("❌ No project.yaml found. Run 'empirica project-init' first.")
+                print("[FAIL] No project.yaml found. Run 'empirica project-init' first.")
             return None
 
-        with open(config_path) as f:
+        with open(config_path, encoding='utf-8') as f:
             raw_config = yaml.safe_load(f) or {}
 
         config = ProjectConfig(raw_config)
@@ -149,11 +149,11 @@ def handle_project_update_command(args):
             if output_format == 'json':
                 print(json.dumps({"ok": True, "changes": [], "message": "No changes specified"}))
             else:
-                print("ℹ️  No changes specified. Use --help to see available options.")
+                print("[INFO]  No changes specified. Use --help to see available options.")
             return None
 
         updated = config.to_dict()
-        with open(config_path, 'w') as f:
+        with open(config_path, 'w', encoding='utf-8') as f:
             yaml.dump(updated, f, default_flow_style=False, sort_keys=False)
 
         _sync_to_db(config, git_root)
@@ -163,9 +163,9 @@ def handle_project_update_command(args):
                 "ok": True, "changes": changes, "config": updated,
             }, indent=2, default=str))
         else:
-            print(f"✅ Updated project.yaml ({len(changes)} changes)")
+            print(f"[OK] Updated project.yaml ({len(changes)} changes)")
             for change in changes:
-                print(f"   • {change}")
+                print(f"   * {change}")
 
         return {"ok": True, "changes": changes}
 

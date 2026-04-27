@@ -1,4 +1,4 @@
-"""Security audit — runs pip-audit, cross-references with CISA KEV.
+"""Security audit -- runs pip-audit, cross-references with CISA KEV.
 
 Phase 1 scope: Python package vulnerabilities only. pip-audit (already a
 dependency for the dep_audit compliance check) provides CVE/GHSA findings;
@@ -46,7 +46,7 @@ def run_security_audit(
                        empirica's surface. The user's responsibility.
 
     The audit `passed` gate considers only empirica-scoped KEV-matched
-    findings — user-scoped findings are reported but don't fail the gate.
+    findings -- user-scoped findings are reported but don't fail the gate.
 
     Args:
         project_root: project to audit (defaults to CWD)
@@ -113,9 +113,9 @@ def run_security_audit(
         "findings": findings,
         "summary": summary,
         "frameworks": {
-            "eu_ai_act": "Art. 15(4) — Cybersecurity (OWASP / supply-chain vulnerability scanning)",
-            "iso_42001": "8.4 — AI system development — secure coding practices",
-            "gdpr": "Art. 32 — Security of processing — known-vulnerability remediation",
+            "eu_ai_act": "Art. 15(4) -- Cybersecurity (OWASP / supply-chain vulnerability scanning)",
+            "iso_42001": "8.4 -- AI system development -- secure coding practices",
+            "gdpr": "Art. 32 -- Security of processing -- known-vulnerability remediation",
         },
         "duration_seconds": round(time.time() - started, 2),
     }
@@ -168,7 +168,7 @@ def _classify_findings(
         for vuln in dep.get("vulns", []) or []:
             vuln_id = vuln.get("id", "")
             aliases = list(vuln.get("aliases", []) or [])
-            # pip-audit aliases include both GHSA-* and CVE-* — extract CVEs explicitly
+            # pip-audit aliases include both GHSA-* and CVE-* -- extract CVEs explicitly
             all_ids = [vuln_id, *aliases] if vuln_id else aliases
             cve_ids = sorted({i for i in all_ids if i.startswith("CVE-")})
 
@@ -226,7 +226,7 @@ def _priority_for(kev_match: dict[str, Any] | None, vuln: dict[str, Any]) -> str
         return "monitor"
     if severity:
         return "safe"
-    # No severity reported by pip-audit (common) — default to month so it isn't ignored
+    # No severity reported by pip-audit (common) -- default to month so it isn't ignored
     return "month"
 
 

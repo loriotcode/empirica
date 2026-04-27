@@ -57,7 +57,7 @@ MODEL_DIMENSIONS = {
     "bge-large": 1024,
     "qwen3-embedding": 1024,  # Qwen3 embedding model (0.6B default tag)
     "qwen3-embedding:0.6b": 1024,  # Explicit 0.6B tag
-    "qwen3-embedding:8b": 4096,  # 8B variant — different dimensions!
+    "qwen3-embedding:8b": 4096,  # 8B variant -- different dimensions!
     "snowflake-arctic-embed": 1024,
     "snowflake-arctic-embed2": 1024,
     "granite-embedding": 768,
@@ -139,7 +139,7 @@ def _load_config_file() -> dict:
     config_yaml_path = os.path.expanduser("~/.empirica/config.yaml")
     try:
         import yaml
-        with open(config_yaml_path) as f:
+        with open(config_yaml_path, encoding='utf-8') as f:
             full_config = yaml.safe_load(f) or {}
         emb_config = full_config.get("embeddings", {})
         if emb_config:
@@ -153,7 +153,7 @@ def _load_config_file() -> dict:
     conf_path = os.path.expanduser("~/.empirica/embeddings.conf")
     config = {}
     try:
-        with open(conf_path) as f:
+        with open(conf_path, encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith('#'):
@@ -322,7 +322,7 @@ class EmbeddingsProvider:
                     logger.error(
                         f"DIMENSION MISMATCH: Ollama model '{self.model}' returned {actual_size}d vectors "
                         f"but Empirica expected {self._vector_size}d. This will cause Qdrant upsert failures. "
-                        f"Check that you pulled the correct model tag — e.g., 'qwen3-embedding' (1024d) "
+                        f"Check that you pulled the correct model tag -- e.g., 'qwen3-embedding' (1024d) "
                         f"vs 'qwen3-embedding:8b' (4096d). Run 'empirica rebuild --qdrant' after fixing."
                     )
                     raise ValueError(
@@ -390,7 +390,7 @@ class EmbeddingsProvider:
 
             return embeddings
         except Exception as e:
-            logger.warning(f"Batch embed failed: {e} — falling back to sequential")
+            logger.warning(f"Batch embed failed: {e} -- falling back to sequential")
             return [self.embed(t) for t in texts]
 
     def _embed_jina(self, text: str) -> list[float]:

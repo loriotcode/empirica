@@ -119,7 +119,7 @@ class Fact:
     """
     A temporal assertion about the codebase.
 
-    Facts have validity windows (valid_at → invalid_at) and evidence chains.
+    Facts have validity windows (valid_at -> invalid_at) and evidence chains.
     invalid_at=None means the fact is still true.
     """
     id: str = field(default_factory=lambda: str(uuid.uuid4()))

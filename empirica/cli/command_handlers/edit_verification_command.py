@@ -219,7 +219,7 @@ def handle_edit_with_confidence_command(args):
             if output_format == 'json':
                 print(json.dumps(result, indent=2))
             else:
-                print("❌ Missing required arguments")
+                print("[FAIL] Missing required arguments")
             return None
 
         # Validate file exists
@@ -231,7 +231,7 @@ def handle_edit_with_confidence_command(args):
             if output_format == 'json':
                 print(json.dumps(result, indent=2))
             else:
-                print(f"❌ File does not exist: {file_path}")
+                print(f"[FAIL] File does not exist: {file_path}")
             return None
 
         # Initialize components
@@ -283,7 +283,7 @@ def handle_edit_with_confidence_command(args):
         if output_format == 'json':
             print(json.dumps(output_result, indent=2))
         else:
-            status = "✅" if output_result["ok"] else "❌"
+            status = "[OK]" if output_result["ok"] else "[FAIL]"
             print(f"{status} Edit operation: {output_result['result']}")
             print(f"   Strategy: {strategy} (confidence: {assessment['overall']:.2f})")
             print(f"   Changes: {'Yes' if output_result['changes_made'] else 'No'}")

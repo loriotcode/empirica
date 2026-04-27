@@ -300,7 +300,7 @@ class TokenEfficiencyMetrics:
             output_file = Path(output_path)
             output_file.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(content)
 
             logger.info(f"Report exported to: {output_file}")
@@ -325,7 +325,7 @@ class TokenEfficiencyMetrics:
             f"| Reduction | {report['total']['reduction_absolute']:,} ({report['total']['reduction_percentage']:.1f}%) |",
             f"| Cost Savings | ${report['total']['cost_savings_usd']:.4f} |",
             "",
-            f"**Target Met:** {'✅ YES' if report['success_criteria']['target_met'] else '❌ NO'} "
+            f"**Target Met:** {'[OK] YES' if report['success_criteria']['target_met'] else '[FAIL] NO'} "
             f"({report['success_criteria']['achieved_reduction_pct']:.1f}% vs {report['success_criteria']['target_reduction_pct']}% target)",
             "",
             "## Per-Phase Breakdown",
@@ -391,7 +391,7 @@ class TokenEfficiencyMetrics:
             "saved_at": datetime.now(UTC).isoformat()
         }
 
-        with open(filepath, 'w') as f:
+        with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2)
 
         logger.info(f"Metrics saved to: {filepath}")
@@ -409,7 +409,7 @@ class TokenEfficiencyMetrics:
             return False
 
         try:
-            with open(filepath) as f:
+            with open(filepath, encoding='utf-8') as f:
                 data = json.load(f)
 
             self.measurements = [

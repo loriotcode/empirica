@@ -96,7 +96,7 @@ class GitHandoffStorage:
                 text=True
             )
 
-            logger.info(f"📝 Stored handoff in git notes: {note_ref}")
+            logger.info(f"[NOTE] Stored handoff in git notes: {note_ref}")
 
             return self._get_note_sha(note_ref) or 'stored'
 
@@ -202,7 +202,7 @@ class GitHandoffStorage:
 
             if result.returncode == 0:
                 return result.stdout.strip()
-        except Exception:  # noqa: S110 — git subprocess may fail; None fallback is correct
+        except Exception:  # noqa: S110 -- git subprocess may fail; None fallback is correct
             pass
 
         return None
@@ -230,7 +230,7 @@ class DatabaseHandoffStorage:
         self.conn.row_factory = sqlite3.Row
 
         self._create_table()
-        logger.info(f"📊 Database handoff storage initialized: {self.db_path} (WAL mode enabled)")
+        logger.info(f"[STATS] Database handoff storage initialized: {self.db_path} (WAL mode enabled)")
 
     def _create_table(self):
         """Create handoff_reports table"""
@@ -318,7 +318,7 @@ class DatabaseHandoffStorage:
             ))
 
             self.conn.commit()
-            logger.info(f"💾 Stored handoff in database: {session_id[:8]}...")
+            logger.info(f"[SAVE] Stored handoff in database: {session_id[:8]}...")
 
         except Exception as e:
             logger.error(f"Failed to store handoff in database: {e}")
@@ -441,7 +441,7 @@ class HybridHandoffStorage:
         self.git_storage = GitHandoffStorage(repo_path)
         self.db_storage = DatabaseHandoffStorage(db_path)
 
-        logger.info("🔄 Hybrid handoff storage initialized (git + database)")
+        logger.info("[LOAD] Hybrid handoff storage initialized (git + database)")
 
     def store_handoff(self, session_id: str, report: dict) -> dict[str, bool]:
         """
@@ -468,24 +468,24 @@ class HybridHandoffStorage:
         try:
             self.git_storage.store_handoff(session_id, report)
             result['git_stored'] = True
-            logger.info(f"✅ Git notes storage: {session_id[:8]}...")
+            logger.info(f"[OK] Git notes storage: {session_id[:8]}...")
         except Exception as e:
-            logger.error(f"❌ Git notes storage failed: {e}")
+            logger.error(f"[FAIL] Git notes storage failed: {e}")
 
         # Store in database
         try:
             self.db_storage.store_handoff(session_id, report)
             result['db_stored'] = True
-            logger.info(f"✅ Database storage: {session_id[:8]}...")
+            logger.info(f"[OK] Database storage: {session_id[:8]}...")
         except Exception as e:
-            logger.error(f"❌ Database storage failed: {e}")
+            logger.error(f"[FAIL] Database storage failed: {e}")
 
         # Check sync status
         result['fully_synced'] = result['git_stored'] and result['db_stored']
 
         if not result['fully_synced']:
             logger.warning(
-                f"⚠️ Partial storage for {session_id[:8]}... "
+                f"[WARN] Partial storage for {session_id[:8]}... "
                 f"(git={result['git_stored']}, db={result['db_stored']})"
             )
 
@@ -512,26 +512,26 @@ class HybridHandoffStorage:
             # Try database first (faster)
             handoff = self.db_storage.load_handoff(session_id)
             if handoff:
-                logger.debug(f"📊 Loaded from database: {session_id[:8]}...")
+                logger.debug(f"[STATS] Loaded from database: {session_id[:8]}...")
                 return handoff
 
             # Fallback to git notes
             handoff = self.git_storage.load_handoff(session_id, format)
             if handoff:
-                logger.debug(f"📝 Loaded from git notes: {session_id[:8]}...")
+                logger.debug(f"[NOTE] Loaded from git notes: {session_id[:8]}...")
             return handoff
 
         else:  # prefer == 'git'
             # Try git notes first
             handoff = self.git_storage.load_handoff(session_id, format)
             if handoff:
-                logger.debug(f"📝 Loaded from git notes: {session_id[:8]}...")
+                logger.debug(f"[NOTE] Loaded from git notes: {session_id[:8]}...")
                 return handoff
 
             # Fallback to database
             handoff = self.db_storage.load_handoff(session_id)
             if handoff:
-                logger.debug(f"📊 Loaded from database: {session_id[:8]}...")
+                logger.debug(f"[STATS] Loaded from database: {session_id[:8]}...")
             return handoff
 
     def query_handoffs(
@@ -570,7 +570,7 @@ class HybridHandoffStorage:
                         if since and handoff.get('ts', '') < since and handoff.get('timestamp', '') < since:
                             continue
                         db_results.append(handoff)
-                        logger.debug(f"📝 Merged from git notes: {session_id[:8]}...")
+                        logger.debug(f"[NOTE] Merged from git notes: {session_id[:8]}...")
 
         # Sort by timestamp descending and apply limit
         db_results.sort(key=lambda h: h.get('timestamp') or h.get('ts') or '', reverse=True)

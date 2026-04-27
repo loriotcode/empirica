@@ -32,7 +32,7 @@ def handle_log_token_saving(args):
             'type': args.type
         }))
     else:
-        print(f"✅ Token saving logged: {args.tokens} tokens saved ({args.type})")
+        print(f"[OK] Token saving logged: {args.tokens} tokens saved ({args.type})")
 
 
 def handle_efficiency_report(args):
@@ -45,9 +45,9 @@ def handle_efficiency_report(args):
     if args.output == 'json':
         print(json.dumps(savings, indent=2))
     else:
-        print("\n📊 Token Efficiency Report")
-        print("━" * 60)
-        print(f"✅ Tokens Saved This Session:     {savings['total_tokens_saved']:,} tokens")
+        print("\n[STATS] Token Efficiency Report")
+        print("=" * 60)
+        print(f"[OK] Tokens Saved This Session:     {savings['total_tokens_saved']:,} tokens")
         print(f"💰 Cost Saved:                    ${savings['cost_saved_usd']:.4f} USD")
 
         if savings['breakdown']:
@@ -58,7 +58,7 @@ def handle_efficiency_report(args):
         else:
             print("\n  (No token savings logged yet)")
 
-        print("━" * 60)
+        print("=" * 60)
 
     db.close()
 

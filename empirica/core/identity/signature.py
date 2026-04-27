@@ -171,7 +171,7 @@ def sign_assessment(
     }
 
     logger.info(
-        f"✓ Signed assessment with EEP-1 "
+        f"[OK] Signed assessment with EEP-1 "
         f"(ai_id={identity.ai_id}, content_hash={payload['content_hash'][:8]}...)"
     )
 
@@ -197,9 +197,9 @@ def verify_signature(
         is_valid = verify_signature(signed_package)
 
         if is_valid:
-            print("✓ Signature valid - assessment is authentic")
+            print("[OK] Signature valid - assessment is authentic")
         else:
-            print("✗ Signature invalid - assessment may be tampered")
+            print("[FAIL] Signature invalid - assessment may be tampered")
     """
     try:
         payload = signed_package['payload']
@@ -223,9 +223,9 @@ def verify_signature(
         )
 
         if is_valid:
-            logger.info(f"✓ Signature verified (creator_id={public_key_hex[:16]}...)")
+            logger.info(f"[OK] Signature verified (creator_id={public_key_hex[:16]}...)")
         else:
-            logger.warning("✗ Signature verification failed")
+            logger.warning("[FAIL] Signature verification failed")
 
         return is_valid
 
@@ -264,9 +264,9 @@ def verify_eep1_payload(
         )
 
         if result['valid']:
-            print(f"✓ Verified: {result['message']}")
+            print(f"[OK] Verified: {result['message']}")
         else:
-            print(f"✗ Failed: {result['errors']}")
+            print(f"[FAIL] Failed: {result['errors']}")
     """
     errors = []
     warnings = []

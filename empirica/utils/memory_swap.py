@@ -3,7 +3,7 @@
 When the harness CWD doesn't match the active transaction's project (e.g.
 the user `cd`'d into one repo but the open transaction lives in another),
 Claude Code's auto-memory loader still reads `~/.claude/projects/-{cwd}/memory/`
-— which loads the WRONG project's memory.
+-- which loads the WRONG project's memory.
 
 This module swaps the wrong-project's memory dir contents with the right
 project's contents at compaction / project-switch boundaries, then restores
@@ -16,7 +16,7 @@ Approach:
 3. Write a manifest file recording the swap so we can restore it later
 4. On restore: move the backup contents back, delete the manifest
 
-The swap is idempotent — calling swap_memory() twice is a no-op if the swap
+The swap is idempotent -- calling swap_memory() twice is a no-op if the swap
 is already active and points at the same source. Calling restore_memory()
 on an unswapped dir is a no-op.
 
@@ -49,7 +49,7 @@ def _claude_memory_dir(project_path: Path) -> Path:
     """Compute the Claude Code auto-memory directory for a project path.
 
     Claude Code maps absolute paths to memory dirs by replacing `/` with `-`:
-        /home/user/repo  →  ~/.claude/projects/-home-user-repo/memory/
+        /home/user/repo  ->  ~/.claude/projects/-home-user-repo/memory/
     """
     project_key = str(project_path.resolve()).replace("/", "-")
     return Path.home() / ".claude" / "projects" / project_key / "memory"
@@ -68,7 +68,7 @@ def read_manifest(harness_cwd_project: Path) -> dict | None:
     if not manifest_file.exists():
         return None
     try:
-        with open(manifest_file) as f:
+        with open(manifest_file, encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
         logger.warning(f"Failed to read memory swap manifest: {e}")
@@ -129,12 +129,12 @@ def swap_memory(
     harness_cwd_project = Path(harness_cwd_project).resolve()
     active_tx_project = Path(active_tx_project).resolve()
 
-    # No-op when paths are the same — nothing to swap
+    # No-op when paths are the same -- nothing to swap
     if harness_cwd_project == active_tx_project:
         return {
             "ok": True,
             "action": "noop",
-            "message": "Harness CWD matches active transaction project — no swap needed",
+            "message": "Harness CWD matches active transaction project -- no swap needed",
         }
 
     target_memory = _claude_memory_dir(harness_cwd_project)
@@ -154,7 +154,7 @@ def swap_memory(
         return {
             "ok": True,
             "action": "already_active",
-            "message": f"Swap already active for {active_tx_project} → {harness_cwd_project}",
+            "message": f"Swap already active for {active_tx_project} -> {harness_cwd_project}",
             "manifest_path": str(target_memory / MANIFEST_NAME),
         }
 
@@ -192,7 +192,7 @@ def swap_memory(
     }
     manifest_file = target_memory / MANIFEST_NAME
     try:
-        with open(manifest_file, "w") as f:
+        with open(manifest_file, "w", encoding='utf-8') as f:
             json.dump(manifest, f, indent=2)
     except Exception as e:
         return {
@@ -205,7 +205,7 @@ def swap_memory(
         "ok": True,
         "action": "swapped",
         "message": (
-            f"Swapped memory: {active_tx_project.name} → {harness_cwd_project.name} "
+            f"Swapped memory: {active_tx_project.name} -> {harness_cwd_project.name} "
             f"({len(copied)} files copied, {len(backed_up)} backed up)"
         ),
         "manifest_path": str(manifest_file),
@@ -217,7 +217,7 @@ def restore_memory(harness_cwd_project: Path, *, _force_replace: bool = False) -
 
     Args:
         harness_cwd_project: Same path passed to swap_memory()
-        _force_replace: Internal flag — when True, swallow restore errors so a
+        _force_replace: Internal flag -- when True, swallow restore errors so a
             replacement swap can proceed
 
     Returns:
@@ -236,7 +236,7 @@ def restore_memory(harness_cwd_project: Path, *, _force_replace: bool = False) -
 
     backup_dir = target_memory / BACKUP_SUBDIR
     if not backup_dir.exists():
-        # Manifest exists but backup is missing — broken state, just clear the manifest
+        # Manifest exists but backup is missing -- broken state, just clear the manifest
         try:
             (target_memory / MANIFEST_NAME).unlink(missing_ok=True)
         except Exception:
@@ -244,7 +244,7 @@ def restore_memory(harness_cwd_project: Path, *, _force_replace: bool = False) -
         return {
             "ok": bool(_force_replace),
             "action": "broken",
-            "message": f"Backup dir missing for {harness_cwd_project} — manifest cleared",
+            "message": f"Backup dir missing for {harness_cwd_project} -- manifest cleared",
         }
 
     # Remove the swapped-in files
@@ -332,10 +332,10 @@ def maybe_swap_for_active_transaction(
         return {
             "ok": True,
             "action": "noop",
-            "message": "No active transaction project — nothing to swap",
+            "message": "No active transaction project -- nothing to swap",
         }
 
-    # Determine harness CWD project — try git root first, then plain CWD
+    # Determine harness CWD project -- try git root first, then plain CWD
     harness_cwd = Path.cwd()
     try:
         import subprocess

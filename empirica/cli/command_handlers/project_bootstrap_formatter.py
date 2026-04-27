@@ -1,5 +1,5 @@
 """
-Bootstrap Output Formatter — extracted from project_bootstrap.py
+Bootstrap Output Formatter -- extracted from project_bootstrap.py
 
 Reduces handler complexity by separating output formatting (~600 lines)
 from context loading logic (~120 lines).

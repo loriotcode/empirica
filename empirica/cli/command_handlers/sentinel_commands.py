@@ -105,7 +105,7 @@ def handle_sentinel_load_profile_command(args):
         custom_profile = None
         if profile_file:
             import yaml
-            with open(profile_file) as f:
+            with open(profile_file, encoding='utf-8') as f:
                 custom_profile = yaml.safe_load(f)
 
         # Load profile
@@ -135,7 +135,7 @@ def handle_sentinel_load_profile_command(args):
             print(f"  Confidence to proceed: {profile.confidence_to_proceed}")
             print(f"  Gates: {len(profile.gates)}")
             for g in profile.gates:
-                print(f"    - {g.gate_id}: {g.condition} → {g.action.value}")
+                print(f"    - {g.gate_id}: {g.condition} -> {g.action.value}")
 
         return None
 
@@ -225,7 +225,7 @@ def handle_sentinel_check_command(args):
             print(json.dumps(result, indent=2))
         else:
             decision = result.get("decision", "unknown")
-            icon = {"proceed": "✅", "investigate": "🔍", "halt": "🛑", "require_human": "👤"}.get(decision, "❓")
+            icon = {"proceed": "[OK]", "investigate": "[SEARCH]", "halt": "🛑", "require_human": "👤"}.get(decision, "[?]")
             print(f"{icon} Decision: {decision.upper()}")
             print(f"  Rationale: {result.get('rationale', 'N/A')}")
             if result.get("triggered_gates"):

@@ -45,7 +45,7 @@ def _print_lesson_tree(lessons, lesson_id, lines, printed,
     if not lesson:
         return
 
-    connector = "└── " if is_last else "├── "
+    connector = "+-- " if is_last else "+-- "
     if rel_label:
         lines.append(f"{prefix}{connector}[{rel_label}] {_format_lesson_node(lesson)}")
     else:
@@ -61,7 +61,7 @@ def _print_lesson_tree(lessons, lesson_id, lines, printed,
 
     children = [(cid, rel) for cid, rel in children if cid not in printed]
 
-    child_prefix = prefix + ("    " if is_last else "│   ")
+    child_prefix = prefix + ("    " if is_last else "|   ")
     for i, (child_id, rel) in enumerate(children):
         child_is_last = i == len(children) - 1
         _print_lesson_tree(lessons, child_id, lines, printed,
@@ -252,7 +252,7 @@ class LessonStorageManager:
     def _write_cold(self, lesson: Lesson) -> Path:
         """Write full lesson to YAML file"""
         path = self._cold_path / f"{lesson.id}.yaml"
-        with open(path, 'w') as f:
+        with open(path, 'w', encoding='utf-8') as f:
             yaml.dump(lesson.to_dict(), f, default_flow_style=False, sort_keys=False)
         logger.debug(f"COLD: Wrote {path}")
         return path
@@ -449,7 +449,7 @@ class LessonStorageManager:
         if not path.exists():
             return None
 
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             data = yaml.safe_load(f)
 
         return Lesson.from_dict(data)
@@ -737,7 +737,7 @@ class LessonStorageManager:
         # Read all lessons from YAML cold storage (source of truth)
         for yaml_file in self._cold_path.glob('*.yaml'):
             try:
-                with open(yaml_file) as f:
+                with open(yaml_file, encoding='utf-8') as f:
                     data = yaml.safe_load(f)
 
                 if not data:
@@ -771,7 +771,7 @@ class LessonStorageManager:
 
                         # Write back to YAML (atomic write)
                         temp_path = yaml_file.with_suffix('.yaml.tmp')
-                        with open(temp_path, 'w') as f:
+                        with open(temp_path, 'w', encoding='utf-8') as f:
                             yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
                         temp_path.replace(yaml_file)
 
@@ -788,7 +788,7 @@ class LessonStorageManager:
 
                         logger.info(
                             f"IMMUNE: Decayed lesson '{name}' confidence "
-                            f"{current_conf:.2f} → {new_conf:.2f} "
+                            f"{current_conf:.2f} -> {new_conf:.2f} "
                             f"({match_count} keyword matches)"
                         )
 
@@ -1084,10 +1084,10 @@ def _try_get_qdrant_client():
         try:
             import urllib.request
             req = urllib.request.Request(f"{default_url}/collections", method='GET')
-            with urllib.request.urlopen(req, timeout=1) as resp:
+            with urllib.request.urlopen(req, timeout=1, encoding='utf-8') as resp:
                 if resp.status == 200:
                     return QdrantClient(url=default_url)
-        except Exception:  # noqa: S110 — Qdrant server may not be running; graceful fallback
+        except Exception:  # noqa: S110 -- Qdrant server may not be running; graceful fallback
             pass
 
         logger.debug("Qdrant server not available for lessons storage")

@@ -144,7 +144,7 @@ class GitDeadEndStore:
                 check=True
             )
 
-            logger.info(f"✓ Stored dead end {dead_end_id[:8]} in git notes")
+            logger.info(f"[OK] Stored dead end {dead_end_id[:8]} in git notes")
             return True
 
         except Exception as e:

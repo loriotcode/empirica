@@ -23,13 +23,13 @@ def safe_print(*args, **kwargs):
         for arg in args:
             if isinstance(arg, str):
                 # Replace common Unicode chars with ASCII
-                arg = arg.replace('━', '=').replace('─', '-')
-                arg = arg.replace('✅', '[OK]').replace('❌', '[ERR]')
-                arg = arg.replace('⚠️', '[WARN]').replace('ℹ️', '[INFO]')
-                arg = arg.replace('🔍', '[DEBUG]').replace('🎯', '[TARGET]')
-                arg = arg.replace('📁', '[FOLDER]').replace('🆔', '[ID]')
-                arg = arg.replace('🗄️', '[DB]').replace('🏗️', '[BUILD]')
-                arg = arg.replace('🛠️', '[TOOLS]').replace('🔄', '[LOAD]')
+                arg = arg.replace('=', '=').replace('-', '-')
+                arg = arg.replace('[OK]', '[OK]').replace('[FAIL]', '[ERR]')
+                arg = arg.replace('[WARN]', '[WARN]').replace('[INFO]', '[INFO]')
+                arg = arg.replace('[SEARCH]', '[DEBUG]').replace('[TARGET]', '[TARGET]')
+                arg = arg.replace('[DIR]', '[FOLDER]').replace('[ID]', '[ID]')
+                arg = arg.replace('[DB]', '[DB]').replace('[BUILD]', '[BUILD]')
+                arg = arg.replace('[TOOLS]', '[TOOLS]').replace('[LOAD]', '[LOAD]')
                 # Encode to ASCII, ignoring errors
                 arg = arg.encode('ascii', errors='replace').decode('ascii')
             safe_args.append(arg)
@@ -69,12 +69,12 @@ def run_empirica_subprocess(
 def print_component_status(component_name: str, status: str, details: str | None = None):
     """Print standardized component status information"""
     status_emoji = {
-        'success': '✅',
-        'warning': '⚠️',
-        'error': '❌',
-        'info': 'ℹ️',
-        'loading': '🔄'
-    }.get(status.lower(), '•')
+        'success': '[OK]',
+        'warning': '[WARN]',
+        'error': '[FAIL]',
+        'info': '[INFO]',
+        'loading': '[LOAD]'
+    }.get(status.lower(), '*')
 
     safe_print(f"{status_emoji} {component_name}: {status}")
     if details:
@@ -88,15 +88,15 @@ def format_uncertainty_output(uncertainty_scores: dict[str, float], verbose: boo
 
     output = []
     if verbose:
-        output.append("🔍 Detailed uncertainty assessment:")
+        output.append("[SEARCH] Detailed uncertainty assessment:")
         for vector, score in uncertainty_scores.items():
-            output.append(f"   • {vector}: {score:.2f}")
+            output.append(f"   * {vector}: {score:.2f}")
     else:
         # Show top 3 uncertainty vectors
         sorted_scores = sorted(uncertainty_scores.items(), key=lambda x: x[1], reverse=True)[:3]
-        output.append("🎯 Key uncertainty vectors:")
+        output.append("[TARGET] Key uncertainty vectors:")
         for vector, score in sorted_scores:
-            output.append(f"   • {vector}: {score:.2f}")
+            output.append(f"   * {vector}: {score:.2f}")
 
     return "\n".join(output)
 
@@ -121,11 +121,11 @@ def handle_cli_error(error: Exception, command: str, verbose: bool = False, sess
     if "Broken pipe" in str(error):
         return
 
-    safe_print(f"❌ {command} error: {error}")
+    safe_print(f"[FAIL] {command} error: {error}")
 
     if verbose:
         import traceback
-        safe_print("🔍 Detailed error information:")
+        safe_print("[SEARCH] Detailed error information:")
         safe_print(traceback.format_exc())
 
     # Auto-capture the error for handoff to other AIs
@@ -157,7 +157,7 @@ def handle_cli_error(error: Exception, command: str, verbose: bool = False, sess
                     else:
                         session_id = None
                     db.close()
-                except Exception:  # noqa: S110 — best-effort session DB lookup for error capture
+                except Exception:  # noqa: S110 -- best-effort session DB lookup for error capture
                     pass
 
             # Initialize service if we have a session_id
@@ -178,7 +178,7 @@ def handle_cli_error(error: Exception, command: str, verbose: bool = False, sess
     except Exception as capture_error:
         # Don't fail the error handler if auto-capture fails
         if verbose:
-            safe_print(f"⚠️  Auto-capture failed: {capture_error}")
+            safe_print(f"[WARN]  Auto-capture failed: {capture_error}")
 
 
 def parse_json_safely(json_string: str | None, default: dict | None = None) -> dict[str, Any]:
@@ -211,7 +211,7 @@ def parse_json_safely(json_string: str | None, default: dict | None = None) -> d
                 fixed_json = _fix_json_escapes(json_string)
                 return json.loads(fixed_json)
             except json.JSONDecodeError:
-                safe_print(f"⚠️ JSON parsing error: {e}")
+                safe_print(f"[WARN] JSON parsing error: {e}")
                 safe_print("   Error details: Invalid \\escape in JSON string")
                 return default or {}
 
@@ -264,7 +264,7 @@ def format_execution_time(start_time: float, end_time: float | None = None) -> s
         return f"{duration:.3f}s"
 
 
-def print_header(title: str, emoji: str = "🎯") -> None:
+def print_header(title: str, emoji: str = "[TARGET]") -> None:
     """Print a formatted header for CLI sections"""
     safe_print(f"\n{emoji} {title}")
     safe_print("=" * (len(title) + 3))
@@ -307,7 +307,7 @@ def print_project_context(quiet: bool = False, verbose: bool = False) -> dict[st
             project_path = context.get('project_path')
             if project_path:
                 git_root = Path(project_path)
-        except Exception:  # noqa: S110 — best-effort context resolution; CWD fallback below
+        except Exception:  # noqa: S110 -- best-effort context resolution; CWD fallback below
             pass
 
         # Fallback: CWD-based git root detection
@@ -317,18 +317,18 @@ def print_project_context(quiet: bool = False, verbose: bool = False) -> dict[st
 
         if not git_root:
             if not quiet:
-                safe_print("⚠️  Not in a git repository")
+                safe_print("[WARN]  Not in a git repository")
             return None
 
         project_yaml = git_root / '.empirica' / 'project.yaml'
         if not project_yaml.exists():
             if not quiet:
-                safe_print("⚠️  No .empirica/project.yaml - run 'empirica project-init'")
+                safe_print("[WARN]  No .empirica/project.yaml - run 'empirica project-init'")
             return None
 
         # Load project config
         import yaml
-        with open(project_yaml) as f:
+        with open(project_yaml, encoding='utf-8') as f:
             config = yaml.safe_load(f)
 
         project_info = {
@@ -357,15 +357,15 @@ def print_project_context(quiet: bool = False, verbose: bool = False) -> dict[st
         # Print based on mode
         if quiet:
             # Single line for quiet mode
-            safe_print(f"📁 {project_info['name']} ({project_info['project_id'][:8]}...)")
+            safe_print(f"[DIR] {project_info['name']} ({project_info['project_id'][:8]}...)")
         else:
             # Full banner for normal mode
-            safe_print(f"📁 Project: {project_info['name']}")
-            safe_print(f"🆔 ID: {project_info['project_id'][:8]}...")
+            safe_print(f"[DIR] Project: {project_info['name']}")
+            safe_print(f"[ID] ID: {project_info['project_id'][:8]}...")
             safe_print(f"📍 Location: {project_info['git_root']}")
 
             if verbose and git_url:
-                safe_print(f"🔗 Repository: {git_url}")
+                safe_print(f"[LINK] Repository: {git_url}")
 
         return project_info
 
@@ -374,5 +374,5 @@ def print_project_context(quiet: bool = False, verbose: bool = False) -> dict[st
         logger = logging.getLogger(__name__)
         logger.debug(f"Could not load project context: {e}")
         if not quiet:
-            safe_print(f"⚠️  Error loading project context: {e}")
+            safe_print(f"[WARN]  Error loading project context: {e}")
         return None

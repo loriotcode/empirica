@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-🔗 Empirica Action Hooks
+[LINK] Empirica Action Hooks
 Automatically feeds tmux panels via JSON when components are used
 
 Feeds:
@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 # Ensure realtime directory exists
-REALTIME_DIR = Path("/tmp/empirica_realtime")  # noqa: S108 — ephemeral IPC dir for tmux panels
+REALTIME_DIR = Path("/tmp/empirica_realtime")  # noqa: S108 -- ephemeral IPC dir for tmux panels
 REALTIME_DIR.mkdir(exist_ok=True)
 
 class EmpiricaActionHooks:
@@ -65,7 +65,7 @@ class EmpiricaActionHooks:
             }
 
             output_file = REALTIME_DIR / "12d_vectors.json"
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(twelve_d_data, f, indent=2)
 
             # Trigger immediate pane update
@@ -113,7 +113,7 @@ class EmpiricaActionHooks:
             }
 
             output_file = REALTIME_DIR / "cascade_status.json"
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(cascade_data, f, indent=2)
 
             # Trigger immediate pane update
@@ -129,7 +129,7 @@ class EmpiricaActionHooks:
             # Read existing chain
             output_file = REALTIME_DIR / "chain_of_thought.json"
             if output_file.exists():
-                with open(output_file) as f:
+                with open(output_file, encoding='utf-8') as f:
                     chain_data = json.load(f)
             else:
                 chain_data = {"thoughts": [], "current_goal": None}
@@ -148,7 +148,7 @@ class EmpiricaActionHooks:
             chain_data["current_phase"] = phase
             chain_data["last_updated"] = time.time()
 
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(chain_data, f, indent=2)
 
             # Trigger immediate pane update
@@ -186,7 +186,7 @@ class EmpiricaActionHooks:
             }
 
             output_file = REALTIME_DIR / "snapshot_status.json"
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(snapshot_data, f, indent=2)
 
             # Trigger immediate pane update
@@ -250,7 +250,7 @@ class EmpiricaActionHooks:
             }
 
             output_file = REALTIME_DIR / f"statusline_{ai_id}.json"
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(statusline_data, f, indent=2)
 
             # Trigger statusline pane update
@@ -393,21 +393,21 @@ def initialize_tmux_dashboard():
             print("🖥️ Initializing TMux dashboard...")
             if manager.create_session() and manager.create_dashboard_window():
                 manager.start_dashboard_monitoring()
-                print("   ✅ TMux dashboard ready for real-time monitoring")
+                print("   [OK] TMux dashboard ready for real-time monitoring")
                 return True
         else:
-            print("   ✅ TMux dashboard session already active")
+            print("   [OK] TMux dashboard session already active")
             return True
     except Exception as e:
-        print(f"   ⚠️ TMux dashboard initialization failed: {e}")
+        print(f"   [WARN] TMux dashboard initialization failed: {e}")
         return False
 
 # Initialize on import
 if __name__ == "__main__":
-    print("🔗 Empirica Action Hooks initialized")
-    print(f"   📁 Realtime directory: {REALTIME_DIR}")
-    print(f"   📊 12D monitor feed: {REALTIME_DIR / '12d_vectors.json'}")
-    print(f"   🔄 Cascade status feed: {REALTIME_DIR / 'cascade_status.json'}")
+    print("[LINK] Empirica Action Hooks initialized")
+    print(f"   [DIR] Realtime directory: {REALTIME_DIR}")
+    print(f"   [STATS] 12D monitor feed: {REALTIME_DIR / '12d_vectors.json'}")
+    print(f"   [LOAD] Cascade status feed: {REALTIME_DIR / 'cascade_status.json'}")
     print(f"   💭 Chain of thought feed: {REALTIME_DIR / 'chain_of_thought.json'}")
 
     # Test tmux dashboard integration
@@ -436,6 +436,6 @@ def trigger_pane_update(pane_name: str):
         # Suppress stderr to avoid "can't find session" messages when tmux session doesn't exist
         subprocess.run(['tmux', 'send-keys', '-t', pane, 'C-l'], check=False, capture_output=True)
 
-    except Exception:  # noqa: S110 — tmux pane refresh is best-effort; silent fail OK
+    except Exception:  # noqa: S110 -- tmux pane refresh is best-effort; silent fail OK
         pass
 

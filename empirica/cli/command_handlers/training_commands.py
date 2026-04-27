@@ -2,7 +2,7 @@
 Training Commands - Export epistemic transaction data as JSONL for model fine-tuning.
 
 Exports matched (preflight, postflight, grounded_calibration, noetic_artifacts) tuples
-from the sessions database. Each JSONL line is one epistemic transaction — a complete
+from the sessions database. Each JSONL line is one epistemic transaction -- a complete
 belief-update cycle suitable for supervised fine-tuning on epistemic self-awareness.
 """
 
@@ -141,7 +141,7 @@ def _training_collect_records(args, project_filter, ai_filter, min_vectors,
 
 
 def handle_training_export_command(args):
-    """Handle training-export command — export epistemic transactions as JSONL."""
+    """Handle training-export command -- export epistemic transactions as JSONL."""
     try:
         output_path = getattr(args, 'output_path', None)
         project_filter = getattr(args, 'project_id', None)
@@ -169,7 +169,7 @@ def handle_training_export_command(args):
         if output_path:
             out_path = Path(output_path)
             out_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(out_path, 'w') as f:
+            with open(out_path, 'w', encoding='utf-8') as f:
                 for rec in all_records:
                     f.write(json.dumps(rec, default=str) + '\n')
             if output_format == 'json':

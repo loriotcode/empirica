@@ -2,24 +2,24 @@
 Generate browsable .empirica/ audit trail from git notes.
 
 Reads epistemic data from git notes (canonical source) + cold storage
-and generates consolidated markdown files — one per artifact type.
+and generates consolidated markdown files -- one per artifact type.
 
 Output structure:
     .empirica/
-    ├── README.md           # Project epistemic dashboard
-    ├── findings.md         # All findings (knowledge artifacts)
-    ├── unknowns.md         # Open questions
-    ├── dead-ends.md        # Failed approaches
-    ├── mistakes.md         # Errors with prevention
-    ├── goals.md            # Work units with subtasks
-    ├── transactions.md     # PREFLIGHT→CHECK→POSTFLIGHT trajectories
-    ├── sessions.md         # Session timeline
-    ├── handoffs.md         # Session continuity reports
-    ├── cascades.md         # Investigation decision logs
-    ├── lessons.md          # Procedural knowledge (cold storage)
-    ├── sources.md          # Reference documents
-    ├── signatures.md       # Cryptographic provenance
-    └── calibration.md      # Bias corrections, drift state
+    +-- README.md           # Project epistemic dashboard
+    +-- findings.md         # All findings (knowledge artifacts)
+    +-- unknowns.md         # Open questions
+    +-- dead-ends.md        # Failed approaches
+    +-- mistakes.md         # Errors with prevention
+    +-- goals.md            # Work units with subtasks
+    +-- transactions.md     # PREFLIGHT->CHECK->POSTFLIGHT trajectories
+    +-- sessions.md         # Session timeline
+    +-- handoffs.md         # Session continuity reports
+    +-- cascades.md         # Investigation decision logs
+    +-- lessons.md          # Procedural knowledge (cold storage)
+    +-- sources.md          # Reference documents
+    +-- signatures.md       # Cryptographic provenance
+    +-- calibration.md      # Bias corrections, drift state
 """
 
 import json
@@ -34,7 +34,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
-# ── Utility ──
+# -- Utility --
 
 
 def _short_id(uuid_str):
@@ -94,14 +94,14 @@ def _get_ts(data):
     return float(ts) if ts else 0
 
 
-# ── Git Notes Reader ──
+# -- Git Notes Reader --
 
 
 def _read_note_blob(workspace, ref):
     """Read JSON content from a git notes ref.
 
     Git notes refs point to commits whose trees contain blobs.
-    Walk: ref → commit → tree → first blob → JSON content.
+    Walk: ref -> commit -> tree -> first blob -> JSON content.
     """
     try:
         tree_result = subprocess.run(
@@ -285,7 +285,7 @@ def _read_lessons(workspace):
         return lessons
     for f in lessons_dir.glob("*.yaml"):
         try:
-            with open(f) as fh:
+            with open(f, encoding='utf-8') as fh:
                 data = yaml.safe_load(fh)
                 if data:
                     lessons.append((f.stem, data))
@@ -312,23 +312,23 @@ def _read_calibration(workspace):
     if not bc_path.exists():
         return None
     try:
-        with open(bc_path) as f:
+        with open(bc_path, encoding='utf-8') as f:
             return yaml.safe_load(f)
     except (OSError, yaml.YAMLError):
         return None
 
 
-# ── Markdown Generators (one function per artifact type) ──
+# -- Markdown Generators (one function per artifact type) --
 
 
 def _render_findings(findings):
-    """Render findings.md — all findings sorted by date descending."""
+    """Render findings.md -- all findings sorted by date descending."""
     findings.sort(key=lambda x: _get_ts(x[1]), reverse=True)
 
     lines = [
         "# Findings",
         "",
-        "> Knowledge artifacts — discoveries, validated learnings, confirmed facts.",
+        "> Knowledge artifacts -- discoveries, validated learnings, confirmed facts.",
         f"> {len(findings)} total",
         "",
         "| Date | Impact | Finding | AI | Session |",
@@ -352,7 +352,7 @@ def _render_findings(findings):
 
 
 def _render_unknowns(unknowns):
-    """Render unknowns.md — open questions and resolved ones."""
+    """Render unknowns.md -- open questions and resolved ones."""
     unknowns.sort(key=lambda x: _get_ts(x[1]), reverse=True)
 
     lines = [
@@ -385,7 +385,7 @@ def _render_unknowns(unknowns):
 
 
 def _render_dead_ends(dead_ends):
-    """Render dead-ends.md — failed approaches to prevent re-exploration."""
+    """Render dead-ends.md -- failed approaches to prevent re-exploration."""
     dead_ends.sort(key=lambda x: _get_ts(x[1]), reverse=True)
 
     lines = [
@@ -420,7 +420,7 @@ def _render_dead_ends(dead_ends):
 
 
 def _render_mistakes(mistakes):
-    """Render mistakes.md — errors with root cause and prevention."""
+    """Render mistakes.md -- errors with root cause and prevention."""
     mistakes.sort(key=lambda x: _get_ts(x[1]), reverse=True)
 
     lines = [
@@ -462,7 +462,7 @@ def _render_mistakes(mistakes):
 
 
 def _render_goals(goals, tasks_by_goal):
-    """Render goals.md — all goals with subtasks inline."""
+    """Render goals.md -- all goals with subtasks inline."""
     # Sort by most recent first
     goals.sort(key=lambda x: _get_ts(x[1]), reverse=True)
 
@@ -534,7 +534,7 @@ def _render_goals(goals, tasks_by_goal):
 
 
 def _render_transactions(sessions_map):
-    """Render transactions.md — PREFLIGHT→CHECK→POSTFLIGHT trajectories."""
+    """Render transactions.md -- PREFLIGHT->CHECK->POSTFLIGHT trajectories."""
     phase_order = {"PREFLIGHT": 0, "CHECK": 1, "ACT": 2, "POSTFLIGHT": 3}
 
     # Sort sessions by earliest timestamp
@@ -630,7 +630,7 @@ def _render_transactions(sessions_map):
 
 
 def _render_sessions(sessions_map):
-    """Render sessions.md — timeline overview (summary, not full vectors)."""
+    """Render sessions.md -- timeline overview (summary, not full vectors)."""
     sorted_sessions = sorted(
         sessions_map.items(),
         key=lambda x: min((_get_ts(cp) for cp in x[1]), default=0),
@@ -665,7 +665,7 @@ def _render_sessions(sessions_map):
 
 
 def _render_handoffs(handoffs):
-    """Render handoffs.md — session continuity reports."""
+    """Render handoffs.md -- session continuity reports."""
     handoffs.sort(key=lambda x: _get_ts(x[1]), reverse=True)
 
     lines = [
@@ -727,7 +727,7 @@ def _render_handoffs(handoffs):
 
 
 def _render_cascades(cascades):
-    """Render cascades.md — investigation decision logs."""
+    """Render cascades.md -- investigation decision logs."""
     lines = [
         "# Investigation Cascades",
         "",
@@ -767,7 +767,7 @@ def _render_cascades(cascades):
 
 
 def _render_lessons(lessons):
-    """Render lessons.md — procedural knowledge from YAML cold storage."""
+    """Render lessons.md -- procedural knowledge from YAML cold storage."""
     lines = [
         "# Lessons",
         "",
@@ -813,7 +813,7 @@ def _render_lessons(lessons):
 
 
 def _render_sources(ref_docs):
-    """Render sources.md — reference documents."""
+    """Render sources.md -- reference documents."""
     lines = [
         "# Sources",
         "",
@@ -834,7 +834,7 @@ def _render_sources(ref_docs):
 
 
 def _render_signatures(signatures):
-    """Render signatures.md — cryptographic provenance chain."""
+    """Render signatures.md -- cryptographic provenance chain."""
     lines = [
         "# Signatures",
         "",
@@ -870,11 +870,11 @@ def _render_signatures(signatures):
 
 
 def _render_calibration(cal_data):
-    """Render calibration.md — learning trajectory and grounded corrections."""
+    """Render calibration.md -- learning trajectory and grounded corrections."""
     lines = [
         "# Calibration",
         "",
-        "> Learning trajectory (PREFLIGHT→POSTFLIGHT) and grounded bias corrections.",
+        "> Learning trajectory (PREFLIGHT->POSTFLIGHT) and grounded bias corrections.",
         "",
     ]
 
@@ -937,7 +937,7 @@ def _render_calibration(cal_data):
 
 
 def _render_readme(counts, recent_items):
-    """Render root README.md — project epistemic dashboard."""
+    """Render root README.md -- project epistemic dashboard."""
     sum(counts.values())
     lines = [
         "# Empirica Epistemic Audit Trail",
@@ -1014,7 +1014,7 @@ def _render_readme(counts, recent_items):
     return "\n".join(lines)
 
 
-# ── Main Generation ──
+# -- Main Generation --
 
 
 def generate_artifacts(workspace_root, output_dir=None, verbose=False):
@@ -1044,7 +1044,7 @@ def generate_artifacts(workspace_root, output_dir=None, verbose=False):
     handoffs = _read_all_notes(workspace, "handoff")
     signatures = _read_all_notes(workspace, "signatures")
 
-    # Tasks (subtasks) — index by goal_id
+    # Tasks (subtasks) -- index by goal_id
     raw_tasks = _read_all_notes(workspace, "tasks")
     tasks_by_goal = {}
     for _tid, tdata in raw_tasks:
@@ -1141,7 +1141,7 @@ def generate_artifacts(workspace_root, output_dir=None, verbose=False):
     }
 
 
-# ── CLI Handler ──
+# -- CLI Handler --
 
 
 def handle_artifacts_generate_command(args):

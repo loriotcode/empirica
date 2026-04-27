@@ -308,15 +308,15 @@ class MetricsRepository(BaseRepository):
 
         # Determine trend
         if percent_change > 15:
-            return f"📈 Improving ({percent_change:.0f}%)", "📈"
+            return f"[UP] Improving ({percent_change:.0f}%)", "[UP]"
         elif percent_change > 5:
-            return f"📉 Stable improvement ({percent_change:.0f}%)", "📉"
+            return f"[DOWN] Stable improvement ({percent_change:.0f}%)", "[DOWN]"
         elif percent_change > -5:
-            return f"🔄 Stable ({percent_change:.0f}%)", "🔄"
+            return f"[LOAD] Stable ({percent_change:.0f}%)", "[LOAD]"
         elif percent_change > -15:
-            return f"📉 Declining ({percent_change:.0f}%)", "📉"
+            return f"[DOWN] Declining ({percent_change:.0f}%)", "[DOWN]"
         else:
-            return f"📉 Significant decline ({percent_change:.0f}%)", "📉"
+            return f"[DOWN] Significant decline ({percent_change:.0f}%)", "[DOWN]"
 
     def _analyze_health_components(self, health_data: list[dict]) -> dict:
         """

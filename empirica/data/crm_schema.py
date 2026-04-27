@@ -173,7 +173,7 @@ def get_crm_connection() -> sqlite3.Connection:
     conn.executescript(CRM_SCHEMA)
     conn.commit()
 
-    logger.debug(f"✅ CRM database connection: {db_path}")
+    logger.debug(f"[OK] CRM database connection: {db_path}")
     return conn
 
 
@@ -196,7 +196,7 @@ def ensure_crm_schema(conn: sqlite3.Connection | None = None) -> bool:
         conn.executescript(CRM_SCHEMA)
         conn.commit()
 
-        logger.info("✅ CRM schema verified/created")
+        logger.info("[OK] CRM schema verified/created")
         return True
 
     except Exception as e:
@@ -309,7 +309,7 @@ def migrate_client_data_to_global(source_db_path: Path) -> dict:
         source_conn.close()
         target_conn.close()
 
-        logger.info(f"✅ Migrated from {source_db_path}: {stats}")
+        logger.info(f"[OK] Migrated from {source_db_path}: {stats}")
         return stats
 
     except Exception as e:

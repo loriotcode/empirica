@@ -32,7 +32,7 @@ def _overview_print_dashboard(stats, projects):
     print("║  Empirica Workspace Overview - Epistemic Project Management    ║")
     print("╚════════════════════════════════════════════════════════════════╝\n")
 
-    print("📊 Workspace Summary")
+    print("[STATS] Workspace Summary")
     print(f"   Total Projects:    {stats['total_projects']}")
     print(f"   Total Sessions:    {stats['total_sessions']}")
     print(f"   Active Sessions:   {stats['active_sessions']}")
@@ -45,12 +45,12 @@ def _overview_print_dashboard(stats, projects):
         print(json.dumps({"projects": []}, indent=2))
         return
 
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-    print("📁 Projects by Epistemic Health\n")
+    print("================================================================\n")
+    print("[DIR] Projects by Epistemic Health\n")
 
     tiers = [
-        (0.7, float('inf'), "🟢 HIGH KNOWLEDGE (know ≥ 0.7)"),
-        (0.5, 0.7, "🟡 MEDIUM KNOWLEDGE (0.5 ≤ know < 0.7)"),
+        (0.7, float('inf'), "🟢 HIGH KNOWLEDGE (know >= 0.7)"),
+        (0.5, 0.7, "🟡 MEDIUM KNOWLEDGE (0.5 <= know < 0.7)"),
         (0.0, 0.5, "🔴 LOW KNOWLEDGE (know < 0.5)"),
     ]
     for low, high, label in tiers:
@@ -61,11 +61,11 @@ def _overview_print_dashboard(stats, projects):
                 _display_project(i, p)
             print()
 
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-    print("💡 Quick Commands:")
-    print("   • Bootstrap project:  empirica project-bootstrap --project-id <PROJECT_ID>")
-    print("   • Check ready goals:  empirica goals-ready --session-id <SESSION_ID>")
-    print("   • List all projects:  empirica project-list")
+    print("================================================================\n")
+    print("[HINT] Quick Commands:")
+    print("   * Bootstrap project:  empirica project-bootstrap --project-id <PROJECT_ID>")
+    print("   * Check ready goals:  empirica goals-ready --session-id <SESSION_ID>")
+    print("   * List all projects:  empirica project-list")
     print()
 
 
@@ -138,18 +138,18 @@ def _display_project(index, project):
     else:
         time_ago = "never"
 
-    print(f"   {index}. {name} │ Health: {health:.2f} │ Know: {know:.2f} │ Sessions: {sessions} │ ⏰ {time_ago}")
+    print(f"   {index}. {name} | Health: {health:.2f} | Know: {know:.2f} | Sessions: {sessions} | ⏰ {time_ago}")
     print(f"      Findings: {findings}  Unknowns: {unknowns}  Dead Ends: {dead_ends}")
 
     # Show warnings
     if uncertainty > 0.7:
-        print(f"      ⚠️  High uncertainty ({uncertainty:.2f}) - needs investigation")
+        print(f"      [WARN]  High uncertainty ({uncertainty:.2f}) - needs investigation")
     if dead_ends > 0 and sessions > 0:
         dead_end_ratio = dead_ends / sessions
         if dead_end_ratio > 0.3:
             print(f"      🚨 High dead end ratio ({dead_end_ratio:.0%}) - many failed approaches")
     if unknowns > 20:
-        print(f"      ❓ Many unresolved unknowns ({unknowns}) - systematically resolve them")
+        print(f"      [?] Many unresolved unknowns ({unknowns}) - systematically resolve them")
 
     # Show project ID (shortened)
     project_id = project['project_id']
@@ -258,14 +258,14 @@ def _wsmap_print_dashboard(parent_dir, git_repos, eco_graph):
     print("║  Git Workspace Map - Epistemic Health                         ║")
     print("╚════════════════════════════════════════════════════════════════╝\n")
 
-    print(f"📂 Parent Directory: {parent_dir}")
+    print(f"[DIR] Parent Directory: {parent_dir}")
     print(f"   Total Git Repos:  {len(git_repos)}")
     print(f"   Tracked:          {len(tracked)}")
     print(f"   Untracked:        {len(untracked)}")
     print()
 
     if tracked:
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+        print("================================================================\n")
         print("🟢 Tracked in Empirica\n")
         for repo in tracked:
             proj = repo['empirica_project']
@@ -281,25 +281,25 @@ def _wsmap_print_dashboard(parent_dir, git_repos, eco_graph):
             print()
 
     if untracked:
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+        print("================================================================\n")
         print("⚪ Not Tracked in Empirica\n")
         for repo in untracked:
             print(f"⚪ {repo['name']}")
             print(f"   Path: {repo['path']}")
             if repo['has_remote']:
                 print(f"   Remote: {repo['remote_url']}")
-                print(f"   → To track: empirica project-create --name '{repo['name']}' --repos '[\"{repo['remote_url']}\"]'")
+                print(f"   -> To track: empirica project-create --name '{repo['name']}' --repos '[\"{repo['remote_url']}\"]'")
             else:
-                print("   ⚠️  No remote configured")
+                print("   [WARN]  No remote configured")
             print()
 
     if eco_graph:
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+        print("================================================================\n")
         summary = eco_graph.summary()
         print(f"📋 Ecosystem Manifest: {summary['total_projects']} projects, {summary['dependency_edges']} dependency edges")
         print()
 
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+    print("================================================================\n")
     print("Quick Commands:")
     print("   empirica workspace-overview           # Epistemic health of all projects")
     print("   empirica ecosystem-check              # Full ecosystem dependency map")
@@ -414,7 +414,7 @@ def _wslist_print_by_type(projects):
         if type_projects:
             icon = _get_type_icon(ptype)
             print(f"{icon} {ptype.upper()}")
-            print("─" * 60)
+            print("-" * 60)
             for p in type_projects:
                 tags_str = ', '.join(p['project_tags']) if p['project_tags'] else ''
                 parent_str = f" (child of {p['parent_project_id'][:8]}...)" if p['parent_project_id'] else ''
@@ -464,8 +464,8 @@ def handle_workspace_list_command(args):
             ptype = p.get('project_type', 'product')
             type_counts[ptype] = type_counts.get(ptype, 0) + 1
 
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("📊 Summary")
+        print("================================================================")
+        print("[STATS] Summary")
         for ptype, count in sorted(type_counts.items()):
             print(f"   {_get_type_icon(ptype)} {ptype}: {count}")
         print()
@@ -480,15 +480,15 @@ def handle_workspace_list_command(args):
 def _get_type_icon(project_type):
     """Get emoji icon for project type"""
     icons = {
-        'product': '📦',
+        'product': '[PKG]',
         'application': '🖥️',
-        'feature': '⚡',
+        'feature': '[FAST]',
         'research': '🔬',
         'documentation': '📚',
-        'infrastructure': '🏗️',
+        'infrastructure': '[BUILD]',
         'operations': '⚙️'
     }
-    return icons.get(project_type, '📁')
+    return icons.get(project_type, '[DIR]')
 
 
 def _display_project_tree(projects):

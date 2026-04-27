@@ -105,7 +105,7 @@ class BranchRepository(BaseRepository):
     def calculate_branch_merge_score(self, branch_id: str) -> dict:
         """Calculate epistemic merge score for a branch
 
-        Score = (learning_delta × quality × confidence) / cost_penalty
+        Score = (learning_delta x quality x confidence) / cost_penalty
         Where: confidence = 1 - uncertainty (uncertainty is a DAMPENER)
 
         Returns:

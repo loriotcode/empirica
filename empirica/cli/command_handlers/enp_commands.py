@@ -1,5 +1,5 @@
 """
-ENP Setup Command — Initialize the Epistemic Network Protocol watcher.
+ENP Setup Command -- Initialize the Epistemic Network Protocol watcher.
 
 Creates ~/.empirica/enp/ directories, copies config template, initializes
 state from current repo HEAD, offers cron setup, registers hooks.
@@ -73,7 +73,7 @@ def _register_hooks(plugin_root: Path):
 
 def handle_enp_setup_command(args):
     """Handle enp-setup command: initialize ENP watcher infrastructure."""
-    print("ENP Setup — Epistemic Network Protocol Watcher")
+    print("ENP Setup -- Epistemic Network Protocol Watcher")
     print("=" * 50)
 
     # 1. Create directories

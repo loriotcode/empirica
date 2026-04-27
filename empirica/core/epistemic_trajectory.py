@@ -1,5 +1,5 @@
 """
-Epistemic trajectory tracking: Store and query learning deltas (PREFLIGHT → POSTFLIGHT).
+Epistemic trajectory tracking: Store and query learning deltas (PREFLIGHT -> POSTFLIGHT).
 
 This module enables:
 - Pattern recognition across sessions

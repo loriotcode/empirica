@@ -27,7 +27,7 @@ def get_actual_cli_commands() -> set[str]:
     """
     cli_core_path = Path(__file__).parent.parent / 'cli' / 'cli_core.py'
 
-    with open(cli_core_path) as f:
+    with open(cli_core_path, encoding='utf-8') as f:
         content = f.read()
 
     # Extract from add_parser calls
@@ -58,7 +58,7 @@ def extract_documented_commands(docs_dir: Path | None = None) -> dict[str, list[
 
     for md_file in docs_dir.rglob('*.md'):
         try:
-            with open(md_file) as f:
+            with open(md_file, encoding='utf-8') as f:
                 lines = f.readlines()
 
             for line_num, line in enumerate(lines, 1):
@@ -168,32 +168,32 @@ def print_text_report(results: dict):
     print("CLI DOCUMENTATION VALIDATION REPORT")
     print("=" * 70)
     print()
-    print("📊 Statistics:")
-    print(f"  • Actual CLI commands: {results['total_actual_commands']}")
-    print(f"  • Documented commands: {results['total_documented_commands']}")
-    print(f"  • Accuracy score: {results['accuracy_score']:.1f}%")
+    print("[STATS] Statistics:")
+    print(f"  * Actual CLI commands: {results['total_actual_commands']}")
+    print(f"  * Documented commands: {results['total_documented_commands']}")
+    print(f"  * Accuracy score: {results['accuracy_score']:.1f}%")
     print()
 
     if results['phantom_commands']:
-        print(f"⚠️  PHANTOM COMMANDS ({len(results['phantom_commands'])}):")
+        print(f"[WARN]  PHANTOM COMMANDS ({len(results['phantom_commands'])}):")
         print("   Commands in docs but NOT in CLI:")
         for phantom in results['phantom_commands'][:10]:
-            print(f"   • {phantom['command']} (found in {len(phantom['locations'])} locations)")
+            print(f"   * {phantom['command']} (found in {len(phantom['locations'])} locations)")
         if len(results['phantom_commands']) > 10:
             print(f"   ... and {len(results['phantom_commands']) - 10} more")
         print()
 
     if results['undocumented_commands']:
-        print(f"📝 UNDOCUMENTED COMMANDS ({len(results['undocumented_commands'])}):")
+        print(f"[NOTE] UNDOCUMENTED COMMANDS ({len(results['undocumented_commands'])}):")
         print("   Commands in CLI but NOT in docs:")
         for cmd in results['undocumented_commands'][:10]:
-            print(f"   • {cmd}")
+            print(f"   * {cmd}")
         if len(results['undocumented_commands']) > 10:
             print(f"   ... and {len(results['undocumented_commands']) - 10} more")
         print()
 
     if not results['phantom_commands'] and not results['undocumented_commands']:
-        print("✅ All CLI commands are properly documented!")
+        print("[OK] All CLI commands are properly documented!")
         print()
 
 

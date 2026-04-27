@@ -26,7 +26,7 @@ except ImportError:
     YAML_AVAILABLE = False
     logger.warning("PyYAML not installed, YAML support disabled. Install with: pip install pyyaml")
 
-import json  # noqa: E402 — intentionally after conditional yaml import
+import json  # noqa: E402 -- intentionally after conditional yaml import
 
 
 class CredentialsLoader:
@@ -85,7 +85,7 @@ class CredentialsLoader:
         config_file = self._find_config_file()
 
         if config_file:
-            logger.info(f"✅ Loading credentials from: {config_file}")
+            logger.info(f"[OK] Loading credentials from: {config_file}")
 
             try:
                 if config_file.suffix in ['.yaml', '.yml']:
@@ -94,10 +94,10 @@ class CredentialsLoader:
                         self._credentials_cache = self._load_from_dotfiles()
                         return
 
-                    with open(config_file) as f:
+                    with open(config_file, encoding='utf-8') as f:
                         config = yaml.safe_load(f)
                 else:
-                    with open(config_file) as f:
+                    with open(config_file, encoding='utf-8') as f:
                         config = json.load(f)
 
                 # Interpolate environment variables
@@ -110,7 +110,7 @@ class CredentialsLoader:
                 self._credentials_cache = self._load_from_dotfiles()
 
         else:
-            logger.warning("⚠️ No credentials config found, falling back to legacy dotfiles")
+            logger.warning("[WARN] No credentials config found, falling back to legacy dotfiles")
             self._credentials_cache = self._load_from_dotfiles()
 
     def _interpolate_env_vars(self, config: dict) -> dict:
@@ -165,7 +165,7 @@ class CredentialsLoader:
             dotfile_path = repo_root / dotfile
             if dotfile_path.exists():
                 try:
-                    with open(dotfile_path) as f:
+                    with open(dotfile_path, encoding='utf-8') as f:
                         api_key = f.read().strip()
 
                     if api_key:
@@ -285,14 +285,14 @@ if __name__ == "__main__":
 
     loader = get_credentials_loader()
 
-    print(f"\n✅ Credentials source: {loader._credentials_cache.get('source', 'config')}")
-    print(f"✅ Providers configured: {len(loader.list_providers())}")
+    print(f"\n[OK] Credentials source: {loader._credentials_cache.get('source', 'config')}")
+    print(f"[OK] Providers configured: {len(loader.list_providers())}")
 
     # Test all providers
     providers = loader.list_providers()
 
     if not providers:
-        print("\n⚠️ No providers configured!")
+        print("\n[WARN] No providers configured!")
         print("\nExpected one of:")
         print("  - .empirica/credentials.yaml")
         print("  - Legacy dotfiles (.qwen_api, .minimax_key, etc.)")
@@ -302,7 +302,7 @@ if __name__ == "__main__":
             config = loader.get_provider_config(provider)
             if config:
                 has_key = bool(loader.get_api_key(provider))
-                print(f"  API Key: {'✅ Configured' if has_key else '❌ Missing'}")
+                print(f"  API Key: {'[OK] Configured' if has_key else '[FAIL] Missing'}")
 
                 base_url = loader.get_base_url(provider)
                 if base_url:
@@ -325,5 +325,5 @@ if __name__ == "__main__":
                     print(f"  Source: {source}")
 
     print("\n" + "=" * 70)
-    print("  ✅ TEST COMPLETE")
+    print("  [OK] TEST COMPLETE")
     print("=" * 70)

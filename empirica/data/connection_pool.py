@@ -76,7 +76,7 @@ class RetryPolicy:
         if self.jitter:
             import random
             jitter_amount = delay * 0.2
-            delay += random.uniform(-jitter_amount, jitter_amount)  # noqa: S311 — jitter for retry backoff, not security
+            delay += random.uniform(-jitter_amount, jitter_amount)  # noqa: S311 -- jitter for retry backoff, not security
 
         return max(0.001, delay)  # Ensure non-negative
 
@@ -114,7 +114,7 @@ class RetryPolicy:
 
                 if attempt > 0:
                     self.telemetry['successful_retries'] += 1
-                    logger.info(f"✓ Retry succeeded after {attempt} attempt(s)")
+                    logger.info(f"[OK] Retry succeeded after {attempt} attempt(s)")
 
                 return result
 
@@ -123,19 +123,19 @@ class RetryPolicy:
 
                 if not self.should_retry(e):
                     # Non-retryable error, fail immediately
-                    logger.warning(f"✗ Non-retryable error: {type(e).__name__}: {e}")
+                    logger.warning(f"[FAIL] Non-retryable error: {type(e).__name__}: {e}")
                     raise
 
                 if attempt >= self.max_retries:
                     # Out of retries
                     self.telemetry['failed_retries'] += 1
-                    logger.error(f"✗ Failed after {self.max_retries} retries: {e}")
+                    logger.error(f"[FAIL] Failed after {self.max_retries} retries: {e}")
                     raise
 
                 # Calculate delay and retry
                 delay = self.calculate_delay(attempt)
                 logger.warning(
-                    f"⚠️  Attempt {attempt + 1}/{self.max_retries + 1} failed: {type(e).__name__}. "
+                    f"[WARN]  Attempt {attempt + 1}/{self.max_retries + 1} failed: {type(e).__name__}. "
                     f"Retrying in {delay:.2f}s..."
                 )
                 time.sleep(delay)
@@ -188,7 +188,7 @@ class ConnectionPool:
             if self.available_connections:
                 conn = self.available_connections.pop()
                 self.in_use_connections.add(id(conn))
-                logger.debug(f"✓ Got connection from pool (available: {len(self.available_connections)})")
+                logger.debug(f"[OK] Got connection from pool (available: {len(self.available_connections)})")
                 return conn
 
             # Create new connection if under limit
@@ -196,7 +196,7 @@ class ConnectionPool:
                 conn = self.connection_factory()
                 self.in_use_connections.add(id(conn))
                 self.telemetry['connections_created'] += 1
-                logger.debug(f"✓ Created new connection (total: {len(self.in_use_connections)})")
+                logger.debug(f"[OK] Created new connection (total: {len(self.in_use_connections)})")
                 return conn
 
             # Wait for connection to be released
@@ -213,7 +213,7 @@ class ConnectionPool:
             self.in_use_connections.remove(conn_id)
             self.available_connections.append(conn)
             self.telemetry['connections_recycled'] += 1
-            logger.debug(f"✓ Returned connection to pool (available: {len(self.available_connections)})")
+            logger.debug(f"[OK] Returned connection to pool (available: {len(self.available_connections)})")
 
     def execute_with_retry(self, func: Callable, *args, **kwargs) -> Any:
         """Execute function with connection from pool and retry logic"""
@@ -268,7 +268,7 @@ class CircuitBreaker:
         if self.state == "open":
             # Check if recovery timeout passed
             if time.time() - self.last_failure_time > self.recovery_timeout:
-                logger.info(f"🔄 {self.name}: Attempting recovery (half-open)")
+                logger.info(f"[LOAD] {self.name}: Attempting recovery (half-open)")
                 self.state = "half-open"
             else:
                 raise RuntimeError(f"{self.name} circuit is OPEN - service unavailable")
@@ -278,7 +278,7 @@ class CircuitBreaker:
 
             # Successful call - reset
             if self.state == "half-open":
-                logger.info(f"✓ {self.name}: Recovery successful (closed)")
+                logger.info(f"[OK] {self.name}: Recovery successful (closed)")
                 self.state = "closed"
                 self.failure_count = 0
 

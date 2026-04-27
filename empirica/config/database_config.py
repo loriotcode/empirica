@@ -81,19 +81,19 @@ def get_database_config() -> dict[str, Any]:
         if git_root:
             config_path = git_root / ".empirica" / "config.yaml"
             if config_path.exists():
-                with open(config_path) as f:
+                with open(config_path, encoding='utf-8') as f:
                     config = yaml.safe_load(f)
                     if config and "database" in config:
                         db_config = config["database"]
                         # Substitute environment variables in config
                         db_config = _substitute_env_vars(db_config)
-                        logger.info(f"📊 Loaded database config from {config_path}")
+                        logger.info(f"[STATS] Loaded database config from {config_path}")
                         return db_config
     except Exception as e:
         logger.debug(f"Could not load database config from file: {e}")
 
     # Default to SQLite
-    logger.info("📊 Using default SQLite database configuration")
+    logger.info("[STATS] Using default SQLite database configuration")
     return {
         "type": "sqlite",
         "sqlite": {

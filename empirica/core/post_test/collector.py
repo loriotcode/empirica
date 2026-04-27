@@ -20,7 +20,7 @@ Praxic phase (after CHECK):
 Each evidence source is independent and failure-tolerant. The collector
 returns whatever evidence it can gather.
 
-All evidence gathered here consists of deterministic proxies — observable signals
+All evidence gathered here consists of deterministic proxies -- observable signals
 that correlate with epistemic state but cannot fully measure it. These are useful
 for detecting systematic calibration drift over many transactions, not for judging
 any single transaction's epistemic accuracy. See grounded_calibration.py module
@@ -67,7 +67,7 @@ class EvidenceBundle:
     - sources_empty: ran successfully but returned 0 items (no signal to grade)
     - sources_failed: raised an exception (real failure, see source_errors)
 
-    source_errors maps source name → "ExceptionType: truncated message" for
+    source_errors maps source name -> "ExceptionType: truncated message" for
     every failed collector. Captured at DEBUG log level by default; surfaced
     in POSTFLIGHT response when sources_failed is non-empty so failures
     can be debugged from the output alone.
@@ -90,14 +90,14 @@ UNSCOPED_ARTIFACT_WEIGHT = 0.3
 
 
 class EvidenceProfile:
-    """Evidence collection profile — determines which collectors run.
+    """Evidence collection profile -- determines which collectors run.
 
     Profiles:
     - "code": ruff, radon, pyright, pytest, git (default for repos with .py files)
     - "prose": textstat, proselint, vale, document metrics, source quality
     - "web": build verification, HTML validation, link integrity, terminology, assets
     - "hybrid": all evidence sources (code + prose + web when detected)
-    - "insufficient": no measurable signal — only universal collectors run.
+    - "insufficient": no measurable signal -- only universal collectors run.
       Used when there are no changed files at all (out-of-repo work, remote-ops
       without explicit declaration). The AI's self-assessment is the authority
       because no profile-specific source has anything meaningful to grade.
@@ -138,7 +138,7 @@ class EvidenceProfile:
                 import yaml
                 config_path = Path(project_path) / ".empirica" / "project.yaml"
                 if config_path.exists():
-                    with open(config_path) as f:
+                    with open(config_path, encoding='utf-8') as f:
                         config = yaml.safe_load(f) or {}
                     profile = config.get("evidence_profile", "").lower()
                     if profile in EvidenceProfile.VALID:
@@ -233,10 +233,10 @@ class PostTestCollector:
             elif has_code:
                 return EvidenceProfile.CODE
             elif changed:
-                # Non-empty but neither code nor web → markdown, configs, data
+                # Non-empty but neither code nor web -> markdown, configs, data
                 return EvidenceProfile.PROSE
             else:
-                # Empty changed files → measurer has no file signal at all.
+                # Empty changed files -> measurer has no file signal at all.
                 # Out-of-repo work, remote-ops without explicit declaration, or
                 # nothing-yet. Halt profile-specific collection; rely only on
                 # universal collectors (artifacts, goals, etc.) and let the
@@ -249,7 +249,7 @@ class PostTestCollector:
         """Resolve the project root path for subprocess cwd and file lookups.
 
         Priority chain:
-        1. project_id → workspace.db → trajectory_path (authoritative)
+        1. project_id -> workspace.db -> trajectory_path (authoritative)
         2. get_active_project_path() (instance/active_work files)
         3. CWD-based git rev-parse (last resort fallback)
 
@@ -299,10 +299,10 @@ class PostTestCollector:
         """Detect project maturity from git history for normalization curve selection.
 
         Returns cached dict with:
-        - total_commits: int — total commits in repo history
-        - is_greenfield: bool — ≤3 prior commits (new project)
-        - is_young: bool — <10 commits
-        - maturity: str — "greenfield" | "young" | "mature"
+        - total_commits: int -- total commits in repo history
+        - is_greenfield: bool -- <=3 prior commits (new project)
+        - is_young: bool -- <10 commits
+        - maturity: str -- "greenfield" | "young" | "mature"
 
         Used by _collect_git_metrics and _collect_issue_metrics to adjust
         normalization divisors. A root commit creating 8 files is maximal change,
@@ -410,15 +410,15 @@ class PostTestCollector:
             universal.append(("codebase_model", self._collect_codebase_model_metrics))
             universal.append(("non_git_files", self._collect_non_git_file_metrics))
 
-        # Profile-specific collectors — only run during praxic/combined phases
+        # Profile-specific collectors -- only run during praxic/combined phases
         # AND when the profile actually has signal to grade. These measure
         # OUTPUT quality (code quality, test results, build verification,
         # document metrics) which is meaningless during:
         #   - pure noetic investigation (no praxic output yet)
-        #   - INSUFFICIENT profile (no changed files at all — out-of-repo work)
+        #   - INSUFFICIENT profile (no changed files at all -- out-of-repo work)
         # Noetic grounding relies on epistemic process evidence (artifacts,
         # thoroughness, sentinel decisions) from the universal collectors above.
-        # This applies across ALL domains — not just software engineering.
+        # This applies across ALL domains -- not just software engineering.
         if self.phase == "noetic" or profile == EvidenceProfile.INSUFFICIENT:
             profile_collectors = []
         elif profile == EvidenceProfile.CODE:
@@ -455,7 +455,7 @@ class PostTestCollector:
                     bundle.sources_available.append(source_name)
                 else:
                     # Ran cleanly but found nothing to grade. This is
-                    # different from crashing — track it separately so
+                    # different from crashing -- track it separately so
                     # genuine failures can be debugged.
                     bundle.sources_empty.append(source_name)
             except Exception as e:
@@ -503,7 +503,7 @@ class PostTestCollector:
             # Semantic: surfacing unknowns is a KNOW signal (honesty about the
             # boundary of your knowledge), not directly an uncertainty signal.
             # A transaction that surfaced 5 unknowns demonstrates high knowledge
-            # honesty — it doesn't tell us whether the AI is "uncertain" overall.
+            # honesty -- it doesn't tell us whether the AI is "uncertain" overall.
             #
             # Fixed 2026-04-07: prior version assigned this score to BOTH know
             # and uncertainty, which double-counted the same evidence with
@@ -592,7 +592,7 @@ class PostTestCollector:
             # Investigation thoroughness: at least 1 investigate round = thorough
             # But too many rounds (5+) suggests struggling, not thoroughness
             if investigate_count == 0:
-                thoroughness = 0.5  # Went straight to proceed — moderate
+                thoroughness = 0.5  # Went straight to proceed -- moderate
             elif investigate_count <= 3:
                 thoroughness = 0.7 + (investigate_count * 0.1)  # 0.8-1.0
             else:
@@ -619,7 +619,7 @@ class PostTestCollector:
         db = self._get_db()
         cursor = db.conn.cursor()
 
-        # Subtask completion ratio — scoped to transaction's goals if available
+        # Subtask completion ratio -- scoped to transaction's goals if available
         if self.transaction_id:
             cursor.execute("""
                 SELECT
@@ -657,7 +657,7 @@ class PostTestCollector:
             # completing goals = delivering impact, creating change
             if completed > 0:
                 # Impact: completing any goals shows delivered value
-                impact_score = min(1.0, ratio * 1.2)  # Boost slightly — completion is strong impact signal
+                impact_score = min(1.0, ratio * 1.2)  # Boost slightly -- completion is strong impact signal
                 items.append(EvidenceItem(
                     source="goals",
                     metric_name="goal_completion_impact",
@@ -669,7 +669,7 @@ class PostTestCollector:
                 ))
 
                 # Change: completed goals = state change happened
-                change_score = ratio  # Direct ratio — completing half the goals = 0.5 change
+                change_score = ratio  # Direct ratio -- completing half the goals = 0.5 change
                 items.append(EvidenceItem(
                     source="goals",
                     metric_name="goal_completion_change",
@@ -680,7 +680,7 @@ class PostTestCollector:
                     metadata={"session_id": self.session_id},
                 ))
 
-        # Token estimation accuracy — scoped to transaction's goals if available
+        # Token estimation accuracy -- scoped to transaction's goals if available
         goal_scope_col = "g.transaction_id" if self.transaction_id else "g.session_id"
         goal_scope_val = self.transaction_id or self.session_id
         cursor.execute(f"""
@@ -768,7 +768,7 @@ class PostTestCollector:
         """Collect scope-weighted noetic artifact counts for this transaction.
 
         Artifacts linked to session goals count at full weight.
-        Unscoped artifacts (no goal_id — typically future research or general
+        Unscoped artifacts (no goal_id -- typically future research or general
         observations) count at UNSCOPED_ARTIFACT_WEIGHT to avoid artificially
         depressing KNOW grounding when forward-looking unknowns are captured.
 
@@ -795,20 +795,20 @@ class PostTestCollector:
         dead_ends_count, _scoped_de, _unscoped_de = \
             self._query_scope_weighted_count(cursor, "project_dead_ends", goal_ids, has_goals, tx_sql, tx_params)
 
-        # Mistakes count (not scope-weighted — all mistakes are relevant)
+        # Mistakes count (not scope-weighted -- all mistakes are relevant)
         cursor.execute(f"""
             SELECT COUNT(*) FROM mistakes_made
             WHERE session_id = ? {tx_sql}
         """, (self.session_id, *tx_params))
         mistakes_count = cursor.fetchone()[0]
 
-        # Unknown resolution ratio → know proxy (scope-weighted)
+        # Unknown resolution ratio -> know proxy (scope-weighted)
         # Floor at 0.3: logging unknowns shows domain awareness (knowing what
         # you don't know IS knowledge). Resolution further improves the score.
         # Without floor: 0 resolved = 0.0 which falsely signals "knows nothing"
         if unknowns_weighted_total > 0:
             raw_ratio = unknowns_weighted_resolved / unknowns_weighted_total
-            resolution_ratio = 0.3 + (raw_ratio * 0.7)  # 0.3 (unresolved) → 1.0 (all resolved)
+            resolution_ratio = 0.3 + (raw_ratio * 0.7)  # 0.3 (unresolved) -> 1.0 (all resolved)
             items.append(EvidenceItem(
                 source="artifacts",
                 metric_name="unknown_resolution_ratio",
@@ -826,8 +826,8 @@ class PostTestCollector:
                 supports_vectors=["know"],
             ))
 
-        # Productive exploration ratio → signal quality (scope-weighted)
-        # (findings / (findings + dead_ends)) — higher = more productive
+        # Productive exploration ratio -> signal quality (scope-weighted)
+        # (findings / (findings + dead_ends)) -- higher = more productive
         total_exploration = findings_count + dead_ends_count
         if total_exploration > 0:
             productivity = findings_count / total_exploration
@@ -843,7 +843,7 @@ class PostTestCollector:
                 supports_vectors=["signal", "know"],
             ))
 
-        # Dead-end ratio — removed as direct uncertainty source (2026-04-07).
+        # Dead-end ratio -- removed as direct uncertainty source (2026-04-07).
         # Uncertainty is now a META-derived quantity computed in mapper.py
         # from the grounded coverage and gap magnitudes of the OTHER 12
         # vectors. First-order doubt proxies like dead_end_ratio measured
@@ -852,7 +852,7 @@ class PostTestCollector:
         # ad-hoc. Dead-end ratio still contributes to signal/know via
         # productive_exploration_ratio above.
 
-        # Mistake density → inverse signal (uses raw findings for denominator)
+        # Mistake density -> inverse signal (uses raw findings for denominator)
         raw_findings = (scoped_findings + unscoped_findings) if has_goals else findings_count
         if raw_findings > 0:
             mistake_ratio = mistakes_count / (raw_findings + mistakes_count)
@@ -865,7 +865,7 @@ class PostTestCollector:
                 supports_vectors=["signal"],
             ))
 
-        # ── Context evidence: project/session-level knowledge availability ──
+        # -- Context evidence: project/session-level knowledge availability --
         # These are phase-agnostic (run in both noetic and praxic phases)
         # because they measure AVAILABLE context, not phase-specific activity.
 
@@ -925,7 +925,7 @@ class PostTestCollector:
                 if project_root:
                     tx_file = Path(project_root) / '.empirica' / f'active_transaction{suffix}.json'
                     if tx_file.exists():
-                        with open(tx_file) as f:
+                        with open(tx_file, encoding='utf-8') as f:
                             tx_data = json.load(f)
                         pattern_count = tx_data.get('preflight_pattern_count', 0)
                         if pattern_count > 0:
@@ -940,7 +940,7 @@ class PostTestCollector:
                                 supports_vectors=["context", "know"],
                             ))
             except Exception:
-                pass  # Non-fatal — pattern count may not be available
+                pass  # Non-fatal -- pattern count may not be available
         except Exception:
             pass  # Non-fatal
 
@@ -974,13 +974,13 @@ class PostTestCollector:
         if row and row[0] > 0:
             total, resolved, severe = row[0], row[1] or 0, row[2] or 0
 
-            # Issue resolution ratio → impact proxy
+            # Issue resolution ratio -> impact proxy
             # Floor at 0.2: capturing issues shows situational awareness (like
             # logging unknowns shows domain awareness). Resolution improves score.
             # Without floor: 0 resolved = 0.0 which falsely signals "no impact"
             if total > 0:
                 raw_ratio = resolved / total
-                resolution_ratio = 0.2 + (raw_ratio * 0.8)  # 0.2 (unresolved) → 1.0 (all resolved)
+                resolution_ratio = 0.2 + (raw_ratio * 0.8)  # 0.2 (unresolved) -> 1.0 (all resolved)
                 items.append(EvidenceItem(
                     source="issues",
                     metric_name="issue_resolution_ratio",
@@ -990,7 +990,7 @@ class PostTestCollector:
                     supports_vectors=["impact"],
                 ))
 
-            # Inverse severe issue density → signal quality
+            # Inverse severe issue density -> signal quality
             # Fewer severe issues = better signal quality
             severity_score = max(0.0, 1.0 - (severe / max(total, 1)))
             items.append(EvidenceItem(
@@ -1002,7 +1002,7 @@ class PostTestCollector:
                 supports_vectors=["signal"],
             ))
         else:
-            # No issues at all — only provide evidence for mature projects
+            # No issues at all -- only provide evidence for mature projects
             # where zero issues is meaningful. For greenfield/young projects,
             # absence of issues is not informative (no code to have issues with).
             maturity = self._detect_project_maturity()
@@ -1022,9 +1022,9 @@ class PostTestCollector:
         """Collect evidence from epistemic triage work during this session.
 
         Triage is praxic work that doesn't produce code artifacts:
-        - Completing goals (via goals-complete) → do, completion
-        - Resolving unknowns (via unknown-resolve) → do, know
-        - Logging findings → know
+        - Completing goals (via goals-complete) -> do, completion
+        - Resolving unknowns (via unknown-resolve) -> do, know
+        - Logging findings -> know
 
         Uses timestamps to capture work done DURING this session, regardless
         of which session originally created the artifact. A goal created in
@@ -1039,7 +1039,7 @@ class PostTestCollector:
         #
         # Session-scoping is meaningless for metric calculation. Sessions exist
         # only for Claude Code continuity across compactions and for attaching
-        # instance state to the right transaction — they are NOT a valid unit
+        # instance state to the right transaction -- they are NOT a valid unit
         # for measuring "what work got done". Metrics must always be scoped by
         # transaction (via preflight_timestamp), with the broader project as
         # the only other meaningful boundary.
@@ -1071,7 +1071,7 @@ class PostTestCollector:
         #   - Linked to this transaction via transaction_id
         # This prevents historical goals from inflating the denominator
         # (the 1/18 bug where 17 old open goals dilute a 1/1 completion).
-        # Exclude 'planned' goals — they exist but haven't been started yet.
+        # Exclude 'planned' goals -- they exist but haven't been started yet.
         if self.transaction_id:
             cursor.execute("""
                 SELECT COUNT(DISTINCT id) FROM goals
@@ -1092,9 +1092,9 @@ class PostTestCollector:
         scope_label = "transaction"
 
         if goals_completed > 0:
-            # Goal completion → do (completing goals = doing work).
+            # Goal completion -> do (completing goals = doing work).
             # Transaction-scoped expectation: 1-3 goals per transaction is normal.
-            # Maps 1→0.7, 2→0.9, 3+→1.0
+            # Maps 1->0.7, 2->0.9, 3+->1.0
             do_score = min(1.0, 0.5 + goals_completed * 0.2)
             items.append(EvidenceItem(
                 source="triage",
@@ -1137,9 +1137,9 @@ class PostTestCollector:
         unknowns_resolved = cursor.fetchone()[0]
 
         if unknowns_resolved > 0:
-            # Resolving unknowns IS doing work — epistemic action.
+            # Resolving unknowns IS doing work -- epistemic action.
             # Transaction-scoped: 1 resolution = strong signal.
-            # Maps 1→0.7, 2→0.9, 3+→1.0
+            # Maps 1->0.7, 2->0.9, 3+->1.0
             resolve_do_score = min(1.0, 0.5 + unknowns_resolved * 0.2)
             items.append(EvidenceItem(
                 source="triage",
@@ -1177,9 +1177,9 @@ class PostTestCollector:
         """Collect codebase entity graph metrics for grounded calibration.
 
         Measures structural understanding of the codebase via entity extraction:
-        - Entities discovered/updated during this session → know, context
-        - Entity invalidations (deleted code) → change
-        - Constraints (learned conventions) → coherence, signal
+        - Entities discovered/updated during this session -> know, context
+        - Entity invalidations (deleted code) -> change
+        - Constraints (learned conventions) -> coherence, signal
 
         Only runs if codebase_model tables exist (migration 033+).
         """
@@ -1202,7 +1202,7 @@ class PostTestCollector:
 
         total_entities = sum(entity_stats.values())
         if total_entities > 0:
-            # Entity discovery → know (understanding of codebase structure)
+            # Entity discovery -> know (understanding of codebase structure)
             # Normalize: 5 entities = 0.3, 20 = 0.6, 50+ = 1.0
             know_score = min(1.0, total_entities / 50.0)
             items.append(EvidenceItem(
@@ -1225,7 +1225,7 @@ class PostTestCollector:
             fact_count = 0
 
         if fact_count > 0:
-            # Facts → signal (understanding of what changed and why)
+            # Facts -> signal (understanding of what changed and why)
             signal_score = min(1.0, fact_count / 20.0)
             items.append(EvidenceItem(
                 source="codebase_model",
@@ -1237,7 +1237,7 @@ class PostTestCollector:
                 metadata={"work_type": "entity_extraction"},
             ))
 
-        # Active constraints for the project → coherence (learned conventions)
+        # Active constraints for the project -> coherence (learned conventions)
         if self.project_id:
             try:
                 constraints = db.codebase_model.get_constraints(
@@ -1382,7 +1382,7 @@ class PostTestCollector:
             counters_path = empirica_dir / f'hook_counters{suffix}.json'
             if counters_path.exists():
                 try:
-                    with open(counters_path) as f:
+                    with open(counters_path, encoding='utf-8') as f:
                         return json.load(f).get('edited_files', [])
                 except Exception:
                     pass
@@ -1390,7 +1390,7 @@ class PostTestCollector:
             tx_path = empirica_dir / f'active_transaction{suffix}.json'
             if tx_path.exists():
                 try:
-                    with open(tx_path) as f:
+                    with open(tx_path, encoding='utf-8') as f:
                         tx = json.load(f)
                     if 'edited_files' in tx:
                         return tx.get('edited_files', [])
@@ -1451,7 +1451,7 @@ class PostTestCollector:
                     supports_vectors=["context"],
                 ))
 
-            # Investigation rounds — removed as direct uncertainty source (2026-04-07).
+            # Investigation rounds -- removed as direct uncertainty source (2026-04-07).
             # Uncertainty is now a META-derived quantity computed in
             # mapper.py from the coverage and gap magnitudes of the OTHER
             # 12 vectors. Number of check rounds is tangentially related
@@ -1581,7 +1581,7 @@ class PostTestCollector:
             weighted = amd_counts["added"] * 1.0 + amd_counts["modified"] * 0.5 + amd_counts["deleted"] * 0.3
             items.append(EvidenceItem(source="git", metric_name="amd_file_ratio", value=min(1.0, weighted / max(total_amd, 1)),
                 raw_value=amd_counts, quality=EvidenceQuality.OBJECTIVE, supports_vectors=["state", "change"]))
-        result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, timeout=5, cwd=project_root)
+        result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, encoding='utf-8', timeout=5, cwd=project_root)
         if result.returncode == 0:
             uncommitted = len([l for l in result.stdout.strip().split('\n') if l.strip()])
             items.append(EvidenceItem(source="git", metric_name="working_tree_cleanliness",
@@ -1800,7 +1800,7 @@ class PostTestCollector:
         ungroundable (density, coherence) plus additional grounding for
         clarity, know, do, and signal.
 
-        Tool availability is detected at runtime — missing tools are skipped.
+        Tool availability is detected at runtime -- missing tools are skipped.
         """
         items = []
         project_root = self._resolve_project_root()
@@ -1814,10 +1814,10 @@ class PostTestCollector:
         if not py_files:
             return items
 
-        # --- Ruff: linting violations → clarity, coherence ---
+        # --- Ruff: linting violations -> clarity, coherence ---
         items.extend(self._collect_ruff_evidence(py_files, project_root))
 
-        # --- Radon: cyclomatic complexity → density, signal ---
+        # --- Radon: cyclomatic complexity -> density, signal ---
         try:
             result = subprocess.run(
                 ["radon", "cc", "-s", "-a", "-j"] + py_files,
@@ -1859,7 +1859,7 @@ class PostTestCollector:
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
             pass
 
-        # --- Pyright: type errors → know, do ---
+        # --- Pyright: type errors -> know, do ---
         try:
             result = subprocess.run(
                 ["pyright", "--outputjson"] + py_files,
@@ -1876,7 +1876,7 @@ class PostTestCollector:
                     files_analyzed = summary.get("filesAnalyzed", len(py_files))
 
                     if files_analyzed > 0:
-                        # Errors per file — lower is better
+                        # Errors per file -- lower is better
                         errors_per_file = error_count / files_analyzed
                         # Normalize: 0 errors = 1.0, 5+ per file = 0.0
                         type_safety_score = max(0.0, 1.0 - (errors_per_file / 5.0))

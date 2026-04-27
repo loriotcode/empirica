@@ -44,7 +44,7 @@ def _load_thresholds():
             Path.cwd() / 'PROJECT_CONFIG.yaml',
         ]:
             if cfg_path.exists():
-                with open(cfg_path) as f:
+                with open(cfg_path, encoding='utf-8') as f:
                     cfg = yaml.safe_load(f) or {}
                 tx = cfg.get('transaction', {})
                 if tx.get('soft_reminder_turns'):
@@ -73,7 +73,7 @@ def _find_transaction_file(instance_id: str) -> Path | None:
     instance_file = Path.home() / '.empirica' / 'instance_projects' / f'{instance_id}.json'
     if instance_file.exists():
         try:
-            with open(instance_file) as f:
+            with open(instance_file, encoding='utf-8') as f:
                 data = json.load(f)
             project_path = data.get('project_path')
             if project_path:
@@ -87,7 +87,7 @@ def _find_transaction_file(instance_id: str) -> Path | None:
     # Fallback: scan active_work files for project
     for aw_file in Path.home().glob('.empirica/active_work_*.json'):
         try:
-            with open(aw_file) as f:
+            with open(aw_file, encoding='utf-8') as f:
                 data = json.load(f)
             project_path = data.get('project_path')
             if project_path:
@@ -111,7 +111,7 @@ def _read_turn_counter(instance_id: str) -> dict:
     counter_path = _get_turn_counter_path(instance_id)
     if counter_path.exists():
         try:
-            with open(counter_path) as f:
+            with open(counter_path, encoding='utf-8') as f:
                 return json.load(f)
         except Exception:
             pass
@@ -122,7 +122,7 @@ def _write_turn_counter(instance_id: str, counter: dict):
     """Write the turn counter state."""
     counter_path = _get_turn_counter_path(instance_id)
     counter_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(counter_path, 'w') as f:
+    with open(counter_path, 'w', encoding='utf-8') as f:
         json.dump(counter, f)
 
 
@@ -137,7 +137,7 @@ def main():
     hook_input = json.loads(sys.stdin.read())
 
     # CRITICAL: Prevent infinite loops
-    # If stop_hook_active is True, we already blocked once — let Claude stop
+    # If stop_hook_active is True, we already blocked once -- let Claude stop
     if hook_input.get('stop_hook_active'):
         print(json.dumps({}))
         sys.exit(0)
@@ -147,14 +147,14 @@ def main():
     # Find open transaction
     tx_file = _find_transaction_file(instance_id)
     if not tx_file:
-        # No transaction file found — nothing to enforce
+        # No transaction file found -- nothing to enforce
         _clear_turn_counter(instance_id)
         print(json.dumps({}))
         sys.exit(0)
 
     # Read transaction state
     try:
-        with open(tx_file) as f:
+        with open(tx_file, encoding='utf-8') as f:
             tx_data = json.load(f)
     except Exception:
         print(json.dumps({}))
@@ -165,7 +165,7 @@ def main():
         print(json.dumps({}))
         sys.exit(0)
 
-    # Transaction is open — increment turn counter
+    # Transaction is open -- increment turn counter
     counter = _read_turn_counter(instance_id)
     tx_id = tx_data.get('transaction_id', 'unknown')
 
@@ -179,12 +179,12 @@ def main():
 
     turns = counter['turns']
 
-    # Below soft threshold — allow stop silently
+    # Below soft threshold -- allow stop silently
     if turns < SOFT_THRESHOLD:
         print(json.dumps({}))
         sys.exit(0)
 
-    # Between soft and hard threshold — inject reminder via systemMessage but allow stop
+    # Between soft and hard threshold -- inject reminder via systemMessage but allow stop
     if turns < HARD_THRESHOLD:
         if not counter.get('soft_reminded'):
             counter['soft_reminded'] = True
@@ -212,7 +212,7 @@ def main():
         print(json.dumps(output))
         sys.exit(0)
 
-    # At or above hard threshold — BLOCK stop, force POSTFLIGHT
+    # At or above hard threshold -- BLOCK stop, force POSTFLIGHT
     session_id = tx_data.get('session_id', 'unknown')
     output = {
         "decision": "block",

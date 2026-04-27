@@ -200,12 +200,12 @@ class StructureHealthAnalyzer:
             for violation in violations[:3]:  # Top 3
                 if 'folder:' in violation:
                     folder = violation.split('folder:')[1].strip()
-                    suggestions.append(f"  • Create {folder} directory")
+                    suggestions.append(f"  * Create {folder} directory")
                 elif 'file:' in violation:
                     file = violation.split('file:')[1].strip()
-                    suggestions.append(f"  • Add {file}")
+                    suggestions.append(f"  * Add {file}")
         else:
-            suggestions.append(f"✅ Structure conforms well to {pattern['name']} pattern")
+            suggestions.append(f"[OK] Structure conforms well to {pattern['name']} pattern")
 
         return suggestions
 

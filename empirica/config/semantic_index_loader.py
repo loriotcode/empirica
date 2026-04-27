@@ -54,10 +54,10 @@ def load_semantic_index(project_root: str | None = None) -> dict[str, Any] | Non
         try:
             with open(docs_path, encoding='utf-8') as f:
                 index = yaml.safe_load(f)
-            logger.debug(f"✅ Loaded semantic index from {docs_path}")
+            logger.debug(f"[OK] Loaded semantic index from {docs_path}")
             return index or {}
         except Exception as e:
-            logger.warning(f"⚠️  Failed to load semantic index from {docs_path}: {e}")
+            logger.warning(f"[WARN]  Failed to load semantic index from {docs_path}: {e}")
 
     # Try alternative location: .empirica/SEMANTIC_INDEX.yaml
     empirica_path = Path(project_root) / '.empirica' / 'SEMANTIC_INDEX.yaml'
@@ -65,10 +65,10 @@ def load_semantic_index(project_root: str | None = None) -> dict[str, Any] | Non
         try:
             with open(empirica_path, encoding='utf-8') as f:
                 index = yaml.safe_load(f)
-            logger.debug(f"✅ Loaded semantic index from {empirica_path}")
+            logger.debug(f"[OK] Loaded semantic index from {empirica_path}")
             return index or {}
         except Exception as e:
-            logger.warning(f"⚠️  Failed to load semantic index from {empirica_path}: {e}")
+            logger.warning(f"[WARN]  Failed to load semantic index from {empirica_path}: {e}")
 
     # Graceful degradation
     logger.debug(f"No semantic index found in {project_root}")
@@ -109,16 +109,16 @@ if __name__ == '__main__':
 
     logging.basicConfig(level=logging.DEBUG)
 
-    print("🔍 Semantic Index Loader Debug\n")
+    print("[SEARCH] Semantic Index Loader Debug\n")
 
     index = load_semantic_index()
     if index:
-        print("✅ Semantic index loaded")
+        print("[OK] Semantic index loaded")
         print(f"   Version: {index.get('version', 'unknown')}")
         print(f"   Docs indexed: {index.get('total_docs_indexed', 0)}")
         print(f"   Index entries: {len(index.get('index', {}))}")
     else:
-        print("❌ No semantic index found")
+        print("[FAIL] No semantic index found")
 
     path = get_semantic_index_path()
     print(f"\n📍 Semantic index path: {path}")

@@ -311,7 +311,7 @@ class EpistemicSnapshotProvider:
         path = Path(filepath)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(path, 'w') as f:
+        with open(path, 'w', encoding='utf-8') as f:
             f.write(snapshot.to_json())
 
         print(f"📤 Snapshot exported: {filepath}")
@@ -334,7 +334,7 @@ class EpistemicSnapshotProvider:
         if not path.exists():
             raise FileNotFoundError(f"Snapshot file not found: {filepath}")
 
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             snapshot = EpistemicStateSnapshot.from_json(f.read())
 
         print(f"📥 Snapshot imported: {filepath}")

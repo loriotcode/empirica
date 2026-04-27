@@ -1,5 +1,5 @@
 """
-Serve command handler — starts FastAPI daemon for Chrome extension.
+Serve command handler -- starts FastAPI daemon for Chrome extension.
 """
 
 import logging

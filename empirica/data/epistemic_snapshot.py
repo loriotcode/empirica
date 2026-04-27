@@ -197,7 +197,7 @@ class EpistemicStateSnapshot:
 **Context:** This represents the epistemic state from a previous AI interaction.
 Use this to maintain context continuity without full conversation history.
 
-**Compression:** {self.compression_ratio:.1%} reduction ({self.original_context_tokens} → {self.snapshot_tokens} tokens)
+**Compression:** {self.compression_ratio:.1%} reduction ({self.original_context_tokens} -> {self.snapshot_tokens} tokens)
 **Fidelity:** {self.fidelity_score:.2f}
 """
 
@@ -260,13 +260,13 @@ Use this to maintain context continuity without full conversation history.
         lines = []
         for name, change in sorted(self.delta.items(), key=lambda x: abs(x[1]), reverse=True):
             if change > 0:
-                indicator = "📈"
+                indicator = "[UP]"
                 sign = "+"
             elif change < 0:
-                indicator = "📉"
+                indicator = "[DOWN]"
                 sign = ""
             else:
-                indicator = "➡️"
+                indicator = "->️"
                 sign = ""
 
             lines.append(f"- {name}: {sign}{change:.2f} {indicator}")

@@ -61,7 +61,7 @@ def handle_investigate_log_command(args):
             if output_format == 'json':
                 print(json.dumps({"ok": False, "error": "No active cascade found"}))
             else:
-                print("❌ No active cascade found. Run preflight first.")
+                print("[FAIL] No active cascade found. Run preflight first.")
             db.close()
             return
 
@@ -113,7 +113,7 @@ def handle_investigate_log_command(args):
                 "evidence_keys": list(evidence.keys()) if evidence else []
             }))
         else:
-            print("✅ Investigation findings logged")
+            print("[OK] Investigation findings logged")
             print(f"   Session: {session_id[:8]}...")
             print(f"   Cascade: {cascade_id[:8]}...")
             print(f"   Findings: {len(findings)}")
@@ -171,7 +171,7 @@ def handle_act_log_command(args):
             if output_format == 'json':
                 print(json.dumps({"ok": False, "error": "No active cascade found"}))
             else:
-                print("❌ No active cascade found")
+                print("[FAIL] No active cascade found")
             db.close()
             return
 
@@ -230,7 +230,7 @@ def handle_act_log_command(args):
                 "goal_id": goal_id
             }))
         else:
-            print("✅ Actions logged")
+            print("[OK] Actions logged")
             print(f"   Session: {session_id[:8]}...")
             print(f"   Cascade: {cascade_id[:8]}...")
             print(f"   Actions: {len(actions) if isinstance(actions, list) else 1}")
